@@ -43,7 +43,7 @@ async def main():
                                 if len(override) == 3:
                                     order.fromTerrID = territories[override[2]]
                         orders.append(order)
-                await api.act(slot, context, Action(turn=context.game.turn, phase=phase, orders=orders))
+                assert (await api.act(slot, context, Action(turn=context.game.turn, phase=phase, orders=orders))).kind == 'accepted'
             result = subprocess.run(['php', '/adapter/engine.php', 'advance', str(api.game_id)], capture_output=True, text=True, check=True)
             state = json.loads(result.stdout)
             assert (state['phase'], int(state['turn'])) != (phase, contexts[0].game.turn), result.stdout

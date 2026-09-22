@@ -24,7 +24,7 @@ async def main():
             for slot, context in enumerate(contexts):
                 action = Action(turn=context.game.turn, phase=context.game.phase, draw=step == 3,
                     orders=[Order(type='Hold', terrID=int(order['terrID'])) for order in context.orders.orders])
-                await api.act(slot, context, action)
+                assert (await api.act(slot, context, action)).kind == 'accepted'
             completed = subprocess.run(['php', '/adapter/engine.php', 'advance', str(api.game_id)], capture_output=True, text=True, check=True)
             print('Adjudicated', completed.stdout, flush=True)
         final = await api.context(0)

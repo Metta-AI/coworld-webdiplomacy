@@ -8,7 +8,8 @@ from urllib.request import url2pathname
 
 from aiohttp import ClientSession, web
 from api import WebDiplomacy
-from protocol import Action, Config
+from pydantic import ValidationError
+from protocol import Action, Config, PlayerFault
 
 
 def local_path(uri):
@@ -20,26 +21,126 @@ def local_path(uri):
 class Server:
     def __init__(self):
         self.players = {}
-        self.inboxes = [asyncio.Queue() for _ in range(7)]
+        self.claimed_slots = set()
+        self.required_slots = set(range(7))
+        self.failure = asyncio.get_running_loop().create_future()
+        self.expected = {}
+        self.actions = {}
+        self.actions_ready = asyncio.Event()
         self.connected = asyncio.Event()
         self.frames = []
         self.initial_public = {}
         self.finished = False
 
+    def fail(self, fault):
+        if not self.finished and not self.failure.done():
+            self.failure.set_result(fault)
+
+    async def receive_action(self, slot, raw):
+        # Validation is isolated at the untrusted-message task boundary. Unexpected
+        # programming failures still propagate; only schema errors blame the player.
+        async def validate():
+            return Action.model_validate_json(raw)
+
+        task = asyncio.create_task(validate())
+        await asyncio.wait([task])
+        error = task.exception()
+        if isinstance(error, ValidationError):
+            self.fail(PlayerFault(kind='invalid_action', slot=slot))
+            return
+        if error is not None:
+            raise error
+        action = task.result()
+        if slot not in self.expected:
+            self.fail(PlayerFault(kind='invalid_action', slot=slot))
+        elif slot in self.actions:
+            self.fail(PlayerFault(kind='duplicate_action', slot=slot))
+        elif (action.turn, action.phase) != self.expected[slot]:
+            self.fail(PlayerFault(kind='stale_action', slot=slot))
+        else:
+            self.actions[slot] = action
+            if len(self.actions) == len(self.expected):
+                self.actions_ready.set()
+
+    async def send_player(self, slot, payload, timeout):
+        task = asyncio.create_task(self.players[slot].send_json(payload))
+        try:
+            done, _ = await asyncio.wait([task, self.failure], timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
+            if self.failure in done:
+                return
+            if task not in done:
+                self.fail(PlayerFault(kind='send_timeout', slot=slot))
+                return
+            error = task.exception()
+            if isinstance(error, ConnectionError):
+                self.fail(PlayerFault(kind='disconnected', slot=slot))
+            elif error is not None:
+                raise error
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    async def wait_for(self, event, timeout):
+        task = asyncio.create_task(event.wait())
+        try:
+            done, _ = await asyncio.wait([task, self.failure], timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
+            return task in done and not self.failure.done()
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    def publish_failure(self):
+        fault = self.failure.result()
+        target = local_path(os.environ['COGAME_PLAYER_FAILURE_URI'])
+        temporary = target.with_name(target.name + '.tmp')
+        temporary.write_text(json.dumps({'failed_policy_index': fault.slot, 'message': f'Player failure: {fault.kind}'}))
+        temporary.replace(target)
+        self.finished = True
+
     async def player(self, request):
-        slot = int(request.query['slot'])
-        if not 0 <= slot < 7 or not hmac.compare_digest(request.query['token'], request.app['config'].tokens[slot]):
+        slot_text = request.query.get('slot', '')
+        if slot_text not in {str(i) for i in range(7)}:
             raise web.HTTPUnauthorized()
-        if slot in self.players:
+        slot = int(slot_text)
+        if not hmac.compare_digest(request.query.get('token', ''), request.app['config'].tokens[slot]):
+            raise web.HTTPUnauthorized()
+        if slot in self.claimed_slots:
             raise web.HTTPConflict(text='Seat already connected')
-        ws = web.WebSocketResponse(autoping=True)
-        await ws.prepare(request)
-        self.players[slot] = ws
-        if len(self.players) == 7:
-            self.connected.set()
-        async for message in ws:
-            if message.type == web.WSMsgType.TEXT:
-                await self.inboxes[slot].put(Action.model_validate_json(message.data))
+        ws = web.WebSocketResponse(autoping=True, max_msg_size=64 * 1024)
+        if not ws.can_prepare(request).ok:
+            raise web.HTTPBadRequest(text='WebSocket connection required')
+        self.claimed_slots.add(slot)
+        preparation = asyncio.create_task(ws.prepare(request))
+        try:
+            done, _ = await asyncio.wait([preparation, self.failure], timeout=request.app['config'].player_connect_timeout_seconds, return_when=asyncio.FIRST_COMPLETED)
+            if self.failure in done:
+                return ws
+            if preparation not in done:
+                self.fail(PlayerFault(kind='connect_timeout', slot=slot))
+                return ws
+            error = preparation.exception()
+            if isinstance(error, ConnectionError):
+                self.fail(PlayerFault(kind='disconnected', slot=slot))
+                return ws
+            if error is not None:
+                raise error
+            self.players[slot] = ws
+            if len(self.players) == 7:
+                self.connected.set()
+            async for message in ws:
+                if slot not in self.required_slots:
+                    break
+                if message.type == web.WSMsgType.TEXT:
+                    await self.receive_action(slot, message.data)
+                else:
+                    self.fail(PlayerFault(kind='invalid_action', slot=slot))
+                if self.failure.done():
+                    break
+        finally:
+            preparation.cancel()
+            await asyncio.gather(preparation, return_exceptions=True)
+            if slot in self.required_slots:
+                self.fail(PlayerFault(kind='disconnected', slot=slot))
         return ws
 
     async def global_view(self, request):
@@ -63,7 +164,12 @@ class Server:
         return ws
 
     async def episode(self, config):
-        await asyncio.wait_for(self.connected.wait(), timeout=config.player_connect_timeout_seconds)
+        if not await self.wait_for(self.connected, config.player_connect_timeout_seconds):
+            if not self.failure.done():
+                missing = next(slot for slot in range(7) if slot not in self.players)
+                self.fail(PlayerFault(kind='connect_timeout', slot=missing))
+            self.publish_failure()
+            return
         episode = json.loads(Path('/tmp/episode.json').read_text())
         async with ClientSession() as session:
             api = WebDiplomacy(session, int(episode['gameID']))
@@ -72,25 +178,41 @@ class Server:
                 public = await api.public(contexts[0])
                 self.frames.append(public)
                 active_slots = [slot for slot, context in enumerate(contexts) if context.member.status == 'Playing']
+                self.required_slots = set(active_slots)
+                self.expected = {slot: (contexts[slot].game.turn, contexts[slot].game.phase) for slot in active_slots}
+                self.actions = {}
+                self.actions_ready.clear()
+                if self.failure.done():
+                    self.publish_failure()
+                    return
+                deadline = asyncio.get_running_loop().time() + config.action_timeout_seconds
                 for slot in active_slots:
                     context = contexts[slot]
-                    await self.players[slot].send_json({'type': 'observation', 'context': context.model_dump(), 'public': public})
-                pending = {slot: asyncio.create_task(self.inboxes[slot].get()) for slot in active_slots}
-                done, remaining = await asyncio.wait(pending.values(), timeout=config.action_timeout_seconds)
-                if remaining:
-                    slot = next(slot for slot, task in pending.items() if task in remaining)
-                    for task in remaining:
-                        task.cancel()
-                    await asyncio.gather(*remaining, return_exceptions=True)
-                    local_path(os.environ['COGAME_PLAYER_FAILURE_URI']).write_text(json.dumps({'failed_policy_index': slot, 'message': 'Player missed the order deadline'}))
+                    await self.send_player(slot, {'type': 'observation', 'context': context.model_dump(), 'public': public}, max(0, deadline - asyncio.get_running_loop().time()))
+                    if self.failure.done():
+                        self.publish_failure()
+                        return
+                if not await self.wait_for(self.actions_ready, max(0, deadline - asyncio.get_running_loop().time())):
+                    if not self.failure.done():
+                        missing = next(slot for slot in active_slots if slot not in self.actions)
+                        self.fail(PlayerFault(kind='action_timeout', slot=missing))
+                    self.publish_failure()
                     return
-                for slot, task in pending.items():
-                    await api.act(slot, contexts[slot], task.result())
+                for slot in active_slots:
+                    result = await api.act(slot, contexts[slot], self.actions[slot])
+                    if isinstance(result, PlayerFault):
+                        self.fail(result)
+                    if self.failure.done():
+                        self.publish_failure()
+                        return
                 process = await asyncio.create_subprocess_exec('php', '/adapter/engine.php', 'advance', str(api.game_id), stdout=asyncio.subprocess.PIPE)
                 stdout, _ = await process.communicate()
                 assert process.returncode == 0
                 state = json.loads(stdout)
                 print(json.dumps({'event': 'adjudicated', 'phase_index': phase, **state}), flush=True)
+                if self.failure.done():
+                    self.publish_failure()
+                    return
                 if state['phase'] == 'Finished':
                     break
             else:
@@ -102,11 +224,14 @@ class Server:
             winners = [c.member.status == 'Won' for c in contexts]
             drawn = [c.member.status == 'Drawn' for c in contexts]
             scores = [float(won) if any(winners) else float(draw) / sum(drawn) for won, draw in zip(winners, drawn)]
+            if self.failure.done():
+                self.publish_failure()
+                return
             local_path(os.environ['COGAME_SAVE_REPLAY_URI']).write_text(json.dumps(self.frames))
             local_path(os.environ['COGAME_RESULTS_URI']).write_text(json.dumps({'scores': scores, 'phases': len(self.frames) - 1}))
             self.finished = True
-            for ws in self.players.values():
-                await ws.send_json({'type': 'finished', 'scores': scores})
+            for slot, ws in self.players.items():
+                await self.send_player(slot, {'type': 'finished', 'scores': scores}, 1)
                 await ws.close()
 
 
@@ -143,8 +268,12 @@ async def main():
     await runner.setup()
     await web.TCPSite(runner, os.environ.get('COGAME_HOST', '0.0.0.0'), int(os.environ.get('COGAME_PORT', '8080'))).start()
     if 'COGAME_LOAD_REPLAY_URI' not in os.environ:
-        await server.episode(config)
-        await runner.cleanup()
+        try:
+            await server.episode(config)
+        finally:
+            server.finished = True
+            await asyncio.gather(*(ws.close() for ws in server.players.values()))
+            await runner.cleanup()
     else:
         await asyncio.Event().wait()
 
