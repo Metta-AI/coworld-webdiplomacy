@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>webDiplomacy local player</title>
+<h1>webDiplomacy local player</h1>
+<p>Engineering client. Edit orders using the protocol in README.md, then submit once per phase.</p>
+<p id="status">Connecting…</p>
+<label>Orders and messages <textarea id="action" rows="20" cols="85" disabled></textarea></label>
+<p><button id="submit" disabled>Submit orders</button></p>
+<details><summary>Your observation</summary><pre id="observation"></pre></details>
+<script>
+const status = document.getElementById('status');
+const action = document.getElementById('action');
+const submit = document.getElementById('submit');
+const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/player${location.search}`);
+ws.onmessage = event => {
+  const message = JSON.parse(event.data);
+  if (message.type === 'finished') {
+    status.textContent = `Finished. Scores: ${message.scores.join(', ')}`;
+    submit.disabled = true;
+    return;
+  }
+  const context = message.context;
+  status.textContent = `Country ${context.member.countryID}: turn ${context.game.turn}, ${context.game.phase}`;
+  const type = {Diplomacy: 'Hold', Retreats: 'Disband', Builds: 'Wait'}[context.game.phase];
+  action.value = JSON.stringify({turn: context.game.turn, phase: context.game.phase, orders: context.orders.orders.map(order => ({type, terrID: context.game.phase === 'Builds' ? 0 : order.terrID})), messages: [], draw: context.member.votes.includes('Draw')}, null, 2);
+  document.getElementById('observation').textContent = JSON.stringify(message, null, 2);
+  action.disabled = submit.disabled = false;
+};
+submit.onclick = () => {
+  ws.send(JSON.stringify(JSON.parse(action.value)));
+  action.disabled = submit.disabled = true;
+  status.textContent = 'Orders submitted. Waiting for other players.';
+};
+ws.onclose = () => { submit.disabled = true; };
+</script>

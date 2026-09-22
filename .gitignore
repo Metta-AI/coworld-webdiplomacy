@@ -1,0 +1,12 @@
+upstream/
+runs/
+artifacts/
+*.log
+context-example.json
+WORKSTREAM.md
+__pycache__/
+
+evidence/
+*.patch
+tactical-history.json
+.bazelrc.local
