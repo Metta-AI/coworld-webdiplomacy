@@ -1,0 +1,143 @@
+{
+  "tags": [
+    "strategy",
+    "diplomacy",
+    "turn-based"
+  ],
+  "game": {
+    "name": "webdiplomacy-local-prototype",
+    "version": "0.1.0",
+    "description": "Local adapter to the upstream webDiplomacy adjudicator.",
+    "owner": "Richard Higgins",
+    "player_runtime": "platform-hosted",
+    "runnable": {
+      "type": "game",
+      "image": "coworld-webdiplomacy-local:latest"
+    },
+    "config_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "tokens": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 7,
+          "minItems": 7,
+          "title": "Tokens",
+          "type": "array"
+        },
+        "max_phases": {
+          "default": 20,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Max Phases",
+          "type": "integer"
+        },
+        "action_timeout_seconds": {
+          "default": 30,
+          "exclusiveMinimum": 0,
+          "title": "Action Timeout Seconds",
+          "type": "number"
+        },
+        "player_connect_timeout_seconds": {
+          "default": 180,
+          "exclusiveMinimum": 0,
+          "title": "Player Connect Timeout Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "tokens"
+      ],
+      "title": "Config",
+      "type": "object"
+    },
+    "results_schema": {
+      "type": "object",
+      "required": [
+        "scores",
+        "phases"
+      ],
+      "properties": {
+        "scores": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "items": {
+            "type": "number"
+          }
+        },
+        "phases": {
+          "type": "integer"
+        }
+      }
+    },
+    "protocols": {
+      "player": {
+        "type": "text",
+        "value": "# webDiplomacy Coworld local prototype\n\nThis adapter runs the actual webDiplomacy PHP adjudicator with a private MariaDB database and Redis inside one game container. Seven container players connect by WebSocket. The upstream source remains unmodified.\n\n## Run the engineering milestone\n\nFetch the pinned upstream checkout before building:\n\n```sh\ngit clone https://github.com/kestasjk/webDiplomacy.git upstream\ngit -C upstream checkout \"$(cat UPSTREAM_COMMIT)\"\ndocker build -f adapter/Dockerfile -t coworld-webdiplomacy-local .\ndocker build -f adapter/Dockerfile.player -t coworld-webdiplomacy-player-local .\n./adapter/local_episode.sh\n```\n\nThe script prints the local replay viewer URL, artifacts directory and replay container name. The game exits after writing artifacts; standalone replay remains available. Containers and their dedicated network remain available for inspection. Stop only the resources named for that run when finished.\n\nThe starter holds units, disbands retreats and waives builds. It votes for a draw after three turns. It is a readable protocol example, not a competitive policy. A configured phase cap draws remaining players using the upstream draw adjudication; scores split one point among surviving drawn members. A solo winner receives one point. Defeated members receive zero.\n\nEach game owns an empty database. Its PHP API and database listen only on loopback; player containers use a separate network namespace. Accounts are ordinary game members so upstream draw voting includes them. Upstream `Bot` accounts cannot vote and mixed games automatically end when only bots remain.\n\n## Protocol\n\n`/player?slot=N&token=TOKEN` authenticates one of seven seats. Seat 0 is country 1, through seat 6/country 7. Duplicate connections are rejected.\n\nThe server sends `{\"type\":\"observation\",\"context\":...,\"public\":...}` once per phase. `context` contains that member's orders and private messages. `public` contains upstream versioned game, history, map, status and global-message data. It never contains private messages. API keys and upstream SSE credentials are not passed to players.\n\nReply with `turn`, `phase`, `orders`, optional `messages` and optional Boolean `draw`. Order fields match `upstream/api/README.md`. Messages use `toCountryID` (0 means public) and `message`. Stale phases fail. Upstream validates ownership and legality of orders. Draw reflects a desired vote state, not a toggle. The server sends `{\"type\":\"finished\",\"scores\":[...]}` before closing players.\n\nThe adapter uses the September 20 API: `game/playercontext`, public versioned JSON, `game/orders`, `game/sendmessage` and `game/togglevote`. Removed routes such as `game/status` are not used.\n\n`/healthz`, `/global`, `/client/global`, `/replay` and `/client/replay` expose readiness and public state. The current viewer prints structured public state, with automatic replay advancement and looping. It is an engineering viewer, not the upstream map interface. Private messages never enter public replay or game stdout.\n\n## Validation and remaining work\n\n`WEBDIP_MODE=tactics` tests movement, builds, supported attack and retreat against the real engine. `WEBDIP_MODE=smoke` runs `adapter/smoke.py` inside a fresh game image, testing seven API seats, four phase cycles, unanimous draw and private-message visibility. `adapter/local_episode.sh` exercises the game and seven separate container players and retains results, replay and all logs.\n\nLocal Coworld certification passes all 10 `coworld-executable` steps, including the seven-player episode, results, public WebSocket Ping/Pong, player-client route and replay loading. The author retains the local transcript and episode artifacts.\n\nThis remains a local engineering prototype. Remaining work:\n\n- Convoy, elimination, solo-win and malformed/missing-order fixtures. The current tactical test covers movement, two builds, supported dislodgement and a successful retreat.\n- A map-based viewer and browser verification of the raw JSON human player client.\n- Connection/invalid-action fault attribution, atomic failure publication and reconnect semantics.\n- Bounded press exchanges within a phase; this first protocol exchanges messages alongside submitted orders.\n- `linux/amd64` image build, hosted stack validation and hosted artifact URI support. Current artifact handling supports `file://` only.\n- Dependency/image pinning and startup measurements against hosted limits.\n- CICERO adaptation and negotiation compatibility.\n\nKeep the upstream AGPL license with any distribution. This private prototype requires review before any external rollout.\n"
+      },
+      "global": {
+        "type": "text",
+        "value": "# webDiplomacy Coworld local prototype\n\nThis adapter runs the actual webDiplomacy PHP adjudicator with a private MariaDB database and Redis inside one game container. Seven container players connect by WebSocket. The upstream source remains unmodified.\n\n## Run the engineering milestone\n\nFetch the pinned upstream checkout before building:\n\n```sh\ngit clone https://github.com/kestasjk/webDiplomacy.git upstream\ngit -C upstream checkout \"$(cat UPSTREAM_COMMIT)\"\ndocker build -f adapter/Dockerfile -t coworld-webdiplomacy-local .\ndocker build -f adapter/Dockerfile.player -t coworld-webdiplomacy-player-local .\n./adapter/local_episode.sh\n```\n\nThe script prints the local replay viewer URL, artifacts directory and replay container name. The game exits after writing artifacts; standalone replay remains available. Containers and their dedicated network remain available for inspection. Stop only the resources named for that run when finished.\n\nThe starter holds units, disbands retreats and waives builds. It votes for a draw after three turns. It is a readable protocol example, not a competitive policy. A configured phase cap draws remaining players using the upstream draw adjudication; scores split one point among surviving drawn members. A solo winner receives one point. Defeated members receive zero.\n\nEach game owns an empty database. Its PHP API and database listen only on loopback; player containers use a separate network namespace. Accounts are ordinary game members so upstream draw voting includes them. Upstream `Bot` accounts cannot vote and mixed games automatically end when only bots remain.\n\n## Protocol\n\n`/player?slot=N&token=TOKEN` authenticates one of seven seats. Seat 0 is country 1, through seat 6/country 7. Duplicate connections are rejected.\n\nThe server sends `{\"type\":\"observation\",\"context\":...,\"public\":...}` once per phase. `context` contains that member's orders and private messages. `public` contains upstream versioned game, history, map, status and global-message data. It never contains private messages. API keys and upstream SSE credentials are not passed to players.\n\nReply with `turn`, `phase`, `orders`, optional `messages` and optional Boolean `draw`. Order fields match `upstream/api/README.md`. Messages use `toCountryID` (0 means public) and `message`. Stale phases fail. Upstream validates ownership and legality of orders. Draw reflects a desired vote state, not a toggle. The server sends `{\"type\":\"finished\",\"scores\":[...]}` before closing players.\n\nThe adapter uses the September 20 API: `game/playercontext`, public versioned JSON, `game/orders`, `game/sendmessage` and `game/togglevote`. Removed routes such as `game/status` are not used.\n\n`/healthz`, `/global`, `/client/global`, `/replay` and `/client/replay` expose readiness and public state. The current viewer prints structured public state, with automatic replay advancement and looping. It is an engineering viewer, not the upstream map interface. Private messages never enter public replay or game stdout.\n\n## Validation and remaining work\n\n`WEBDIP_MODE=tactics` tests movement, builds, supported attack and retreat against the real engine. `WEBDIP_MODE=smoke` runs `adapter/smoke.py` inside a fresh game image, testing seven API seats, four phase cycles, unanimous draw and private-message visibility. `adapter/local_episode.sh` exercises the game and seven separate container players and retains results, replay and all logs.\n\nLocal Coworld certification passes all 10 `coworld-executable` steps, including the seven-player episode, results, public WebSocket Ping/Pong, player-client route and replay loading. The author retains the local transcript and episode artifacts.\n\nThis remains a local engineering prototype. Remaining work:\n\n- Convoy, elimination, solo-win and malformed/missing-order fixtures. The current tactical test covers movement, two builds, supported dislodgement and a successful retreat.\n- A map-based viewer and browser verification of the raw JSON human player client.\n- Connection/invalid-action fault attribution, atomic failure publication and reconnect semantics.\n- Bounded press exchanges within a phase; this first protocol exchanges messages alongside submitted orders.\n- `linux/amd64` image build, hosted stack validation and hosted artifact URI support. Current artifact handling supports `file://` only.\n- Dependency/image pinning and startup measurements against hosted limits.\n- CICERO adaptation and negotiation compatibility.\n\nKeep the upstream AGPL license with any distribution. This private prototype requires review before any external rollout.\n"
+      }
+    },
+    "docs": {
+      "readme": {
+        "type": "text",
+        "value": "# webDiplomacy Coworld local prototype\n\nThis adapter runs the actual webDiplomacy PHP adjudicator with a private MariaDB database and Redis inside one game container. Seven container players connect by WebSocket. The upstream source remains unmodified.\n\n## Run the engineering milestone\n\nFetch the pinned upstream checkout before building:\n\n```sh\ngit clone https://github.com/kestasjk/webDiplomacy.git upstream\ngit -C upstream checkout \"$(cat UPSTREAM_COMMIT)\"\ndocker build -f adapter/Dockerfile -t coworld-webdiplomacy-local .\ndocker build -f adapter/Dockerfile.player -t coworld-webdiplomacy-player-local .\n./adapter/local_episode.sh\n```\n\nThe script prints the local replay viewer URL, artifacts directory and replay container name. The game exits after writing artifacts; standalone replay remains available. Containers and their dedicated network remain available for inspection. Stop only the resources named for that run when finished.\n\nThe starter holds units, disbands retreats and waives builds. It votes for a draw after three turns. It is a readable protocol example, not a competitive policy. A configured phase cap draws remaining players using the upstream draw adjudication; scores split one point among surviving drawn members. A solo winner receives one point. Defeated members receive zero.\n\nEach game owns an empty database. Its PHP API and database listen only on loopback; player containers use a separate network namespace. Accounts are ordinary game members so upstream draw voting includes them. Upstream `Bot` accounts cannot vote and mixed games automatically end when only bots remain.\n\n## Protocol\n\n`/player?slot=N&token=TOKEN` authenticates one of seven seats. Seat 0 is country 1, through seat 6/country 7. Duplicate connections are rejected.\n\nThe server sends `{\"type\":\"observation\",\"context\":...,\"public\":...}` once per phase. `context` contains that member's orders and private messages. `public` contains upstream versioned game, history, map, status and global-message data. It never contains private messages. API keys and upstream SSE credentials are not passed to players.\n\nReply with `turn`, `phase`, `orders`, optional `messages` and optional Boolean `draw`. Order fields match `upstream/api/README.md`. Messages use `toCountryID` (0 means public) and `message`. Stale phases fail. Upstream validates ownership and legality of orders. Draw reflects a desired vote state, not a toggle. The server sends `{\"type\":\"finished\",\"scores\":[...]}` before closing players.\n\nThe adapter uses the September 20 API: `game/playercontext`, public versioned JSON, `game/orders`, `game/sendmessage` and `game/togglevote`. Removed routes such as `game/status` are not used.\n\n`/healthz`, `/global`, `/client/global`, `/replay` and `/client/replay` expose readiness and public state. The current viewer prints structured public state, with automatic replay advancement and looping. It is an engineering viewer, not the upstream map interface. Private messages never enter public replay or game stdout.\n\n## Validation and remaining work\n\n`WEBDIP_MODE=tactics` tests movement, builds, supported attack and retreat against the real engine. `WEBDIP_MODE=smoke` runs `adapter/smoke.py` inside a fresh game image, testing seven API seats, four phase cycles, unanimous draw and private-message visibility. `adapter/local_episode.sh` exercises the game and seven separate container players and retains results, replay and all logs.\n\nLocal Coworld certification passes all 10 `coworld-executable` steps, including the seven-player episode, results, public WebSocket Ping/Pong, player-client route and replay loading. The author retains the local transcript and episode artifacts.\n\nThis remains a local engineering prototype. Remaining work:\n\n- Convoy, elimination, solo-win and malformed/missing-order fixtures. The current tactical test covers movement, two builds, supported dislodgement and a successful retreat.\n- A map-based viewer and browser verification of the raw JSON human player client.\n- Connection/invalid-action fault attribution, atomic failure publication and reconnect semantics.\n- Bounded press exchanges within a phase; this first protocol exchanges messages alongside submitted orders.\n- `linux/amd64` image build, hosted stack validation and hosted artifact URI support. Current artifact handling supports `file://` only.\n- Dependency/image pinning and startup measurements against hosted limits.\n- CICERO adaptation and negotiation compatibility.\n\nKeep the upstream AGPL license with any distribution. This private prototype requires review before any external rollout.\n"
+      }
+    }
+  },
+  "player": [
+    {
+      "id": "hold",
+      "type": "player",
+      "image": "coworld-webdiplomacy-player-local:latest",
+      "name": "Hold starter",
+      "description": "Holds units and votes to draw after three turns."
+    }
+  ],
+  "variants": [
+    {
+      "id": "classic-capped",
+      "name": "Classic capped",
+      "description": "Classic map, six phase cap, draw among surviving powers at cap.",
+      "game_config": {
+        "max_phases": 6,
+        "action_timeout_seconds": 30,
+        "player_connect_timeout_seconds": 180
+      }
+    }
+  ],
+  "certification": {
+    "game_config": {
+      "max_phases": 6,
+      "action_timeout_seconds": 30,
+      "player_connect_timeout_seconds": 180
+    },
+    "players": [
+      {
+        "player_id": "hold"
+      },
+      {
+        "player_id": "hold"
+      },
+      {
+        "player_id": "hold"
+      },
+      {
+        "player_id": "hold"
+      },
+      {
+        "player_id": "hold"
+      },
+      {
+        "player_id": "hold"
+      },
+      {
+        "player_id": "hold"
+      }
+    ]
+  }
+}
