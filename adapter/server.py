@@ -182,8 +182,11 @@ class Server:
         frame = 1 % len(self.frames)
         async for message in ws:
             if message.type == web.WSMsgType.TEXT and self.frames:
-                await ws.send_json(self.frames[frame])
-                frame = (frame + 1) % len(self.frames)
+                if message.data == 'all':
+                    await ws.send_json({'frames': self.frames})
+                else:
+                    await ws.send_json(self.frames[frame])
+                    frame = (frame + 1) % len(self.frames)
         return ws
 
     async def episode(self, config):
@@ -267,9 +270,11 @@ async def health(request):
 
 
 async def viewer(request):
-    return web.Response(text='''<!doctype html><meta charset="utf-8"><title>webDiplomacy prototype replay</title>
-<h1>webDiplomacy public state</h1><p>Local engineering viewer. Refreshes once per second.</p><pre id="state"></pre>
-<script>const replay=location.pathname.endsWith('replay');const url=new URL(`../${replay?'replay':'global'}`,location.href);url.protocol=location.protocol==='https:'?'wss:':'ws:';const ws=new WebSocket(url);ws.onmessage=e=>document.getElementById('state').textContent=JSON.stringify(JSON.parse(e.data),null,2);ws.onopen=()=>setInterval(()=>ws.send('next'),1000);</script>''', content_type='text/html')
+    return web.FileResponse('/adapter/viewer.html')
+
+
+async def map_image(request):
+    return web.FileResponse('/application/variants/Classic/resources/smallmap.png')
 
 
 async def main():
@@ -283,7 +288,7 @@ async def main():
             api = WebDiplomacy(session, int(episode['gameID']))
             server.initial_public = await api.public(await api.context(0))
     app = web.Application()
-    app.add_routes([web.get('/healthz', health), web.get('/global', server.global_view), web.get('/replay', server.replay), web.get('/client/global', viewer), web.get('/client/replay', viewer)])
+    app.add_routes([web.get('/healthz', health), web.get('/global', server.global_view), web.get('/replay', server.replay), web.get('/map', map_image), web.get('/client/global', viewer), web.get('/client/replay', viewer)])
     if 'COGAME_LOAD_REPLAY_URI' not in os.environ:
         app['config'] = config
         app.add_routes([web.get('/player', server.player), web.get('/client/player', player_client)])

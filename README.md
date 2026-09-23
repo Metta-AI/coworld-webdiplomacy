@@ -10,7 +10,7 @@ Fetch the pinned upstream checkout before building:
 git clone https://github.com/kestasjk/webDiplomacy.git upstream
 git -C upstream checkout "$(cat UPSTREAM_COMMIT)"
 docker compose build
-uvx --from 'coworld[auth] @ git+https://github.com/Metta-AI/coworld.git@main' coworld build --version 0.1.1
+uvx --from 'coworld[auth] @ git+https://github.com/Metta-AI/coworld.git@main' coworld build --version 0.1.3
 uvx --from 'coworld[auth] @ git+https://github.com/Metta-AI/coworld.git@main' coworld certify dist/coworld_manifest.json --timeout-seconds 240 --no-open-report
 docker tag coworld-webdiplomacy-game:latest coworld-webdiplomacy-local:latest
 docker tag coworld-webdiplomacy-player:latest coworld-webdiplomacy-player-local:latest
@@ -33,7 +33,7 @@ Reply with `turn`, `phase`, `orders`, optional `messages` and optional Boolean `
 
 The adapter uses the September 20 API: `game/playercontext`, public versioned JSON, `game/orders`, `game/sendmessage` and `game/togglevote`. Removed routes such as `game/status` are not used.
 
-`/healthz`, `/global`, `/client/global`, `/replay` and `/client/replay` expose readiness and public state. The current viewer prints structured public state, with automatic replay advancement and looping. It is an engineering viewer, not the upstream map interface. Private messages never enter public replay or game stdout.
+`/healthz`, `/global`, `/client/global`, `/replay` and `/client/replay` expose readiness and public state. The viewer places recorded units, supply centers, and moves over the pinned upstream Classic map. It plays all recorded phases locally after one WebSocket transfer, with pause, seek, speed, and loop controls. The upstream API omits board positions after a draw, so the final phase shows the last recorded board beside the final country results. Private messages never enter public replay or game stdout.
 
 ## Validation and remaining work
 
@@ -46,7 +46,7 @@ Local Coworld certification passes all 10 `coworld-executable` steps, including 
 This remains a private prototype. Remaining work:
 
 - Convoy, elimination, solo-win and malformed/missing-order fixtures. The current tactical test covers movement, two builds, supported dislodgement and a successful retreat.
-- A map-based viewer and browser verification of the raw JSON human player client.
+- Browser verification of the raw JSON human player client.
 - Reconnect support; current active-seat disconnections are terminal player failures.
 - Bounded press exchanges within a phase; this first protocol exchanges messages alongside submitted orders.
 - Hosted stack validation. The game and player images build for `linux/amd64`; artifact inputs and outputs support `file://` and HTTP(S).
