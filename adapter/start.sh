@@ -5,8 +5,7 @@ if [ -n "${COGAME_LOAD_REPLAY_URI:-}" ]; then
     exec /opt/adapter/bin/python /adapter/server.py
 fi
 mkdir -p /run/mysqld cache
-chown mysql:mysql /run/mysqld
-mariadbd --user=mysql --bind-address=127.0.0.1 --innodb-buffer-pool-size=128M > /tmp/mariadb.log 2>&1 &
+mariadbd --user=root --bind-address=127.0.0.1 --innodb-buffer-pool-size=128M > /tmp/mariadb.log 2>&1 &
 redis-server --bind 127.0.0.1 --daemonize yes
 until mariadb-admin ping --silent; do sleep 1; done
 mariadb -e "CREATE DATABASE webdiplomacy; CREATE USER 'webdiplomacy'@'localhost' IDENTIFIED BY 'mypassword123'; GRANT ALL ON webdiplomacy.* TO 'webdiplomacy'@'localhost';"

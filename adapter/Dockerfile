@@ -6,4 +6,5 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN composer install --no-interaction --no-progress --no-dev
 COPY adapter/ /adapter/
 RUN python3 -m venv /opt/adapter && /opt/adapter/bin/pip install aiohttp==3.12.15 pydantic==2.11.9
+RUN mkdir -p /run/mysqld && chown -R root:root /var/lib/mysql /run/mysqld
 ENTRYPOINT ["/bin/sh", "/adapter/start.sh"]

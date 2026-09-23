@@ -10,7 +10,7 @@ Fetch the pinned upstream checkout before building:
 git clone https://github.com/kestasjk/webDiplomacy.git upstream
 git -C upstream checkout "$(cat UPSTREAM_COMMIT)"
 docker compose build
-uvx --from 'coworld[auth] @ git+https://github.com/Metta-AI/coworld.git@main' coworld build --version 0.1.0
+uvx --from 'coworld[auth] @ git+https://github.com/Metta-AI/coworld.git@main' coworld build --version 0.1.1
 uvx --from 'coworld[auth] @ git+https://github.com/Metta-AI/coworld.git@main' coworld certify dist/coworld_manifest.json --timeout-seconds 240 --no-open-report
 docker tag coworld-webdiplomacy-game:latest coworld-webdiplomacy-local:latest
 docker tag coworld-webdiplomacy-player:latest coworld-webdiplomacy-player-local:latest
