@@ -1,0 +1,146 @@
+{
+  "tags": [
+    "strategy",
+    "diplomacy",
+    "turn-based"
+  ],
+  "game": {
+    "name": "private-webdiplomacy-classic",
+    "description": "Private seven-player Classic Diplomacy adapter using the upstream webDiplomacy adjudicator and a capped match.",
+    "owner": "Richard Higgins",
+    "player_runtime": "platform-hosted",
+    "runnable": {
+      "type": "game",
+      "image": "{{GAME_IMAGE}}",
+      "source_url": "https://github.com/Metta-AI/coworld-webdiplomacy/tree/main"
+    },
+    "config_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "tokens": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 7,
+          "minItems": 7,
+          "title": "Tokens",
+          "type": "array"
+        },
+        "max_phases": {
+          "default": 20,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Max Phases",
+          "type": "integer"
+        },
+        "action_timeout_seconds": {
+          "default": 30,
+          "exclusiveMinimum": 0,
+          "title": "Action Timeout Seconds",
+          "type": "number"
+        },
+        "player_connect_timeout_seconds": {
+          "default": 180,
+          "exclusiveMinimum": 0,
+          "title": "Player Connect Timeout Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "tokens"
+      ],
+      "title": "Config",
+      "type": "object"
+    },
+    "results_schema": {
+      "type": "object",
+      "required": [
+        "scores",
+        "phases"
+      ],
+      "properties": {
+        "scores": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "items": {
+            "type": "number"
+          }
+        },
+        "phases": {
+          "type": "integer"
+        }
+      }
+    },
+    "protocols": {
+      "player": {
+        "type": "text",
+        "value": "A seven-seat WebSocket player receives one private context and public game state per phase. It replies with turn, phase, orders, optional messages, and optional draw vote. Private messages never enter the public replay."
+      },
+      "global": {
+        "type": "text",
+        "value": "The /global and /replay WebSockets expose public adjudicated game state and phase history. The /client/global and /client/replay routes provide a browser viewer."
+      }
+    },
+    "docs": {
+      "readme": {
+        "type": "uri",
+        "value": "https://github.com/Metta-AI/coworld-webdiplomacy/blob/main/README.md"
+      }
+    }
+  },
+  "player": [
+    {
+      "id": "hold",
+      "type": "player",
+      "image": "{{PLAYER_IMAGE}}",
+      "name": "Hold starter",
+      "description": "Holds units and votes to draw after three turns.",
+      "source_url": "https://github.com/Metta-AI/coworld-webdiplomacy/tree/main/adapter"
+    }
+  ],
+  "variants": [
+    {
+      "id": "classic-capped",
+      "name": "Classic capped",
+      "description": "Classic map, six phase cap, draw among surviving powers at cap.",
+      "game_config": {
+        "max_phases": 6,
+        "action_timeout_seconds": 30,
+        "player_connect_timeout_seconds": 180
+      }
+    }
+  ],
+  "certification": {
+    "game_config": {
+      "max_phases": 6,
+      "action_timeout_seconds": 30,
+      "player_connect_timeout_seconds": 180
+    },
+    "players": [
+      {
+        "player_id": "hold"
+      },
+      {
+        "player_id": "hold"
+      },
+      {
+        "player_id": "hold"
+      },
+      {
+        "player_id": "hold"
+      },
+      {
+        "player_id": "hold"
+      },
+      {
+        "player_id": "hold"
+      },
+      {
+        "player_id": "hold"
+      }
+    ]
+  },
+  "$schema": "https://raw.githubusercontent.com/Metta-AI/metta/main/packages/coworld/src/coworld/coworld_manifest_schema.json",
+  "episode_timeout_minutes": 15
+}

@@ -1,0 +1,13 @@
+services:
+  game:
+    image: coworld-webdiplomacy-game:latest
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: adapter/Dockerfile
+  player:
+    image: coworld-webdiplomacy-player:latest
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: adapter/Dockerfile.player
