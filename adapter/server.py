@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 from urllib.parse import urlparse
-from urllib.request import url2pathname
+from urllib.request import Request, url2pathname, urlopen
 
 from aiohttp import ClientSession, web
 from api import WebDiplomacy
@@ -14,8 +14,30 @@ from protocol import Action, Config, PlayerFault
 
 def local_path(uri):
     parsed = urlparse(uri)
-    assert parsed.scheme == 'file', 'Local prototype requires file artifact URIs'
+    if parsed.scheme != 'file':
+        raise ValueError(f'Expected a file artifact URI: {uri}')
     return Path(url2pathname(parsed.path))
+
+
+def read_artifact(uri):
+    if urlparse(uri).scheme in ('http', 'https'):
+        with urlopen(Request(uri), timeout=30) as response:
+            return response.read()
+    return local_path(uri).read_bytes()
+
+
+def write_artifact(uri, data, method_env):
+    if urlparse(uri).scheme in ('http', 'https'):
+        method = os.environ.get(method_env, 'PUT').upper()
+        if method not in ('POST', 'PUT'):
+            raise ValueError(f'{method_env} must be PUT or POST')
+        request = Request(uri, data=data, method=method, headers={'Content-Type': 'application/json'})
+        with urlopen(request, timeout=60):
+            return
+    target = local_path(uri)
+    temporary = target.with_name(target.name + '.tmp')
+    temporary.write_bytes(data)
+    temporary.replace(target)
 
 
 class Server:
@@ -91,10 +113,11 @@ class Server:
 
     def publish_failure(self):
         fault = self.failure.result()
-        target = local_path(os.environ['COGAME_PLAYER_FAILURE_URI'])
-        temporary = target.with_name(target.name + '.tmp')
-        temporary.write_text(json.dumps({'failed_policy_index': fault.slot, 'message': f'Player failure: {fault.kind}'}))
-        temporary.replace(target)
+        write_artifact(
+            os.environ['COGAME_PLAYER_FAILURE_URI'],
+            json.dumps({'failed_policy_index': fault.slot, 'message': f'Player failure: {fault.kind}'}).encode(),
+            'COGAME_PLAYER_FAILURE_METHOD',
+        )
         self.finished = True
 
     async def player(self, request):
@@ -227,8 +250,8 @@ class Server:
             if self.failure.done():
                 self.publish_failure()
                 return
-            local_path(os.environ['COGAME_SAVE_REPLAY_URI']).write_text(json.dumps(self.frames))
-            local_path(os.environ['COGAME_RESULTS_URI']).write_text(json.dumps({'scores': scores, 'phases': len(self.frames) - 1}))
+            write_artifact(os.environ['COGAME_SAVE_REPLAY_URI'], json.dumps(self.frames).encode(), 'COGAME_SAVE_REPLAY_METHOD')
+            write_artifact(os.environ['COGAME_RESULTS_URI'], json.dumps({'scores': scores, 'phases': len(self.frames) - 1}).encode(), 'COGAME_RESULTS_METHOD')
             self.finished = True
             for slot, ws in self.players.items():
                 await self.send_player(slot, {'type': 'finished', 'scores': scores}, 1)
@@ -252,9 +275,9 @@ async def viewer(request):
 async def main():
     server = Server()
     if 'COGAME_LOAD_REPLAY_URI' in os.environ:
-        server.frames = json.loads(local_path(os.environ['COGAME_LOAD_REPLAY_URI']).read_text())
+        server.frames = json.loads(read_artifact(os.environ['COGAME_LOAD_REPLAY_URI']))
     else:
-        config = Config.model_validate_json(local_path(os.environ['COGAME_CONFIG_URI']).read_text())
+        config = Config.model_validate_json(read_artifact(os.environ['COGAME_CONFIG_URI']))
         episode = json.loads(Path('/tmp/episode.json').read_text())
         async with ClientSession() as session:
             api = WebDiplomacy(session, int(episode['gameID']))
