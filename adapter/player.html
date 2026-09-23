@@ -11,7 +11,10 @@
 const status = document.getElementById('status');
 const action = document.getElementById('action');
 const submit = document.getElementById('submit');
-const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/player${location.search}`);
+const url = new URL('../player', location.href);
+url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+url.search = location.search;
+const ws = new WebSocket(url);
 ws.onmessage = event => {
   const message = JSON.parse(event.data);
   if (message.type === 'finished') {

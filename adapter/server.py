@@ -269,7 +269,7 @@ async def health(request):
 async def viewer(request):
     return web.Response(text='''<!doctype html><meta charset="utf-8"><title>webDiplomacy prototype replay</title>
 <h1>webDiplomacy public state</h1><p>Local engineering viewer. Refreshes once per second.</p><pre id="state"></pre>
-<script>const replay=location.pathname.endsWith('replay');const ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/${replay?'replay':'global'}`);ws.onmessage=e=>document.getElementById('state').textContent=JSON.stringify(JSON.parse(e.data),null,2);ws.onopen=()=>setInterval(()=>ws.send('next'),1000);</script>''', content_type='text/html')
+<script>const replay=location.pathname.endsWith('replay');const url=new URL(`../${replay?'replay':'global'}`,location.href);url.protocol=location.protocol==='https:'?'wss:':'ws:';const ws=new WebSocket(url);ws.onmessage=e=>document.getElementById('state').textContent=JSON.stringify(JSON.parse(e.data),null,2);ws.onopen=()=>setInterval(()=>ws.send('next'),1000);</script>''', content_type='text/html')
 
 
 async def main():
