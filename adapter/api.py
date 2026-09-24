@@ -1,5 +1,6 @@
 from aiohttp import ClientSession
-from protocol import Action, ActionAccepted, Context, PlayerFault
+from pydantic import TypeAdapter
+from protocol import Action, ActionAccepted, AppliedOrder, Context, PlayerFault
 
 
 class WebDiplomacy:
@@ -47,8 +48,33 @@ class WebDiplomacy:
                 return result
         result = await self.request(slot, 'game/orders', player_action=True, body={
             'gameID': self.game_id, 'countryID': country, 'turn': action.turn, 'phase': action.phase,
-            'ready': 'Yes', 'orders': [order.model_dump() for order in action.orders],
+            'ready': 'Yes', 'orders': [order.model_dump(exclude_none=True) for order in action.orders],
         })
         if isinstance(result, PlayerFault):
             return result
+        applied = TypeAdapter(list[AppliedOrder]).validate_python(result)
+        by_territory = {order.terrID: order for order in applied}
+        for order in action.orders:
+            if order.type == 'Wait':
+                if not any(item.type == 'Wait' for item in applied):
+                    return PlayerFault(kind='rejected_action', slot=slot)
+                continue
+            if order.type in ('Build Army', 'Build Fleet', 'Destroy'):
+                if not any(item.type == order.type and item.toTerrID == order.toTerrID for item in applied):
+                    return PlayerFault(kind='rejected_action', slot=slot)
+                continue
+            if order.terrID not in by_territory:
+                return PlayerFault(kind='rejected_action', slot=slot)
+            observed = by_territory[order.terrID]
+            if observed.type != order.type:
+                return PlayerFault(kind='rejected_action', slot=slot)
+            if (
+                order.type in ('Move', 'Support hold', 'Support move', 'Convoy', 'Retreat')
+                and observed.toTerrID != order.toTerrID
+            ):
+                return PlayerFault(kind='rejected_action', slot=slot)
+            if order.type in ('Support move', 'Convoy') and observed.fromTerrID != order.fromTerrID:
+                return PlayerFault(kind='rejected_action', slot=slot)
+            if order.type == 'Move' and observed.viaConvoy != order.viaConvoy:
+                return PlayerFault(kind='rejected_action', slot=slot)
         return ActionAccepted()

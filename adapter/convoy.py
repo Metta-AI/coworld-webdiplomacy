@@ -33,11 +33,15 @@ async def main():
                         order = Order(type='Move', terrID=origin, toTerrID=territories['North Sea'])
                     elif step == 1 and slot == 1:
                         if origin == territories['Brest']:
-                            order = Order(type='Move', terrID=origin, toTerrID=territories['London'], viaConvoy='Yes')
+                            order = Order(
+                                type='Move', terrID=origin, toTerrID=territories['London'],
+                                viaConvoy='Yes', convoyPath=[territories['Brest'], territories['English Channel']],
+                            )
                         elif origin == territories['English Channel']:
                             order = Order(
                                 type='Convoy', terrID=origin,
                                 fromTerrID=territories['Brest'], toTerrID=territories['London'],
+                                convoyPath=[territories['Brest'], territories['English Channel']],
                             )
                     orders.append(order)
                 action = Action(turn=context.game.turn, phase=context.game.phase, orders=orders)
