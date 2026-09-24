@@ -53,4 +53,4 @@ This remains a private prototype. Remaining work:
 - Dependency/image pinning and startup measurements against hosted limits.
 - CICERO adaptation and negotiation compatibility.
 
-Keep the upstream AGPL license with any distribution. This private prototype requires review before any external rollout.
+Keep the upstream AGPL license with any distribution. Use [SOURCE_BUNDLE.md](SOURCE_BUNDLE.md) to prepare the pinned source for internal Legal review before any external rollout.
