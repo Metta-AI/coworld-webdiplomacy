@@ -37,7 +37,7 @@ The adapter uses the September 20 API: `game/playercontext`, public versioned JS
 
 ## Validation and remaining work
 
-`WEBDIP_MODE=tactics` tests movement, builds, supported attack and retreat against the real engine. `WEBDIP_MODE=smoke` runs `adapter/smoke.py` inside a fresh game image, testing seven API seats, four phase cycles, unanimous draw and private-message visibility. `adapter/local_episode.sh` exercises the game and seven separate container players and retains results, replay and all logs.
+`WEBDIP_MODE=tactics` tests movement, builds, supported attack and retreat against the real engine. `WEBDIP_MODE=convoy` tests a French army convoy from Brest to London. `WEBDIP_MODE=smoke` runs `adapter/smoke.py` inside a fresh game image, testing seven API seats, four phase cycles, unanimous draw and private-message visibility. All three run in CI. `adapter/local_episode.sh` exercises the game and seven separate container players and retains results, replay and all logs.
 
 The unit suite covers player faults and artifact paths; GitHub Actions runs it on pushes and pull requests. Engine integration and Coworld certification are separate local checks.
 
@@ -45,7 +45,7 @@ Local Coworld certification passes all 10 `coworld-executable` steps, including 
 
 This remains a private prototype. Remaining work:
 
-- Convoy, elimination, solo-win and malformed/missing-order fixtures. The current tactical test covers movement, two builds, supported dislodgement and a successful retreat.
+- Elimination, solo-win and malformed/missing-order fixtures. The adapter now rejects orders that upstream silently replaces with holds.
 - Browser verification of the raw JSON human player client.
 - Reconnect support; current active-seat disconnections are terminal player failures.
 - Bounded press exchanges within a phase; this first protocol exchanges messages alongside submitted orders.
@@ -53,4 +53,4 @@ This remains a private prototype. Remaining work:
 - Dependency/image pinning and startup measurements against hosted limits.
 - CICERO adaptation and negotiation compatibility.
 
-Keep the upstream AGPL license with any distribution. This private prototype requires review before any external rollout.
+Keep the upstream AGPL license with any distribution. Use [SOURCE_BUNDLE.md](SOURCE_BUNDLE.md) to prepare the pinned source for internal Legal review before any external rollout.

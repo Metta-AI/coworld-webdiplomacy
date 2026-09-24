@@ -40,6 +40,15 @@ class Order(BaseModel):
     fromTerrID: int = 0
     toTerrID: int = 0
     viaConvoy: Literal['Yes', 'No'] = 'No'
+    convoyPath: list[int] | None = None
+
+
+class AppliedOrder(BaseModel):
+    type: str
+    terrID: int | None
+    fromTerrID: int | None
+    toTerrID: int | None
+    viaConvoy: str | None
 
 
 class Message(BaseModel):

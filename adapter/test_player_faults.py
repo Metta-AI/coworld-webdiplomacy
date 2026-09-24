@@ -147,6 +147,29 @@ class PlayerFaultTests(unittest.IsolatedAsyncioTestCase):
         result = await WebDiplomacy(session, 1).request(4, 'game/orders', player_action=True, body={})
         self.assertEqual(result, PlayerFault(kind='rejected_action', slot=4))
 
+    async def test_upstream_silent_hold_replacement_is_rejected(self):
+        response = SimpleNamespace(
+            status=200,
+            raise_for_status=Mock(),
+            json=AsyncMock(return_value=[{
+                'type': 'Hold', 'terrID': 46, 'fromTerrID': None,
+                'toTerrID': None, 'viaConvoy': 'No',
+            }]),
+        )
+        manager = AsyncMock()
+        manager.__aenter__.return_value = response
+        session = SimpleNamespace(request=lambda *args, **kwargs: manager)
+        context = Context.model_validate({
+            'game': {'gameID': 1, 'turn': 2, 'phase': 'Diplomacy', 'gameOver': 'No'},
+            'member': {'countryID': 2, 'status': 'Playing', 'votes': []},
+            'files': {}, 'orders': {'orders': []}, 'messages': {},
+        })
+        result = await WebDiplomacy(session, 1).act(
+            1, context,
+            Action(turn=2, phase='Diplomacy', orders=[{'type': 'Move', 'terrID': 46, 'toTerrID': 6, 'viaConvoy': 'Yes'}]),
+        )
+        self.assertEqual(result, PlayerFault(kind='rejected_action', slot=1))
+
     async def test_blocked_send_is_interrupted_by_other_seat_fault(self):
         self.server.players[0] = SimpleNamespace(send_json=lambda payload: asyncio.Event().wait(), close=AsyncMock())
         before = asyncio.all_tasks()

@@ -13,3 +13,5 @@ jobs:
       - run: git clone https://github.com/kestasjk/webDiplomacy.git upstream && git -C upstream checkout "$(cat UPSTREAM_COMMIT)"
       - run: docker build -f adapter/Dockerfile -t webdiplomacy-hosted-test .
       - run: docker run --rm --cap-drop=ALL --security-opt=no-new-privileges -e WEBDIP_MODE=smoke webdiplomacy-hosted-test
+      - run: docker run --rm --cap-drop=ALL --security-opt=no-new-privileges -e WEBDIP_MODE=tactics webdiplomacy-hosted-test
+      - run: docker run --rm --cap-drop=ALL --security-opt=no-new-privileges -e WEBDIP_MODE=convoy webdiplomacy-hosted-test
