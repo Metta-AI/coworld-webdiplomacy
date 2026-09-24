@@ -9,4 +9,4 @@ python3 adapter/build_source_bundle.py dist/webdiplomacy-coworld-source.tar.gz -
 tar -tzf dist/webdiplomacy-coworld-source.tar.gz | head
 ```
 
-The archive has `webdiplomacy-coworld/` with this repository's tracked source at `HEAD` and its pinned `upstream/` checkout. It includes both license texts, build files, configuration schema, and player examples. The script refuses dirty source checkouts or a different upstream revision. Record the archive SHA-256 and the game image digest together when preparing a release. After extracting, run `docker compose build` from `webdiplomacy-coworld/`.
+The archive has `webdiplomacy-coworld/` with this repository's tracked source at `HEAD` and its pinned `upstream/` checkout. It includes both license texts, build files, configuration schema, and player examples. The script refuses dirty source checkouts or a different upstream revision. The gzip header has a fixed timestamp, so repeated builds from the same commits have the same SHA-256. Record that SHA-256 and the game image digest together when preparing a release. After extracting, run `docker compose build` from `webdiplomacy-coworld/`.

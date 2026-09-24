@@ -1,6 +1,7 @@
 """Bundle the exact adapter revision and pinned upstream source for internal review."""
 
 import argparse
+import gzip
 import io
 import subprocess
 import tarfile
@@ -20,7 +21,9 @@ assert not subprocess.check_output(["git", "-C", str(args.upstream), "status", "
 assert not subprocess.check_output(["git", "-C", str(root), "status", "--porcelain"])
 
 args.output.parent.mkdir(parents=True, exist_ok=True)
-with tarfile.open(args.output, "w:gz") as bundle:
+with args.output.open("wb") as output, gzip.GzipFile(filename="", mode="wb", fileobj=output, mtime=0) as compressed, tarfile.open(
+    fileobj=compressed, mode="w"
+) as bundle:
     for label, repository, revision in (
         ("webdiplomacy-coworld", root, "HEAD"),
         ("webdiplomacy-coworld/upstream", args.upstream, pin),
