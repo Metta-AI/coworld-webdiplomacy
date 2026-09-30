@@ -68,6 +68,7 @@ class PlayerTests(unittest.TestCase):
                 type="hello",
                 protocol="webdip-coworld/1",
                 rules={"seed": 42},
+                slot=3,
                 webdip=dict(base_url=base, api_key="fixture-key", game_id=1, country_id=2),
             )
 
@@ -94,6 +95,7 @@ class PlayerTests(unittest.TestCase):
                 serving.start()
                 address = f"ws://127.0.0.1:{server.socket.getsockname()[1]}/player?slot=0&token=test"
                 command = "import time; time.sleep(120)" if child_code is None else f"raise SystemExit({child_code})"
+                command = "import os; assert os.environ['WEBDIP_SEED'] == '297'; " + command
                 env = {
                     **os.environ,
                     "COWORLD_PLAYER_WS_URL": address,

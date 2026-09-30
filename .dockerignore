@@ -12,3 +12,4 @@ artifacts
 *.log
 context-example.json
 WORKSTREAM.md
+build/

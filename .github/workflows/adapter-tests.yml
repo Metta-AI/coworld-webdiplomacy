@@ -13,12 +13,13 @@ jobs:
           python-version: '3.12'
       - run: uv sync --locked --group dev
       - run: uv run python -m unittest discover -s adapter -p 'test_*.py' -v
-      - run: uv run ruff check adapter/boot.py adapter/supervisor.py adapter/config.py adapter/episode.py adapter/routes.py adapter/artifacts.py adapter/server.py adapter/test_episode.py players tools/check_boot.py tools/check_episode.py adapter/tunnel.py adapter/test_tunnel.py tools/check_browser.py tools/check_browser_boundaries.py tools/play_proxy.py
+      - run: uv run ruff check adapter/boot.py adapter/supervisor.py adapter/config.py adapter/episode.py adapter/routes.py adapter/artifacts.py adapter/maps.py adapter/test_episode.py players tools/check_boot.py tools/check_episode.py adapter/tunnel.py adapter/test_tunnel.py tools/check_browser.py tools/check_browser_boundaries.py tools/play_proxy.py
       - run: uv run python -m unittest players.test_players -v
       - run: uv run ruff check players tools
-      - run: uv run coworld build --version 0.4.0
+      - run: uv run coworld build --version 0.5.0
       - run: uv run playwright install --with-deps chromium --only-shell
       - run: uv run python -m tools.check_browser coworld-webdiplomacy-game:latest
+      - run: uv run python -m tools.check_browser_scenarios coworld-webdiplomacy-game:latest
       - run: uv run python tools/check_boot.py coworld-webdiplomacy-game:latest
       - run: uv run python tools/check_boot.py coworld-webdiplomacy-game:latest --crash-service
       - run: uv run python -m tools.check_episode coworld-webdiplomacy-game:latest
@@ -29,4 +30,5 @@ jobs:
       - run: uv run python -m tools.check_legal_corners coworld-webdiplomacy-game:latest
       - run: uv run python -m tools.check_press coworld-webdiplomacy-game:latest
       - run: uv run python -m tools.check_compatibility coworld-webdiplomacy-game:latest
-      - run: uv run coworld run-episode dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60 --verify-replay
+      - run: uv run coworld run-episode dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
+      - run: uv run python -m tools.check_replay tmp/episode/replay tmp/p5-*/replay.json tmp/p4-press-*/replay.json

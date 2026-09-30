@@ -8,9 +8,9 @@ The current implementation runs complete seven-seat episodes with API bots,
 supervises the upstream services, records public replay snapshots and results,
 and shuts down cleanly. Humans can use the upstream React board through a
 seat-authenticated WebSocket tunnel. The bundled default bot selects random legal orders, and launchers save private press
-to player logs and optional ZIP artifacts. Spectator browser and complete replay
-presentation are under development. This revision
-has not been certified or uploaded.
+to player logs and optional ZIP artifacts. A read-only live viewer and a standalone
+static replay viewer show public positions, adjudicated orders, season maps and
+public press. This revision has not been certified or uploaded.
 
 ## Build and check
 
@@ -79,7 +79,7 @@ exit status. Allow 45 seconds for a worst-case shutdown.
 ## Run an episode
 
 ```sh
-uv run coworld build --version 0.4.0
+uv run coworld build --version 0.5.0
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```
@@ -93,7 +93,9 @@ the certification roster explicitly selects the hold bot.
 The [player protocol](docs/protocol.md) explains hello, upstream HTTP play,
 reconnection, deadlines, scoring and output. The launcher can run another bot:
 `python -m players.launcher python -m your_bot`. It passes the upstream URL,
-key, game ID, country ID and episode seed through environment variables.
+key, game ID, country ID and a distinct seed derived from episode seed and slot
+through environment variables. Omitted episode seeds are randomly chosen and
+recorded in results and replay; explicit seeds remain reproducible.
 The random player checks saved orders against its requests and fails visibly on
 a current-phase rejection. Legal orders may still bounce or lose support.
 See [player validation](docs/players.md) for the generator, private archives and
@@ -116,20 +118,25 @@ send. Chat requires a press-enabled episode.
 
 Sandbox/practice games, legacy-board links, site navigation, advertisements and
 telemetry are unavailable. Unsupported navigation and sandbox controls show a
-notice. Disconnects show a reconnect instruction; reloading the same seat link
-reconnects without resetting the game. Browser spectating is still pending.
+notice. A dismissible help panel explains Ready, phase navigation, press and
+Support hold. Disconnects show a notice and retry automatically up to eight times,
+with delays from 0.5 to 5 seconds. Reconnection refreshes state and subscriptions;
+interrupted commands are not replayed. After exhausted retries, reload the seat link.
 
 Run the real-browser checks with [Playwright](https://playwright.dev/python/docs/library):
 
 ```sh
 uv run playwright install chromium --only-shell
 uv run python -m tools.check_browser coworld-webdiplomacy-game:latest
+uv run python -m tools.check_browser_scenarios coworld-webdiplomacy-game:latest
 ```
 
 On Linux, install browser system dependencies with Playwright's documented
 `install --with-deps` option if needed. The checks create fresh restricted
 containers, use mouse/keyboard actions for the human seat, verify saved orders
-and press privacy, and save screenshots under `tmp/p3-shots/`. They test direct
+and press privacy, and save screenshots under `tmp/p3-shots/` and `tmp/p5-*`.
+The scenario checks cover army builds, retreats, convoy orders, Draw votes and
+public spectating. They test direct
 access and a GET-only buffered proxy with separate viewer/runtime tokens, a
 non-root prefix, and a cross-origin sandboxed iframe. Evidence JSON and local
 credentials live in ignored `tmp/p3-*` directories; do not publish those folders.
@@ -152,11 +159,28 @@ API players and lets the upstream loop adjudicate; it never calls `process()` or
 applies votes itself. Scenario diagnostics remain in the container's private
 `/run/webdip/logs/scenario.log`; omit `--rm` when investigating a failure.
 
-The old native observation/action protocol and direct engine-advance helper have
-been removed. Replay-only startup with `COGAME_LOAD_REPLAY_URI` retains the
-prototype viewer and bypasses database services. Browser checks currently cover
-movement orders and press; retreat/build/convoy UI flows and full replay
-presentation have not yet been validated.
+## Spectate and replay
+
+Open `/client/global` on a running episode for a read-only public view. The page
+supports the proxy's `address` parameter. No seat token is needed by the game;
+the platform may enforce its own spectator access policy.
+
+`coworld build` generates a self-contained bundle under `build/static-replay-viewer`.
+The static viewer opens `index.html#replay=<encoded URL>` (legacy `?replay=` also
+works), without a game container. Both views use the same renderer. Replay controls
+provide autoplay, pause, phase selection, speed and optional looping. Public history
+includes completed orders; a separate expandable PNG shows the upstream season
+adjudication. Current positions and season adjudications are labeled separately.
+
+```sh
+tools/build_replay_viewer.sh "$PWD/build/static-replay-viewer"
+uv run python -m tools.check_replay tmp/episode/replay
+```
+
+The hook recreates the bundle directory and includes all assets locally. The browser
+check serves only static files, checks compressed and uncompressed replay data,
+readiness, playback and visible errors. See [replay format and limitations](docs/replay.md).
+The legacy game-container replay server has been removed.
 
 Use project-local tools: `uv run coworld` (0.1.55) and `uv run softmax` (0.26.38).
 

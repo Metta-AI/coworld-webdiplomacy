@@ -27,7 +27,6 @@
           "type": "array"
         },
         "seed": {
-          "default": 0,
           "title": "Seed",
           "type": "integer"
         },
@@ -98,7 +97,7 @@
           "type": "number"
         },
         "render_maps": {
-          "default": false,
+          "default": true,
           "title": "Render Maps",
           "type": "boolean"
         }
@@ -143,14 +142,18 @@
       },
       "global": {
         "type": "text",
-        "value": "The /global and /replay WebSockets expose public adjudicated game state and phase history. The /client/global and /client/replay routes provide a browser viewer."
+        "value": "The read-only /global WebSocket exposes public game state, adjudicated history, public press and maps. /client/global provides the live viewer; a self-contained static bundle opens public replay artifacts."
       }
     },
     "docs": {
       "readme": {
         "type": "text",
-        "value": "Development build: API bots and episode lifecycle. Browser play and complete replay presentation are under development."
+        "value": "Development build with native API bots, browser play, read-only spectating and a standalone public replay viewer. Not yet certified or uploaded."
       }
+    },
+    "replay_viewer": {
+      "bundle": "build/static-replay-viewer",
+      "replay_compression": "gzip"
     }
   },
   "player": [
@@ -194,7 +197,8 @@
       "end_year": 1901,
       "player_connect_timeout_seconds": 20,
       "episode_budget_seconds": 45,
-      "render_maps": false
+      "render_maps": false,
+      "seed": 0
     },
     "players": [
       {

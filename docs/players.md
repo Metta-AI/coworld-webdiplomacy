@@ -26,7 +26,9 @@ owned empty home-center builds, removals, and skipped builds. Untouched neutral
 provinces may be absent from the public territory-status list. They are empty,
 unowned and have no standoff; missing entries do not forbid retreats.
 
-Selection is deterministic for the episode seed, country, turn and phase.
+The launcher derives each seat seed as `episode_seed * 7 + slot`. Selection is
+deterministic for that seat seed, country, turn and phase. Omitted episode seeds
+are newly randomized; replay and results preserve the chosen value.
 Independent random orders are not coordinated strategy: a legal convoy or support
 can fail because another unit chose a different order. This player does not
 adjudicate, choose tactical winners, or guarantee survival.

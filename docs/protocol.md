@@ -83,11 +83,14 @@ private press, tokens, and pending secret orders are never recorded. Public file
 are checked against their committed version identifiers before recording.
 The final replay snapshot carries an `ending` outcome and reason. On cancellation,
 that snapshot retains the last observed board; it does not invent an erased final
-state. Cancelled results have no final game state. Full replay presentation is still
-under development.
+state. Cancelled results have no final game state. Each snapshot records
+`episode.seed` and, by default, a public `map` containing the upstream adjudication
+turn and an embedded PNG. See [replay](replay.md) for the static viewer contract.
 
 `/global` immediately sends the latest public snapshot, then updates it as it
-changes. `/client/global` is a placeholder until browser spectating is implemented.
+changes. Input on this socket only requests a public refresh; no action or seat
+context is accepted. `/client/global` renders these snapshots read-only, using the
+same renderer as the static replay viewer.
 
 ## Browser transport
 
@@ -125,7 +128,11 @@ so an expected CSP refusal appears in the browser console. The shim disables
 sendBeacon, and the server refuses client telemetry routes because those payloads
 can include credential-bearing page URLs. No ads or analytics HTML is included.
 The shim implements the network interfaces used by this pinned board; it is not
-a general-purpose browser networking polyfill.
+a general-purpose browser networking polyfill. On disconnect it rejects pending
+requests (without retrying writes), then retries the WebSocket up to eight times
+with 0.5–5 second backoff. A successful hello resubscribes and asks the native
+board to refetch missed state. Ten seconds of stable connection resets the retry
+count. Exhaustion leaves a visible reload instruction.
 
 Local validation: `tools/check_browser.py` drives Chromium, while
 `tools/play_proxy.py` simulates a GET-only, five-second buffered play proxy with
@@ -143,7 +150,11 @@ until Finished, year cap 1910, connection timeout 180 seconds, episode budget
 5910 seconds, completion timeout 20 seconds. Phase lengths are limited to 1–59
 minutes so upstream treats the game as live and does not auto-start a full lobby.
 The 5910-second maximum reserves 90 seconds below the 100-minute episode ceiling.
-`render_maps` is reserved for the replay phase and currently has no effect.
+`seed` defaults to a newly chosen 53-bit random integer per episode; explicit
+integers are preserved. Results and replay record the chosen seed. Launchers set
+`WEBDIP_SEED` to `episode_seed * 7 + slot`, distinct for all seven seats.
+`render_maps` defaults to true and captures public PNGs through unmodified
+`map.php`. False omits PNGs; the public position map still renders.
 
 ## Private player artifacts
 

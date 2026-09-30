@@ -15,3 +15,5 @@ evidence/
 *.patch
 tactical-history.json
 .bazelrc.local
+
+build/

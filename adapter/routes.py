@@ -20,7 +20,7 @@ def install_routes(app, episode):
 
     @app.get("/client/global")
     def spectator_client():
-        return HTMLResponse("<!doctype html><p>Spectator browser is under development.</p>")
+        return HTMLResponse((Path(__file__).parent / "viewer.html").read_text())
 
     @app.websocket("/global")
     async def global_view(websocket: WebSocket):

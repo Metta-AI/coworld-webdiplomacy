@@ -113,14 +113,16 @@ def bake(supervisor, settings):
         raise RuntimeError("database bake validation failed")
     if sql("SELECT countryCount FROM webdiplomacy.wD_VariantInfo WHERE variantID=1") != "7":
         raise RuntimeError("Classic metadata missing")
+    sample = subprocess.run(["php", "/opt/php/wdc_map.php"], capture_output=True, check=True)
+    if not sample.stdout.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise RuntimeError("Classic sample map generation failed")
+    Path("/opt/adapter/client/smallmap.png").write_bytes(sample.stdout)
     print(json.dumps(result), flush=True)
     # The image contains no usable application password; each boot rotates it.
     sql("ALTER USER 'webdiplomacy'@'127.0.0.1' IDENTIFIED BY '' ACCOUNT LOCK;")
 
 
 def main():
-    if os.environ.get("COGAME_LOAD_REPLAY_URI"):
-        os.execv(sys.executable, [sys.executable, "/opt/adapter/server.py"])
     supervisor = Supervisor()
     for number in (signal.SIGTERM, signal.SIGINT):
         signal.signal(number, lambda *_: supervisor.stopping.set())

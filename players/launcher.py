@@ -83,7 +83,7 @@ def main():
                             "WEBDIP_API_KEY": webdip["api_key"],
                             "WEBDIP_GAME_ID": str(webdip["game_id"]),
                             "WEBDIP_COUNTRY_ID": str(webdip["country_id"]),
-                            "WEBDIP_SEED": str(hello.get("rules", {}).get("seed", 0)),
+                            "WEBDIP_SEED": str(hello["rules"]["seed"] * 7 + hello["slot"]),
                         }
                         command = sys.argv[1:] or [sys.executable, "-m", "players.random_bot"]
                         child = subprocess.Popen(command, env=env, start_new_session=True)

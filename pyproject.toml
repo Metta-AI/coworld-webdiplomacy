@@ -8,7 +8,7 @@ dependencies = [
     "pydantic>=2.11,<3",
     "uvicorn>=0.34,<1",
     "websockets>=15,<18",
-    # Replay server and browser SSE transport.
+    # Browser SSE transport.
     "aiohttp>=3.13.5,<4",
 ]
 

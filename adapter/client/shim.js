@@ -13,7 +13,10 @@
       ? "wss:"
       : "ws:";
   address.searchParams.set("mode", "browser");
-  const socket = new WebSocket(address);
+  let socket;
+  let attempts = 0;
+  let stableTimer;
+  const maxAttempts = 8;
   const pending = new Map();
   const sources = new Map();
   let counter = 0;
@@ -35,7 +38,7 @@
   function request(method, url, body) {
     return new Promise((resolve, reject) => {
       if (socket.readyState !== WebSocket.OPEN) {
-        reject(new Error("Disconnected; reload to reconnect"));
+        reject(new Error("Disconnected; reconnecting"));
         return;
       }
       const path = pathFor(url);
@@ -130,10 +133,13 @@
       super();
       this.id = ++counter;
       this.readyState = 0;
+      this.path = pathFor(url);
       sources.set(this.id, this);
-      socket.send(
-        JSON.stringify({ type: "subscribe", id: this.id, path: pathFor(url) })
-      );
+      this.subscribe();
+    }
+    subscribe() {
+      if (socket.readyState === WebSocket.OPEN)
+        socket.send(JSON.stringify({ type: "subscribe", id: this.id, path: this.path }));
     }
     emit(name, data) {
       const event =
@@ -179,70 +185,94 @@
     },
     true
   );
-  socket.onmessage = async ({ data }) => {
-    const message = JSON.parse(data);
-    if (message.type === "hello" && !loaded) {
-      loaded = true;
-      const url = new URL(location.href);
-      url.searchParams.set("gameID", message.webdip.game_id);
-      history.replaceState(null, "", url);
-      // Load only the build's entrypoints; omit upstream HTML's advertising and analytics tags.
-      const manifest = await nativeFetch("board/asset-manifest.json").then(
-        (r) => r.json()
-      );
-      for (const file of manifest.entrypoints) {
-        const element = document.createElement(
-          file.endsWith(".css") ? "link" : "script"
-        );
-        if (file.endsWith(".css")) {
-          element.rel = "stylesheet";
-          element.href = "board/" + file;
-        } else {
-          element.src = "board/" + file;
-          element.async = false;
+  function connect() {
+    socket = new WebSocket(address);
+    socket.onmessage = async ({ data }) => {
+      const message = JSON.parse(data);
+      if (message.type === "hello") {
+        clearTimeout(stableTimer);
+        stableTimer = setTimeout(() => { attempts = 0; }, 10000);
+        show("");
+        if (loaded) {
+          for (const source of sources.values()) {
+            source.subscribe();
+            source.emit("message", JSON.stringify({channel: "resync"}));
+          }
+          return;
         }
-        document.head.appendChild(element);
-      }
-      show("");
-    } else if (message.type === "response") {
-      const item = pending.get(message.id);
-      if (item) {
-        clearTimeout(item.timer);
-        pending.delete(message.id);
-        item.resolve(message);
-      }
-    } else if (message.type.startsWith("event")) {
-      const source = sources.get(message.id);
-      if (source) {
-        if (message.type === "event_open") {
-          source.readyState = 1;
-          source.emit("open");
-        } else
-          source.emit(
-            message.type === "event" ? "message" : "error",
-            message.data
+        loaded = true;
+        const url = new URL(location.href);
+        url.searchParams.set("gameID", message.webdip.game_id);
+        history.replaceState(null, "", url);
+        // Load only the build's entrypoints; omit upstream HTML's advertising and analytics tags.
+        const manifest = await nativeFetch("board/asset-manifest.json").then(
+          (r) => r.json()
+        );
+        for (const file of manifest.entrypoints) {
+          const element = document.createElement(
+            file.endsWith(".css") ? "link" : "script"
           );
+          if (file.endsWith(".css")) {
+            element.rel = "stylesheet";
+            element.href = "board/" + file;
+          } else {
+            element.src = "board/" + file;
+            element.async = false;
+          }
+          document.head.appendChild(element);
+        }
+        show("");
+      } else if (message.type === "response") {
+        const item = pending.get(message.id);
+        if (item) {
+          clearTimeout(item.timer);
+          pending.delete(message.id);
+          item.resolve(message);
+        }
+      } else if (message.type.startsWith("event")) {
+        const source = sources.get(message.id);
+        if (source) {
+          if (message.type === "event_open") {
+            source.readyState = 1;
+            source.emit("open");
+          } else
+            source.emit(
+              message.type === "event" ? "message" : "error",
+              message.data
+            );
+        }
+      } else if (message.type === "game_over") {
+        finished = true;
+        show("Game finished");
+        socket.send(JSON.stringify({ type: "game_over_ack" }));
       }
-    } else if (message.type === "game_over") {
-      finished = true;
-      show("Game finished");
-      socket.send(JSON.stringify({ type: "game_over_ack" }));
-    }
+    };
+    socket.onclose = () => {
+      clearTimeout(stableTimer);
+      show(
+        finished
+          ? "Game finished"
+          : loaded
+          ? "Disconnected. Reconnecting to your seat…"
+          : "Unable to connect. Check your seat link. Reconnecting…"
+      );
+      for (const item of pending.values()) {
+        clearTimeout(item.timer);
+        item.reject(new Error("Disconnected"));
+      }
+      pending.clear();
+      if (!finished) {
+        if (attempts < maxAttempts) {
+          const delay = Math.min(500 * 2 ** attempts++, 5000);
+          setTimeout(connect, delay);
+        } else show("Disconnected. Automatic reconnect stopped. Check your seat link and reload.");
+      }
+    };
+    socket.onerror = () =>
+      show("Unable to connect. Check your seat link. Reconnecting…");
+  }
+  document.getElementById("dismiss-help").onclick = () => {
+    document.getElementById("play-help").hidden = true;
   };
-  socket.onclose = () => {
-    show(
-      finished
-        ? "Game finished"
-        : loaded
-        ? "Disconnected. Reload this page to reconnect to your seat."
-        : "Unable to connect. Check your seat link and reload."
-    );
-    for (const item of pending.values()) {
-      clearTimeout(item.timer);
-      item.reject(new Error("Disconnected"));
-    }
-    pending.clear();
-  };
-  socket.onerror = () =>
-    show("Unable to connect. Check your seat link and reload.");
+  connect();
 })();

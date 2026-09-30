@@ -11,6 +11,7 @@ from pathlib import Path
 
 from adapter.artifacts import write_artifact
 from adapter.config import EpisodeConfig
+from adapter.maps import render_map
 
 SOURCE_URL = "https://github.com/Metta-AI/coworld-webdiplomacy/tree/main"
 
@@ -70,6 +71,7 @@ class Episode:
         self.finished = False
         self.start_requested = False
         self.frames = []
+        self.maps = {}
         self.transitions = []
         self.public = {}
         self.result = None
@@ -141,6 +143,27 @@ class Episode:
             return
         self.public_pending_since = None
         public["lifecycle"] = {"turn": phase[0], "phase": phase[1], "process_status": phase[2]}
+        public["episode"] = {"seed": self.config.seed}
+        if self.config.render_maps:
+            key = (phase[0], phase[1])
+            if key not in self.maps:
+                try:
+                    self.maps[key] = render_map(self.game_id, game, public["history"])
+                except (RuntimeError, subprocess.TimeoutExpired):
+                    current = php("wdc_state", self.game_id)
+                    if current["game"] is None:
+                        self.finish(current, "cancelled")
+                        return
+                    if (int(current["game"]["turn"]), current["game"]["phase"]) != key:
+                        return
+                    raise
+                # The gamemaster may commit while PHP renders; retry the public
+                # snapshot instead of pairing a new image with an older phase.
+                current = php("wdc_state", self.game_id)["game"]
+                if current is None or (int(current["turn"]), current["phase"]) != key:
+                    del self.maps[key]
+                    return
+            public["map"] = self.maps[key]
         with self.lock:
             self.public = public
             self.started = int(game["startTime"]) > 0

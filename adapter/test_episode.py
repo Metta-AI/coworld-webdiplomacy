@@ -7,6 +7,14 @@ from adapter.episode import scores, year_complete
 
 
 class EpisodeRules(unittest.TestCase):
+    def test_seed_default_varies_and_explicit_seed_is_preserved(self):
+        from unittest.mock import patch
+
+        with patch("adapter.config.secrets.randbits", side_effect=[123, 456]):
+            self.assertEqual(EpisodeConfig(tokens=list("abcdefg")).seed, 123)
+            self.assertEqual(EpisodeConfig(tokens=list("abcdefg")).seed, 456)
+            self.assertEqual(EpisodeConfig(tokens=list("abcdefg"), seed=17).seed, 17)
+
     def test_year_cap_waits_for_autumn_retreats(self):
         for phase in ("Diplomacy", "Retreats"):
             self.assertFalse(year_complete({"turn": 1, "phase": phase}, 1901))

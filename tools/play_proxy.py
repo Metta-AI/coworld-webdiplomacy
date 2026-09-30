@@ -90,7 +90,8 @@ def create_app(upstream, participant=None):
 
     async def frame(request):
         # Visit this on localhost; the iframe uses 127.0.0.1, a separate content origin.
-        target = f"http://127.0.0.1:{request.url.port}{PREFIX}/client/player?{request.rel_url.raw_query_string}"
+        view = "global" if request.query.get("view") == "global" else "player"
+        target = f"http://127.0.0.1:{request.url.port}{PREFIX}/client/{view}?{request.rel_url.raw_query_string}"
         return web.Response(
             content_type="text/html",
             text=f'<!doctype html><title>Lobby constraint harness</title><iframe title="Game" '

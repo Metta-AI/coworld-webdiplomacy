@@ -189,6 +189,7 @@ def run_case(image, mode):
             frame = page.frame_locator("iframe") if mode == "proxy" else page
             if mode == "proxy":
                 assert page.locator("iframe").get_attribute("sandbox") == SANDBOX
+            frame.get_by_role("button", name="Dismiss help").click()
             frame.locator("#ANKARA-unit").wait_for()
             expect(frame.get_by_text("Spring 1901 Movement. Turkey, enter your orders.")).to_be_visible()
             evidence["board_load_seconds"] = round(time.monotonic() - started, 3)
@@ -262,7 +263,7 @@ def run_case(image, mode):
             frame.get_by_role("link", name="Legacy Board", exact=True).click()
             expect(frame.get_by_role("status")).to_have_text("Site navigation is not available in this game")
             evidence["authorization_rejections"] = check_boundaries(base, tokens, human.context())
-            # Replacing this seat's connection must show a clear error and preserve the game on reload.
+            # Replacing the connection must recover without reloading or reapplying orders.
             with connect(
                 base.replace("http", "ws")
                 + "/player?"
@@ -278,10 +279,20 @@ def run_case(image, mode):
                 replacement.recv(timeout=5)
                 expect(frame.get_by_role("status")).to_contain_text("Disconnected")
                 page.screenshot(path=str(shots / f"{mode}-disconnected.png"))
-            page.reload()
+            deadline = time.monotonic() + 15
+            while len([m for m in messages if m.get("type") == "hello"]) < 2:
+                assert time.monotonic() < deadline, "automatic reconnect did not authenticate"
+                page.wait_for_timeout(100)
+            expect(frame.locator("#connection-status")).to_be_empty()
             expect(frame.get_by_text("Autumn 1901 Movement. Turkey, enter your orders.")).to_be_visible()
             frame.locator("#BLACK_SEA-unit").wait_for()
             evidence["reconnect_preserved_turn"] = True
+            frame.get_by_text("PRESS", exact=True).click()
+            frame.get_by_role("button", name="ENG", exact=True).click()
+            clients[1].request(
+                "game/sendmessage", body={"gameID": 1, "countryID": 1, "toCountryID": 6, "message": "After reconnect"}
+            )
+            expect(frame.get_by_text("ENG: After reconnect", exact=True)).to_be_visible(timeout=10000)
             assert not errors, errors
             assert not context.cookies(), "board set cookies"
             evidence.update(
@@ -304,6 +315,8 @@ def run_case(image, mode):
             invalid.goto(invalid_base + "/client/player?slot=0&token=invalid")
             expect(invalid.get_by_role("status")).to_contain_text("Check your seat link")
             invalid.screenshot(path=str(shots / f"{mode}-invalid-seat.png"))
+            expect(invalid.get_by_role("status")).to_contain_text("Automatic reconnect stopped", timeout=45000)
+            evidence["bounded_retries"] = True
             browser.close()
         evidence["passed"] = True
         (directory / "evidence.json").write_text(json.dumps(evidence, indent=2))

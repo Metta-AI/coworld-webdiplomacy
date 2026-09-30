@@ -12,6 +12,9 @@
     />
     <title>webDiplomacy</title>
     <style>
+      #play-help { position: fixed; right: 8px; bottom: 8px; z-index: 10001; max-width: 320px; padding: 10px; background: #fff3c4; color: #222; font: 14px sans-serif; border: 1px solid #735d28; border-radius: 6px; }
+      #play-help button { float: right; margin-left: 12px; }
+      #play-help p { margin: 8px 0 0; }
       #connection-status {
         position: fixed;
         bottom: 0;
@@ -29,6 +32,12 @@
   </head>
   <body>
     <div id="root"></div>
+    <aside id="play-help" aria-label="How to play here">
+      <button id="dismiss-help" aria-label="Dismiss help">×</button>
+      <strong>How to play here</strong>
+      <p>Ready ends your turn. After adjudication, use the New phase arrow to advance the board.</p>
+      <p>Open press with the pen or P. For Support hold, click the supported province twice.</p>
+    </aside>
     <div id="connection-status" role="status">Connecting to game…</div>
     <script src="shim.js"></script>
   </body>

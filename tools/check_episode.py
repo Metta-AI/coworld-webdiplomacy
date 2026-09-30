@@ -45,6 +45,9 @@ def run_case(image, case):
         "episode_budget_seconds": budget,
         "completion_timeout_seconds": 3,
     }
+    if case in ("draw", "cancel"):
+        del config["seed"]
+    seeds = set()
     (directory / "config.json").write_text(json.dumps(config))
     container = docker(
         "create",
@@ -96,6 +99,7 @@ def run_case(image, case):
             sockets.append(ws)
             hello = json.loads(ws.recv(timeout=2))
             assert hello["slot"] == slot and hello["protocol"] == "webdip-coworld/1"
+            seeds.add(hello["rules"]["seed"])
             webdip = hello["webdip"]
             clients.append(WebDiplomacy(webdip["base_url"], webdip["api_key"], webdip["game_id"], webdip["country_id"]))
             assert ws.ping().wait(timeout=2)
@@ -183,6 +187,9 @@ def run_case(image, case):
         result = json.loads((directory / "results.json").read_text())
         frames = json.loads((directory / "replay.json").read_text())
         assert frames and abs(sum(result["scores"]) - 1) < 1e-9
+        assert seeds == {result["seed"]} == {frame["episode"]["seed"] for frame in frames}
+        if "seed" in config:
+            assert result["seed"] == config["seed"]
         if case == "cancel":
             assert result["outcome"] == "cancelled" and result["scores"] == [1 / 7] * 7
             assert frames[-1]["ending"]["outcome"] == "cancelled"
@@ -190,7 +197,10 @@ def run_case(image, case):
             assert result["reason"] == "episode_timeout"
         logs = docker("logs", container)
         assert all(token not in logs and token not in json.dumps(frames) for token in tokens)
-        print(f"{case}: PASS; outcome={result['outcome']}; calls={result['gamemaster_calls']}", flush=True)
+        print(
+            f"{case}: PASS; seed={result['seed']}; outcome={result['outcome']}; calls={result['gamemaster_calls']}",
+            flush=True,
+        )
     except Exception:
         subprocess.run(["docker", "cp", f"{container}:/run/webdip/logs", str(directory / "private-logs")], check=False)
         (directory / "game.log").write_text(docker("logs", container))

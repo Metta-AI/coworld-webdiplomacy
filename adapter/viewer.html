@@ -2,7 +2,8 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>webDiplomacy replay</title>
+<title>webDiplomacy</title>
+<meta name="referrer" content="no-referrer">
 <style>
   :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #101b27; color: #f4f3ed; }
   * { box-sizing: border-box; }
@@ -22,7 +23,7 @@
   .center.neutral { fill: #f8f4e8; }
   .center.changed { stroke: #fff3b3; stroke-width: 3.8; }
   .unit { stroke: #f7f2e9; stroke-width: 2; filter: drop-shadow(0 2px 2px #0d1b28aa); }
-  .unit-label { text-anchor: middle; dominant-baseline: middle; fill: #fff; font-size: 10px; font-weight: 900; pointer-events: none; }
+  .unit-label { text-anchor: middle; dominant-baseline: middle; fill: #172b39; font-size: 8px; font-weight: 900; pointer-events: none; }
   .move { stroke: #fff5bd; stroke-width: 3; stroke-linecap: round; marker-end: url(#arrow); filter: drop-shadow(0 1px 2px #172b39); }
   aside { background: #1a2b3b; border: 1px solid #3d5264; border-radius: 10px; overflow: hidden; }
   aside h2 { margin: 0; padding: 15px 16px 11px; font: 500 22px Georgia, serif; border-bottom: 1px solid #3d5264; }
@@ -41,7 +42,12 @@
   #timeline button { flex: 1 0 90px; padding: 8px; text-align: left; font-size: 11px; white-space: nowrap; }
   #timeline button.active { background: #dfb564; border-color: #dfb564; color: #142331; font-weight: 700; }
   .note { color: #b6c9d2; font-size: 12px; margin: 12px 2px 0; }
-  @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } aside { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } aside h2 { grid-column: 1 / -1; } #counter { margin-left: 0; } }
+  .public-history { margin-top: 24px; }
+  #orders { columns: 2; padding-left: 24px; font-size: 13px; line-height: 1.7; }
+  #press p { white-space: pre-wrap; overflow-wrap: anywhere; border-bottom: 1px solid #33485b; padding-bottom: 12px; }
+  #season-map { max-width: 100%; height: auto; }
+  [hidden] { display: none !important; }
+  @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } #powers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } #counter { margin-left: 0; } }
 </style>
 <header>
   <div><div class="eyebrow">Seven powers · Classic map</div><h1>webDiplomacy</h1></div>
@@ -62,89 +68,18 @@
     <button id="play" class="primary" title="Play or pause">Pause</button>
     <button id="next" title="Next phase">Next →</button>
     <label>Speed <select id="speed"><option value="2400">1×</option><option value="1200">2×</option><option value="600">4×</option></select></label>
+    <label><input id="loop" type="checkbox" checked> Loop</label>
     <span id="counter"></span>
     <div id="timeline" aria-label="Phase timeline"></div>
   </div>
+  <section class="public-history">
+    <h2>Public history</h2>
+    <label>Adjudication <select id="history-phase"></select></label>
+    <p id="history-empty"></p><ul id="orders"></ul>
+    <details id="native-map"><summary id="map-caption">Adjudicated season map</summary><img id="season-map" alt="Upstream public adjudication map"></details>
+    <h2>Public press</h2><div id="press"></div>
+  </section>
   <p id="note" class="note">Supply center rings show current control. A and F mark armies and fleets; arrows show moves since the previous recorded phase.</p>
 </main>
-<script>
-const replay = location.pathname.endsWith('/replay');
-const colors = ['#1745b9','#da302c','#269c35','#405058','#cc4aaa','#8d4e29','#4b9a63'];
-const svgNS = 'http://www.w3.org/2000/svg';
-const $ = id => document.getElementById(id);
-const frames = [];
-let index = 0, playing = replay, timer;
-function svg(tag, attrs, title) {
-  const el = document.createElementNS(svgNS, tag);
-  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
-  if (title) { const label = document.createElementNS(svgNS, 'title'); label.textContent = title; el.append(label); }
-  return el;
-}
-function color(countryID) { return colors[(countryID || 0) - 1] || '#f6f2e6'; }
-function render() {
-  const frame = frames[index];
-  if (!frame) return;
-  const game = frame.game;
-  const board = game.territories.length ? game : frames.slice(0, index).reverse().find(x => x.game.territories.length)?.game || game;
-  const previous = frames[index - 1]?.game;
-  const territories = new Map(frame.variant.territories.map(t => [t.id, t]));
-  const controlled = new Map(board.territories.map(t => [t.terrID, t.ownerCountryID]));
-  const priorControl = new Map((previous?.territories || []).map(t => [t.terrID, t.ownerCountryID]));
-  $('phase').textContent = game.turnText + (game.phase === 'Finished' ? ' · Final' : ' · ' + game.phase);
-  $('outcome').textContent = game.gameOver === 'No' ? `${board.units.length} units · ${frame.variant.supplyCenterCount} supply centers` : `Game ${game.gameOver.toLowerCase()} · final positions shown`;
-  $('note').textContent = board === game ? 'Supply center rings show current control. A and F mark armies and fleets; arrows show moves since the previous recorded phase.' : 'The upstream engine omits board positions after a draw. This is the last recorded board; final country results appear at right.';
-  const centers = $('centers'), moves = $('moves'), units = $('units');
-  centers.replaceChildren(); moves.replaceChildren(); units.replaceChildren();
-  for (const t of frame.variant.territories.filter(t => t.supply && t.coast !== 'Child')) {
-    const owner = controlled.get(t.id);
-    const changed = previous && priorControl.get(t.id) !== owner;
-    centers.append(svg('circle', {cx:t.smallMapX,cy:t.smallMapY,r:6,fill:color(owner),class:`center${owner ? '' : ' neutral'}${changed ? ' changed' : ''}`}, `${t.name}: ${frame.variant.countries.find(c => c.countryID === owner)?.name || 'neutral'} supply center`));
-  }
-  const oldUnits = new Map((previous?.units || []).map(u => [u.id, u]));
-  for (const u of board.units) {
-    const t = territories.get(u.terrID);
-    if (!t) continue;
-    const old = oldUnits.get(u.id), from = old && territories.get(old.terrID);
-    if (from && old.terrID !== u.terrID) moves.append(svg('line', {x1:from.smallMapX,y1:from.smallMapY,x2:t.smallMapX,y2:t.smallMapY,class:'move'}, `${u.type} moved from ${from.name} to ${t.name}`));
-    const group = svg('g', {}, `${frame.variant.countries.find(c => c.countryID === u.countryID)?.name || 'Unknown'} ${u.type} at ${t.name}`);
-    group.append(svg('rect', {x:t.smallMapX-10,y:t.smallMapY-10,width:20,height:20,rx:5,fill:color(u.countryID),class:'unit'}));
-    const text = svg('text', {x:t.smallMapX,y:t.smallMapY+1,class:'unit-label'}); text.textContent = u.type === 'Fleet' ? 'F' : 'A'; group.append(text);
-    units.append(group);
-  }
-  const powers = $('powers'); powers.replaceChildren();
-  for (const country of frame.variant.countries) {
-    const member = game.members.find(m => m.countryID === country.countryID);
-    const row = document.createElement('div'); row.className = 'power';
-    const dot = document.createElement('span'); dot.className = 'swatch'; dot.style.background = color(country.countryID);
-    const name = document.createElement('span'); name.textContent = country.name;
-    const status = document.createElement('small'); status.textContent = member?.status || 'Playing'; name.append(status);
-    const count = document.createElement('span'); count.className = 'count'; count.textContent = `${member?.supplyCenterNo ?? 0} SC · ${member?.unitNo ?? 0} units`;
-    row.append(dot, name, count); powers.append(row);
-  }
-  $('counter').textContent = `Phase ${index + 1} of ${frames.length}`;
-  for (const [i, button] of [...$('timeline').children].entries()) button.classList.toggle('active', i === index);
-}
-function show(i) { index = (i + frames.length) % frames.length; render(); }
-function schedule() { clearInterval(timer); if (playing && frames.length > 1) timer = setInterval(() => show(index + 1), Number($('speed').value)); $('play').textContent = playing ? 'Pause' : 'Play'; }
-$('previous').onclick = () => { show(index - 1); };
-$('next').onclick = () => { show(index + 1); };
-$('play').onclick = () => { playing = !playing; schedule(); };
-$('speed').onchange = schedule;
-$('background').setAttribute('href', new URL('../map', location.href));
-const url = new URL(`../${replay ? 'replay' : 'global'}`, location.href);
-url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-const ws = new WebSocket(url);
-ws.onopen = () => { $('connection').textContent = replay ? 'Recorded match' : 'Live match'; if (replay) ws.send('all'); else setInterval(() => ws.send('next'), 1000); };
-ws.onmessage = event => {
-  const data = JSON.parse(event.data);
-  if (data.frames) {
-    frames.splice(0, frames.length, ...data.frames);
-    $('timeline').replaceChildren();
-    frames.forEach((frame, i) => { const button = document.createElement('button'); button.textContent = frame.game.turnText; button.onclick = () => show(i); $('timeline').append(button); });
-    show(0); schedule();
-  } else if (!replay) { frames[0] = data; show(0); }
-};
-ws.onerror = () => { $('connection').textContent = 'Replay connection failed'; };
-ws.onclose = () => { if (!frames.length) $('connection').textContent = 'Replay unavailable'; };
-</script>
+<script src="viewer.js"></script>
 </html>
