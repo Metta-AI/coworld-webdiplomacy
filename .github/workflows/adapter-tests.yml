@@ -13,9 +13,12 @@ jobs:
           python-version: '3.12'
       - run: uv sync --locked --group dev
       - run: uv run python -m unittest discover -s adapter -p 'test_*.py' -v
-      - run: uv run ruff check adapter/boot.py adapter/supervisor.py tools/check_boot.py
-      - run: docker build --platform linux/amd64 -f adapter/Dockerfile -t webdiplomacy-hosted-test .
-      - run: uv run python tools/check_boot.py webdiplomacy-hosted-test
-      - run: uv run python tools/check_boot.py webdiplomacy-hosted-test --crash-service
-      # The smoke/tactics/convoy scenario sources are retained; restore these image
-      # modes after they use the supervised gamemaster and per-episode users.
+      - run: uv run ruff check adapter/boot.py adapter/supervisor.py adapter/config.py adapter/episode.py adapter/routes.py adapter/artifacts.py adapter/server.py adapter/test_episode.py players tools/check_boot.py tools/check_episode.py
+      - run: uv run coworld build --version 0.2.0
+      - run: uv run python tools/check_boot.py coworld-webdiplomacy-game:latest
+      - run: uv run python tools/check_boot.py coworld-webdiplomacy-game:latest --crash-service
+      - run: uv run python -m tools.check_episode coworld-webdiplomacy-game:latest
+      - run: docker run --rm --platform linux/amd64 --cap-drop=ALL --security-opt=no-new-privileges -e WEBDIP_MODE=smoke coworld-webdiplomacy-game:latest
+      - run: docker run --rm --platform linux/amd64 --cap-drop=ALL --security-opt=no-new-privileges -e WEBDIP_MODE=tactics coworld-webdiplomacy-game:latest
+      - run: docker run --rm --platform linux/amd64 --cap-drop=ALL --security-opt=no-new-privileges -e WEBDIP_MODE=convoy coworld-webdiplomacy-game:latest
+      - run: uv run coworld run-episode dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60 --verify-replay

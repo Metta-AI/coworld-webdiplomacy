@@ -4,10 +4,11 @@ Packages the unmodified [webDiplomacy](https://github.com/kestasjk/webDiplomacy)
 server for [Coworld](https://github.com/Metta-AI/coworld). Licensed under
 AGPL-3.0; see [LICENSE](LICENSE).
 
-The current implementation provides the container image, a preinstalled Classic
-map and database, supervised services, health checks, and graceful shutdown.
-Episode orchestration, bot launchers, and browser play are under development.
-This revision is not ready for certification or hosted games.
+The current implementation runs complete seven-seat episodes with API bots,
+supervises the upstream services, records public replay snapshots and results,
+and shuts down cleanly. Browser play, the random default bot, private press
+artifacts, and complete replay presentation are under development. This revision
+has not been certified or uploaded.
 
 ## Build and check
 
@@ -63,27 +64,56 @@ upstream downtime heartbeat. No database installation occurs at runtime.
 Generated upstream configuration/cache files exist only inside the image or
 container; never edit or generate files in the source submodule.
 
-Public stdout contains service status only. Daemon and application diagnostics
+Public stdout contains service status and public phase/completion events. Daemon and application diagnostics
 are private files under `/run/webdip/logs`; inspect them locally with `docker exec`.
-They may contain sensitive information and must not be published. Access logs
-are disabled. Email delivery is disabled through a local sendmail sink.
+They may contain sensitive information and must not be published. Player/API access logs
+are disabled. A private gamemaster timing log contains only timestamp, duration,
+and HTTP status, never the request URL or secret. Email delivery is disabled through a local sendmail sink.
 
 SIGTERM stops ingress and the gamemaster producer before PHP, MariaDB and Redis.
 Unexpected daemon exits fail the container. A forced shutdown produces nonzero
 exit status. Allow 45 seconds for a worst-case shutdown.
 
-## Development status
+## Run an episode
 
-The original prototype's scenario sources (`smoke.py`, `tactics.py`, `convoy.py`),
-engine helper, protocol tests and player are retained while game control is
-migrated. Their old `WEBDIP_MODE` image entrypoints are not yet wired to the new
-architecture. Unit tests cover those retained helpers; they do not establish
-that an episode runs in this image. The manifest and player image still describe
-the prototype and will be replaced before certification.
+```sh
+uv run coworld build --version 0.2.0
+DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
+  dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
+```
 
-Replay-only startup with `COGAME_LOAD_REPLAY_URI` retains the prototype viewer
-and artifact handling and bypasses all database services. The replay format will
-be expanded alongside episode orchestration.
+The current certification fixture selects seven hold bots, one-minute NoPress
+phases, and the 1901 year cap. A successful run produces `results.json`, a public
+`replay` JSON array, and separate game/player logs. This runs the fixture locally;
+it is not a certification claim. The temporary default player is the hold bot;
+the planned random legal bot will replace it.
+
+The [player protocol](docs/protocol.md) explains hello, upstream HTTP play,
+reconnection, deadlines, scoring and output. The launcher can run another bot:
+`python -m players.launcher python -m your_bot`. It passes the upstream URL,
+key, game ID and country ID through environment variables.
+
+## Regression checks
+
+```sh
+uv run python -m tools.check_episode coworld-webdiplomacy-game:latest
+for mode in smoke tactics convoy; do
+  docker run --rm --platform linux/amd64 --cap-drop=ALL \
+    --security-opt no-new-privileges -e WEBDIP_MODE="$mode" coworld-webdiplomacy-game:latest
+done
+```
+
+The lifecycle checks exercise invalid tokens, ping/pong, immediate global state,
+reconnection, stale orders, concurrent finalization, draw/cancel/pause votes, and
+a missing seat's natural one-minute deadline. Each regression mode starts real
+API players and lets the upstream loop adjudicate; it never calls `process()` or
+applies votes itself. Scenario diagnostics remain in the container's private
+`/run/webdip/logs/scenario.log`; omit `--rm` when investigating a failure.
+
+The old native observation/action protocol and direct engine-advance helper have
+been removed. Replay-only startup with `COGAME_LOAD_REPLAY_URI` retains the
+prototype viewer and bypasses database services. Full browser and replay UX
+validation will follow in their implementation phases.
 
 Use project-local tools: `uv run coworld` (0.1.55) and `uv run softmax` (0.26.38).
 

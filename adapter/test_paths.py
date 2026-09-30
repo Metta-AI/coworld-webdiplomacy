@@ -4,7 +4,7 @@ from pathlib import Path
 from threading import Thread
 from unittest.mock import patch
 
-from server import local_path, read_artifact, write_artifact
+from adapter.artifacts import local_path, read_artifact, write_artifact
 
 
 class ArtifactPaths(unittest.TestCase):

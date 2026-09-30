@@ -1,1 +1,95 @@
-{"additionalProperties": false, "properties": {"tokens": {"items": {"type": "string"}, "maxItems": 7, "minItems": 7, "title": "Tokens", "type": "array"}, "max_phases": {"default": 20, "maximum": 200, "minimum": 1, "title": "Max Phases", "type": "integer"}, "action_timeout_seconds": {"default": 30, "exclusiveMinimum": 0, "title": "Action Timeout Seconds", "type": "number"}, "player_connect_timeout_seconds": {"default": 180, "exclusiveMinimum": 0, "title": "Player Connect Timeout Seconds", "type": "number"}}, "required": ["tokens"], "title": "Config", "type": "object"}
+{
+  "additionalProperties": false,
+  "properties": {
+    "tokens": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 7,
+      "minItems": 7,
+      "title": "Tokens",
+      "type": "array"
+    },
+    "seed": {
+      "default": 0,
+      "title": "Seed",
+      "type": "integer"
+    },
+    "phase_minutes": {
+      "default": 1,
+      "maximum": 59,
+      "minimum": 1,
+      "title": "Phase Minutes",
+      "type": "integer"
+    },
+    "retreat_build_minutes": {
+      "default": 1,
+      "maximum": 59,
+      "minimum": 1,
+      "title": "Retreat Build Minutes",
+      "type": "integer"
+    },
+    "press": {
+      "default": "NoPress",
+      "enum": [
+        "NoPress",
+        "Regular"
+      ],
+      "title": "Press",
+      "type": "string"
+    },
+    "anonymous": {
+      "default": true,
+      "title": "Anonymous",
+      "type": "boolean"
+    },
+    "end_year": {
+      "default": 1910,
+      "maximum": 2000,
+      "minimum": 1901,
+      "title": "End Year",
+      "type": "integer"
+    },
+    "scoring": {
+      "default": "sum_of_squares",
+      "enum": [
+        "sum_of_squares",
+        "draw_size",
+        "supply_centers"
+      ],
+      "title": "Scoring",
+      "type": "string"
+    },
+    "player_connect_timeout_seconds": {
+      "default": 180,
+      "exclusiveMinimum": 0,
+      "maximum": 300,
+      "title": "Player Connect Timeout Seconds",
+      "type": "number"
+    },
+    "episode_budget_seconds": {
+      "default": 5910,
+      "maximum": 5910,
+      "minimum": 5,
+      "title": "Episode Budget Seconds",
+      "type": "number"
+    },
+    "completion_timeout_seconds": {
+      "default": 20,
+      "maximum": 20,
+      "minimum": 0,
+      "title": "Completion Timeout Seconds",
+      "type": "number"
+    },
+    "render_maps": {
+      "default": false,
+      "title": "Render Maps",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "tokens"
+  ],
+  "title": "EpisodeConfig",
+  "type": "object"
+}

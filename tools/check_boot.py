@@ -102,16 +102,20 @@ print('private service binds and fresh 0600 secrets verified')
             "-Nse",
             "SELECT value FROM webdiplomacy.wD_Misc WHERE name='LastProcessTime'",
         )
-        time.sleep(2)
-        after = docker(
-            "exec",
-            container,
-            "mariadb",
-            "--defaults-file=/opt/config/mariadb.cnf",
-            "-Nse",
-            "SELECT value FROM webdiplomacy.wD_Misc WHERE name='LastProcessTime'",
-        )
-        assert int(after) > int(before), "gamemaster heartbeat did not advance"
+        deadline = time.monotonic() + 10
+        while True:
+            after = docker(
+                "exec",
+                container,
+                "mariadb",
+                "--defaults-file=/opt/config/mariadb.cnf",
+                "-Nse",
+                "SELECT value FROM webdiplomacy.wD_Misc WHERE name='LastProcessTime'",
+            )
+            if int(after) > int(before):
+                break
+            assert time.monotonic() < deadline, "gamemaster heartbeat did not advance within 10 seconds"
+            time.sleep(0.2)
         print("upstream gamemaster heartbeat advanced")
         verify_logs = (
             "from pathlib import Path; text = Path('/run/webdip/logs/sse.log').read_text(); "

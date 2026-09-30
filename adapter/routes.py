@@ -1,0 +1,126 @@
+"""Coworld presence protocol. Orders and press use the upstream HTTP API."""
+
+import asyncio
+import hmac
+import json
+from urllib.parse import urlsplit
+
+from fastapi import WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
+
+from adapter.episode import SOURCE_URL
+
+
+def install_routes(app, episode):
+    @app.get("/client/player")
+    @app.get("/client/global")
+    def client():
+        return HTMLResponse(
+            "<!doctype html><title>webDiplomacy</title><h1>webDiplomacy</h1>"
+            "<p>This episode supports API bots. Browser play is under development.</p>"
+        )
+
+    @app.websocket("/global")
+    async def global_view(websocket: WebSocket):
+        await websocket.accept()
+        previous = None
+        try:
+            while True:
+                with episode.lock:
+                    public = episode.public
+                encoded = json.dumps(public)
+                if previous != encoded:
+                    await websocket.send_text(encoded)
+                    previous = encoded
+                try:
+                    await asyncio.wait_for(websocket.receive_text(), timeout=0.2)
+                    previous = None
+                except TimeoutError:
+                    pass
+        except WebSocketDisconnect:
+            pass
+
+    @app.websocket("/player")
+    async def player(websocket: WebSocket):
+        query = websocket.query_params
+        try:
+            slot = int(query.get("slot", "-1"))
+        except ValueError:
+            slot = -1
+        token = query.get("token", "")
+        if not 0 <= slot < 7 or not hmac.compare_digest(token.encode(), episode.config.tokens[slot].encode()):
+            await websocket.close(code=1008)
+            return
+        host = websocket.headers.get("host", "")
+        try:
+            parsed = urlsplit("http://" + host)
+            valid_host = (
+                parsed.hostname
+                and not parsed.username
+                and not parsed.password
+                and parsed.netloc == host
+                and not parsed.path
+                and not parsed.query
+                and not parsed.fragment
+                and not any(c.isspace() for c in host)
+            )
+            parsed.port  # Validate an optional numeric port at the untrusted Host boundary.
+        except ValueError:
+            valid_host = False
+        if not valid_host:
+            await websocket.close(code=1008)
+            return
+        await websocket.accept()
+        with episode.lock:
+            episode.connections[slot] = websocket
+        seat = episode.seats[slot]
+        webdip = {
+            "base_url": "http://" + host,
+            "game_id": episode.game_id,
+            "country_id": seat["country_id"],
+            "country": seat["country"],
+        }
+        if query.get("mode") != "browser":
+            webdip["api_key"] = token
+        sent_started = False
+        sent_finished = False
+        try:
+            await websocket.send_json(
+                {
+                    "type": "hello",
+                    "protocol": "webdip-coworld/1",
+                    "slot": slot,
+                    "webdip": webdip,
+                    "rules": episode.config.model_dump(exclude={"tokens"}),
+                    "source_url": SOURCE_URL,
+                }
+            )
+            while True:
+                with episode.lock:
+                    started, finished, result = episode.started, episode.finished, episode.result
+                    current = episode.connections.get(slot) is websocket
+                if not current:
+                    await websocket.close(code=1000)
+                    return
+                if started and not sent_started:
+                    await websocket.send_json({"type": "game_started"})
+                    sent_started = True
+                if finished and not sent_finished:
+                    await websocket.send_json({"type": "game_over", "results": result})
+                    sent_finished = True
+                try:
+                    message = await asyncio.wait_for(websocket.receive_json(), timeout=0.1)
+                    if isinstance(message, dict) and message.get("type") == "game_over_ack" and sent_finished:
+                        with episode.lock:
+                            episode.acknowledged.add(slot)
+                except TimeoutError:
+                    pass
+                except (ValueError, TypeError):
+                    await websocket.close(code=1003)
+                    return
+        except WebSocketDisconnect:
+            pass
+        finally:
+            with episode.lock:
+                if episode.connections.get(slot) is websocket:
+                    del episode.connections[slot]

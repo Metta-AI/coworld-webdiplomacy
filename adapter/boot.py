@@ -16,6 +16,10 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from adapter.artifacts import read_artifact
+from adapter.config import EpisodeConfig
+from adapter.episode import Episode
+from adapter.routes import install_routes
 from adapter.supervisor import RUN, Supervisor
 
 APP = Path("/application")
@@ -123,6 +127,7 @@ def main():
     server = None
     thread = None
     status = 0
+    scenario = None
     try:
         settings = prepare()
         start_storage(supervisor)
@@ -135,12 +140,35 @@ def main():
                 + "' ACCOUNT UNLOCK; "
                 "UPDATE webdiplomacy.wD_Misc SET value=UNIX_TIMESTAMP() WHERE name='LastProcessTime';"
             )
+            mode = os.environ.get("WEBDIP_MODE")
+            if mode:
+                if mode not in ("smoke", "tactics", "convoy"):
+                    raise ValueError("unknown regression mode")
+                fixture = EpisodeConfig(
+                    tokens=[secrets.token_hex(24) for _ in range(7)],
+                    press="Regular",
+                    end_year=2000,
+                    episode_budget_seconds=180,
+                )
+                (RUN / "scenario.json").write_text(fixture.model_dump_json())
+                os.environ.update(
+                    COGAME_CONFIG_URI="file:///run/webdip/scenario.json",
+                    COGAME_RESULTS_URI="file:///run/webdip/results.json",
+                    COGAME_SAVE_REPLAY_URI="file:///run/webdip/replay.json",
+                )
+            episode = None
+            if os.environ.get("COGAME_CONFIG_URI"):
+                config = EpisodeConfig.model_validate_json(read_artifact(os.environ["COGAME_CONFIG_URI"]))
+                episode = Episode(config)
             app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
             @app.get("/healthz")
             def health():
                 ready = supervisor.ready and all(child.poll() is None for _, child in supervisor.children)
                 return JSONResponse({"status": "ok" if ready else "starting"}, status_code=200 if ready else 503)
+
+            if episode:
+                install_routes(app, episode)
 
             server = uvicorn.Server(
                 uvicorn.Config(app, host="127.0.0.1", port=8082, access_log=False, log_level="warning", ws="websockets")
@@ -157,8 +185,19 @@ def main():
             supervisor.wait_for(lambda: (RUN / "sse.sock").exists(), "sse")
             supervisor.ready = True
             print("webDiplomacy services ready", flush=True)
+            if mode:
+                with (RUN / "logs/scenario.log").open("ab") as log:
+                    scenario = subprocess.Popen(
+                        [sys.executable, "-m", "players.scenarios", mode], stdout=log, stderr=log
+                    )
             while not supervisor.stopping.wait(0.1):
                 supervisor.check()
+                if scenario and scenario.poll() is not None and scenario.returncode:
+                    raise RuntimeError("regression player failed")
+                if episode:
+                    episode.tick()
+                    if episode.completion_ready():
+                        break
                 if not thread.is_alive():
                     raise RuntimeError("health server exited")
     except InterruptedError:
@@ -169,6 +208,15 @@ def main():
         print("webDiplomacy boot or service failure; see private boot log", flush=True)
         status = 1
     finally:
+        if scenario:
+            try:
+                scenario.wait(timeout=5)
+                if scenario.returncode:
+                    status = 1
+            except subprocess.TimeoutExpired:
+                scenario.terminate()
+                scenario.wait(timeout=5)
+                status = 1
         if server:
             server.should_exit = True
         try:

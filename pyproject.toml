@@ -5,6 +5,7 @@ description = "The upstream webDiplomacy server packaged as a Coworld"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115,<1",
+    "pydantic>=2.11,<3",
     "uvicorn>=0.34,<1",
     "websockets>=15,<18",
     # Replay-only server retained until the viewer migration.
@@ -17,8 +18,6 @@ dev = [
     "softmax-cli==0.26.38",
     "pytest>=8,<10",
     "ruff>=0.11,<1",
-    # Retained prototype tests until the episode protocol is replaced.
-    "pydantic>=2.11,<3",
 ]
 
 [tool.uv]

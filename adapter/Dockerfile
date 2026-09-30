@@ -12,6 +12,7 @@ WORKDIR /opt
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --no-cache
 COPY adapter/ /opt/adapter/
+COPY players/ /opt/players/
 COPY php/ /opt/php/
 COPY config/ /opt/config/
 RUN mkdir -p /run/mysqld /run/webdip/logs && chown -R root:root /var/lib/mysql /run/mysqld && \
