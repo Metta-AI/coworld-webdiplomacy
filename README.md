@@ -131,16 +131,12 @@ rendering. Run the browser and static-replay checks below as well. The game requ
 2 CPUs and 2 GiB memory; players use platform defaults. Compose builds both images
 for Linux amd64.
 
-The certification fixture selects seven hold bots, one-minute NoPress
-phases, and the 1901 year cap. A successful run produces `results.json`, a public
-`replay` JSON array, and separate game/player logs. The `run-episode` command runs
-this fixture; `certify` adds the platform contract checks. The default bundled
-player is the random legal bot;
-the certification roster explicitly selects the hold bot.
-
-With Coworld 0.1.55, this seven-hold fixture completes the episode but fails
-`players-run`: certification requires a seat for every bundled player, including
-`random`. The fixture must include both player types before certification can pass.
+The certification fixture selects the random bot in slot 0 and six hold bots,
+with seed 0, one-minute NoPress phases, the 1901 year cap and map PNGs disabled.
+It exercises every bundled player type, as certification requires. A successful
+run produces `results.json`, a public `replay` JSON array, and separate game/player
+logs. The `run-episode` command runs this fixture; `certify` adds the platform
+contract checks. The default bundled player is the random legal bot.
 
 The [player protocol](docs/protocol.md) explains hello, upstream HTTP play,
 reconnection, deadlines, scoring and output. The launcher can run another bot:

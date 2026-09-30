@@ -22,3 +22,15 @@ class ManifestContract(unittest.TestCase):
         for variant in manifest["variants"]:
             EpisodeConfig(tokens=list("abcdefg"), **variant["game_config"])
         EpisodeConfig(tokens=list("abcdefg"), **manifest["certification"]["game_config"])
+
+    def test_certification_exercises_all_bundled_players_within_short_fixture(self):
+        manifest = json.loads(Path("coworld_manifest_template.json").read_text())
+        fixture = manifest["certification"]
+        roster = [seat["player_id"] for seat in fixture["players"]]
+        self.assertEqual(roster, ["random"] + ["hold"] * 6)
+        self.assertEqual(set(roster), {player["id"] for player in manifest["player"]})
+        config = EpisodeConfig(tokens=list("abcdefg"), **fixture["game_config"])
+        self.assertEqual((config.seed, config.press, config.end_year), (0, "NoPress", 1901))
+        self.assertEqual((config.phase_minutes, config.retreat_build_minutes), (1, 1))
+        self.assertFalse(config.render_maps)
+        self.assertLess(config.episode_budget_seconds, 60)

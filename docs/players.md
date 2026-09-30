@@ -1,8 +1,9 @@
 # Bundled players and compatibility checks
 
 The first bundled player, `random`, runs `players.random_bot` through
-`players.launcher`. `hold` explicitly overrides the launcher command and remains
-the seven-seat certification roster. Another synchronous bot can be run with
+`players.launcher`. `hold` explicitly overrides the launcher command. The
+certification roster uses `random` in slot 0 and `hold` in the other six seats,
+exercising both bundled player types. Another synchronous bot can be run with
 `python -m players.launcher <command> <arguments>`.
 
 To run seven random players through the 1910 cap locally:
@@ -14,8 +15,8 @@ DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   --variant classic-gunboat --output-dir tmp/random-episode --timeout-seconds 120
 ```
 
-The CLI otherwise retains the explicit hold command from the certification
-roster even when its image is overridden. Each `--run` supplies one argv token.
+The CLI otherwise retains the explicit hold command for the six hold seats in
+the certification roster even when their image is overridden. Each `--run` supplies one argv token.
 
 ## Legal inputs
 
