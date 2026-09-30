@@ -28,7 +28,10 @@ The first message is:
 seeded permutation; results are always in **slot order**, not country order.
 The base URL preserves the connection's Host header, including its port.
 With `mode=browser`, hello omits `api_key`; the token in the browser URL is still
-its seat capability. Browser play is not implemented yet.
+its seat capability. The launcher explicitly adds `mode=bot`. Connections carrying
+`protocol_version` also default to browser mode unless they explicitly select
+`mode=bot`: a lobby proxy can replace the query, discarding custom mode flags
+and substituting a runtime token. This keeps that runtime key out of browser hello.
 
 The launcher sets `WEBDIP_URL`, `WEBDIP_API_KEY`, `WEBDIP_GAME_ID`, and
 `WEBDIP_COUNTRY_ID` for its bot subprocess. Bots use upstream HTTP routes directly,
@@ -82,8 +85,52 @@ state. Cancelled results have no final game state. Full replay presentation is s
 under development.
 
 `/global` immediately sends the latest public snapshot, then updates it as it
-changes. The `/client/player` and `/client/global` pages currently explain that
-browser play is under development; they do not accept moves.
+changes. `/client/global` is a placeholder until browser spectating is implemented.
+
+## Browser transport
+
+`GET /client/player?slot=N&token=TOKEN&address=WEBSOCKET_URL` serves a wrapper.
+`address` is optional; without it the wrapper derives `/player` from the current
+prefix and origin. It requests browser mode and loads the unmodified React build
+from static files beneath `/client/`. The build uses the pinned upstream npm
+lockfile and `PUBLIC_URL=.`. No browser cookies or session authentication are used.
+
+The shim replaces fetch, XMLHttpRequest and EventSource with WebSocket messages:
+
+- `request`: `{type, id, method, path, body}`. `path` is an upstream absolute path
+  including query parameters, never an origin. `body` is a string (JSON for API
+  writes, form encoding for signed order saves), limited to 128 KiB.
+- `response`: `{type, id, status, headers, body}`. Only upstream `content-type`
+  and `x-json` headers are returned. HTTP errors remain errors. The signed-order
+  `X-JSON` response is preserved, including validation failures.
+- `subscribe`: `{type, id, path}`. Only `have` and `since` are used from the event
+  query. The server obtains SSE auth and fixes all channels to this game/seat.
+  It sends `event_open`, `event` (with upstream `data`), or `event_error`, carrying
+  the same `id`. `unsubscribe` with that `id` closes the stream.
+
+The adapter supplies Authorization server-side, strips cookies, refuses redirects,
+and forwards only `game/playercontext`, `game/sendmessage`, `game/messagesseen`,
+`game/setvote`, `game/markbackfromleft`, this game's four public JSON files, and
+Classic's variant JSON. `ajax.php` is loopback-only and accepts only signed order
+saves whose context matches the authenticated game, user and country. Upstream
+still verifies the signature and orders. Client headers, destinations and SSE
+channel choices cannot override the seat binding. Unsupported requests return 403;
+upstream connection failures return 502. HTTP forwarding has a 15-second timeout.
+
+The wrapper's meta CSP survives header-stripping proxies and blocks external
+scripts, images, forms and fonts. The compiled board initializes Google Analytics,
+so an expected CSP refusal appears in the browser console. The shim disables
+sendBeacon, and the server refuses client telemetry routes because those payloads
+can include credential-bearing page URLs. No ads or analytics HTML is included.
+The shim implements the network interfaces used by this pinned board; it is not
+a general-purpose browser networking polyfill.
+
+Local validation: `tools/check_browser.py` drives Chromium, while
+`tools/play_proxy.py` simulates a GET-only, five-second buffered play proxy with
+no forwarded cookies or response headers except Content-Type. It includes the
+lobby's player-query rewrite and iframe sandbox restrictions. The test also
+checks rejection of other seats' signed contexts and off-game routes. It does
+not prove behavior on a deployed platform or every browser.
 
 ## Configuration
 

@@ -1,24 +1,26 @@
-"""Coworld presence protocol. Orders and press use the upstream HTTP API."""
+"""Coworld presence and a seat-authenticated browser transport to upstream."""
 
 import asyncio
 import hmac
 import json
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from adapter.episode import SOURCE_URL
+from adapter.tunnel import Tunnel
 
 
 def install_routes(app, episode):
     @app.get("/client/player")
-    @app.get("/client/global")
     def client():
-        return HTMLResponse(
-            "<!doctype html><title>webDiplomacy</title><h1>webDiplomacy</h1>"
-            "<p>This episode supports API bots. Browser play is under development.</p>"
-        )
+        return HTMLResponse((Path(__file__).parent / "client/player.html").read_text())
+
+    @app.get("/client/global")
+    def spectator_client():
+        return HTMLResponse("<!doctype html><p>Spectator browser is under development.</p>")
 
     @app.websocket("/global")
     async def global_view(websocket: WebSocket):
@@ -80,8 +82,12 @@ def install_routes(app, episode):
             "country_id": seat["country_id"],
             "country": seat["country"],
         }
-        if query.get("mode") != "browser":
+        # Lobby proxies replace custom query flags but preserve protocol_version.
+        # Launchers explicitly select bot mode; rewritten browser connections omit credentials.
+        browser_mode = query.get("mode") == "browser" or ("protocol_version" in query and query.get("mode") != "bot")
+        if not browser_mode:
             webdip["api_key"] = token
+        tunnel = Tunnel(websocket, episode, slot) if browser_mode else None
         sent_started = False
         sent_finished = False
         try:
@@ -110,7 +116,15 @@ def install_routes(app, episode):
                     sent_finished = True
                 try:
                     message = await asyncio.wait_for(websocket.receive_json(), timeout=0.1)
-                    if isinstance(message, dict) and message.get("type") == "game_over_ack" and sent_finished:
+                    if not isinstance(message, dict):
+                        raise ValueError("Expected an object")
+                    if tunnel and message.get("type") == "request":
+                        await tunnel.request(message)
+                    elif tunnel and message.get("type") == "subscribe":
+                        await tunnel.subscribe(message)
+                    elif tunnel and message.get("type") == "unsubscribe":
+                        await tunnel.unsubscribe(message)
+                    if message.get("type") == "game_over_ack" and sent_finished:
                         with episode.lock:
                             episode.acknowledged.add(slot)
                 except TimeoutError:
@@ -121,6 +135,8 @@ def install_routes(app, episode):
         except WebSocketDisconnect:
             pass
         finally:
+            if tunnel:
+                await tunnel.close()
             with episode.lock:
                 if episode.connections.get(slot) is websocket:
                     del episode.connections[slot]

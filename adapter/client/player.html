@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <!-- A meta policy survives proxies which strip HTTP headers. The upstream bundle
+     initializes analytics; no external scripts, telemetry, or forms may leave here. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; form-action 'none'; base-uri 'none'"
+    />
+    <title>webDiplomacy</title>
+    <style>
+      #connection-status {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        z-index: 10000;
+        background: #fff3c4;
+        color: #222;
+        padding: 6px;
+        font: 14px sans-serif;
+      }
+      #connection-status:empty {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="connection-status" role="status">Connecting to game…</div>
+    <script src="shim.js"></script>
+  </body>
+</html>

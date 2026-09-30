@@ -8,6 +8,7 @@ WORKDIR /application
 COPY webdiplomacy/ ./
 ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN composer install --no-interaction --no-progress --no-dev && cd sse-server && npm ci --omit=dev
+RUN cd game-src && npm ci && PUBLIC_URL=. npm run build && rm -rf node_modules /root/.npm
 WORKDIR /opt
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --no-cache

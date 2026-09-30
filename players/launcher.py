@@ -6,12 +6,17 @@ import signal
 import subprocess
 import sys
 import time
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect
 
 
 def main():
+    url = urlsplit(os.environ["COWORLD_PLAYER_WS_URL"])
+    query = dict(parse_qsl(url.query))
+    query["mode"] = "bot"
+    address = urlunsplit(url._replace(query=urlencode(query)))
     child = None
     stop = False
 
@@ -24,7 +29,7 @@ def main():
     try:
         while not stop:
             try:
-                with connect(os.environ["COWORLD_PLAYER_WS_URL"], ping_timeout=None, open_timeout=10) as ws:
+                with connect(address, ping_timeout=None, open_timeout=10) as ws:
                     hello = json.loads(ws.recv(timeout=10))
                     if hello.get("protocol") != "webdip-coworld/1":
                         raise RuntimeError("unexpected game protocol")

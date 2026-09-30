@@ -6,8 +6,9 @@ AGPL-3.0; see [LICENSE](LICENSE).
 
 The current implementation runs complete seven-seat episodes with API bots,
 supervises the upstream services, records public replay snapshots and results,
-and shuts down cleanly. Browser play, the random default bot, private press
-artifacts, and complete replay presentation are under development. This revision
+and shuts down cleanly. Humans can use the upstream React board through a
+seat-authenticated WebSocket tunnel. The random default bot, private press
+artifacts, spectator browser, and complete replay presentation are under development. This revision
 has not been certified or uploaded.
 
 ## Build and check
@@ -77,7 +78,7 @@ exit status. Allow 45 seconds for a worst-case shutdown.
 ## Run an episode
 
 ```sh
-uv run coworld build --version 0.2.0
+uv run coworld build --version 0.3.0
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```
@@ -92,6 +93,42 @@ The [player protocol](docs/protocol.md) explains hello, upstream HTTP play,
 reconnection, deadlines, scoring and output. The launcher can run another bot:
 `python -m players.launcher python -m your_bot`. It passes the upstream URL,
 key, game ID and country ID through environment variables.
+
+## Browser play
+
+Open `/client/player?slot=N&token=TOKEN` on a running episode. The page also
+accepts `address`, the complete player WebSocket URL supplied by a play proxy.
+Treat these URLs as credentials. The upstream board is built from the pinned
+submodule without modifying its source or compiled bundles.
+
+Select a unit, choose an order, and select its destination. For Support hold,
+select Support and click the supported province **twice**. Orders auto-save;
+Ready allows the phase to finish when all seats are ready. The board receives
+phase updates live, then offers a **New phase** arrow to move from the completed
+turn to the current board. No page reload is needed. Press `P` to open chat;
+choose ALL for public press or a country for private press, then press Enter to
+send. Chat requires a press-enabled episode.
+
+Sandbox/practice games, legacy-board links, site navigation, advertisements and
+telemetry are unavailable. Unsupported navigation and sandbox controls show a
+notice. Disconnects show a reconnect instruction; reloading the same seat link
+reconnects without resetting the game. Browser spectating is still pending.
+
+Run the real-browser checks with [Playwright](https://playwright.dev/python/docs/library):
+
+```sh
+uv run playwright install chromium --only-shell
+uv run python -m tools.check_browser coworld-webdiplomacy-game:latest
+```
+
+On Linux, install browser system dependencies with Playwright's documented
+`install --with-deps` option if needed. The checks create fresh restricted
+containers, use mouse/keyboard actions for the human seat, verify saved orders
+and press privacy, and save screenshots under `tmp/p3-shots/`. They test direct
+access and a GET-only buffered proxy with separate viewer/runtime tokens, a
+non-root prefix, and a cross-origin sandboxed iframe. Evidence JSON and local
+credentials live in ignored `tmp/p3-*` directories; do not publish those folders.
+These checks simulate proxy behavior; they are not hosted acceptance tests.
 
 ## Regression checks
 
@@ -112,8 +149,9 @@ applies votes itself. Scenario diagnostics remain in the container's private
 
 The old native observation/action protocol and direct engine-advance helper have
 been removed. Replay-only startup with `COGAME_LOAD_REPLAY_URI` retains the
-prototype viewer and bypasses database services. Full browser and replay UX
-validation will follow in their implementation phases.
+prototype viewer and bypasses database services. Browser checks currently cover
+movement orders and press; retreat/build/convoy UI flows and full replay
+presentation have not yet been validated.
 
 Use project-local tools: `uv run coworld` (0.1.55) and `uv run softmax` (0.26.38).
 
