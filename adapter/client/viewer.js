@@ -23,8 +23,14 @@ function render() {
   const controlled = new Map(board.territories.map(t => [t.terrID, t.ownerCountryID]));
   const priorControl = new Map((previous?.territories || []).map(t => [t.terrID, t.ownerCountryID]));
   $('phase').textContent = game.turnText + (game.phase === 'Finished' ? ' · Final' : ' · ' + game.phase);
-  $('outcome').textContent = game.gameOver === 'No' ? `${board.units.length} units · ${frame.variant.supplyCenterCount} supply centers` : `Game ${game.gameOver.toLowerCase()} · final positions shown`;
-  $('note').textContent = board === game ? 'Supply center rings show current control. A and F mark armies and fleets; arrows show moves since the previous recorded phase.' : 'The upstream engine omits board positions after a draw. This is the last recorded board; final country results appear at right.';
+  if (game.phase === 'Pre-game') {
+    $('outcome').textContent = 'Starting position — units appear in Spring 1901';
+  } else if (game.gameOver === 'No') {
+    $('outcome').textContent = `${board.units.length} units · ${frame.variant.supplyCenterCount} supply centers`;
+  } else {
+    $('outcome').textContent = `Game ${game.gameOver.toLowerCase()} · final positions shown`;
+  }
+  $('note').textContent = board === game ? 'Supply center rings show current control. A and F mark armies and fleets; arrows show moves since the previous recorded phase.' : 'The upstream engine omits board positions after a draw. This is the last recorded board; final country results appear in the Powers list.';
   const centers = $('centers'), moves = $('moves'), units = $('units');
   centers.replaceChildren(); moves.replaceChildren(); units.replaceChildren();
   for (const t of frame.variant.territories.filter(t => t.supply && t.coast !== 'Child')) {
@@ -56,7 +62,10 @@ function render() {
   }
   renderHistory(frame);
   $('counter').textContent = `Phase ${index + 1} of ${frames.length}`;
-  for (const [i, button] of [...$('timeline').children].entries()) button.classList.toggle('active', i === index);
+  for (const [i, button] of [...$('timeline').children].entries()) {
+    button.classList.toggle('active', i === index);
+    button.setAttribute('aria-current', i === index ? 'step' : 'false');
+  }
 }
 function show(i) {
   index = Math.max(0, Math.min(i, frames.length - 1));
@@ -95,7 +104,12 @@ function renderHistory(frame) {
     option.value = i; option.textContent = `${phase.turnText} · ${phase.phase}`;
     select.append(option);
   });
-  select.value = phases.length - 1;
+  if (!phases.length) {
+    const option = document.createElement('option');
+    option.textContent = 'No completed phases';
+    select.append(option);
+  }
+  if (phases.length) select.value = phases.length - 1;
   select.disabled = !phases.length;
   select.onchange = () => renderOrders(frame, phases[select.value]);
   renderOrders(frame, phases.at(-1));
@@ -113,7 +127,10 @@ function renderHistory(frame) {
     $('press').append(row);
   }
   if (!$('press').children.length) $('press').textContent = 'No public press.';
-  if (frame.ending) $('outcome').textContent = `Game ${frame.ending.outcome} · ${frame.ending.reason}`;
+  if (frame.ending) {
+    const reason = {end_year: 'Year limit reached', episode_timeout: 'Time limit reached'}[frame.ending.reason];
+    $('outcome').textContent = `Game ${frame.ending.outcome}${reason ? ' · ' + reason : ''}`;
+  }
 }
 function notify(type, detail = {}) {
   if (parent !== window) parent.postMessage({src: 'coworld-replay', type, ...detail}, '*');

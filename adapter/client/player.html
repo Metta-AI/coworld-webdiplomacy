@@ -12,19 +12,20 @@
     />
     <title>webDiplomacy</title>
     <style>
-      #play-help { position: fixed; right: 8px; bottom: 8px; z-index: 10001; max-width: 320px; padding: 10px; background: #fff3c4; color: #222; font: 14px sans-serif; border: 1px solid #735d28; border-radius: 6px; }
-      #play-help button { float: right; margin-left: 12px; }
-      #play-help p { margin: 8px 0 0; }
-      #connection-status {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        z-index: 10000;
-        background: #fff3c4;
-        color: #222;
-        padding: 6px;
-        font: 14px sans-serif;
+      #play-help, #connection-status {
+        --paper: #fffdf4; --ink: #111827; --muted: #6b6560; --navy: #1a3875;
+        background: var(--paper); color: var(--ink);
+        font: 14px/1.5 "Merriweather Sans", system-ui, sans-serif;
+        position: fixed; padding: 16px;
       }
+      #play-help { right: 12px; bottom: 12px; z-index: 10001; width: min(320px, calc(100vw - 24px)); border: 1px solid #e4dac8; border-radius: 3px; }
+      #play-help strong { color: var(--navy); font-family: "Merriweather", Georgia, serif; font-size: 18px; }
+      #play-help button { float: right; margin: -8px -8px 0 8px; min-width: 44px; min-height: 44px; border: 0; border-radius: 3px; background: transparent; color: var(--ink); font-size: 24px; cursor: pointer; }
+      #play-help button:hover { background: #f8f6ef; }
+      #play-help button:active { background: #eef2f7; }
+      #play-help button:focus-visible { outline: 2px solid #5573a0; outline-offset: 2px; }
+      #play-help p { margin: 12px 0 0; }
+      #connection-status { top: 8px; left: 8px; z-index: 10002; max-width: calc(100vw - 16px); border: 1px solid #e4dac8; }
       #connection-status:empty {
         display: none;
       }

@@ -189,10 +189,11 @@ def run_case(image, mode):
             frame = page.frame_locator("iframe") if mode == "proxy" else page
             if mode == "proxy":
                 assert page.locator("iframe").get_attribute("sandbox") == SANDBOX
-            frame.get_by_role("button", name="Dismiss help").click()
             frame.locator("#ANKARA-unit").wait_for()
             expect(frame.get_by_text("Spring 1901 Movement. Turkey, enter your orders.")).to_be_visible()
             evidence["board_load_seconds"] = round(time.monotonic() - started, 3)
+            page.screenshot(path=str(shots / f"{mode}-help.png"))
+            frame.get_by_role("button", name="Dismiss help").click()
             page.screenshot(path=str(shots / f"{mode}-board.png"))
             hello = next(message for message in messages if message.get("type") == "hello")
             assert "api_key" not in hello["webdip"]

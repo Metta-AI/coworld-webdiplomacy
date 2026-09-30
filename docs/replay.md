@@ -30,6 +30,9 @@ erases the game. PNGs are embedded, so playback does not contact the former game
 The current-position SVG uses Classic's base map, country colors, public unit and
 center coordinates. Dislodged units are offset and translucent. If upstream omits
 positions after a draw, the viewer labels and uses the last observed board.
+Pre-game frames explicitly identify the starting position: units appear in Spring 1901.
+The viewer shell uses a light paper background with ink text; the native map palette
+is unchanged.
 The expandable PNG is separately labeled with its upstream adjudication turn.
 History selection shows public orders and their success/dislodgement flags.
 Press is rendered as text, never injected as HTML.

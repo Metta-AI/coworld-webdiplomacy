@@ -12,10 +12,11 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import quote
 
+from coworld.replay_viewer import STATIC_REPLAY_BUNDLE_CSP
 from playwright.sync_api import expect, sync_playwright
 
 
-def run(replays):
+def run(replays, directory=Path("tmp/p5-static-replay")):
     root = Path("build/static-replay-viewer").resolve()
     hook = Path("tools/build_replay_viewer.sh").resolve()
     subprocess.run([str(hook), str(root)], check=True)
@@ -25,7 +26,6 @@ def run(replays):
     files = list(root.rglob("*"))
     assert all(file.is_file() and not file.is_symlink() for file in files)
     assert len(files) <= 4096 and sum(file.stat().st_size for file in files) < 256 * 1024**2
-    directory = Path("tmp/p5-static-replay")
     directory.mkdir(exist_ok=True)
     # Keep replay fixtures outside the source bundle.
     bundle = directory / "assets" / "content-hash"
@@ -49,6 +49,7 @@ def run(replays):
     class Handler(SimpleHTTPRequestHandler):
         def end_headers(self):
             self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Content-Security-Policy", STATIC_REPLAY_BUNDLE_CSP)
             super().end_headers()
 
         def log_message(self, *_):
@@ -66,6 +67,10 @@ def run(replays):
             page = browser.new_page(viewport={"width": 1200, "height": 1000})
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
+            page.on(
+                "console",
+                lambda message: errors.append(message.text) if "Content Security Policy" in message.text else None,
+            )
             for number, replay in enumerate(replays):
                 content = replay.read_bytes()
                 frames = json.loads(content)
@@ -87,7 +92,7 @@ def run(replays):
                         + "replay="
                         + quote(artifact_base + "/" + name, safe=""),
                     )
-                    page.wait_for_function("events.some(e => e.type === 'ready')")
+                    page.wait_for_function("() => events.some(e => e.type === 'ready')")
                     events = page.evaluate("events")
                     ready = next(event for event in events if event["type"] == "ready")
                     assert ready["rendered"] and ready["imageLoaded"], events
@@ -99,6 +104,10 @@ def run(replays):
                     for i, frame in enumerate(frames):
                         view.locator("#timeline button").nth(i).click()
                         expect(view.locator("#counter")).to_have_text(f"Phase {i + 1} of {len(frames)}")
+                        if frame["game"]["phase"] == "Pre-game":
+                            expect(view.locator("#outcome")).to_have_text(
+                                "Starting position — units appear in Spring 1901"
+                            )
                         board = frame["game"]
                         if not board["territories"]:
                             board = next(
@@ -135,7 +144,7 @@ def run(replays):
                 page.locator("iframe").evaluate(
                     "(el,url) => el.src=url", base + "/assets/content-hash/index.html" + suffix
                 )
-                page.wait_for_function("events.some(e => e.type === 'error')")
+                page.wait_for_function("() => events.some(e => e.type === 'error')")
                 assert not any(event["type"] == "ready" for event in page.evaluate("events"))
                 expect(page.frame_locator("iframe").get_by_role("alert")).to_be_visible()
             assert not errors, errors
@@ -160,4 +169,6 @@ def run(replays):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("replays", nargs="+", type=Path)
-    run(parser.parse_args().replays)
+    parser.add_argument("--output-dir", type=Path, default=Path("tmp/p5-static-replay"))
+    args = parser.parse_args()
+    run(args.replays, args.output_dir)

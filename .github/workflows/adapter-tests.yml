@@ -16,7 +16,7 @@ jobs:
       - run: uv run ruff check adapter/boot.py adapter/supervisor.py adapter/config.py adapter/episode.py adapter/routes.py adapter/artifacts.py adapter/maps.py adapter/test_episode.py players tools/check_boot.py tools/check_episode.py adapter/tunnel.py adapter/test_tunnel.py tools/check_browser.py tools/check_browser_boundaries.py tools/play_proxy.py
       - run: uv run python -m unittest players.test_players -v
       - run: uv run ruff check players tools
-      - run: uv run coworld build --version 0.5.0
+      - run: uv run coworld build --version 0.6.0
       - run: uv run playwright install --with-deps chromium --only-shell
       - run: uv run python -m tools.check_browser coworld-webdiplomacy-game:latest
       - run: uv run python -m tools.check_browser_scenarios coworld-webdiplomacy-game:latest

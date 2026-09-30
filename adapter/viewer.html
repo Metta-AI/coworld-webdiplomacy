@@ -5,19 +5,28 @@
 <title>webDiplomacy</title>
 <meta name="referrer" content="no-referrer">
 <style>
-  :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #101b27; color: #f4f3ed; }
+  :root {
+    color-scheme: light;
+    --paper: #fffdf4; --ink: #111827; --muted: #6b6560;
+    --navy: #1a3875; --action: #0e2758; --focus: #5573a0;
+    --rule: #e4dac8; --hover: #f8f6ef; --selected: #eef2f7; --error: #945637;
+    font-family: "Merriweather Sans", ui-sans-serif, system-ui, sans-serif;
+    background: var(--paper); color: var(--ink);
+  }
   * { box-sizing: border-box; }
   body { margin: 0; }
-  header { padding: 18px max(20px, calc((100vw - 1260px) / 2)); background: #152638; border-bottom: 1px solid #33485b; display: flex; justify-content: space-between; align-items: center; gap: 14px; }
-  h1 { font-family: Georgia, serif; font-size: clamp(26px, 3vw, 38px); font-weight: 500; margin: 0; }
-  .eyebrow { color: #f5c977; letter-spacing: .16em; text-transform: uppercase; font-size: 11px; font-weight: 700; margin-bottom: 4px; }
-  #connection { color: #b7cad8; font-size: 13px; }
-  main { max-width: 1300px; margin: auto; padding: 22px 20px 40px; }
-  .hero { display: flex; justify-content: space-between; align-items: end; gap: 14px; margin-bottom: 16px; }
-  #phase { font-family: Georgia, serif; font-size: clamp(24px, 3vw, 34px); }
-  #outcome { color: #c8d7df; font-size: 14px; text-align: right; }
-  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px; align-items: start; }
-  .map-shell { background: #d8e9ef; border: 7px solid #30485c; border-radius: 12px; box-shadow: 0 18px 40px #050c15a6; overflow: hidden; }
+  header { padding: 20px max(20px, calc((100vw - 1260px) / 2)); border-bottom: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  h1 { font-family: "Merriweather", Georgia, serif; font-size: clamp(26px, 3vw, 38px); font-weight: 700; margin: 0; }
+  h2 { color: var(--navy); font: 700 14px "Merriweather", Georgia, serif; text-transform: uppercase; letter-spacing: .12em; }
+  .eyebrow { color: var(--muted); letter-spacing: .1em; text-transform: uppercase; font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+  #connection { color: var(--muted); font-size: 13px; max-width: 32ch; }
+  #connection[role="alert"] { color: var(--error); }
+  main { max-width: 1300px; margin: auto; padding: 24px 20px 40px; }
+  .hero { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 20px; }
+  #phase { font-family: "Merriweather", Georgia, serif; font-size: clamp(24px, 3vw, 34px); }
+  #outcome { color: var(--muted); font-size: 14px; text-align: right; max-width: 40ch; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 28px; align-items: start; }
+  .map-shell { overflow: hidden; }
   svg { display: block; width: 100%; height: auto; background: #d8e9ef; }
   .center { stroke: #182d40; stroke-width: 1.8; }
   .center.neutral { fill: #f8f4e8; }
@@ -25,33 +34,40 @@
   .unit { stroke: #f7f2e9; stroke-width: 2; filter: drop-shadow(0 2px 2px #0d1b28aa); }
   .unit-label { text-anchor: middle; dominant-baseline: middle; fill: #172b39; font-size: 8px; font-weight: 900; pointer-events: none; }
   .move { stroke: #fff5bd; stroke-width: 3; stroke-linecap: round; marker-end: url(#arrow); filter: drop-shadow(0 1px 2px #172b39); }
-  aside { background: #1a2b3b; border: 1px solid #3d5264; border-radius: 10px; overflow: hidden; }
-  aside h2 { margin: 0; padding: 15px 16px 11px; font: 500 22px Georgia, serif; border-bottom: 1px solid #3d5264; }
-  .power { display: grid; grid-template-columns: 13px 1fr auto; gap: 9px; align-items: center; padding: 9px 16px; border-bottom: 1px solid #2b4051; font-size: 13px; }
-  .power:last-child { border: 0; }
-  .swatch { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #f2eee8; }
-  .power small { display: block; color: #acc2cf; font-size: 11px; margin-top: 2px; }
-  .count { font-variant-numeric: tabular-nums; color: #f4d487; }
-  .controls { margin-top: 18px; padding: 16px; background: #1a2b3b; border: 1px solid #3d5264; border-radius: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-  button, select { border: 1px solid #668097; background: #294156; color: #fff; border-radius: 6px; padding: 9px 13px; font: inherit; cursor: pointer; }
-  button:hover, button:focus-visible, select:focus-visible { background: #385b75; outline: 2px solid #f5c977; outline-offset: 2px; }
-  button.primary { background: #e7b965; border-color: #e7b965; color: #142331; font-weight: 700; min-width: 80px; }
-  button.primary:hover { background: #ffcf7a; }
-  #counter { margin-left: auto; color: #c5d6df; font-variant-numeric: tabular-nums; font-size: 13px; }
-  #timeline { display: flex; gap: 5px; overflow-x: auto; width: 100%; padding-top: 8px; }
-  #timeline button { flex: 1 0 90px; padding: 8px; text-align: left; font-size: 11px; white-space: nowrap; }
-  #timeline button.active { background: #dfb564; border-color: #dfb564; color: #142331; font-weight: 700; }
-  .note { color: #b6c9d2; font-size: 12px; margin: 12px 2px 0; }
-  .public-history { margin-top: 24px; }
-  #orders { columns: 2; padding-left: 24px; font-size: 13px; line-height: 1.7; }
-  #press p { white-space: pre-wrap; overflow-wrap: anywhere; border-bottom: 1px solid #33485b; padding-bottom: 12px; }
+  aside h2 { margin: 0 0 12px; }
+  .power { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; padding: 10px 0; font-size: 13px; }
+  .swatch { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--muted); }
+  .power small { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; }
+  .count { font-variant-numeric: tabular-nums; color: var(--ink); }
+  .controls { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  button, select { border: 1px solid var(--muted); background: var(--paper); color: var(--ink); border-radius: 3px; padding: 9px 12px; min-height: 44px; font: inherit; cursor: pointer; }
+  button:hover, select:hover, summary:hover { background: var(--hover); }
+  button:active, select:active { background: var(--selected); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  input { accent-color: var(--navy); }
+  button.primary { background: var(--action); border-color: var(--action); color: var(--paper); font-weight: 700; min-width: 80px; }
+  button.primary:hover { background: var(--navy); }
+  button.primary:active { background: var(--ink); }
+  #counter { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+  #timeline { display: flex; gap: 5px; overflow-x: auto; width: 100%; padding: 8px 2px 4px; }
+  #timeline button { flex: 1 0 90px; padding: 8px; text-align: left; font-size: 12px; white-space: nowrap; }
+  #timeline button.active { background: var(--selected); color: var(--navy); font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+  .note { color: var(--muted); font-size: 13px; line-height: 1.6; max-width: 75ch; margin: 20px 0 0; }
+  .public-history { margin-top: 32px; }
+  .public-history h2 { margin: 28px 0 16px; }
+  #orders { columns: 2; column-gap: 40px; padding-left: 24px; font-size: 14px; line-height: 1.7; }
+  #orders li { break-inside: avoid; }
+  #press { max-width: 75ch; line-height: 1.6; }
+  #press p { white-space: pre-wrap; overflow-wrap: anywhere; border-bottom: 1px solid var(--rule); padding-bottom: 12px; }
+  summary { cursor: pointer; padding: 12px 0; color: var(--navy); }
   #season-map { max-width: 100%; height: auto; }
   [hidden] { display: none !important; }
-  @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } #powers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } #counter { margin-left: 0; } }
+  @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } #powers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; } #counter { margin-left: 0; } }
+  @media (max-width: 540px) { header, .hero { align-items: start; flex-direction: column; } #outcome { text-align: left; } #powers { grid-template-columns: 1fr; } #orders { columns: 1; } main { padding: 20px 16px 32px; } header { padding: 16px; } }
 </style>
 <header>
   <div><div class="eyebrow">Seven powers · Classic map</div><h1>webDiplomacy</h1></div>
-  <div id="connection" role="status">Connecting to replay…</div>
+  <div id="connection" role="status">Loading public game…</div>
 </header>
 <main>
   <div class="hero"><div id="phase">Loading game state…</div><div id="outcome"></div></div>
@@ -61,7 +77,7 @@
       <image id="background" width="612" height="398" preserveAspectRatio="xMidYMid meet"/>
       <g id="centers"></g><g id="moves"></g><g id="units"></g>
     </svg></div>
-    <aside><h2>Powers</h2><div id="powers"></div></aside>
+    <aside><h2>Powers</h2><p class="note">SC = supply centers</p><div id="powers"></div></aside>
   </div>
   <div class="controls" aria-label="Replay controls">
     <button id="previous" title="Previous phase">← Previous</button>

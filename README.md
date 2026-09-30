@@ -10,7 +10,42 @@ and shuts down cleanly. Humans can use the upstream React board through a
 seat-authenticated WebSocket tunnel. The bundled default bot selects random legal orders, and launchers save private press
 to player logs and optional ZIP artifacts. A read-only live viewer and a standalone
 static replay viewer show public positions, adjudicated orders, season maps and
-public press. This revision has not been certified or uploaded.
+public press. Local certification and browser checks are described below; hosted
+certification and publication are separate release steps.
+
+## Game rules and variants
+
+Seven powers compete on the Classic map, starting in Spring 1901. Orders resolve
+simultaneously: negotiate where press is enabled, then move, hold, support or
+convoy. Fleets use coastal and sea provinces; armies use land. Equal-strength
+attacks bounce, support can be cut, and dislodged units must retreat or disband.
+Autumn supply-center ownership determines winter builds and removals. A power
+wins outright by controlling 18 of the 34 supply centers.
+
+| Variant | Press | Diplomacy / retreat and build | Year cap |
+| --- | --- | --- | --- |
+| `classic-gunboat` | None | 1 / 1 minutes | 1910 |
+| `classic-press` | Public and private | 4 / 1 minutes | 1908 |
+| `classic-press-short` | Public and private | 3 / 1 minutes | 1904 |
+| `classic-live-human` | Public and private | 7 / 2 minutes | 1904 |
+
+All variants have seven seats and one player per user. Deadlines use whole
+minutes; all players marking Ready can end a phase early. A silent seat uses
+upstream default orders and does not fail the episode. The year cap ends play at
+the first observed completed autumn (including retreats); results record the
+actual final turn. The container ends play after at most 5910 seconds, reserving
+90 seconds within the 100-minute episode limit for final artifacts and shutdown.
+
+A solo scores 1 for the winner and 0 for others. Otherwise, the default score is
+each surviving power's supply centers squared divided by the sum of those squares.
+Optional `draw_size` splits score equally among survivors; `supply_centers` uses
+each survivor's share of owned centers. Cancellation gives equal scores. Upstream
+handles Draw, Pause and Cancel votes; a game still paused at the time limit ends
+and scores from its centers. Identities are anonymous until the game finishes.
+
+Protect home centers, coordinate support, and negotiate before committing to an
+attack. The random bot is a legal-order example, not a strong strategic opponent.
+For human play, use `classic-live-human` and the board instructions below.
 
 ## Build and check
 
@@ -79,16 +114,33 @@ exit status. Allow 45 seconds for a worst-case shutdown.
 ## Run an episode
 
 ```sh
-uv run coworld build --version 0.5.0
+uv run coworld build --version 0.6.0
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```
 
-The current certification fixture selects seven hold bots, one-minute NoPress
+Certify the built manifest using the default 60-second health and episode limits:
+
+```sh
+DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld certify \
+  dist/coworld_manifest.json --no-open-report
+```
+
+Certification checks the declared static bundle but does not exercise its browser
+rendering. Run the browser and static-replay checks below as well. The game requests
+2 CPUs and 2 GiB memory; players use platform defaults. Compose builds both images
+for Linux amd64.
+
+The certification fixture selects seven hold bots, one-minute NoPress
 phases, and the 1901 year cap. A successful run produces `results.json`, a public
-`replay` JSON array, and separate game/player logs. This runs the fixture locally;
-it is not a certification claim. The default bundled player is the random legal bot;
+`replay` JSON array, and separate game/player logs. The `run-episode` command runs
+this fixture; `certify` adds the platform contract checks. The default bundled
+player is the random legal bot;
 the certification roster explicitly selects the hold bot.
+
+With Coworld 0.1.55, this seven-hold fixture completes the episode but fails
+`players-run`: certification requires a seat for every bundled player, including
+`random`. The fixture must include both player types before certification can pass.
 
 The [player protocol](docs/protocol.md) explains hello, upstream HTTP play,
 reconnection, deadlines, scoring and output. The launcher can run another bot:
@@ -181,6 +233,10 @@ The hook recreates the bundle directory and includes all assets locally. The bro
 check serves only static files, checks compressed and uncompressed replay data,
 readiness, playback and visible errors. See [replay format and limitations](docs/replay.md).
 The legacy game-container replay server has been removed.
+
+The manifest embeds README and protocol text so onboarding does not depend on
+source-repository access. After changing those docs, run
+`uv run python -m tools.sync_manifest_docs` and commit the updated template.
 
 Use project-local tools: `uv run coworld` (0.1.55) and `uv run softmax` (0.26.38).
 
