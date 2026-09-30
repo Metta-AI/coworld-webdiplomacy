@@ -14,7 +14,9 @@ jobs:
       - run: uv sync --locked --group dev
       - run: uv run python -m unittest discover -s adapter -p 'test_*.py' -v
       - run: uv run ruff check adapter/boot.py adapter/supervisor.py adapter/config.py adapter/episode.py adapter/routes.py adapter/artifacts.py adapter/server.py adapter/test_episode.py players tools/check_boot.py tools/check_episode.py adapter/tunnel.py adapter/test_tunnel.py tools/check_browser.py tools/check_browser_boundaries.py tools/play_proxy.py
-      - run: uv run coworld build --version 0.3.0
+      - run: uv run python -m unittest players.test_players -v
+      - run: uv run ruff check players tools
+      - run: uv run coworld build --version 0.4.0
       - run: uv run playwright install --with-deps chromium --only-shell
       - run: uv run python -m tools.check_browser coworld-webdiplomacy-game:latest
       - run: uv run python tools/check_boot.py coworld-webdiplomacy-game:latest
@@ -23,4 +25,8 @@ jobs:
       - run: docker run --rm --platform linux/amd64 --cap-drop=ALL --security-opt=no-new-privileges -e WEBDIP_MODE=smoke coworld-webdiplomacy-game:latest
       - run: docker run --rm --platform linux/amd64 --cap-drop=ALL --security-opt=no-new-privileges -e WEBDIP_MODE=tactics coworld-webdiplomacy-game:latest
       - run: docker run --rm --platform linux/amd64 --cap-drop=ALL --security-opt=no-new-privileges -e WEBDIP_MODE=convoy coworld-webdiplomacy-game:latest
+      - run: uv run python -m tools.check_random coworld-webdiplomacy-game:latest
+      - run: uv run python -m tools.check_legal_corners coworld-webdiplomacy-game:latest
+      - run: uv run python -m tools.check_press coworld-webdiplomacy-game:latest
+      - run: uv run python -m tools.check_compatibility coworld-webdiplomacy-game:latest
       - run: uv run coworld run-episode dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60 --verify-replay

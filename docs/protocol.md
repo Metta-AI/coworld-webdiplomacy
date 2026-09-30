@@ -34,7 +34,7 @@ its seat capability. The launcher explicitly adds `mode=bot`. Connections carryi
 and substituting a runtime token. This keeps that runtime key out of browser hello.
 
 The launcher sets `WEBDIP_URL`, `WEBDIP_API_KEY`, `WEBDIP_GAME_ID`, and
-`WEBDIP_COUNTRY_ID` for its bot subprocess. Bots use upstream HTTP routes directly,
+`WEBDIP_COUNTRY_ID`, and `WEBDIP_SEED` for its bot subprocess. Bots use upstream HTTP routes directly,
 with `Authorization: Bearer <api_key>`. The adapter never submits their actions.
 `game/setvote` returns plain text; context and order responses are JSON.
 See the [upstream API reference](../webdiplomacy/api/README.md).
@@ -46,7 +46,9 @@ Lifecycle messages after hello:
 - `{"type":"game_over","results":{...}}`: replay and results have been written.
   Reply with `{"type":"game_over_ack"}` when done. The server waits at most
   `completion_timeout_seconds` (default 20), ending sooner when all connected
-  seats acknowledge. The launcher terminates its child and exits 0.
+  seats acknowledge. The launcher stops its child, finishes its private archive, then acknowledges
+  completion. A previously failed bot preserves a nonzero player exit status;
+  optional artifact-upload failure does not fail an otherwise successful player.
 
 A reconnect replaces that seat's previous socket. Losing a connection or sending
 an invalid/stale HTTP order does not fail the episode. The upstream API handles
@@ -143,5 +145,26 @@ minutes so upstream treats the game as live and does not auto-start a full lobby
 The 5910-second maximum reserves 90 seconds below the 100-minute episode ceiling.
 `render_maps` is reserved for the replay phase and currently has no effect.
 
-Private press archival and bot artifact upload are not implemented yet. The
-launcher currently acknowledges game_over without fetching private press.
+## Private player artifacts
+
+The launcher snapshots the seat's private messages every two seconds after each
+fetch, deduplicating by message ID. At game_over it requests the full retained
+history without a cursor or turn filter, prints a `private_press` JSON record to
+**player stdout**, and optionally writes `private-press.json` inside a ZIP to
+`COWORLD_PLAYER_ARTIFACT_UPLOAD_URL`. Local `file://` writes are atomic; HTTP(S)
+uses PUT with `Content-Type: application/zip`. No URL, API key, or upload response
+body is logged. With no artifact URL, only the private player log is written.
+
+`complete: true` means the final full fetch succeeded after game_over. A cancelled
+game is erased upstream: its archive has `complete: false` and
+`coverage: best_available_snapshot`. A message sent immediately before erasure
+may be missing. Fetch failure or interrupted shutdown also produces a best-available
+archive. A worker deadline can prevent an archive entirely and is logged explicitly.
+Game stdout, public JSON files and replay never receive these private archives.
+
+Presence reconnects without spawning the bot again. A bot that exits early leaves
+the launcher connected and archiving until game_over or termination. Child process
+groups get two seconds to terminate, then are killed and reaped. Archive work runs
+in a separate synchronous worker, with a 12-second completion deadline and a
+bounded kill/reap. The default server completion window is 20 seconds; reducing
+it can truncate artifact collection. See [player checks](players.md).

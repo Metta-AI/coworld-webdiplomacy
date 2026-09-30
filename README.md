@@ -7,8 +7,9 @@ AGPL-3.0; see [LICENSE](LICENSE).
 The current implementation runs complete seven-seat episodes with API bots,
 supervises the upstream services, records public replay snapshots and results,
 and shuts down cleanly. Humans can use the upstream React board through a
-seat-authenticated WebSocket tunnel. The random default bot, private press
-artifacts, spectator browser, and complete replay presentation are under development. This revision
+seat-authenticated WebSocket tunnel. The bundled default bot selects random legal orders, and launchers save private press
+to player logs and optional ZIP artifacts. Spectator browser and complete replay
+presentation are under development. This revision
 has not been certified or uploaded.
 
 ## Build and check
@@ -78,7 +79,7 @@ exit status. Allow 45 seconds for a worst-case shutdown.
 ## Run an episode
 
 ```sh
-uv run coworld build --version 0.3.0
+uv run coworld build --version 0.4.0
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```
@@ -86,13 +87,17 @@ DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
 The current certification fixture selects seven hold bots, one-minute NoPress
 phases, and the 1901 year cap. A successful run produces `results.json`, a public
 `replay` JSON array, and separate game/player logs. This runs the fixture locally;
-it is not a certification claim. The temporary default player is the hold bot;
-the planned random legal bot will replace it.
+it is not a certification claim. The default bundled player is the random legal bot;
+the certification roster explicitly selects the hold bot.
 
 The [player protocol](docs/protocol.md) explains hello, upstream HTTP play,
 reconnection, deadlines, scoring and output. The launcher can run another bot:
 `python -m players.launcher python -m your_bot`. It passes the upstream URL,
-key, game ID and country ID through environment variables.
+key, game ID, country ID and episode seed through environment variables.
+The random player checks saved orders against its requests and fails visibly on
+a current-phase rejection. Legal orders may still bounce or lose support.
+See [player validation](docs/players.md) for the generator, private archives and
+stock-upstream compatibility checks.
 
 ## Browser play
 

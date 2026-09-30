@@ -155,12 +155,27 @@
   },
   "player": [
     {
+      "id": "random",
+      "type": "player",
+      "image": "{{PLAYER_IMAGE}}",
+      "name": "Random legal bot",
+      "description": "Seeded legal orders using the upstream map and API."
+    },
+    {
       "id": "hold",
       "type": "player",
       "image": "{{PLAYER_IMAGE}}",
       "name": "Hold bot",
       "description": "Holds units and marks Ready using the upstream API.",
-      "source_url": "https://github.com/Metta-AI/coworld-webdiplomacy/tree/main/players"
+      "source_url": "https://github.com/Metta-AI/coworld-webdiplomacy/tree/main/players",
+      "run": [
+        "/opt/.venv/bin/python",
+        "-m",
+        "players.launcher",
+        "/opt/.venv/bin/python",
+        "-m",
+        "players.hold_bot"
+      ]
     }
   ],
   "variants": [

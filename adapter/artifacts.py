@@ -20,13 +20,13 @@ def read_artifact(uri):
     return local_path(uri).read_bytes()
 
 
-def write_artifact(uri, data, method_env):
+def write_artifact(uri, data, method_env, *, content_type="application/json", timeout=60):
     if urlparse(uri).scheme in ("http", "https"):
         method = os.environ.get(method_env, "PUT").upper()
         if method not in ("POST", "PUT"):
             raise ValueError(f"{method_env} must be PUT or POST")
-        request = Request(uri, data=data, method=method, headers={"Content-Type": "application/json"})
-        with urlopen(request, timeout=60):
+        request = Request(uri, data=data, method=method, headers={"Content-Type": content_type})
+        with urlopen(request, timeout=timeout):
             return
     target = local_path(uri)
     temporary = target.with_name(target.name + ".tmp")

@@ -10,13 +10,13 @@ from urllib.request import urlopen
 
 from websockets.sync.client import connect
 
-from players.api import WebDiplomacy, holds, order
+from players.api import WebDiplomacy, holds, order, verify_orders
 
 
-def public(context):
+def public(context, base="http://127.0.0.1:8080"):
     result = {}
     for name, file in context["files"].items():
-        with urlopen("http://127.0.0.1:8080/" + file["url"], timeout=10) as response:
+        with urlopen(base + "/" + file["url"], timeout=10) as response:
             result[name] = json.load(response)
     return result
 
@@ -27,31 +27,22 @@ def wait_phase(api, previous=None):
         context = api.context()
         phase = (int(context["game"]["turn"]), context["game"]["phase"])
         if phase[1] != "Pre-game" and phase != previous:
-            return context
+            # Context can observe the committed DB phase before its files are refreshed.
+            board = api.file(context["files"]["game"])
+            history = api.file(context["files"]["history"])
+            if (
+                (board["turn"], board["phase"]) == phase
+                and board["version"] == context["files"]["game"]["version"]
+                and history["version"] == context["files"]["history"]["version"]
+            ):
+                return context
         time.sleep(0.1)
     raise RuntimeError("upstream phase did not advance")
 
 
-def verify_orders(sent, applied):
-    for requested in sent:
-        keys = ["type"]
-        kind = requested["type"]
-        if kind in ("Build Army", "Build Fleet", "Destroy"):
-            keys += ["toTerrID"]
-        elif kind != "Wait":
-            keys += ["terrID"]
-            if kind != "Hold" and kind != "Disband":
-                keys += ["toTerrID"]
-            if kind in ("Support move", "Convoy"):
-                keys += ["fromTerrID"]
-            if kind == "Move":
-                keys += ["viaConvoy"]
-        assert any(all(actual.get(key) == requested[key] for key in keys) for actual in applied), requested
-
-
-def play(mode, clients):
+def play(mode, clients, observe=None):
     first = wait_phase(clients[1])
-    territories = {item["name"]: int(item["id"]) for item in public(first)["variant"]["territories"]}
+    territories = {item["name"]: int(item["id"]) for item in public(first, clients[1].url)["variant"]["territories"]}
     if mode == "smoke":
         marker = "private-sentinel-coworld"
         clients[1].request(
@@ -59,7 +50,7 @@ def play(mode, clients):
         )
         assert marker in json.dumps(clients[2].context())
         assert marker not in json.dumps(clients[3].context())
-        assert marker not in json.dumps(public(first))
+        assert marker not in json.dumps(public(first, clients[1].url))
         steps = [{}, {}, {}]
     elif mode == "tactics":
         steps = [
@@ -74,11 +65,23 @@ def play(mode, clients):
             {"Holland": ("Move", "Belgium"), "Ruhr": ("Support move", "Belgium", "Holland")},
             {"Belgium": ("Retreat", "Picardy")},
         ]
+    elif mode == "coasts":
+        steps = [
+            {
+                "Moscow": ("Move", "Ukraine"),
+                "Warsaw": ("Move", "Galicia"),
+                "St. Petersburg (South Coast)": ("Move", "Gulf of Bothnia"),
+            },
+            {"Ukraine": ("Move", "Rumania"), "Gulf of Bothnia": ("Move", "Sweden")},
+            {},
+        ]
     else:
         steps = [{}, {}]
     phases = []
     for index, overrides in enumerate(steps):
         contexts = {country: api.context() for country, api in clients.items()}
+        if observe:
+            observe(clients, contexts)
         current = contexts[1]["game"]
         phase = current["phase"]
         phases.append(phase)
@@ -113,7 +116,10 @@ def play(mode, clients):
                             convoyPath=[territories["Brest"], territories["English Channel"]],
                         )
             if (context.get("orders") or {}).get("orders"):
-                verify_orders(submitted, api.orders(context, submitted))
+                verify_orders(submitted, api.orders(context, submitted, ready="No"))
+        for country, api in clients.items():
+            if contexts[country]["orders"]["orders"]:
+                api.orders(contexts[country], [], ready="Yes")
         latest = wait_phase(clients[1], (int(current["turn"]), phase))
         print(
             json.dumps(
@@ -121,7 +127,7 @@ def play(mode, clients):
             ),
             flush=True,
         )
-    final = public(latest)
+    final = public(latest, clients[1].url)
     if mode == "tactics":
         assert phases == ["Diplomacy", "Diplomacy", "Builds", "Diplomacy", "Retreats"], phases
         units = final["history"]["phases"][-1]["units"]
@@ -138,6 +144,8 @@ def play(mode, clients):
     while clients[1].context()["game"]["gameOver"] != "Drawn":
         assert time.monotonic() < deadline, "unanimous draw did not apply"
         time.sleep(0.1)
+    if observe:
+        observe(clients, {country: api.context() for country, api in clients.items()})
     print(f"PASS: {mode}, upstream phase progression and unanimous draw", flush=True)
 
 

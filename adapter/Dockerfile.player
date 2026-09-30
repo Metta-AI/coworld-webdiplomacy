@@ -4,6 +4,7 @@ COPY --from=uv /uv /usr/local/bin/uv
 WORKDIR /opt
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --no-cache
+COPY adapter/__init__.py adapter/artifacts.py /opt/adapter/
 COPY players/ /opt/players/
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["/opt/.venv/bin/python", "-m", "players.launcher"]
