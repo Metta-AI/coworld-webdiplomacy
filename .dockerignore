@@ -1,4 +1,12 @@
 upstream/.git
+.git
+webdiplomacy/.git
+.venv
+tmp
+dist
+**/__pycache__
+.pytest_cache
+.ruff_cache
 runs
 artifacts
 *.log

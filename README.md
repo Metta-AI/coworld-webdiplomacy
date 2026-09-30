@@ -1,56 +1,95 @@
-# webDiplomacy Coworld private prototype
+# webDiplomacy Coworld
 
-This adapter runs the actual webDiplomacy PHP adjudicator with a private MariaDB database and Redis inside one game container. Seven container players connect by WebSocket. The upstream source remains unmodified.
+Packages the unmodified [webDiplomacy](https://github.com/kestasjk/webDiplomacy)
+server for [Coworld](https://github.com/Metta-AI/coworld). Licensed under
+AGPL-3.0; see [LICENSE](LICENSE).
 
-## Build and verify
+The current implementation provides the container image, a preinstalled Classic
+map and database, supervised services, health checks, and graceful shutdown.
+Episode orchestration, bot launchers, and browser play are under development.
+This revision is not ready for certification or hosted games.
 
-Fetch the pinned upstream checkout before building:
+## Build and check
+
+Requires Docker with Linux amd64 support, Git, Python 3.12+, and uv.
 
 ```sh
-git clone https://github.com/kestasjk/webDiplomacy.git upstream
-git -C upstream checkout "$(cat UPSTREAM_COMMIT)"
-docker compose build
-uvx --from 'coworld[auth] @ git+https://github.com/Metta-AI/coworld.git@main' coworld build --version 0.1.3
-uvx --from 'coworld[auth] @ git+https://github.com/Metta-AI/coworld.git@main' coworld certify dist/coworld_manifest.json --timeout-seconds 240 --no-open-report
-docker tag coworld-webdiplomacy-game:latest coworld-webdiplomacy-local:latest
-docker tag coworld-webdiplomacy-player:latest coworld-webdiplomacy-player-local:latest
-./adapter/local_episode.sh
+git submodule update --init --recursive
+uv sync --group dev
+docker build --platform linux/amd64 -f adapter/Dockerfile -t coworld-webdiplomacy:local .
+uv run python tools/check_boot.py coworld-webdiplomacy:local
+uv run python tools/check_boot.py coworld-webdiplomacy:local --crash-service
+uv run python -m unittest discover -s adapter -p 'test_*.py' -v
 ```
 
-The script prints the local replay viewer URL, artifacts directory and replay container name. The game exits after writing artifacts; standalone replay remains available. Containers and their dedicated network remain available for inspection. Stop only the resources named for that run when finished.
+The boot check starts a fresh container with all Linux capabilities dropped and
+privilege escalation forbidden. It requires health within 10 seconds of container start, checks
+nginx/API/SSE responses, verifies every process remains root without capabilities,
+checks the upstream gamemaster heartbeat, and requires exit 0 after SIGTERM. The crash check kills SSE and requires exit 1.
 
-The starter holds units, disbands retreats and waives builds. It votes for a draw after three turns. It is a readable protocol example, not a competitive policy. A configured phase cap draws remaining players using the upstream draw adjudication; scores split one point among surviving drawn members. A solo winner receives one point. Defeated members receive zero.
+To inspect a running instance:
 
-Each game owns an empty database. Its PHP API and database listen only on loopback; player containers use a separate network namespace. Accounts are ordinary game members so upstream draw voting includes them. Upstream `Bot` accounts cannot vote and mixed games automatically end when only bots remain.
+```sh
+docker run --name webdip-local --platform linux/amd64 --cap-drop=ALL \
+  --security-opt no-new-privileges -p 127.0.0.1:8080:8080 coworld-webdiplomacy:local
+# From another terminal:
+curl http://127.0.0.1:8080/healthz
+curl -i http://127.0.0.1:8080/api.php
+docker stop --time 45 webdip-local
+docker rm webdip-local
+```
 
-## Protocol
+The API deliberately returns HTTP 400, `No route provided.`, when called without
+a route. `/healthz` returns HTTP 200 with `{"status":"ok"}` only after dependencies
+are ready. Everything outside the explicit nginx route list returns 404.
 
-`/player?slot=N&token=TOKEN` authenticates one of seven seats. Seat 0 is country 1, through seat 6/country 7. Duplicate connections are rejected, including simultaneous connection attempts.
+## Runtime
 
-The server sends `{"type":"observation","context":...,"public":...}` once per phase. `context` contains that member's orders and private messages. `public` contains upstream versioned game, history, map, status and global-message data. It never contains private messages. API keys and upstream SSE credentials are not passed to players.
+`adapter/boot.py` supervises Redis, MariaDB, PHP-FPM, nginx, and the upstream Node
+SSE server. `config/` holds their configuration. Only nginx listens publicly on
+8080; MariaDB, Redis, FPM, and the health server listen on loopback. SSE uses a
+private Unix socket. The SSE server calls the loopback-only `gamemaster.php`;
+the adapter does not advance games.
 
-Reply with `turn`, `phase`, `orders`, optional `messages` and optional Boolean `draw`. Order fields match `upstream/api/README.md`. Messages use `toCountryID` (0 means public) and `message`. Each active seat submits exactly one action per observed phase. Stale, duplicate, malformed, oversized or rejected input ends the episode with a typed, atomically published failure for that seat. Connection, socket-send and action deadlines are bounded; sends and actions share the phase deadline. Known eliminated seats cannot abort remaining players. Upstream validates ownership and legality of orders. Draw reflects a desired vote state, not a toggle. The server sends `{"type":"finished","scores":[...]}` before closing players.
+All processes retain root identity, with no capabilities or runtime ownership
+changes. Nginx uses single-process mode to avoid its root worker's `initgroups`
+call. This limits nginx to one worker and precludes graceful worker replacement;
+restart the container to change configuration. PHP has four workers.
 
-The adapter uses the September 20 API: `game/playercontext`, public versioned JSON, `game/orders`, `game/sendmessage` and `game/togglevote`. Removed routes such as `game/status` are not used.
+The image bakes the upstream database schema, Classic map, and `wD_VariantInfo`.
+It contains no episode users or games. Boot generates fresh application secrets,
+unlocks and rotates the database application account, and initializes the
+upstream downtime heartbeat. No database installation occurs at runtime.
+Generated upstream configuration/cache files exist only inside the image or
+container; never edit or generate files in the source submodule.
 
-`/healthz`, `/global`, `/client/global`, `/replay` and `/client/replay` expose readiness and public state. The viewer places recorded units, supply centers, and moves over the pinned upstream Classic map. It plays all recorded phases locally after one WebSocket transfer, with pause, seek, speed, and loop controls. The upstream API omits board positions after a draw, so the final phase shows the last recorded board beside the final country results. Private messages never enter public replay or game stdout.
+Public stdout contains service status only. Daemon and application diagnostics
+are private files under `/run/webdip/logs`; inspect them locally with `docker exec`.
+They may contain sensitive information and must not be published. Access logs
+are disabled. Email delivery is disabled through a local sendmail sink.
 
-## Validation and remaining work
+SIGTERM stops ingress and the gamemaster producer before PHP, MariaDB and Redis.
+Unexpected daemon exits fail the container. A forced shutdown produces nonzero
+exit status. Allow 45 seconds for a worst-case shutdown.
 
-`WEBDIP_MODE=tactics` tests movement, builds, supported attack and retreat against the real engine. `WEBDIP_MODE=convoy` tests a French army convoy from Brest to London. `WEBDIP_MODE=smoke` runs `adapter/smoke.py` inside a fresh game image, testing seven API seats, four phase cycles, unanimous draw and private-message visibility. All three run in CI. `adapter/local_episode.sh` exercises the game and seven separate container players and retains results, replay and all logs.
+## Development status
 
-The unit suite covers player faults and artifact paths; GitHub Actions runs it on pushes and pull requests. Engine integration and Coworld certification are separate local checks.
+The original prototype's scenario sources (`smoke.py`, `tactics.py`, `convoy.py`),
+engine helper, protocol tests and player are retained while game control is
+migrated. Their old `WEBDIP_MODE` image entrypoints are not yet wired to the new
+architecture. Unit tests cover those retained helpers; they do not establish
+that an episode runs in this image. The manifest and player image still describe
+the prototype and will be replaced before certification.
 
-Local Coworld certification passes all 10 `coworld-executable` steps, including the seven-player episode, results, public WebSocket Ping/Pong, player-client route and replay loading. The author retains the local transcript and episode artifacts.
+Replay-only startup with `COGAME_LOAD_REPLAY_URI` retains the prototype viewer
+and artifact handling and bypasses all database services. The replay format will
+be expanded alongside episode orchestration.
 
-This remains a private prototype. Remaining work:
+Use project-local tools: `uv run coworld` (0.1.55) and `uv run softmax` (0.26.38).
 
-- Elimination, solo-win and malformed/missing-order fixtures. The adapter now rejects orders that upstream silently replaces with holds.
-- Browser verification of the raw JSON human player client.
-- Reconnect support; current active-seat disconnections are terminal player failures.
-- Bounded press exchanges within a phase; this first protocol exchanges messages alongside submitted orders.
-- Hosted stack validation. The game and player images build for `linux/amd64`; artifact inputs and outputs support `file://` and HTTP(S).
-- Dependency/image pinning and startup measurements against hosted limits.
-- CICERO adaptation and negotiation compatibility.
+## Source
 
-Keep the upstream AGPL license with any distribution. Use [SOURCE_BUNDLE.md](SOURCE_BUNDLE.md) to prepare the pinned source for internal Legal review before any external rollout.
+Source: [Metta-AI/coworld-webdiplomacy](https://github.com/Metta-AI/coworld-webdiplomacy/tree/main).
+The `webdiplomacy/` submodule pins the upstream revision in Git. An optional deterministic [source bundle](SOURCE_BUNDLE.md)
+combines both repositories for distribution. The Git history preserves credit
+to the original adapter prototype.

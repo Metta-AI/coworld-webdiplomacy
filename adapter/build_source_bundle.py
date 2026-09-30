@@ -1,4 +1,4 @@
-"""Bundle the exact adapter revision and pinned upstream source for internal review."""
+"""Bundle the exact adapter revision and pinned upstream source for reproducible distribution."""
 
 import argparse
 import gzip
@@ -10,23 +10,25 @@ from pathlib import Path
 
 parser = argparse.ArgumentParser()
 parser.add_argument("output", type=Path)
-parser.add_argument("--upstream", type=Path, default=Path("upstream"))
+parser.add_argument("--upstream", type=Path, default=Path("webdiplomacy"))
 args = parser.parse_args()
 
 root = Path(__file__).resolve().parent.parent
-pin = (root / "UPSTREAM_COMMIT").read_text().strip()
+pin = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD:webdiplomacy"], text=True).strip()
 upstream_head = subprocess.check_output(["git", "-C", str(args.upstream), "rev-parse", "HEAD"], text=True).strip()
 assert upstream_head == pin, f"upstream checkout is {upstream_head}, expected {pin}"
 assert not subprocess.check_output(["git", "-C", str(args.upstream), "status", "--porcelain"])
 assert not subprocess.check_output(["git", "-C", str(root), "status", "--porcelain"])
 
 args.output.parent.mkdir(parents=True, exist_ok=True)
-with args.output.open("wb") as output, gzip.GzipFile(filename="", mode="wb", fileobj=output, mtime=0) as compressed, tarfile.open(
-    fileobj=compressed, mode="w"
-) as bundle:
+with (
+    args.output.open("wb") as output,
+    gzip.GzipFile(filename="", mode="wb", fileobj=output, mtime=0) as compressed,
+    tarfile.open(fileobj=compressed, mode="w") as bundle,
+):
     for label, repository, revision in (
         ("webdiplomacy-coworld", root, "HEAD"),
-        ("webdiplomacy-coworld/upstream", args.upstream, pin),
+        ("webdiplomacy-coworld/webdiplomacy", args.upstream, pin),
     ):
         archive = subprocess.check_output(["git", "-C", str(repository), "archive", "--format=tar", revision])
         with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as source:

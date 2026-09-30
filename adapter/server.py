@@ -2,6 +2,7 @@ import asyncio
 import hmac
 import json
 import os
+import signal
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import Request, url2pathname, urlopen
@@ -262,7 +263,7 @@ class Server:
 
 
 async def player_client(request):
-    return web.FileResponse('/adapter/player.html')
+    return web.FileResponse(Path(__file__).with_name('player.html'))
 
 
 async def health(request):
@@ -270,7 +271,7 @@ async def health(request):
 
 
 async def viewer(request):
-    return web.FileResponse('/adapter/viewer.html')
+    return web.FileResponse(Path(__file__).with_name('viewer.html'))
 
 
 async def map_image(request):
@@ -303,7 +304,12 @@ async def main():
             await asyncio.gather(*(ws.close() for ws in server.players.values()))
             await runner.cleanup()
     else:
-        await asyncio.Event().wait()
+        stopping = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        for number in (signal.SIGTERM, signal.SIGINT):
+            loop.add_signal_handler(number, stopping.set)
+        await stopping.wait()
+        await runner.cleanup()
 
 
 if __name__ == "__main__":

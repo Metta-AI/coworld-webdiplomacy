@@ -1,0 +1,3 @@
+[submodule "webdiplomacy"]
+	path = webdiplomacy
+	url = https://github.com/kestasjk/webdiplomacy.git

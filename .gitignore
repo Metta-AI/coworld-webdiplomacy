@@ -1,4 +1,8 @@
 upstream/
+tmp/
+.venv/
+.pytest_cache/
+.ruff_cache/
 dist/
 runs/
 artifacts/

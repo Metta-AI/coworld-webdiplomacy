@@ -1,0 +1,31 @@
+[project]
+name = "coworld-webdiplomacy"
+version = "0.1.0"
+description = "The upstream webDiplomacy server packaged as a Coworld"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.34,<1",
+    "websockets>=15,<18",
+    # Replay-only server retained until the viewer migration.
+    "aiohttp>=3.13.5,<4",
+]
+
+[dependency-groups]
+dev = [
+    "coworld[auth]==0.1.55",
+    "softmax-cli==0.26.38",
+    "pytest>=8,<10",
+    "ruff>=0.11,<1",
+    # Retained prototype tests until the episode protocol is replaced.
+    "pydantic>=2.11,<3",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

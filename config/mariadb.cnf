@@ -1,0 +1,15 @@
+[mysqld]
+user=root
+datadir=/var/lib/mysql
+socket=/run/mysqld/mysqld.sock
+pid-file=/run/mysqld/mysqld.pid
+bind-address=127.0.0.1
+port=3306
+innodb-buffer-pool-size=128M
+skip-name-resolve
+max-connections=32
+log-error=/run/webdip/logs/mariadb.log
+
+[client]
+socket=/run/mysqld/mysqld.sock
+user=root

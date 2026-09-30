@@ -1,10 +1,22 @@
+FROM node:22-bookworm-slim AS node
+FROM ghcr.io/astral-sh/uv:0.11.8 AS uv
 FROM phpdockerio/php:8.4-fpm
-RUN apt-get update && apt-get install -y --no-install-recommends php8.4-gd php8.4-redis php8.4-mysql php8.4-gmp php8.4-bcmath mariadb-server redis-server python3 python3-venv && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends php8.4-gd php8.4-redis php8.4-mysql php8.4-gmp php8.4-bcmath mariadb-server redis-server nginx python3 python3-venv && rm -rf /var/lib/apt/lists/*
+COPY --from=node /usr/local/ /usr/local/
+COPY --from=uv /uv /usr/local/bin/uv
 WORKDIR /application
-COPY upstream/ ./
+COPY webdiplomacy/ ./
 ENV COMPOSER_ALLOW_SUPERUSER=1
-RUN composer install --no-interaction --no-progress --no-dev
-COPY adapter/ /adapter/
-RUN python3 -m venv /opt/adapter && /opt/adapter/bin/pip install aiohttp==3.12.15 pydantic==2.11.9
-RUN mkdir -p /run/mysqld && chown -R root:root /var/lib/mysql /run/mysqld
-ENTRYPOINT ["/bin/sh", "/adapter/start.sh"]
+RUN composer install --no-interaction --no-progress --no-dev && cd sse-server && npm ci --omit=dev
+WORKDIR /opt
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-dev --no-cache
+COPY adapter/ /opt/adapter/
+COPY php/ /opt/php/
+COPY config/ /opt/config/
+RUN mkdir -p /run/mysqld /run/webdip/logs && chown -R root:root /var/lib/mysql /run/mysqld && \
+    /opt/.venv/bin/python -m adapter.boot --bake && \
+    rm -rf /run/webdip /application/config.php /application/sse-server/.env
+STOPSIGNAL SIGTERM
+EXPOSE 8080
+ENTRYPOINT ["/opt/.venv/bin/python", "-m", "adapter.boot"]
