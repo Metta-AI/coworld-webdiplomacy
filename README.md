@@ -101,7 +101,9 @@ upstream downtime heartbeat. No database installation occurs at runtime.
 Generated upstream configuration/cache files exist only inside the image or
 container; never edit or generate files in the source submodule.
 
-Public stdout contains service status and public phase/completion events. Daemon and application diagnostics
+Public stdout contains service status, public phase/completion events, and failure metadata
+(exception type, code locations, service kernel wait locations, and exited service names/codes). Exception messages,
+source lines, and local variables are excluded. Daemon and application diagnostics
 are private files under `/run/webdip/logs`; inspect them locally with `docker exec`.
 They may contain sensitive information and must not be published. Player/API access logs
 are disabled. A private gamemaster timing log contains only timestamp, duration,
@@ -234,7 +236,7 @@ The manifest embeds README and protocol text so onboarding does not depend on
 source-repository access. After changing those docs, run
 `uv run python -m tools.sync_manifest_docs` and commit the updated template.
 
-Use project-local tools: `uv run coworld` (0.1.55) and `uv run softmax` (0.26.38).
+Use project-local tools: `uv run coworld` (0.1.56) and `uv run softmax` (0.26.38).
 
 ## Source
 

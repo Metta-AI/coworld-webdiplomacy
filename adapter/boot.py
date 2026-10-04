@@ -8,6 +8,7 @@ import socket
 import subprocess
 import sys
 import threading
+import traceback
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
@@ -24,6 +25,35 @@ from adapter.supervisor import RUN, Supervisor
 
 APP = Path("/application")
 CONFIG = Path("/opt/config")
+
+
+def report_failure(error, supervisor):
+    # Exception messages and source lines may contain credentials; emit metadata only.
+    with (RUN / "logs/boot-error.log").open("a") as log:
+        log.write(repr(error) + "\n")
+    service_waits = {}
+    for name, child in supervisor.children:
+        try:
+            service_waits[name] = Path(f"/proc/{child.pid}/wchan").read_text().strip()
+        except OSError:
+            pass  # A service may exit while its failure is being reported.
+    print(
+        json.dumps(
+            {
+                "event": "service_failure",
+                "exception_type": type(error).__name__,
+                "service_waits": service_waits,
+                "frames": [
+                    {"file": Path(frame.filename).name, "function": frame.name, "line": frame.lineno}
+                    for frame in traceback.extract_tb(error.__traceback__)
+                ],
+                "exited_services": {
+                    name: child.returncode for name, child in supervisor.children if child.poll() is not None
+                },
+            }
+        ),
+        flush=True,
+    )
 
 
 def sql(statement):
@@ -205,9 +235,7 @@ def main():
     except InterruptedError:
         pass
     except Exception as error:
-        # Exception details from PHP/SQL may contain credentials. Keep them private.
-        (RUN / "logs/boot-error.log").write_text(repr(error))
-        print("webDiplomacy boot or service failure; see private boot log", flush=True)
+        report_failure(error, supervisor)
         status = 1
     finally:
         if scenario:
@@ -223,7 +251,8 @@ def main():
             server.should_exit = True
         try:
             supervisor.shutdown()
-        except RuntimeError:
+        except RuntimeError as error:
+            report_failure(error, supervisor)
             status = 1
         if thread:
             thread.join(timeout=10)

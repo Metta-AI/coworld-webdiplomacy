@@ -324,7 +324,7 @@ wheels = [
 
 [[package]]
 name = "coworld"
-version = "0.1.55"
+version = "0.1.56"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -333,6 +333,7 @@ dependencies = [
     { name = "packaging" },
     { name = "pyarrow" },
     { name = "pydantic" },
+    { name = "pydantic-core" },
     { name = "pyyaml" },
     { name = "referencing" },
     { name = "requests" },
@@ -342,9 +343,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5a/0f/16042bf113f2bdc24f7f4a1e53200b6e60ad924d6847daea3e46b7958060/coworld-0.1.55.tar.gz", hash = "sha256:e41b4beff66edb3e91d1fa4185d478582890af2606d75fc160780206324e5484", size = 2161612, upload-time = "2026-09-29T22:00:38.119Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/84/da/090c6a89bf734e17ff9f939018695800959a9f637ed9c0b9134d32828d8f/coworld-0.1.56.tar.gz", hash = "sha256:e11379ce5b9f06846203240a8d1a195859abf9b6b33bc03d7b7f44af555af8b4", size = 2159797, upload-time = "2026-10-01T19:05:54.147Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b8/73/1b2b4f20564015bc3423b6ca98ad8bfe27adff35feb5ea04d37f04c1112b/coworld-0.1.55-py3-none-any.whl", hash = "sha256:dd5c404f12c0a4a25530035a73338fac6e2d734e212668d7f7ed51963cd7bec3", size = 472137, upload-time = "2026-09-29T22:00:35.891Z" },
+    { url = "https://files.pythonhosted.org/packages/6b/16/6585fb49ba3a0b563eadba59d03ee7d8f556320ff88636596d41d559cedc/coworld-0.1.56-py3-none-any.whl", hash = "sha256:28beb4c49f22694eef0325dae1adef5d31ed4af3b5759a571e8f3ae01dc9d668", size = 480883, upload-time = "2026-10-01T19:05:52.129Z" },
 ]
 
 [package.optional-dependencies]
@@ -384,7 +385,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "coworld", extras = ["auth"], specifier = "==0.1.55" },
+    { name = "coworld", extras = ["auth"], specifier = "==0.1.56" },
     { name = "playwright", specifier = ">=1.58,<2" },
     { name = "pytest", specifier = ">=8,<10" },
     { name = "ruff", specifier = ">=0.11,<1" },
