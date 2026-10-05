@@ -27,6 +27,51 @@ APP = Path("/application")
 CONFIG = Path("/opt/config")
 
 
+def network_diagnostics(supervisor, proc=Path("/proc"), etc=Path("/etc")):
+    """Read socket metadata only: never packet contents, process arguments or env."""
+    sockets = {}
+    listeners = set()
+    for family in ("udp", "udp6", "tcp", "tcp6"):
+        try:
+            lines = (proc / "net" / family).read_text().splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            fields = line.split()
+            if len(fields) < 10:
+                continue
+            entry = {"protocol": family, "local": fields[1], "remote": fields[2], "state": fields[3]}
+            sockets[fields[9]] = entry
+            if family.startswith("tcp") and fields[3] == "0A":
+                listeners.add(int(fields[1].rsplit(":", 1)[1], 16))
+    services = {}
+    for name, child in supervisor.children:
+        entries = []
+        try:
+            for fd in (proc / str(child.pid) / "fd").iterdir():
+                try:
+                    target = os.readlink(fd)
+                except OSError:
+                    continue  # File descriptors can close during the snapshot.
+                if target.startswith("socket:[") and target.endswith("]"):
+                    inode = target[8:-1]
+                    entries.append({"fd": int(fd.name), "inode": inode, **sockets.get(inode, {})})
+        except OSError:
+            pass  # The process may have exited or procfs may be inaccessible.
+        services[name] = entries
+    resolver = []
+    hosts = []
+    for filename, destination in (("resolv.conf", resolver), ("hosts", hosts)):
+        try:
+            for line in (etc / filename).read_text().splitlines():
+                fields = line.split("#", 1)[0].split()
+                if fields and (filename == "hosts" or fields[0] in {"nameserver", "search", "options"}):
+                    destination.append(" ".join(fields))
+        except OSError:
+            pass
+    return {"service_sockets": services, "listening_ports": sorted(listeners), "resolver": resolver, "hosts": hosts}
+
+
 def report_failure(error, supervisor):
     # Exception messages and source lines may contain credentials; emit metadata only.
     with (RUN / "logs/boot-error.log").open("a") as log:
@@ -37,12 +82,17 @@ def report_failure(error, supervisor):
             service_waits[name] = Path(f"/proc/{child.pid}/wchan").read_text().strip()
         except OSError:
             pass  # A service may exit while its failure is being reported.
+    fpm_log = RUN / "logs/php-fpm.log"
+    fpm_notices = fpm_log.read_text() if fpm_log.exists() else ""
     print(
         json.dumps(
             {
                 "event": "service_failure",
                 "exception_type": type(error).__name__,
                 "service_waits": service_waits,
+                **network_diagnostics(supervisor),
+                "fpm_started": "fpm is running" in fpm_notices,
+                "fpm_ready": "ready to handle connections" in fpm_notices,
                 "frames": [
                     {"file": Path(frame.filename).name, "function": frame.name, "line": frame.lineno}
                     for frame in traceback.extract_tb(error.__traceback__)

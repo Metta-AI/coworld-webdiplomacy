@@ -102,7 +102,10 @@ Generated upstream configuration/cache files exist only inside the image or
 container; never edit or generate files in the source submodule.
 
 Public stdout contains service status, public phase/completion events, and failure metadata
-(exception type, code locations, service kernel wait locations, and exited service names/codes). Exception messages,
+(exception type, code locations, service kernel wait locations, socket descriptors and
+endpoints, listening ports, FPM startup flags, resolver/hosts entries, and exited
+service names/codes). Socket endpoints use the kernel's hexadecimal address/port
+format; remote port `0035` is DNS. Exception messages,
 source lines, and local variables are excluded. Daemon and application diagnostics
 are private files under `/run/webdip/logs`; inspect them locally with `docker exec`.
 They may contain sensitive information and must not be published. Player/API access logs
