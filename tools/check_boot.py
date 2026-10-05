@@ -26,7 +26,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("image")
     parser.add_argument("--crash-service", action="store_true")
+    parser.add_argument("--unavailable-dns", action="store_true", help="Check startup with an unreachable DNS resolver")
     args = parser.parse_args()
+    dns_options = (
+        ["--dns", "192.0.2.1", "--dns-search", "startup.invalid", "--dns-option", "ndots:5"]
+        if args.unavailable_dns
+        else []
+    )
     container = docker(
         "create",
         "--platform",
@@ -36,6 +42,7 @@ def main():
         "no-new-privileges",
         "-p",
         "127.0.0.1::8080",
+        *dns_options,
         args.image,
     )
     try:

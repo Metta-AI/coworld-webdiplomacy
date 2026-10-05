@@ -57,6 +57,7 @@ uv sync --group dev
 docker build --platform linux/amd64 -f adapter/Dockerfile -t coworld-webdiplomacy:local .
 uv run python tools/check_boot.py coworld-webdiplomacy:local
 uv run python tools/check_boot.py coworld-webdiplomacy:local --crash-service
+uv run python tools/check_boot.py coworld-webdiplomacy:local --unavailable-dns
 uv run python -m unittest discover -s adapter -p 'test_*.py' -v
 ```
 
@@ -93,6 +94,12 @@ All processes retain root identity, with no capabilities or runtime ownership
 changes. Nginx uses single-process mode to avoid its root worker's `initgroups`
 call. This limits nginx to one worker and precludes graceful worker replacement;
 restart the container to change configuration. PHP has four workers.
+
+The image's Sury PHP package makes a telemetry DNS lookup during FPM startup,
+before reading its pool configuration. Boot maps `telemetry.sury.org` to loopback
+in `/etc/hosts` so this optional call does not depend on external DNS or egress.
+The mapping must be installed at runtime because containers replace `/etc/hosts`.
+The `--unavailable-dns` boot check verifies startup with an unreachable resolver.
 
 The image bakes the upstream database schema, Classic map, and `wD_VariantInfo`.
 It contains no episode users or games. Boot generates fresh application secrets,

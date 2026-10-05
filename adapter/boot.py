@@ -257,6 +257,11 @@ def main():
             )
             thread = threading.Thread(target=server.run, name="health-server")
             thread.start()
+            # Packaged FPM resolves its telemetry host before reading pool config.
+            # Keep this optional call local so startup needs no external DNS/egress.
+            # Runtimes replace /etc/hosts; build-time baking only runs PHP CLI.
+            with Path("/etc/hosts").open("a") as hosts:
+                hosts.write("\n127.0.0.1 telemetry.sury.org\n")
             supervisor.start(
                 "php-fpm", ["php-fpm8.4", "--allow-to-run-as-root", "--fpm-config", "/opt/config/php-fpm.conf"]
             )
