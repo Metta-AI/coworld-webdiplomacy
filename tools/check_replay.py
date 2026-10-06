@@ -7,6 +7,8 @@ import shutil
 import subprocess
 import threading
 import zlib
+from copy import deepcopy
+from datetime import UTC, datetime
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -98,12 +100,19 @@ def run(replays, directory=Path("tmp/p5-static-replay")):
                     assert ready["rendered"] and ready["imageLoaded"], events
                     assert not any(event["type"] == "error" for event in events), events
                     view = page.frame_locator("iframe")
+                    expect(view.locator("#live-deadline")).to_be_hidden()
+                    expect(view.locator("#timeline")).not_to_contain_text("Diplomacy")
                     expect(view.locator("#play")).to_have_text("Pause")
                     view.locator("#play").click()
                     expect(view.locator("#play")).to_have_text("Play")
                     for i, frame in enumerate(frames):
                         view.locator("#timeline button").nth(i).click()
                         expect(view.locator("#counter")).to_have_text(f"Phase {i + 1} of {len(frames)}")
+                        label = {"Diplomacy": "Movement", "Finished": "Final"}.get(
+                            frame["game"]["phase"], frame["game"]["phase"]
+                        )
+                        expect(view.locator("#phase")).to_contain_text(label)
+                        expect(view.locator("#history-phase")).not_to_contain_text("Diplomacy")
                         if frame["game"]["phase"] == "Pre-game":
                             expect(view.locator("#outcome")).to_have_text(
                                 "Starting position — units appear in Spring 1901"
@@ -147,6 +156,56 @@ def run(replays, directory=Path("tmp/p5-static-replay")):
                 page.wait_for_function("() => events.some(e => e.type === 'error')")
                 assert not any(event["type"] == "ready" for event in page.evaluate("events"))
                 expect(page.frame_locator("iframe").get_by_role("alert")).to_be_visible()
+            assert not errors, errors
+            # Public snapshots over a mocked live socket exercise deadline edge cases
+            # without changing the real engine's clock or paused-game behavior.
+            live = browser.new_page()
+            live.on("pageerror", lambda error: errors.append(str(error)))
+
+            def serve_live(route):
+                name = route.request.url.rsplit("/", 1)[-1]
+                name = "index.html" if name == "global" else name
+                route.fulfill(
+                    path=str(bundle / name),
+                    content_type={
+                        "index.html": "text/html",
+                        "viewer.js": "text/javascript",
+                        "smallmap.png": "image/png",
+                    }[name],
+                )
+
+            live.route("**/client/*", serve_live)
+            sockets = []
+            live.route_web_socket("**/global", lambda socket: sockets.append(socket))
+            now = datetime.fromtimestamp(1800000000, UTC)
+            live.clock.set_fixed_time(now)
+            live.goto(base + "/client/global", wait_until="domcontentloaded")
+            expect(live.locator("#live-deadline")).to_be_visible()
+            # Socket creation follows image decoding.
+            for _ in range(100):
+                if sockets:
+                    break
+                live.wait_for_timeout(20)
+            assert sockets, "live viewer did not open a public socket"
+            fixture = next(
+                frame for frame in json.loads(replays[0].read_text()) if frame["game"]["phase"] == "Diplomacy"
+            )
+            for changes, expected in (
+                ({"processTime": 1800000065, "processStatus": "Not-processing"}, "1:05"),
+                ({"processTime": 1799999999}, "0:00"),
+                ({"processTime": None}, "—"),
+                ({"processTime": 1800000065, "processStatus": "Paused"}, "—"),
+                ({"phase": "Pre-game"}, "—"),
+                ({"phase": "Finished", "gameOver": "Drawn"}, "—"),
+            ):
+                frame = deepcopy(fixture)
+                frame["game"].update(changes)
+                sockets[0].send(json.dumps(frame))
+                expect(live.locator("#deadline")).to_have_text(expected)
+                if expected == "1:05":
+                    live.clock.set_fixed_time(datetime.fromtimestamp(1800000002, UTC))
+                    expect(live.locator("#deadline")).to_have_text("1:03")
+            live.screenshot(path=str(directory / "live-finished.png"))
             assert not errors, errors
             browser.close()
     finally:

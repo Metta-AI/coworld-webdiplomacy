@@ -14,6 +14,13 @@ def sync():
         (game["protocols"], "global", "docs/replay.md"),
     ):
         target[key] = {"type": "text", "value": Path(source).read_text()}
+    game["docs"]["pages"] = [
+        {
+            "id": "write-a-policy",
+            "title": "Write your own policy",
+            "content": {"type": "text", "value": Path("docs/write-a-policy.md").read_text()},
+        }
+    ]
     path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
 
 

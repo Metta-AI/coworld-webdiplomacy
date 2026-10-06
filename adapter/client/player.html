@@ -8,37 +8,47 @@
      initializes analytics; no external scripts, telemetry, or forms may leave here. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; form-action 'none'; base-uri 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-src 'self'; form-action 'none'; base-uri 'none'"
     />
     <title>webDiplomacy</title>
     <style>
-      #play-help, #connection-status {
+      body { margin: 0; height: 100dvh; display: flex; flex-direction: column; }
+      #root { flex: 1; min-height: 0; }
+      #board { display: block; width: 100%; height: 100%; border: 0; }
+      #help-bar, #connection-status {
         --paper: #fffdf4; --ink: #111827; --muted: #6b6560; --navy: #1a3875;
         background: var(--paper); color: var(--ink);
         font: 14px/1.5 "Merriweather Sans", system-ui, sans-serif;
-        position: fixed; padding: 16px;
+        padding: 12px 16px;
       }
-      #play-help { right: 12px; top: 72px; z-index: 10001; width: min(320px, calc(100vw - 24px)); border: 1px solid #e4dac8; border-radius: 3px; }
+      #help-bar { flex: none; border-bottom: 1px solid #e4dac8; }
+      #help-bar:has(#play-help[hidden]) { padding: 0 12px; text-align: right; }
+      #play-help { max-width: 960px; margin: auto; }
       #play-help strong { color: var(--navy); font-family: "Merriweather", Georgia, serif; font-size: 18px; }
-      #play-help button { float: right; margin: -8px -8px 0 8px; min-width: 44px; min-height: 44px; border: 0; border-radius: 3px; background: transparent; color: var(--ink); font-size: 24px; cursor: pointer; }
-      #play-help button:hover { background: #f8f6ef; }
-      #play-help button:active { background: #eef2f7; }
-      #play-help button:focus-visible { outline: 2px solid #5573a0; outline-offset: 2px; }
+      #help-bar button { min-width: 44px; min-height: 44px; border: 0; border-radius: 3px; background: transparent; color: var(--ink); font-size: 24px; cursor: pointer; }
+      #dismiss-help { float: right; }
+      #help-bar button:hover { background: #f8f6ef; }
+      #help-bar button:active { background: #eef2f7; }
+      #help-bar button:focus-visible { outline: 2px solid #5573a0; outline-offset: 2px; }
       #play-help p { margin: 12px 0 0; }
-      #connection-status { top: 8px; left: 8px; z-index: 10002; max-width: calc(100vw - 16px); border: 1px solid #e4dac8; }
+      #connection-status { position: fixed; top: 8px; left: 8px; z-index: 10002; max-width: calc(100vw - 16px); border: 1px solid #e4dac8; }
+      [hidden] { display: none !important; }
       #connection-status:empty {
         display: none;
       }
     </style>
   </head>
   <body>
+    <div id="help-bar">
+      <button id="open-help" aria-label="How to play here" aria-controls="play-help" aria-expanded="true" hidden>?</button>
+      <aside id="play-help" aria-label="How to play here">
+        <button id="dismiss-help" aria-label="Dismiss help">×</button>
+        <strong>How to play here</strong>
+        <p>Ready lets the phase end early when everyone is ready. After adjudication, use the New phase arrow to advance the board.</p>
+        <p>Open press with the pen or P. For Support hold, click the supported province twice.</p>
+      </aside>
+    </div>
     <div id="root"></div>
-    <aside id="play-help" aria-label="How to play here">
-      <button id="dismiss-help" aria-label="Dismiss help">×</button>
-      <strong>How to play here</strong>
-      <p>Ready ends your turn. After adjudication, use the New phase arrow to advance the board.</p>
-      <p>Open press with the pen or P. For Support hold, click the supported province twice.</p>
-    </aside>
     <div id="connection-status" role="status">Connecting to game…</div>
     <script src="shim.js"></script>
   </body>

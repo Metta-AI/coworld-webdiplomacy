@@ -4,6 +4,37 @@
   const status = document.getElementById("connection-status");
   const prefix = location.pathname.slice(0, -"/client/player".length);
   const parameters = new URLSearchParams(location.search);
+  // Give the unmodified board its own viewport, leaving help outside the map.
+  if (!parameters.has("board")) {
+    const help = document.getElementById("play-help");
+    const openHelp = document.getElementById("open-help");
+    const helpKey = "webdip-help-dismissed";
+    function showHelp(visible) {
+      help.hidden = !visible;
+      openHelp.hidden = visible;
+      openHelp.setAttribute("aria-expanded", String(visible));
+    }
+    try { showHelp(localStorage.getItem(helpKey) !== "yes"); } catch { showHelp(true); }
+    document.getElementById("dismiss-help").onclick = () => {
+      showHelp(false);
+      try { localStorage.setItem(helpKey, "yes"); } catch { /* Storage may be blocked in an iframe. */ }
+      openHelp.focus();
+    };
+    openHelp.onclick = () => {
+      showHelp(true);
+      document.getElementById("dismiss-help").focus();
+    };
+    status.hidden = true;
+    const board = document.createElement("iframe");
+    board.id = "board";
+    board.title = "webDiplomacy board";
+    const url = new URL(location.href);
+    url.searchParams.set("board", "1");
+    board.src = url;
+    document.getElementById("root").append(board);
+    return;
+  }
+  document.getElementById("help-bar").hidden = true;
   const address = new URL(
     parameters.get("address") || `${prefix}/player${location.search}`,
     location.href
@@ -271,8 +302,5 @@
     socket.onerror = () =>
       show("Unable to connect. Check your seat link. Reconnecting…");
   }
-  document.getElementById("dismiss-help").onclick = () => {
-    document.getElementById("play-help").hidden = true;
-  };
   connect();
 })();

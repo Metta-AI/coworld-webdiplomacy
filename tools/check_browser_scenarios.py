@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import re
 import secrets
 import subprocess
 import sys
@@ -145,14 +146,19 @@ def run(image, mode, scenario):
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto(target)
-            frame = page.frame_locator("iframe") if mode == "proxy" else page
-            frame.get_by_role("button", name="Dismiss help").click()
+            wrapper = page.frame_locator("iframe") if mode == "proxy" else page
+            wrapper.get_by_role("button", name="Dismiss help").click()
+            frame = wrapper.frame_locator("#board")
             frame.locator("#PARIS-unit").wait_for()
             viewer = browser.new_page(viewport={"width": 1040, "height": 950})
             viewer.on("pageerror", lambda error: errors.append(str(error)))
             viewer.goto(spectator)
             view = viewer.frame_locator("iframe") if mode == "proxy" else viewer
             expect(view.locator("#connection")).to_contain_text("Live match")
+            expect(view.locator("#phase")).to_contain_text("Movement")
+            expect(view.locator("#deadline")).to_have_text(re.compile(r"\d+:\d{2}"))
+            remaining = view.locator("#deadline").inner_text()
+            expect(view.locator("#deadline")).not_to_have_text(remaining, timeout=2500)
             marker = "p5-private-sentinel"
             human.request("game/sendmessage", body=dict(gameID=1, countryID=2, toCountryID=1, message=marker))
             human.request(
@@ -189,8 +195,11 @@ def run(image, mode, scenario):
                 )
                 captured.append(snapshot)
                 expect(view.locator("#phase")).to_contain_text(
-                    wanted["phase"] if wanted["phase"] != "Finished" else "Final", timeout=10000
+                    {"Diplomacy": "Movement", "Finished": "Final"}.get(wanted["phase"], wanted["phase"]),
+                    timeout=10000,
                 )
+                if wanted["phase"] == "Finished":
+                    expect(view.locator("#deadline")).to_have_text("—")
                 viewer.screenshot(path=str(directory / f"public-{len(captured)}.png"))
 
             try:

@@ -186,14 +186,30 @@ def run_case(image, mode):
             page.on("websocket", lambda ws: ws.on("framereceived", lambda data: messages.append(json.loads(data))))
             started = time.monotonic()
             page.goto(target)
-            frame = page.frame_locator("iframe") if mode == "proxy" else page
+            wrapper = page.frame_locator("iframe") if mode == "proxy" else page
+            frame = wrapper.frame_locator("#board")
             if mode == "proxy":
                 assert page.locator("iframe").get_attribute("sandbox") == SANDBOX
             frame.locator("#ANKARA-unit").wait_for()
             expect(frame.get_by_text("Spring 1901 Movement. Turkey, enter your orders.")).to_be_visible()
             evidence["board_load_seconds"] = round(time.monotonic() - started, 3)
             page.screenshot(path=str(shots / f"{mode}-help.png"))
-            frame.get_by_role("button", name="Dismiss help").click()
+            # Help occupies its own row, above every country's map, even on narrow screens.
+            for width in (500, 1000):
+                page.set_viewport_size({"width": width, "height": 900})
+                assert wrapper.locator("#play-help").evaluate(
+                    "el => el.getBoundingClientRect().bottom <= "
+                    "document.querySelector('#root').getBoundingClientRect().top"
+                )
+                page.screenshot(path=str(shots / f"{mode}-help-{width}.png"))
+            page.set_viewport_size({"width": 1040 if mode == "proxy" else 1000, "height": 900})
+            wrapper.get_by_role("button", name="Dismiss help").click()
+            page.reload()
+            frame.locator("#ANKARA-unit").wait_for()
+            expect(wrapper.locator("#play-help")).to_be_hidden()
+            wrapper.get_by_role("button", name="How to play here", exact=True).click()
+            expect(wrapper.locator("#play-help")).to_be_visible()
+            wrapper.get_by_role("button", name="Dismiss help").click()
             page.screenshot(path=str(shots / f"{mode}-board.png"))
             hello = next(message for message in messages if message.get("type") == "hello")
             assert "api_key" not in hello["webdip"]
@@ -312,11 +328,23 @@ def run_case(image, mode):
                     for request in requests
                 )
             invalid = context.new_page()
+            # An invalid seat exercises wrapper help without starting upstream React,
+            # whose own storage dependencies are outside this wrapper's contract.
+            invalid.add_init_script("""Object.defineProperty(window, 'localStorage', {
+                get() { throw new DOMException('Storage blocked', 'SecurityError'); }
+            });""")
             invalid_base = proxy_base + PREFIX if mode == "proxy" else base
             invalid.goto(invalid_base + "/client/player?slot=0&token=invalid")
-            expect(invalid.get_by_role("status")).to_contain_text("Check your seat link")
+            expect(invalid.locator("#play-help")).to_be_visible()
+            invalid.get_by_role("button", name="Dismiss help").click()
+            expect(invalid.locator("#play-help")).to_be_hidden()
+            invalid.get_by_role("button", name="How to play here", exact=True).click()
+            expect(invalid.locator("#play-help")).to_be_visible()
+            expect(invalid.frame_locator("#board").get_by_role("status")).to_contain_text("Check your seat link")
             invalid.screenshot(path=str(shots / f"{mode}-invalid-seat.png"))
-            expect(invalid.get_by_role("status")).to_contain_text("Automatic reconnect stopped", timeout=45000)
+            expect(invalid.frame_locator("#board").get_by_role("status")).to_contain_text(
+                "Automatic reconnect stopped", timeout=45000
+            )
             evidence["bounded_retries"] = True
             browser.close()
         evidence["passed"] = True

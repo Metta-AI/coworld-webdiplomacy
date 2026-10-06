@@ -16,7 +16,14 @@ jobs:
       - run: uv run ruff check adapter/boot.py adapter/supervisor.py adapter/config.py adapter/episode.py adapter/routes.py adapter/artifacts.py adapter/maps.py adapter/test_episode.py players tools/check_boot.py tools/check_episode.py adapter/tunnel.py adapter/test_tunnel.py tools/check_browser.py tools/check_browser_boundaries.py tools/play_proxy.py
       - run: uv run python -m unittest players.test_players -v
       - run: uv run ruff check players tools
-      - run: uv run coworld build --version 0.6.0
+      - run: uv run coworld build --version 0.7.7
+      - run: docker build --platform linux/amd64 -t herald:local players/examples
+      - run: >-
+          uv run coworld run-episode dist/coworld_manifest.json herald:local
+          --run /opt/.venv/bin/python --run=-m --run players.launcher
+          --run /opt/.venv/bin/python --run /opt/herald_bot.py
+          --variant classic-press-short --output-dir tmp/herald --timeout-seconds 120
+      - run: uv run python -m tools.check_herald tmp/herald
       - run: uv run playwright install --with-deps chromium --only-shell
       - run: uv run python -m tools.check_browser coworld-webdiplomacy-game:latest
       - run: uv run python -m tools.check_browser_scenarios coworld-webdiplomacy-game:latest

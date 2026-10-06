@@ -126,7 +126,7 @@ exit status. Allow 45 seconds for a worst-case shutdown.
 ## Run an episode
 
 ```sh
-uv run coworld build --version 0.6.0
+uv run coworld build --version 0.7.7
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```
@@ -150,6 +150,8 @@ run produces `results.json`, a public `replay` JSON array, and separate game/pla
 logs. The `run-episode` command runs this fixture; `certify` adds the platform
 contract checks. The default bundled player is the random legal bot.
 
+Start with [Write your own policy](docs/write-a-policy.md) for a complete example,
+packaging, local tests, upload and hosted evaluation commands.
 The [player protocol](docs/protocol.md) explains hello, upstream HTTP play,
 reconnection, deadlines, scoring and output. The launcher can run another bot:
 `python -m players.launcher python -m your_bot`. It passes the upstream URL,
@@ -179,7 +181,9 @@ send. Chat requires a press-enabled episode.
 Sandbox/practice games, legacy-board links, site navigation, advertisements and
 telemetry are unavailable. Unsupported navigation and sandbox controls show a
 notice. A dismissible help panel explains Ready, phase navigation, press and
-Support hold. Disconnects show a notice and retry automatically up to eight times,
+Support hold. Help sits above the board, remembers dismissal in browser storage,
+and can be reopened with **?**. If storage is blocked, dismissal still works until
+the page is reloaded. Disconnects show a notice and retry automatically up to eight times,
 with delays from 0.5 to 5 seconds. Reconnection refreshes state and subscriptions;
 interrupted commands are not replayed. After exhausted retries, reload the seat link.
 
@@ -223,7 +227,10 @@ applies votes itself. Scenario diagnostics remain in the container's private
 
 Open `/client/global` on a running episode for a read-only public view. The page
 supports the proxy's `address` parameter. No seat token is needed by the game;
-the platform may enforce its own spectator access policy.
+the platform may enforce its own spectator access policy. The live view shows a
+phase countdown from the public deadline, or **—** when no active deadline applies.
+Both live and recorded views label the upstream Diplomacy phase **Movement**;
+recorded replays have no countdown.
 
 `coworld build` generates a self-contained bundle under `build/static-replay-viewer`.
 The static viewer opens `index.html#replay=<encoded URL>` (legacy `?replay=` also
@@ -242,7 +249,7 @@ check serves only static files, checks compressed and uncompressed replay data,
 readiness, playback and visible errors. See [replay format and limitations](docs/replay.md).
 The legacy game-container replay server has been removed.
 
-The manifest embeds README and protocol text so onboarding does not depend on
+The manifest embeds README, the policy guide and protocol text so onboarding does not depend on
 source-repository access. After changing those docs, run
 `uv run python -m tools.sync_manifest_docs` and commit the updated template.
 

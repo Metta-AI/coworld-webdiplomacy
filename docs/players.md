@@ -1,5 +1,8 @@
 # Bundled players and compatibility checks
 
+See [Write your own policy](write-a-policy.md) for the standalone Herald example,
+launcher image packaging, local tests and hosted submission.
+
 The first bundled player, `random`, runs `players.random_bot` through
 `players.launcher`. `hold` explicitly overrides the launcher command. The
 certification roster uses `random` in slot 0 and `hold` in the other six seats,

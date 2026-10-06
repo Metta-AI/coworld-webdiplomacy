@@ -13,6 +13,15 @@ function svg(tag, attrs, title) {
   return el;
 }
 function color(countryID) { return colors[(countryID || 0) - 1] || '#f6f2e6'; }
+function phaseLabel(phase) { return phase === 'Diplomacy' ? 'Movement' : phase === 'Finished' ? 'Final' : phase; }
+function countdown() {
+  const frame = frames[index], game = frame?.game;
+  const active = !failed && !frame?.ending && game?.gameOver === 'No' &&
+    ['Diplomacy', 'Retreats', 'Builds'].includes(game.phase) && game.processStatus !== 'Paused' &&
+    Number.isFinite(game.processTime) && game.processTime > 0;
+  const seconds = active ? Math.max(0, Math.ceil(game.processTime - Date.now() / 1000)) : null;
+  $('deadline').textContent = seconds === null ? '—' : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
 function render() {
   const frame = frames[index];
   if (!frame) return;
@@ -22,7 +31,8 @@ function render() {
   const territories = new Map(frame.variant.territories.map(t => [t.id, t]));
   const controlled = new Map(board.territories.map(t => [t.terrID, t.ownerCountryID]));
   const priorControl = new Map((previous?.territories || []).map(t => [t.terrID, t.ownerCountryID]));
-  $('phase').textContent = game.turnText + (game.phase === 'Finished' ? ' · Final' : ' · ' + game.phase);
+  $('phase').textContent = `${game.turnText} · ${phaseLabel(game.phase)}`;
+  if (!replay) countdown();
   if (game.phase === 'Pre-game') {
     $('outcome').textContent = 'Starting position — units appear in Spring 1901';
   } else if (game.gameOver === 'No') {
@@ -101,7 +111,7 @@ function renderHistory(frame) {
   select.replaceChildren();
   phases.forEach((phase, i) => {
     const option = document.createElement('option');
-    option.value = i; option.textContent = `${phase.turnText} · ${phase.phase}`;
+    option.value = i; option.textContent = `${phase.turnText} · ${phaseLabel(phase.phase)}`;
     select.append(option);
   });
   if (!phases.length) {
@@ -156,7 +166,7 @@ function timeline() {
   $('timeline').replaceChildren();
   frames.forEach((frame, i) => {
     const button = document.createElement('button');
-    button.textContent = `${frame.game.turnText} · ${frame.game.phase}`;
+    button.textContent = `${frame.game.turnText} · ${phaseLabel(frame.game.phase)}`;
     button.onclick = () => { playing = false; schedule(); show(i); };
     $('timeline').append(button);
   });
@@ -191,6 +201,9 @@ async function start() {
     if (!failed) $('connection').textContent = 'Recorded match';
   } else {
     document.querySelector('.controls').hidden = true;
+    $('live-deadline').hidden = false;
+    countdown();
+    setInterval(countdown, 1000);
     const address = new URL(new URLSearchParams(location.search).get('address') || '../global', location.href);
     address.protocol = address.protocol === 'https:' || address.protocol === 'wss:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(address);

@@ -5,6 +5,13 @@ input behavior is to resend that snapshot. `/client/global` accepts the optional
 `address` WebSocket URL and works beneath a proxy path prefix. It has no order,
 press-send or vote controls.
 
+The live view counts down to the public `game.processTime` (Unix seconds), clamped
+at zero while adjudication catches up. Paused, pre-game, finished, disconnected,
+and missing-deadline states show **—**. Everyone marking Ready can end a phase
+early. Recorded replays never show this wall-clock countdown. Phase headings,
+history choices and replay timeline labels display **Movement** for upstream
+`Diplomacy`; stored replay and API values remain unchanged.
+
 The replay artifact is a JSON array of observed public frames. Each frame contains
 upstream `variant`, `game`, `status`, `history`, and `messages` files, plus:
 

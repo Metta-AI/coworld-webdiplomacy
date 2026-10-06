@@ -1,5 +1,9 @@
 # Player lifecycle protocol
 
+For a complete bot, Docker packaging and local/hosted commands, start with
+[Write your own policy](write-a-policy.md), also embedded as the manifest's
+`write-a-policy` documentation page.
+
 Connect to `/player?slot=N&token=TOKEN` with a Coworld seat's credentials. An
 invalid slot or token is rejected before WebSocket acceptance (HTTP 403).
 WebSocket ping/pong is supported. Tokens are seat capabilities; never publish
@@ -95,6 +99,12 @@ same renderer as the static replay viewer.
 ## Browser transport
 
 `GET /client/player?slot=N&token=TOKEN&address=WEBSOCKET_URL` serves a wrapper.
+Its help row reserves space above a same-origin board iframe. The iframe uses
+the same route with `board=1`, preserving the seat query and proxy address;
+this gives the unmodified board the remaining viewport for its own layout.
+Help dismissal is stored under `webdip-help-dismissed` in localStorage and can
+be reopened with **?**. Blocked storage leaves help usable without persistence;
+the upstream board has its own storage requirements.
 `address` is optional; without it the wrapper derives `/player` from the current
 prefix and origin. It requests browser mode and loads the unmodified React build
 from static files beneath `/client/`. The build uses the pinned upstream npm

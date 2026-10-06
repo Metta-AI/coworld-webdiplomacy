@@ -21,6 +21,8 @@ class ManifestContract(unittest.TestCase):
             self.assertEqual(document, {"type": "text", "value": Path(source).read_text()}, source)
         for variant in manifest["variants"]:
             EpisodeConfig(tokens=list("abcdefg"), **variant["game_config"])
+        guide = next(page for page in game["docs"]["pages"] if page["id"] == "write-a-policy")
+        self.assertEqual(guide["content"], {"type": "text", "value": Path("docs/write-a-policy.md").read_text()})
         EpisodeConfig(tokens=list("abcdefg"), **manifest["certification"]["game_config"])
 
     def test_certification_exercises_all_bundled_players_within_short_fixture(self):
