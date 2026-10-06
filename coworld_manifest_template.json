@@ -7,7 +7,7 @@
   "game": {
     "name": "webdiplomacy",
     "description": "Classic Diplomacy using the unmodified webDiplomacy server and its bot API.",
-    "owner": "jamesboggs",
+    "owner": "james@softmax.com",
     "player_runtime": "platform-hosted",
     "runnable": {
       "type": "game",
