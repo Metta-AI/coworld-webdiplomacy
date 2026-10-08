@@ -133,10 +133,6 @@ public frame whenever it changes.
 | `players/examples/herald_bot.py` | Stdlib-only third-party example built from the docs |
 | `players/scenarios.py` | Scripted API players for `WEBDIP_MODE` regression runs and stock comparison |
 
-`adapter/smoke.py`, `adapter/tactics.py` and `adapter/convoy.py` are thin
-compatibility entrypoints for `players.scenarios`; boot calls
-`players.scenarios` directly.
-
 ## Browser clients
 
 | File | Role |
