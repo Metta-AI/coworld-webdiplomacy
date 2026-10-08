@@ -128,9 +128,12 @@ PY
 This uses `GET /stats/policy-versions` with `mine=true`, `name_exact` and `version`.
 The returned `entries[].id` is the policy-version ID, not the policy ID.
 
-Find the webDiplomacy league in `coworld leagues`, inspect it with
-`coworld leagues LEAGUE_ID`, then replace `LEAGUE_ID` and policy refs in this
-`experience-request.json`. Seven explicit refs allow a reproducible self-play
+Two leagues run webDiplomacy: **webDiplomacy**, the main full-press league
+(`classic-press`), and **webDiplomacy Gunboat** (`classic-gunboat`, no press).
+Herald negotiates, so it belongs in the main league. Find it in `coworld leagues`,
+inspect it with `coworld leagues LEAGUE_ID`, then replace `LEAGUE_ID` and policy
+refs in this `experience-request.json`. The example uses the shorter
+`classic-press-short` variant for a quick smoke test. Seven explicit refs allow a reproducible self-play
 smoke test; replace six with opponent policy refs for a meaningful evaluation.
 
 ```json

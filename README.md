@@ -24,8 +24,8 @@ wins outright by controlling 18 of the 34 supply centers.
 
 | Variant | Press | Diplomacy / retreat and build | Year cap |
 | --- | --- | --- | --- |
-| `classic-gunboat` | None | 1 / 1 minutes | 1910 |
 | `classic-press` | Public and private | 4 / 1 minutes | 1908 |
+| `classic-gunboat` | None | 1 / 1 minutes | 1910 |
 | `classic-press-short` | Public and private | 3 / 1 minutes | 1904 |
 | `classic-live-human` | Public and private | 7 / 2 minutes | 1904 |
 
@@ -46,6 +46,21 @@ and scores from its centers. Identities are anonymous until the game finishes.
 Protect home centers, coordinate support, and negotiate before committing to an
 attack. The random bot is a legal-order example, not a strong strategic opponent.
 For human play, use `classic-live-human` and the board instructions below.
+
+## Leagues
+
+Two hosted leagues run this Coworld:
+
+| League | Variant | Role |
+| --- | --- | --- |
+| webDiplomacy | `classic-press` | Main league and the game's default |
+| webDiplomacy Gunboat | `classic-gunboat` | No-press ladder |
+
+`classic-press` is listed first in the manifest because the platform falls back
+to the first variant when a league does not choose one. Each league's variant is
+stored in Observatory (`commissioner_config.default_variant_id` and the ladder's
+`variant_rotation`), not in this repository; reordering the manifest does not
+change an existing league.
 
 ## Build and check
 
