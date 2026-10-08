@@ -99,6 +99,6 @@ is not started for replay viewing. Upload, certification and hosted acceptance
 are separate from the local browser checks.
 
 Use `coworld run-episode` followed by `tools.check_replay` for local validation.
-In CLI 0.1.56 (the pinned version), the optional `--verify-replay` flag explicitly probes the legacy
-container `/client/replay` route even when a static bundle is declared; it is not
-the static viewer check. The static browser test replaces that legacy CI probe.
+Since this manifest declares a static bundle, CLI 0.1.58 (the pinned version) skips
+the legacy container `/client/replay` probe, including under `--verify-replay`;
+the CLI does not render the static viewer. `tools.check_replay` is the browser check.
