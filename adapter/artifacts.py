@@ -31,4 +31,7 @@ def write_artifact(uri, data, method_env, *, content_type="application/json", ti
     target = local_path(uri)
     temporary = target.with_name(target.name + ".tmp")
     temporary.write_bytes(data)
+    # Boot's 0077 umask protects secrets, but a local runner reads these files as
+    # a different, non-root host user through its bind mount.
+    temporary.chmod(0o644)
     temporary.replace(target)

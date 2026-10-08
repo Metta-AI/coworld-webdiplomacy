@@ -1,6 +1,9 @@
+import os
+import stat
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from threading import Thread
 from unittest.mock import patch
 
@@ -15,6 +18,18 @@ class ArtifactPaths(unittest.TestCase):
     def test_remote_scheme_rejected(self):
         with self.assertRaises(ValueError):
             local_path('https://example.com/results.json')
+
+    def test_local_artifact_is_readable_by_the_runner_despite_boot_umask(self):
+        # The local runner bind-mounts its workspace; a root-owned 0600 file is
+        # unreadable by the non-root host user on Linux.
+        with TemporaryDirectory() as directory:
+            target = Path(directory) / 'results.json'
+            previous = os.umask(0o077)
+            try:
+                write_artifact(target.as_uri(), b'{}', 'COGAME_RESULTS_METHOD')
+            finally:
+                os.umask(previous)
+            self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o644)
 
     def test_hosted_artifacts_use_http_methods(self):
         requests = []
