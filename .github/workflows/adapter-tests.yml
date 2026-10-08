@@ -38,3 +38,12 @@ jobs:
       - run: uv run python -m tools.check_compatibility coworld-webdiplomacy-game:latest
       - run: uv run coworld run-episode dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
       - run: uv run python -m tools.check_replay tmp/episode/replay tmp/p5-*/replay.json tmp/p4-press-*/replay.json
+      # Game container stdout is public by design (see README, Runtime). Never print
+      # tmp/*/logs: run-episode player logs there hold private press.
+      - name: Print public game logs on failure
+        if: failure()
+        run: |
+          for log in tmp/*/game.log; do
+            [ -f "$log" ] || continue
+            echo "::group::$log"; cat "$log"; echo "::endgroup::"
+          done
