@@ -41,7 +41,8 @@ The launcher sets `WEBDIP_URL`, `WEBDIP_API_KEY`, `WEBDIP_GAME_ID`, and
 `WEBDIP_COUNTRY_ID`, and `WEBDIP_SEED` for its bot subprocess. Bots use upstream HTTP routes directly,
 with `Authorization: Bearer <api_key>`. The adapter never submits their actions.
 `game/setvote` returns plain text; context and order responses are JSON.
-See the [upstream API reference](../webdiplomacy/api/README.md).
+See the [upstream bot API reference](upstream-bot-api.md) and upstream's own
+[API README](../webdiplomacy/api/README.md).
 
 Lifecycle messages after hello:
 
@@ -80,6 +81,23 @@ winner receives 1 and everyone else 0. Cancellation gives each seat 1/7; the
 zero-center fallback also gives equal shares. Results include the country map,
 seed, members' final center counts, actual final state, observed transition
 elapsed times, and completed gamemaster request timing summaries.
+
+`results.json` fields (written by `adapter/episode.py`; the manifest's
+`results_schema` requires only the first three):
+
+| Field | Meaning |
+| --- | --- |
+| `scores` | Seven numbers in **slot order** |
+| `outcome` | `won`, `drawn` (upstream `gameOver`, lowercased) or `cancelled` |
+| `final_state` | Upstream `wD_Games` row (`id`, `turn`, `phase`, `gameOver`, `processStatus`, `processTime`, `startTime`); `null` when cancelled |
+| `reason` | Why play ended: `end_year`, `episode_timeout`, `cancelled`, or the upstream outcome (`won`, `drawn`) when upstream finished the game itself |
+| `seed` | Episode seed actually used |
+| `countries` | `countries[slot]` is that seat's upstream country ID (1–7, Classic order England, France, Italy, Germany, Austria, Turkey, Russia) |
+| `members` | Upstream member rows ordered by country ID: `countryID`, `status`, `supplyCenterNo`, `unitNo` (string values from SQL). `status` is upstream's `Playing`, `Defeated`, `Left`, `Won`, `Drawn`, `Survived` or `Resigned`; scoring treats `Playing`, `Drawn` and `Survived` as surviving |
+| `transitions` | Each observed `(turn, phase, process_status)` change with `elapsed_seconds` since game creation and `unix_time` |
+| `gamemaster_calls` | `count`, `p50_seconds`, `max_seconds` and `http_errors` for upstream `gamemaster.php` requests |
+
+Turns count from 0 (Spring 1901); the year is `1901 + turn // 2`.
 
 Replay is currently a JSON array of upstream **public** variant/game/status/
 history/messages snapshots and public lifecycle state. Private player contexts,

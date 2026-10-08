@@ -13,6 +13,21 @@ static replay viewer show public positions, adjudicated orders, season maps and
 public press. Local certification and browser checks are described below; hosted
 certification and publication are separate release steps.
 
+## Documentation
+
+| Read | For |
+| --- | --- |
+| [Write your own policy](docs/write-a-policy.md) | Building, testing, uploading and submitting a bot |
+| [Player protocol](docs/protocol.md) | Hello, launcher, deadlines, scoring, `results.json`, browser transport, private artifacts |
+| [Upstream bot API](docs/upstream-bot-api.md) | How the unmodified webDiplomacy API behaves, with citations into the submodule |
+| [Bundled players](docs/players.md) | Random and hold bots, legal-order generation, compatibility checks |
+| [Replay and spectating](docs/replay.md) | Replay frame format and the live/static viewers |
+| [Architecture](docs/architecture.md) | Processes, routes, episode lifecycle, code map, environment variables |
+| [Design and rationale](docs/design.md) | Goals, key decisions, rejected alternatives, upstream updates, risks |
+| [Source bundle](SOURCE_BUNDLE.md) | Reproducible AGPL source archive |
+
+Coding agents should start with [AGENTS.md](AGENTS.md).
+
 ## Game rules and variants
 
 Seven powers compete on the Classic map, starting in Spring 1901. Orders resolve

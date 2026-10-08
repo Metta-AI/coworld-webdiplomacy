@@ -12,13 +12,37 @@ early. Recorded replays never show this wall-clock countdown. Phase headings,
 history choices and replay timeline labels display **Movement** for upstream
 `Diplomacy`; stored replay and API values remain unchanged.
 
-The replay artifact is a JSON array of observed public frames. Each frame contains
-upstream `variant`, `game`, `status`, `history`, and `messages` files, plus:
+The replay artifact is a JSON array of observed public frames, oldest first. The
+platform stores it gzip-compressed (`replay_compression` in the manifest). Each
+frame contains upstream's public `variant`, `game`, `status`, `history`, and
+`messages` files verbatim, plus:
 
-- `lifecycle`: turn, phase and process status.
+- `lifecycle`: `turn`, `phase` and `process_status` (`Not-processing`,
+  `Processing`, `Paused` or `Crashed`) from the committed game row.
 - `episode.seed`: the chosen episode seed (absent in older prototype replays).
-- `map`, when `render_maps` is true: `turn` and `png`, a PNG data URL.
-- `ending` on the final frame: outcome and reason.
+- `map`, when `render_maps` is true: `turn` (the adjudicated turn pictured, `-1`
+  for the starting position) and `png`, a PNG data URL.
+- `ending` on the final frame only: `outcome` and `reason`, with the same values
+  as `results.json` (see [protocol](protocol.md#game-lifecycle-and-output)).
+
+Where to find things in a frame. Upstream's
+[game data spec](../webdiplomacy/doc/gamedata/02-spec.md) (section 2) defines
+each file's fields; the [bot API reference](upstream-bot-api.md#4-reading-a-game)
+summarizes them.
+
+| Question | Field |
+| --- | --- |
+| Map, territories, adjacency, supply centers | `variant` (identical in every frame) |
+| Current turn, phase, deadline, members, units, territory owners | `game` |
+| Who has saved orders, who is Ready, current votes | `status` |
+| Every completed phase's units, center owners, orders and results | `history.phases` |
+| Public press | `messages` |
+| Episode-level state and how it ended | `lifecycle`, `episode`, `ending` |
+
+Turns count from 0 (Spring 1901): year is `1901 + turn // 2`, even turns are
+Spring and odd turns Autumn. Upstream's raw movement phase is `Diplomacy`; the
+other phases are `Pre-game`, `Retreats`, `Builds` and `Finished`. A new frame
+starts whenever `lifecycle` changes, so a pause adds a frame within a phase.
 
 The writer reads only upstream public files and checks their versions and phase
 against committed state. It never reads private player contexts or draft orders.
@@ -75,6 +99,6 @@ is not started for replay viewing. Upload, certification and hosted acceptance
 are separate from the local browser checks.
 
 Use `coworld run-episode` followed by `tools.check_replay` for local validation.
-In CLI 0.1.55, the optional `--verify-replay` flag explicitly probes the legacy
+In CLI 0.1.56 (the pinned version), the optional `--verify-replay` flag explicitly probes the legacy
 container `/client/replay` route even when a static bundle is declared; it is not
 the static viewer check. The static browser test replaces that legacy CI probe.

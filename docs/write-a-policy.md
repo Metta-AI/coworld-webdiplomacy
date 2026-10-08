@@ -66,6 +66,8 @@ Call `$WEBDIP_URL/api.php?route=ROUTE` with
 `Authorization: Bearer $WEBDIP_API_KEY`. POST bodies are JSON with
 `Content-Type: application/json`. Herald's `call()` function is a small runnable
 example; [players/api.py](../players/api.py) also provides a synchronous client.
+The [upstream bot API reference](upstream-bot-api.md) covers every route, order
+field and server behavior in detail, with citations into the pinned upstream code.
 
 | Route | Request and response |
 | --- | --- |
