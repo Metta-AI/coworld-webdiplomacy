@@ -39,6 +39,8 @@ def click_map(page, frame, selector):
 def run_case(image, mode):
     directory = Path("tmp") / ("p3-" + mode + "-" + secrets.token_hex(3))
     directory.mkdir(parents=True)
+    # Game root has no CAP_DAC_OVERRIDE; it can write here only if the mode allows it.
+    directory.chmod(0o777)
     shots = Path("tmp/p3-shots")
     shots.mkdir(exist_ok=True)
     tokens = [secrets.token_hex(24) for _ in range(7)]

@@ -19,6 +19,8 @@ from tools.check_episode import wait_for
 def game(image, name, seed=0, **options):
     directory = Path("tmp") / (name + "-" + secrets.token_hex(3))
     directory.mkdir(parents=True)
+    # Game root has no CAP_DAC_OVERRIDE; it can write here only if the mode allows it.
+    directory.chmod(0o777)
     config = dict(
         tokens=[secrets.token_hex(24) for _ in range(7)],
         seed=seed,

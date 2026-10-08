@@ -32,6 +32,8 @@ def wait_for(probe, timeout=15):
 def run_case(image, case):
     directory = Path("tmp") / ("p2-" + case + "-" + secrets.token_hex(3))
     directory.mkdir(parents=True)
+    # Game root has no CAP_DAC_OVERRIDE; it can write here only if the mode allows it.
+    directory.chmod(0o777)
     tokens = [secrets.token_hex(24) for _ in range(7)]
     if case == "race":
         tokens[0] = "seat&" + tokens[0]
