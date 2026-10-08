@@ -26,7 +26,8 @@ class ArtifactPaths(unittest.TestCase):
                 self.wfile.write(b'{"tokens": []}')
 
             def do_PUT(self):
-                requests.append((self.command, self.path, self.headers['Content-Type'], self.rfile.read(int(self.headers['Content-Length']))))
+                body = self.rfile.read(int(self.headers['Content-Length']))
+                requests.append((self.command, self.path, self.headers['Content-Type'], body))
                 self.send_response(200)
                 self.end_headers()
 

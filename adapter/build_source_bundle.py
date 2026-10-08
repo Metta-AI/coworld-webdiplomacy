@@ -7,7 +7,6 @@ import subprocess
 import tarfile
 from pathlib import Path
 
-
 parser = argparse.ArgumentParser()
 parser.add_argument("output", type=Path)
 parser.add_argument("--upstream", type=Path, default=Path("webdiplomacy"))
