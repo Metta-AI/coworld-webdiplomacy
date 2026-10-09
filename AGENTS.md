@@ -58,7 +58,7 @@ uv sync --group dev
 uv run python -m unittest discover -s adapter -p 'test_*.py' -v   # adapter unit tests
 uv run python -m unittest players.test_players -v                 # player unit tests
 uv run ruff check adapter players tools
-uv run coworld build --version 0.7.7                              # images + dist/ manifest
+uv run coworld build --version 0.7.8                              # images + dist/ manifest
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```
