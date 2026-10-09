@@ -236,6 +236,28 @@ non-root prefix, and a cross-origin sandboxed iframe. Evidence JSON and local
 credentials live in ignored `tmp/p3-*` directories; do not publish those folders.
 These checks simulate proxy behavior; they are not hosted acceptance tests.
 
+## External bots in human seats
+
+`uv run python -m players.bridge` exposes a claimed human seat as a loopback
+webDiplomacy HTTP API. Run your bot on your own machine without submitting a
+policy. It uses the existing player WebSocket tunnel; no inbound connection to
+your machine or extra pod networking is needed. See
+[external bot setup](docs/write-a-policy.md#run-an-external-bot-in-a-human-seat)
+for the private seat URL, local key, supported routes and failure handling.
+
+This requires a game image advertising `http-bot-api-v1`; older hosted images
+need a Coworld release before they can accept this bridge. A local code update
+does not update a running or published game.
+
+```sh
+uv run python -m unittest players.test_bridge -v
+uv run python -m tools.check_bridge coworld-webdiplomacy-game:latest
+```
+
+The Docker check plays through the real bridge and simulated platform proxy,
+verifies saved orders, adjudication, press privacy, seat boundaries, upstream
+errors and game-over handling. It is local acceptance, not hosted verification.
+
 ## Regression checks
 
 ```sh

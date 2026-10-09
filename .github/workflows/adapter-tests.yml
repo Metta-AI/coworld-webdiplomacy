@@ -15,6 +15,7 @@ jobs:
       - run: uv run python -m unittest discover -s adapter -p 'test_*.py' -v
       - run: uv run ruff check adapter players tools
       - run: uv run python -m unittest players.test_players -v
+      - run: uv run python -m unittest players.test_bridge -v
       - run: uv run coworld build --version 0.7.7
       - run: docker build --platform linux/amd64 -t herald:local players/examples
       - run: >-
@@ -26,6 +27,7 @@ jobs:
       - run: uv run playwright install --with-deps chromium --only-shell
       - run: uv run python -m tools.check_browser coworld-webdiplomacy-game:latest
       - run: uv run python -m tools.check_browser_scenarios coworld-webdiplomacy-game:latest
+      - run: uv run python -m tools.check_bridge coworld-webdiplomacy-game:latest
       - run: uv run python tools/check_boot.py coworld-webdiplomacy-game:latest
       - run: uv run python tools/check_boot.py coworld-webdiplomacy-game:latest --crash-service
       - run: uv run python -m tools.check_episode coworld-webdiplomacy-game:latest

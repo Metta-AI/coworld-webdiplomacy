@@ -10,7 +10,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from adapter.episode import SOURCE_URL
-from adapter.tunnel import Tunnel
+from adapter.tunnel import BOT_API_CAPABILITY, Tunnel
 
 
 def install_routes(app, episode):
@@ -95,6 +95,7 @@ def install_routes(app, episode):
                 {
                     "type": "hello",
                     "protocol": "webdip-coworld/1",
+                    "capabilities": [BOT_API_CAPABILITY],
                     "slot": slot,
                     "webdip": webdip,
                     "rules": episode.config.model_dump(exclude={"tokens"}),

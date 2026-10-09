@@ -61,3 +61,34 @@ class TunnelBoundaryTest(unittest.TestCase):
             self.tunnel.validate({**message, "method": "GET"})
         with self.assertRaises(ValueError):
             self.tunnel.validate({**message, "body": "x" * 131073})
+
+    def test_bot_orders_bound_to_game_and_country(self):
+        body = {"gameID": 101, "countryID": 6, "turn": 0, "phase": "Diplomacy", "orders": [{"type": "Hold"}]}
+        message = {"method": "POST", "path": "/api.php?route=game/orders", "body": json.dumps(body)}
+        self.assertEqual(self.tunnel.validate(message)[2], message["body"])
+        for changes in (
+            {"gameID": 102},
+            {"countryID": 7},
+            {"sbToken": "secret"},
+            {"orders": [{"countryID": 7}]},
+            {"orders": [None]},
+            {"orders": {}},
+        ):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                self.tunnel.validate({**message, "body": json.dumps(body | changes)})
+        for path in (
+            "/api.php?route=game/orders&countryID=7",
+            "/api.php?route=game/orders&gameID=102",
+        ):
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                self.tunnel.validate({**message, "path": path})
+        with self.assertRaises(ValueError):
+            self.tunnel.validate({**message, "method": "GET"})
+
+    def test_toggle_vote_uses_upstream_get_and_seat_binding(self):
+        message = {"path": "/api.php?route=game/togglevote&gameID=101&countryID=6&vote=Draw"}
+        self.tunnel.validate(message)
+        with self.assertRaises(ValueError):
+            self.tunnel.validate({"path": message["path"].replace("countryID=6", "countryID=7")})
+        with self.assertRaises(ValueError):
+            self.tunnel.validate({**message, "method": "POST"})

@@ -15,6 +15,7 @@ The first message is:
 {
   "type": "hello",
   "protocol": "webdip-coworld/1",
+  "capabilities": ["http-bot-api-v1"],
   "slot": 0,
   "webdip": {
     "base_url": "http://game:8080",
@@ -142,13 +143,25 @@ The shim replaces fetch, XMLHttpRequest and EventSource with WebSocket messages:
   the same `id`. `unsubscribe` with that `id` closes the stream.
 
 The adapter supplies Authorization server-side, strips cookies, refuses redirects,
-and forwards only `game/playercontext`, `game/sendmessage`, `game/messagesseen`,
-`game/setvote`, `game/markbackfromleft`, this game's four public JSON files, and
-Classic's variant JSON. `ajax.php` is loopback-only and accepts only signed order
+and forwards only `game/playercontext` (GET), `game/sendmessage` (POST),
+`game/messagesseen` (POST), `game/setvote` (POST), `game/markbackfromleft` (POST),
+`game/orders` (POST), `game/togglevote` (GET), this game's four public JSON files,
+and Classic's variant JSON. API game/country IDs in query and JSON body must match
+this seat, as must any country IDs inside individual bot orders. Upstream checks
+order legality and phase freshness. Paths are limited to 8192 characters.
+`ajax.php` is loopback-only and accepts only signed order
 saves whose context matches the authenticated game, user and country. Upstream
 still verifies the signature and orders. Client headers, destinations and SSE
 channel choices cannot override the seat binding. Unsupported requests return 403;
 upstream connection failures return 502. HTTP forwarding has a 15-second timeout.
+
+`http-bot-api-v1` in hello identifies support for the bot API routes above.
+The synchronous local `players.bridge` client uses the same browser-mode tunnel
+and exposes GET/POST over loopback HTTP with a separate local Bearer key.
+It returns upstream status/body/Content-Type/X-JSON unchanged, reconnects without
+replaying requests, acknowledges game-over, and returns HTTP 410 afterward.
+The bridge supports polling, not HTTP SSE; the browser's tunneled SSE is unchanged.
+See [external bot setup](write-a-policy.md#run-an-external-bot-in-a-human-seat).
 
 The wrapper's meta CSP survives header-stripping proxies and blocks external
 scripts, images, forms and fonts. The compiled board initializes Google Analytics,
