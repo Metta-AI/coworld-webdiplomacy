@@ -21,6 +21,7 @@ the game.
 | Build, run, test commands | [README.md](README.md) |
 | Episode config fields and defaults | `adapter/config.py` (generates `config-schema.json`) |
 | Variants, certification roster, resources | `coworld_manifest_template.json` |
+| Optimizer mixin, IDE, template generator | [optimizer/README.md](optimizer/README.md) |
 
 ## Rules
 
