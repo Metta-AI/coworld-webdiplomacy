@@ -21,7 +21,7 @@ directories in git — delete them once a directory has real content (keep
 |---|---|
 | **Game** | webDiplomacy |
 | **Coworld** | `webdiplomacy`, built from https://github.com/Metta-AI/coworld-webdiplomacy (`coworld_manifest_template.json`); check the hosted version with `coworld games` — free-form for humans (name + version + where its manifest lives); no core skill parses this |
-| **League(s)** | "webDiplomacy" (`classic-press`, main) and "webDiplomacy Gunboat" (`classic-gunboat`) — the `league_…` id(s), from `coworld leagues --json` |
+| **League(s)** | "webDiplomacy" `league_1bccc63d-cd0a-47d7-92d7-e762797b5f1c` (`classic-press`, main) and "webDiplomacy Gunboat" `league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17` (`classic-gunboat`) — the `league_…` id(s), from `coworld leagues --json` |
 | **Game source of truth** | the upstream webDiplomacy server at the coworld-webdiplomacy submodule commit, via that repo's `docs/upstream-bot-api.md` — never answer mechanics questions from memory |
 
 ## Provenance

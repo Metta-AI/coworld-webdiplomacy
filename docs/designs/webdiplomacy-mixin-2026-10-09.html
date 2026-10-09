@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webDiplomacy Mixin Design</title>
+<!--
+  Ink & Print design/plan document template (Softmax house style).
+
+  HOW TO USE (renderer subagent):
+  - Replace everything inside <article id="doc"> with the real document content.
+    The placeholder content below doubles as a component style guide — copy the
+    markup patterns (masthead, TOC, section, figure, table, callout, code,
+    citation) and delete what you don't use.
+  - Do NOT modify anything between the DC-COMMENTS BEGIN/END markers. That block
+    is the tested commenting system; copy it verbatim. The one thing you may fill
+    is the CONTENT of <script id="dc-preload" type="application/json">: a
+    dc-comments/1 comments array, each comment optionally carrying
+    replies: [{author, text, created}], so the reader sees their comments and
+    the agent's replies together in the sidebar.
+  - Keep the doc self-contained: inline SVG for figures, no JS deps beyond this
+    file. Google Fonts is the only permitted external fetch.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============ Ink & Print tokens ============ */
+  :root {
+    --bg: #fffdf4;            /* cream paper */
+    --surface: #fffaf0;
+    --surface-alt: #f8f6ef;
+    --fg: #111827;            /* warm near-black — never pure #000 */
+    --fg-subtle: #555555;
+    --fg-muted: #999999;
+    --ink-navy: #1a3875;
+    --ink-sage: #6e8050;
+    --ink-terracotta: #b36e4e;
+    --ink-gold: #d4a853;
+    --accent: #859ebe;
+    --accent-soft: #eef2f7;
+    --cta: #0e2758;
+    --cta-foreground: #fffdf4;
+    --border: #e4dac8;
+    --border-strong: #d4c9b5;
+    --border-subtle: #f0ebe1;
+    --serif: 'Merriweather', Georgia, serif;
+    --sans: 'Merriweather Sans', 'Helvetica Neue', sans-serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* ============ Page grid: reading column + comment rail ============ */
+  .dc-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 0;
+    max-width: 1240px;
+    margin: 0 auto;
+  }
+  article#doc {
+    max-width: 72ch;
+    margin: 0 auto;
+    padding: 56px 40px 120px;
+    min-width: 0;
+  }
+
+  /* ============ Typography ============ */
+  .eyebrow {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-subtle);
+  }
+  header.masthead { border-bottom: 2px solid var(--border-strong); padding-bottom: 20px; margin-bottom: 32px; }
+  header.masthead h1 {
+    font-family: var(--serif);
+    font-weight: 900;
+    font-size: 34px;
+    line-height: 1.2;
+    margin: 8px 0 10px;
+  }
+  header.masthead .context { color: var(--fg-subtle); font-size: 13.5px; margin: 0; }
+  h2 {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-navy);
+    margin: 48px 0 12px;
+  }
+  h3 { font-family: var(--serif); font-weight: 700; font-size: 16.5px; margin: 32px 0 8px; }
+  p { margin: 0 0 14px; }
+  a { color: var(--ink-navy); text-decoration-color: var(--accent); text-underline-offset: 3px; }
+  a:hover { color: var(--cta); }
+  strong { font-weight: 700; }
+  ul, ol { padding-left: 24px; margin: 0 0 14px; }
+  li { margin-bottom: 4px; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 40px 0; }
+
+  /* Key-points opener: every section starts with scannable bullets */
+  .key-points {
+    list-style: none;
+    padding: 0 0 0 2px;
+    margin: 0 0 18px;
+  }
+  .key-points li { padding-left: 18px; position: relative; margin-bottom: 6px; }
+  .key-points li::before { content: '—'; position: absolute; left: 0; color: var(--ink-gold); font-weight: 700; }
+
+  /* ============ TOC ============ */
+  nav.toc { margin: 28px 0 8px; }
+  nav.toc ol { list-style: none; padding: 0; column-count: 2; column-gap: 40px; margin: 10px 0 0; }
+  nav.toc li { margin-bottom: 5px; break-inside: avoid; }
+  nav.toc a { text-decoration: none; border-bottom: 1px dotted var(--border-strong); }
+  nav.toc .toc-num { font-family: var(--mono); font-size: 12px; color: var(--fg-muted); margin-right: 8px; }
+
+  /* ============ Tables ============ */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 18px 0 22px;
+    font-size: 13.5px;
+  }
+  th {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-subtle);
+    text-align: left;
+    padding: 6px 12px 6px 0;
+    border-bottom: 2px solid var(--border-strong);
+  }
+  td { padding: 7px 12px 7px 0; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
+  td.num, th.num { text-align: right; font-family: var(--mono); font-size: 12.5px; font-feature-settings: 'tnum' 1; }
+
+  /* ============ Figures ============ */
+  figure { margin: 24px 0 28px; }
+  figure svg { max-width: 100%; height: auto; display: block; }
+  figcaption {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--fg-subtle);
+  }
+  figcaption .fig-label {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 10.5px;
+    color: var(--ink-navy);
+    margin-right: 8px;
+  }
+
+  /* ============ Code & citations ============ */
+  code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--surface-alt);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--surface-alt);
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 16px 0 20px;
+  }
+  pre code { background: none; padding: 0; font-size: 12.5px; line-height: 1.6; }
+  .cite {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--fg-subtle);
+    background: var(--surface-alt);
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  /* Superscript source references — body prose never carries raw file paths.
+     Full citation lives in the title (hover) and in the numbered Sources list. */
+  sup.ref { line-height: 0; }
+  sup.ref a {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--ink-navy);
+    text-decoration: none;
+    padding: 0 1px;
+  }
+  sup.ref a:hover { text-decoration: underline; }
+  ol.sources { margin: 12px 0; padding-left: 30px; }
+  ol.sources li {
+    font-size: 13px;
+    padding: 2px 0;
+  }
+  ol.sources li::marker {
+    font-family: var(--mono);
+    font-weight: 700;
+    color: var(--ink-navy);
+  }
+  ol.sources li:target { background: var(--accent-soft); }
+
+  /* ============ Callouts ============ */
+  .callout { padding: 12px 16px; margin: 18px 0; font-size: 13.5px; border-radius: 3px; }
+  .callout .callout-label {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+  }
+  .callout-info { background: var(--accent-soft); }
+  .callout-info .callout-label { color: var(--ink-navy); }
+  .callout-warn { background: rgba(179, 110, 78, 0.08); border-left: 3px solid var(--ink-terracotta); }
+  .callout-warn .callout-label { color: var(--ink-terracotta); }
+  .callout-open { background: rgba(212, 168, 83, 0.10); }
+  .callout-open .callout-label { color: #8a6a1f; }
+
+  /* Decision record */
+  .decision { border-top: 1px solid var(--border); padding: 14px 0 4px; margin: 14px 0; }
+  .decision .decision-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-sage); }
+  .decision p { margin-top: 6px; }
+
+
+  td code, .sources code { overflow-wrap: anywhere; }
+  .sources .cite { white-space: normal; overflow-wrap: anywhere; }
+
+  /* replies rendered under a comment (from the comment's replies array) */
+  .dc-replies { margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--border-strong); }
+  .dc-reply-author { font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-navy); }
+  .dc-reply-text { font-size: 12.5px; line-height: 1.5; color: var(--fg); white-space: pre-wrap; margin-top: 2px; }
+  .dc-reply-text a { color: var(--ink-navy); word-break: break-all; }
+
+  @media (max-width: 1100px) {
+    .dc-page { grid-template-columns: minmax(0, 1fr); }
+    article#doc { width: 100%; box-sizing: border-box; }
+  }
+  @media (max-width: 600px) {
+    article#doc { padding: 32px 16px 96px; }
+    nav.toc ol { column-count: 1; }
+  }
+  @media print {
+    #dc-sidebar, #dc-fab, #dc-toggle { display: none !important; }
+    .dc-page { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  /* ================================================================
+     DC-COMMENTS BEGIN — styles (copy verbatim; do not modify)
+     ================================================================ */
+  ::highlight(dc-hl) { background: rgba(212, 168, 83, 0.28); }
+  ::highlight(dc-hl-active) { background: rgba(212, 168, 83, 0.6); }
+
+  #dc-fab {
+    position: absolute;
+    z-index: 40;
+    display: none;
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--cta-foreground);
+    background: var(--cta);
+    border: 1px solid #0a1c42;
+    border-radius: 3px;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  #dc-fab:hover { background: var(--ink-navy); }
+
+  #dc-sidebar {
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    padding: 24px 20px 60px;
+    font-size: 13px;
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    overflow-y: auto;
+  }
+  #dc-sidebar h2.dc-title {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-subtle);
+    margin: 0 0 4px;
+  }
+  .dc-actions { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 18px; }
+  .dc-btn {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    padding: 4px 9px;
+    cursor: pointer;
+  }
+  .dc-btn:hover { background: var(--surface-alt); }
+  .dc-btn:focus-visible, #dc-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .dc-empty { color: var(--fg-muted); font-style: italic; }
+  .dc-item { border-top: 1px solid var(--border-subtle); padding: 12px 0; cursor: pointer; }
+  .dc-item.dc-resolved { opacity: 0.5; }
+  .dc-quote {
+    border-left: 2px solid var(--ink-gold);
+    padding-left: 8px;
+    color: var(--fg-subtle);
+    font-style: italic;
+    font-size: 12px;
+    margin-bottom: 6px;
+    overflow-wrap: break-word;
+  }
+  .dc-orphan-tag {
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-terracotta);
+    background: rgba(179, 110, 78, 0.12);
+    border-radius: 999px;
+    padding: 1px 7px;
+    margin-left: 6px;
+  }
+  .dc-text { white-space: pre-wrap; overflow-wrap: break-word; }
+  .dc-item textarea {
+    width: 100%;
+    min-height: 64px;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--fg);
+    background: var(--bg);
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    padding: 6px 8px;
+    resize: vertical;
+  }
+  .dc-item textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .dc-meta { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 11px; color: var(--fg-muted); }
+  .dc-meta label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .dc-meta .dc-del { margin-left: auto; color: var(--ink-terracotta); background: none; border: none; font-size: 11px; cursor: pointer; padding: 0; }
+  .dc-meta .dc-del:hover { text-decoration: underline; }
+  #dc-status { font-size: 11px; color: var(--ink-sage); min-height: 16px; margin-top: 8px; }
+
+  #dc-toggle { display: none; }
+  @media (max-width: 1100px) {
+    #dc-sidebar {
+      position: fixed;
+      right: 0;
+      top: 0;
+      width: 320px;
+      max-width: 90vw;
+      transform: translateX(100%);
+      transition: transform 200ms ease-out;
+      z-index: 50;
+      box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
+    }
+    #dc-sidebar.dc-open { transform: translateX(0); }
+    #dc-toggle {
+      display: block;
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 51;
+      font-family: var(--sans);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--cta-foreground);
+      background: var(--cta);
+      border: 1px solid #0a1c42;
+      border-radius: 999px;
+      padding: 9px 15px;
+      cursor: pointer;
+    }
+  }
+  /* ============ DC-COMMENTS END — styles ============ */
+</style>
+</head>
+<body>
+<div class="dc-page">
+<article id="doc">
+
+  <header class="masthead">
+    <span class="eyebrow">Design doc · 2026-10-09 · Revised</span>
+    <h1>webDiplomacy optimizer-seed mixin</h1>
+    <p class="context">How we fill the optimizer-seed lab for webDiplomacy so an agent can run the full improvement loop in any environment. Written for James. This revision replaces v1 after review comments and findings from the webdiplomacy_lab.</p>
+  </header>
+
+  <section id="summary">
+    <h2>Executive summary</h2>
+    <p>We adapt the lab's Castlereagh bot as the reference policy. Its core is Kissinger's search, and Castlereagh's press harness sits on top as an optional, modular layer that is off by default for now. The lab's measured evidence drives this choice. In about 100 hosted press games, the press bot scored 0.124–0.126 per seat, while silent Kissinger (the same search with no LLM) scored 0.172–0.176 in the same field, against a parity of 0.143. The strength is in the search. We keep the press layer because policies with press do better than no-press bots in real Diplomacy, and making press-on beat press-off before release is a major goal.</p>
+    <p>The rest of the work fills the lab completely. Today <code>optimizer/mixin/</code> (PR #8) is the seed's template with only the identity filled in, so an agent onboarding from <code>Metta-AI/webdip-optimizer</code> sees all five required bindings as gaps and finds no game docs, no reference policy and no build tool. Core seed skills resolve every game-specific fact through the lab's <code>MIXIN.md</code> and the bindings<sup class="ref"><a href="#src-1" title="optimizer-seed games/_template/MIXIN.md @ 7ebea87">1</a></sup>. We add a lab manual, game docs, the five bindings, instruments ported from the lab, the reference policy and a build tool, plus a small coworld change in a separate PR.</p>
+  </section>
+
+  <section id="changes">
+    <h2>What changed since v1</h2>
+    <ul class="key-points">
+      <li><strong>Reference policy.</strong> Herald is replaced by an adaptation of Castlereagh: Kissinger search as the core, with the press harness as an optional layer. Press is off by default for now.</li>
+      <li><strong>Evaluation opponents follow the current field.</strong> A campaign keeps one opponent set so its results stay comparable, and the set is refreshed when the field changes.</li>
+      <li><strong>Measured priors</strong> replace "N floors unknown". Paired seating is the default A/B design, and |z| &lt; 2 counts as no result.</li>
+      <li><strong>Docs.</strong> <code>AGENTS.md</code> becomes the lab's operating manual. Game facts move to <code>docs/game.md</code>. <code>docs/protocol.md</code> and <code>docs/platform.md</code> are new. Pinning applies only to coworld-provided docs, and users can write their own long references.</li>
+      <li><strong>Tools.</strong> We port the lab's instruments instead of writing new ones, including local-run wrappers and the local LLM sidecar emulator.</li>
+      <li><strong>Diagnosis</strong> starts from failures the lab actually observed.</li>
+      <li><strong>Coworld change, separate PR.</strong> Optional <code>countries</code> pinning in the episode config and <code>WEBDIP_END_YEAR</code> for bots. This is being implemented now as a PR in coworld-webdiplomacy.</li>
+    </ul>
+  </section>
+
+  <nav class="toc">
+    <span class="eyebrow">Contents</span>
+    <ol>
+      <li><span class="toc-num">·</span><a href="#evidence">Evidence from the lab</a></li>
+      <li><span class="toc-num">·</span><a href="#decisions">Cross-cutting decisions</a></li>
+      <li><span class="toc-num">1</span><a href="#s1">Lab manual and manifest</a></li>
+      <li><span class="toc-num">2</span><a href="#s2">Game docs</a></li>
+      <li><span class="toc-num">3</span><a href="#s3">The <code>ab</code> binding</a></li>
+      <li><span class="toc-num">4</span><a href="#s4">The <code>survey</code> binding</a></li>
+      <li><span class="toc-num">5</span><a href="#s5">The <code>replay-inspection</code> binding</a></li>
+      <li><span class="toc-num">6</span><a href="#s6">The <code>eval-design</code> binding</a></li>
+      <li><span class="toc-num">7</span><a href="#s7">The <code>diagnosis</code> binding</a></li>
+      <li><span class="toc-num">8</span><a href="#s8">Instruments</a></li>
+      <li><span class="toc-num">9</span><a href="#s9">Reference policy: Castlereagh adapted</a></li>
+      <li><span class="toc-num">10a</span><a href="#s10a">Build tool</a></li>
+      <li><span class="toc-num">10b</span><a href="#s10b">Coworld change</a></li>
+      <li><span class="toc-num">·</span><a href="#validation">Validation</a></li>
+      <li><span class="toc-num">·</span><a href="#alternatives">Alternatives considered</a></li>
+      <li><span class="toc-num">·</span><a href="#open-questions">Open questions</a></li>
+      <li><span class="toc-num">·</span><a href="#sources">Sources</a></li>
+    </ol>
+  </nav>
+
+  <section id="evidence">
+    <h2>Evidence from the lab</h2>
+    <ul class="key-points">
+      <li>Castlereagh's strength is Kissinger's search. The press layer currently costs score.</li>
+      <li>No press change has a verdict yet at 16 games per arm. Two changes trend positive, and one looks harmful.</li>
+      <li>Two search changes have measured gains. Many others were refuted, and more search over the same evaluation hurts.</li>
+    </ul>
+    <p>The headline comparison comes from about 100 hosted press games<sup class="ref"><a href="#src-2" title="Lab WORKING_CONTEXT.md (webdiplomacy_lab)">2</a></sup><sup class="ref"><a href="#src-3" title="Lab feedback file: docs/designs/.webdip-lab-feedback.md (personal-labs-webdip session, 2026-10-09), §headline and §2">3</a></sup>. Parity is 1/7 = 0.143 per seat, which is what an average seat scores.</p>
+    <table>
+      <thead><tr><th>Press-arm result</th><th class="num">Score per seat</th><th>Reading</th></tr></thead>
+      <tbody>
+        <tr><td>Press bot (Castlereagh)</td><td class="num">0.124–0.126</td><td>Below parity of 0.143</td></tr>
+        <tr><td>Silent Kissinger (same search, no LLM)</td><td class="num">0.172–0.176</td><td>Above parity, same field</td></tr>
+        <tr><td>v7: map-connectivity briefing</td><td class="num">0.163</td><td>Trending positive, no verdict at n = 16</td></tr>
+        <tr><td>Stronger model: deepseek</td><td class="num">0.192</td><td>Trending positive, no verdict at n = 16</td></tr>
+        <tr><td>Stronger model: gpt-6-luna</td><td class="num">0.175</td><td>Trending positive, no verdict at n = 16</td></tr>
+        <tr><td>v8: liar marks</td><td class="num">0.078</td><td>Looks harmful</td></tr>
+      </tbody>
+    </table>
+    <p>In search, two changes had measured gains<sup class="ref"><a href="#src-4" title="Lab best_practices.md (webdiplomacy_lab)">4</a></sup>. The "competent opponent" test, which judges opponents by whether their orders are sensible, gained +0.106 (z 2.25). The level-1 opponent model gained +0.135 (z 2.4). Level 0, level 2 and mixes of levels lost 0.10–0.14.</p>
+    <p>Refuted ideas include learned evaluation (the search exploited it, and score fell from 0.64 to 0.33), rollouts (−0.13), restarts, three-unit attacks, more opponent samples, build search, risk aversion and evolution (53 generations that never beat the champion). The rule the lab drew is that more search over the same evaluation hurts.</p>
+    <div class="callout callout-info">
+      <span class="callout-label">Why keep the press harness anyway</span>
+      This is James's call. Policies with press do better than no-press bots in real Diplomacy, so press should help eventually, and Castlereagh is a built-out starting point. Making press-on stronger than press-off before release is a major goal.
+    </div>
+  </section>
+
+  <section id="decisions">
+    <h2>Cross-cutting decisions</h2>
+    <ul class="key-points">
+      <li>The lab is self-sufficient, and the long references this coworld provides are linked at a pinned commit.</li>
+      <li>Every comparison is country first, against the field average for the same power in the same batch.</li>
+      <li>Tools read files, so they work on local and hosted runs alike. Only hosted results decide anything.</li>
+      <li>The lab supports both webDiplomacy leagues.</li>
+    </ul>
+
+    <div class="decision">
+      <span class="decision-label">Decision 1 · Summaries in the lab, coworld references pinned</span>
+      <p>The lab carries enough that a newcomer understands the game without leaving it. The long references this repo provides (bot API, replay schema, protocol) are linked at a pinned commit, so they match the coworld version. Users are free to write their own long references in the lab, and nothing restricts that.</p>
+    </div>
+
+    <div class="decision">
+      <span class="decision-label">Decision 2 · Country first, against same-batch field par</span>
+      <p>Countries are a seeded shuffle per episode<sup class="ref"><a href="#src-5" title="adapter/episode.py:83-85">5</a></sup>, and the powers differ a lot. Over 1,238 lab seats, France averaged about 3× what England did<sup class="ref"><a href="#src-3" title="Lab feedback file: docs/designs/.webdip-lab-feedback.md (personal-labs-webdip session, 2026-10-09), §2">3</a></sup>. The metric is therefore a policy's score minus the field average for the same power in the same batch of games.</p>
+    </div>
+    <table>
+      <thead><tr><th>Power</th><th class="num">Field average score</th><th>Against parity (0.143)</th></tr></thead>
+      <tbody>
+        <tr><td>France</td><td class="num">0.290</td><td>Well above</td></tr>
+        <tr><td>Turkey</td><td class="num">0.191</td><td>Above</td></tr>
+        <tr><td>Italy</td><td class="num">0.119</td><td>Below</td></tr>
+        <tr><td>Germany</td><td class="num">0.114</td><td>Below</td></tr>
+        <tr><td>Russia</td><td class="num">0.114</td><td>Below</td></tr>
+        <tr><td>Austria</td><td class="num">0.099</td><td>Below</td></tr>
+        <tr><td>England</td><td class="num">0.090</td><td>Lowest, about a third of France</td></tr>
+      </tbody>
+    </table>
+
+    <div class="decision">
+      <span class="decision-label">Decision 3 · Tools read files</span>
+      <p>A local <code>coworld run-episode</code> writes the same <code>results.json</code>, replay and logs as a hosted episode, so the analysis tools work on both. The analysis tools are standard-library Python. Tools that <em>run</em> games locally need Docker, which exists on local machines and in Claude Code cloud. Codex cloud is unknown. Local results are for debugging only: v4 won the local tournament (+0.093) and then scored below par hosted<sup class="ref"><a href="#src-6" title="Transcript be2ac73c (Oct 6–7), 2026-10-07">6</a></sup>.</p>
+    </div>
+
+    <div class="decision">
+      <span class="decision-label">Decision 4 · Both leagues</span>
+      <p>The lab supports "webDiplomacy" (<code>league_1bccc63d-cd0a-47d7-92d7-e762797b5f1c</code>, variant <code>classic-press</code>) and "webDiplomacy Gunboat" (<code>league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17</code>, variant <code>classic-gunboat</code>).</p>
+    </div>
+  </section>
+
+  <section id="s1">
+    <h2>1 · Lab manual (<code>AGENTS.md</code>) and manifest (<code>MIXIN.md</code>)</h2>
+    <ul class="key-points">
+      <li><code>AGENTS.md</code> becomes the lab's operating manual. Game facts move to <code>docs/game.md</code>.</li>
+      <li>The manual carries the gotchas an agent must not miss.</li>
+      <li><code>MIXIN.md</code> fills every binding row with a real summary.</li>
+    </ul>
+    <p><code>AGENTS.md</code> explains how to use the lab and links every knowledge source: the docs, the five bindings, the tools, the reference policy and <code>META.md</code>. It also holds the loop table. Rules, scoring and structures move out to <code>docs/game.md</code>.</p>
+    <p>The gotchas it carries:</p>
+    <ul>
+      <li>Upstream returns HTTP 200 when it silently drops invalid orders, so diff the saved orders every phase<sup class="ref"><a href="#src-7" title="AGENTS.md:78-79">7</a></sup><sup class="ref"><a href="#src-8" title="players/api.py:104">8</a></sup>.</li>
+      <li>Scores are in slot order.</li>
+      <li>The replay's final <code>Finished</code> history entry shows center ownership from before the last autumn, so take final centers from <code>results.json</code><sup class="ref"><a href="#src-3" title="Lab feedback file: docs/designs/.webdip-lab-feedback.md (personal-labs-webdip session, 2026-10-09), §2">3</a></sup>.</li>
+      <li>Hosted seat logs sometimes arrive as a Python <code>b'...'</code> bytes literal.</li>
+      <li>Use a private <code>HOME</code> per session. Other sessions switch the identity in a shared <code>~/.softmax/credentials.yaml</code>, and private requests then return 404.</li>
+      <li>Use one image tag per experiment, because rebuilding a tag mid-run switches code.</li>
+    </ul>
+    <p><code>MIXIN.md</code> lists the league IDs, the five binding rows with real summaries, the meta-recon support rows and the "what else" rows.</p>
+  </section>
+
+  <section id="s2">
+    <h2>2 · Game docs (<code>docs/</code>)</h2>
+    <ul class="key-points">
+      <li>Four docs give a newcomer the game, the bot contract, the hosted platform and a strategy starting point.</li>
+      <li>Each links to this repo's full references at the pinned commit.</li>
+      <li>The live field picture lives in <code>META.md</code>, not in these docs.</li>
+    </ul>
+    <table>
+      <thead><tr><th>Doc</th><th>Contents</th></tr></thead>
+      <tbody>
+        <tr><td><code>game.md</code></td><td>Rules a bot author needs: units, phases (Diplomacy, Retreats, Builds), orders, supply centers and the 18-center solo, where one power owns 18 centers and wins outright, scoring 1 while everyone else scores 0. Scoring: the default is sum_of_squares, which is a power's SC² divided by the total of surviving powers' SC², and a cancelled game gives 1/7 each<sup class="ref"><a href="#src-9" title="docs/protocol.md:86-91">9</a></sup>. The <code>results.json</code> fields<sup class="ref"><a href="#src-10" title="docs/protocol.md:93-106">10</a></sup>. Structures: slot versus country, turn 0 is Spring 1901, year = 1901 + turn // 2, and upstream calls movement <code>Diplomacy</code>. Also variants, leagues and timing.</td></tr>
+        <tr><td><code>protocol.md</code> (new)</td><td>The bot contract and communication in brief: the launcher, the <code>WEBDIP_*</code> environment<sup class="ref"><a href="#src-11" title="docs/protocol.md:42, :206">11</a></sup>, the HTTP API, press and votes, the LLM sidecar and private-press artifacts.</td></tr>
+        <tr><td><code>platform.md</code> (new)</td><td>Hosted specifics: XP requests and costs, artifact downloads (rate limits apply, and re-running resumes), a parent request rolling up to <code>failed</code> when one child fails, LLM sidecar quirks per model and credentials hygiene. The sidecar forces <code>require_parameters</code>. gpt-6-luna and claude-haiku-5.5 reject temperature. gemini-3.5-flash-lite rejects reasoning off. deepseek, qwen and minimax reason past a 2,000-token cap and return nothing.</td></tr>
+        <tr><td><code>strategy.md</code></td><td>A general Diplomacy primer labeled "not yet verified against this field", plus the measured field facts: power par, and the best press seat in the lab's field, which was a liar soul on gpt-6-luna at 0.195–0.208. The live field picture goes in <code>META.md</code>, filled by <code>meta-recon</code>.</td></tr>
+      </tbody>
+    </table>
+    <h3>Variants</h3>
+    <table>
+      <thead><tr><th>Variant</th><th>Press</th><th class="num">Movement / retreats and builds (min)</th><th class="num">Ends after</th></tr></thead>
+      <tbody>
+        <tr><td><code>classic-press</code></td><td>Regular</td><td class="num">4 / 1</td><td class="num">1908</td></tr>
+        <tr><td><code>classic-gunboat</code></td><td>None</td><td class="num">1 / 1</td><td class="num">1910</td></tr>
+        <tr><td><code>classic-press-short</code></td><td>Regular</td><td class="num">3 / 1</td><td class="num">1904</td></tr>
+        <tr><td><code>classic-live-human</code></td><td>Regular</td><td class="num">7 / 2</td><td class="num">1904</td></tr>
+      </tbody>
+    </table>
+    <p>Source for the variant table: the coworld manifest template<sup class="ref"><a href="#src-12" title="coworld_manifest_template.json:203-235">12</a></sup>.</p>
+    <h3>Timing</h3>
+    <p>Hosted full <code>classic-press</code> games took 60–100 minutes in the lab, about 61 minutes by one measurement and 80–100 by another. The episode budget cap is 5,910 s, about 98 minutes<sup class="ref"><a href="#src-13" title="adapter/config.py:20">13</a></sup>. Locally, gunboat games with Ready-marking bots take 40–45 s, and games with search bots take about 4.5 minutes.</p>
+  </section>
+
+  <section id="s3">
+    <h2>3 · The <code>ab</code> binding</h2>
+    <ul class="key-points">
+      <li>Metric: score minus same-batch field par for the same power, computed per power and then pooled.</li>
+      <li>Default design is paired seating, with both policies in the same games.</li>
+      <li>|z| &lt; 2 is no result.</li>
+      <li>Tainted games are dropped or flagged before computing means.</li>
+    </ul>
+    <p>Alongside the main metric we report final centers, survival and solo rate. Paired seating needs 2–3× fewer games than separate arms<sup class="ref"><a href="#src-3" title="Lab feedback file: docs/designs/.webdip-lab-feedback.md (personal-labs-webdip session, 2026-10-09), §2">3</a></sup>. Use separate arms only when pairing is impossible.</p>
+    <p>The z threshold matters in practice. Three +0.08 leads at z ≈ 1.4 vanished on replication<sup class="ref"><a href="#src-4" title="Lab best_practices.md (webdiplomacy_lab)">4</a></sup>.</p>
+    <p>Priors for sample size: the per-seat standard deviation is about 0.12–0.18. Resolving a 0.04 difference takes about 150 episodes per arm. At 16 per arm the standard error is 0.02–0.03, which only catches effects of about 0.08 or more. Recompute these after the first batch.</p>
+    <table>
+      <thead><tr><th>Taint</th><th>How to detect it</th></tr></thead>
+      <tbody>
+        <tr><td>Cancelled game</td><td>Game outcome</td></tr>
+        <tr><td>Rejected orders</td><td>Nonzero <code>rejected</code> count in our decision log</td></tr>
+        <tr><td>Bot exception</td><td>Any exception in our seat log</td></tr>
+        <tr><td>Missing artifacts</td><td>Report coverage, and never impute</td></tr>
+        <tr><td>Failing LLM seat</td><td>Every call fails and the seat silently plays its floor. Check per-seat <code>llm_call</code> statuses.</td></tr>
+        <tr><td>Mixed opponent sets</td><td>Games from before and after a field change in one comparison</td></tr>
+      </tbody>
+    </table>
+    <p>Tools: <code>paired.py</code> and <code>compare.py</code>, both ported from the lab.</p>
+  </section>
+
+  <section id="s4">
+    <h2>4 · The <code>survey</code> binding</h2>
+    <ul class="key-points">
+      <li>An overview per policy and power, then a short list of games worth opening.</li>
+      <li>One tool, <code>wd_summary.py</code>, ported from the lab.</li>
+    </ul>
+    <p>The overview gives, for each policy and power: games played, score against par, final centers, survival and solo rate, plus the mix of outcomes and reasons.</p>
+    <p>Games worth opening: our power eliminated early, an opponent solo, our best and worst game per power, a large center swing within one year (a stab or a collapse) and failing LLM seats.</p>
+    <p><code>wd_summary.py</code> ports the lab's <code>wd.py metrics</code> and <code>seats</code> commands. <code>seats</code> gives one JSON row per seat, including the supply-center trajectory by year.</p>
+  </section>
+
+  <section id="s5">
+    <h2>5 · The <code>replay-inspection</code> binding</h2>
+    <ul class="key-points">
+      <li>Inspection joins the public replay with our own private artifacts on a shared clock of (turn, phase).</li>
+      <li>The reference policy logs everything, every phase.</li>
+      <li>James sees this as a big later improvement. It is fine for now.</li>
+    </ul>
+    <p>The replay is a gzip JSON array of public frames with <code>variant</code>, <code>game</code>, <code>status</code>, <code>history</code>, <code>messages</code>, <code>lifecycle</code>, <code>episode.seed</code>, an optional <code>map</code> PNG and <code>ending</code><sup class="ref"><a href="#src-14" title="docs/replay.md:15-40">14</a></sup>. Our own artifacts are the player log and the private-press ZIP<sup class="ref"><a href="#src-15" title="docs/protocol.md:210-225">15</a></sup>.</p>
+    <p>Following James's "the more we log, the better", the reference policy writes one <code>decision</code> JSON line per phase, every LLM request and reply, tool calls, briefings and a snapshot every phase. The per-phase snapshot matters because the launcher kills the bot at game end, so an end-of-game summary never gets written.</p>
+    <p>Tools: the episode loader <code>webdip_episodes.py</code> now, and later the HTML game viewer <code>game_viewer.py</code>, which needs <code>diplomacy==1.1.2</code>.</p>
+  </section>
+
+  <section id="s6">
+    <h2>6 · The <code>eval-design</code> binding</h2>
+    <ul class="key-points">
+      <li>Opponents come from the current field, fixed within one campaign and refreshed when the field changes.</li>
+      <li>Self-play never decides "better", and hosted XP is not spent on it.</li>
+      <li>Judge on the league's full variant. For press, that is <code>classic-press</code>.</li>
+    </ul>
+    <p><strong>Opponents.</strong> For one comparison campaign, keep the same opponent set so results stay directly comparable from policy to policy. When the field changes, refresh the set and start a new campaign. Never pool across opponent sets. Use explicit <code>policy_ref</code>s, because <code>random</code> samples the league's champion pool, which can mean self-play when our policies are most of the pool.</p>
+    <table>
+      <thead><tr><th>Roster shape</th><th>Seats</th></tr></thead>
+      <tbody>
+        <tr><td>Paired A/B (default)</td><td>Both candidates in the same games, plus five field opponents.</td></tr>
+        <tr><td>Separate arms</td><td>Per arm, the candidate at <code>slot: -1</code> with six field refs. Use it only when pairing is impossible.</td></tr>
+        <tr><td>Field eval</td><td>The candidate against field opponents.</td></tr>
+        <tr><td>Health check</td><td>One <code>classic-press-short</code> episode after any model or soul change, then verify every seat's <code>llm_call</code> statuses.</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Country pinning.</strong> With the new <code>countries</code> config field (section 10b), an A/B can pin each seat's power. It takes one request per country permutation, because overrides apply per request.</p>
+    <p><strong>Unit under test.</strong> For LLM policies, the unit under test is the model and soul together. The model is fixed per uploaded version.</p>
+    <p><strong>Cost.</strong> A hosted full press game with five LLM seats costs about 15 XP credits. LLM spend on glm-5.3-flash is about $0.006 per seat per movement phase, or about $0.10 per seat per game. The lab set <code>episode_player_llm_spend_limit_usd</code> to 14. Stream artifacts while games run rather than blocking on a whole request.</p>
+  </section>
+
+  <section id="s7">
+    <h2>7 · The <code>diagnosis</code> binding</h2>
+    <ul class="key-points">
+      <li>Diagnosis starts from failure modes the lab actually observed, with their counts.</li>
+      <li>James expects to refine this as we go.</li>
+    </ul>
+    <table>
+      <thead><tr><th>Failure mode</th><th>What the lab saw</th></tr></thead>
+      <tbody>
+        <tr><td>Silent order drops (HTTP 200)</td><td>Guarded every phase. None seen hosted. Convoys and coasts are the likely weak spot, though that is a guess.</td></tr>
+        <tr><td>Re-trusting a betrayer</td><td>94 returns to trust in 46 relationships over 100 games, 62 of 64 of them against the liar soul.</td></tr>
+        <tr><td>Map adjacency hallucination</td><td>About 66 wrong guesses per game without a connectivity list, about 21 with it.</td></tr>
+        <tr><td>Untrustworthy commitment ledger</td><td>10 of 30 sampled "broken promise" verdicts were our own recording errors.</td></tr>
+        <tr><td>Tools skipped unless forced</td><td>0 <code>assess_deal</code> calls until a code gate forced them, then 17 per game.</td></tr>
+        <tr><td>Pinning a whole plan</td><td>The plan was not compared with unconstrained search.</td></tr>
+        <tr><td>Ignoring the game horizon</td><td>Planning a 1905 campaign in a game that ends in 1904. The new <code>WEBDIP_END_YEAR</code> helps.</td></tr>
+        <tr><td>Wake timing</td><td>Open wakes hit their time limit 12 of 32 times, so the bot was deaf near the deadline.</td></tr>
+        <tr><td>Invisible degradation</td><td>A misconfigured model fails every call, and the seat plays its floor with no error.</td></tr>
+        <tr><td>Over-tuning</td><td>More search over the same evaluation hurts, and the search exploits a learned evaluation.</td></tr>
+      </tbody>
+    </table>
+    <p>Less common or not yet measured: home centers left open, missed builds, overextension and stabbing too early.</p>
+  </section>
+
+  <section id="s8">
+    <h2>8 · Instruments (<code>tools/</code>), ported from the lab</h2>
+    <ul class="key-points">
+      <li>Standard-library Python unless noted.</li>
+      <li>They read files that the seed's <code>fetch-artifacts</code> downloads, or a local run's output.</li>
+      <li>Unit tests run on small public fixtures from a local episode.</li>
+    </ul>
+    <table>
+      <thead><tr><th>Tool</th><th>What it does</th><th>Needs</th></tr></thead>
+      <tbody>
+        <tr><td><code>webdip_episodes.py</code> (193 lines)</td><td>The single episode loader: results, replay and seat logs. Handles bytes-literal logs.</td><td>Standard library</td></tr>
+        <tr><td><code>wd_summary.py</code></td><td>Port of <code>wd.py metrics</code> and <code>seats</code>: per-power score against field par, coverage and telemetry.</td><td>Standard library</td></tr>
+        <tr><td><code>paired.py</code> (42 lines)</td><td>Paired difference and z.</td><td>Standard library</td></tr>
+        <tr><td><code>compare.py</code> (102 lines)</td><td>A/B by power.</td><td>Standard library</td></tr>
+        <tr><td><code>wd_costs</code></td><td>From <code>wd.py costs</code>: LLM cost per seat and phase.</td><td>Standard library</td></tr>
+        <tr><td><code>wd.py local</code></td><td>Local run with all seats on one image.</td><td>Docker</td></tr>
+        <tr><td><code>wd.py arena</code></td><td>One candidate against a local field.</td><td>Docker</td></tr>
+        <tr><td><code>llm_sidecar_local.py</code> (125 lines)</td><td>Local emulator of the hosted LLM sidecar. It is the only way to run an LLM bot locally on its hosted code path.</td><td><code>OPENROUTER_API_KEY</code></td></tr>
+        <tr><td><code>game_viewer.py</code> (later)</td><td>HTML replay with press.</td><td><code>diplomacy</code></td></tr>
+      </tbody>
+    </table>
+    <p>Not ported: <code>evolve.py</code>, <code>value_fit.py</code> (it needs numpy, and the learned evaluation lost) and <code>features.py</code> (optional). Better tools in general come later.</p>
+  </section>
+
+  <section id="s9">
+    <h2>9 · Reference policy (<code>players/</code>): Castlereagh adapted</h2>
+    <ul class="key-points">
+      <li>The core is Kissinger search in pure Python. It always plays.</li>
+      <li>The press layer is optional and modular, made of four replaceable parts.</li>
+      <li>One image, two modes: <code>press=off</code> (the default for now) and <code>press=on</code>.</li>
+      <li>The Nim adjudicator, Nash, the learned value function and the evolution tooling are dropped.</li>
+    </ul>
+
+    <figure>
+      <svg viewBox="0 0 400 252" role="img" aria-label="Reference policy structure: a press layer of four parts sits above a press on/off switch, which sits above the Kissinger search core">
+        <defs>
+          <marker id="arr9" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8" fill="none" stroke="#859ebe" stroke-width="1.2"/>
+          </marker>
+        </defs>
+        <text x="12" y="16" font-family="Merriweather Sans" font-size="12" font-weight="700" fill="#6e8050">PRESS LAYER (optional, modular)</text>
+        <rect x="6" y="24" width="388" height="78" rx="3" fill="none" stroke="#d4c9b5" stroke-dasharray="4 3"/>
+        <rect x="14" y="34" width="86" height="58" rx="3" fill="#fffaf0" stroke="#d4c9b5"/>
+        <text x="57" y="59" text-anchor="middle" font-family="Merriweather Sans" font-size="12" fill="#111827">1 · Search</text>
+        <text x="57" y="75" text-anchor="middle" font-family="Merriweather Sans" font-size="12" fill="#111827">service</text>
+        <rect x="108" y="34" width="86" height="58" rx="3" fill="#fffaf0" stroke="#d4c9b5"/>
+        <text x="151" y="59" text-anchor="middle" font-family="Merriweather Sans" font-size="12" fill="#111827">2 · Order</text>
+        <text x="151" y="75" text-anchor="middle" font-family="Merriweather Sans" font-size="12" fill="#111827">floor</text>
+        <rect x="202" y="34" width="86" height="58" rx="3" fill="#fffaf0" stroke="#d4c9b5"/>
+        <text x="245" y="59" text-anchor="middle" font-family="Merriweather Sans" font-size="12" fill="#111827">3 · Press</text>
+        <text x="245" y="75" text-anchor="middle" font-family="Merriweather Sans" font-size="12" fill="#111827">driver</text>
+        <rect x="296" y="34" width="90" height="58" rx="3" fill="#fffaf0" stroke="#d4c9b5"/>
+        <text x="341" y="59" text-anchor="middle" font-family="Merriweather Sans" font-size="12" fill="#111827">4 · Know-</text>
+        <text x="341" y="75" text-anchor="middle" font-family="Merriweather Sans" font-size="12" fill="#111827">ledge</text>
+        <line x1="200" y1="102" x2="200" y2="124" stroke="#859ebe" stroke-width="1.5" marker-end="url(#arr9)"/>
+        <rect x="70" y="126" width="260" height="34" rx="17" fill="#fffdf4" stroke="#d4a853" stroke-width="1.5"/>
+        <text x="200" y="148" text-anchor="middle" font-family="Merriweather Sans" font-size="12" fill="#111827">press = off (default)  |  on</text>
+        <line x1="200" y1="160" x2="200" y2="182" stroke="#859ebe" stroke-width="1.5" marker-end="url(#arr9)"/>
+        <rect x="6" y="184" width="388" height="62" rx="3" fill="#eef2f7" stroke="#859ebe"/>
+        <text x="200" y="208" text-anchor="middle" font-family="Merriweather Sans" font-size="13" font-weight="700" fill="#1a3875">Kissinger search core (always on)</text>
+        <text x="200" y="230" text-anchor="middle" font-family="Merriweather Sans" font-size="12" fill="#111827">16 opponent plans · level-1 model · DumbBot</text>
+      </svg>
+      <figcaption><span class="fig-label">Figure 1</span>The reference policy. The search core always plays and, with press off, plays alone. With press on, the four press parts sit on top of it and reach the LLM only through the hosted sidecar.</figcaption>
+    </figure>
+
+    <h3>Core: Kissinger search</h3>
+    <p>The search starts from DumbBot seeds, tries single, pair and convoy alternatives and runs coordinate ascent against 16 sampled opponent plans. It uses a fast adjudicator, the level-1 opponent model, the "competent opponent" test and the convoy approximation, which made decisions 9× faster. Retreats and builds come from DumbBot. We keep the golden behavior test, the lab's 334 recorded decisions, to catch drift during refactors.</p>
+
+    <h3>Press layer: four replaceable parts</h3>
+    <ol>
+      <li><strong>Search service.</strong> <code>search</code>, <code>evaluate</code> and <code>predict</code> over a policy dict holding stances, trust, expected, required and forbidden orders, center values and risk. <code>press=None</code> behaves identically to gunboat play.</li>
+      <li><strong>Order floor.</strong> The search's legal orders are saved first, so the LLM can never leave the seat without legal orders.</li>
+      <li><strong>Press driver.</strong> The single event-driven wake James asked for: on new press, read, reply and re-commit. It debounces for about 5 s and allows up to 20 wakes per phase. Limits start generous ("set all limits high, then tighten"). It replaces the open, negotiate and commit wakes.</li>
+      <li><strong>Knowledge.</strong> A plain <code>notes(key, text)</code> store, the raw press log (the current season inline, older seasons through a tool) and referee facts derived only from observed orders. Souls and skills are markdown files the user owns. The fixed plan, per-power notes and commitment ledger are no longer defaults.</li>
+    </ol>
+    <p>The LLM is reached only through the hosted sidecar (<code>COWORLD_LLM_ENDPOINT</code>), without streaming. Without the endpoint, the policy plays its floor. The LLM receives the map connectivity list, labeled as possible moves.</p>
+
+    <h3>Modes</h3>
+    <p>One image runs in <code>press=off</code> (the default for now) or <code>press=on</code>. This makes the first A/B a new user runs, press on against press off, meaningful. A major goal is for press-on to beat press-off before release.</p>
+
+    <table>
+      <thead><tr><th>Part of Castlereagh</th><th>Status</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>Kissinger search, DumbBot retreats and builds, golden test</td><td>Kept</td><td>The measured strength is here.</td></tr>
+        <tr><td>Press harness</td><td>Kept, optional, off by default</td><td>Press should help eventually, and this is a built-out start.</td></tr>
+        <tr><td>Nim adjudicator</td><td>Dropped</td><td>Only 27% faster decisions. The 9× gain was in Python.</td></tr>
+        <tr><td>Learned value function</td><td>Dropped</td><td>The search exploited it (0.64 → 0.33).</td></tr>
+        <tr><td>Lookahead and rollouts</td><td>Dropped</td><td>Rollouts measured −0.13.</td></tr>
+        <tr><td>Evolution tooling</td><td>Dropped</td><td>53 generations never beat the champion.</td></tr>
+        <tr><td>Nash</td><td>Dropped</td><td>Null or negative in the lab.</td></tr>
+        <tr><td>The 15 filler personalities</td><td>Dropped</td><td>They existed only to fill league seats.</td></tr>
+      </tbody>
+    </table>
+    <p>Rejected as the reference: Herald, which is a contract example rather than a player, and a new heuristic bot.</p>
+  </section>
+
+  <section id="s10a">
+    <h2>10a · Build tool (<code>tools/build.sh</code>)</h2>
+    <ul class="key-points">
+      <li>Follows the seed contract: <code>build.sh [--ref &lt;game-ref&gt;] [--tag &lt;image-tag&gt;]</code>. It builds linux/amd64 and prints the tag.</li>
+      <li>One stage in pure Python, with no Nim and no extra GitHub pulls.</li>
+      <li>Fails clearly when Docker is missing.</li>
+    </ul>
+    <p>The script builds the player base image from a pinned coworld-webdiplomacy commit straight from GitHub, using a git URL as the build context with <code>-f adapter/Dockerfile.player</code>. No submodule is needed<sup class="ref"><a href="#src-16" title="adapter/Dockerfile.player">16</a></sup>. It then builds the reference policy on top.</p>
+    <p>It works wherever Docker and a network exist: local machines and Claude Code cloud. Codex cloud has no documented Docker. Without Docker an agent can still edit, analyze and run tests, but it cannot build or upload. The script says so clearly instead of failing obscurely.</p>
+  </section>
+
+  <section id="s10b">
+    <h2>10b · Coworld change (separate PR in this repo)</h2>
+    <ul class="key-points">
+      <li>Optional <code>countries</code> in <code>EpisodeConfig</code>, so an experiment can pin each slot's power.</li>
+      <li><code>WEBDIP_END_YEAR</code> passed to bots.</li>
+      <li>The hosted coworld must be rebuilt and republished before XP requests can use the new field.</li>
+    </ul>
+    <p><code>countries[slot]</code> is that slot's country, and the list is a permutation of 1–7. It is set through XP <code>game_config_overrides</code> with fixed roster slots. Seeds still vary, so episodes still differ. A full rotation is one request per permutation.</p>
+  </section>
+
+  <section id="validation">
+    <h2>Validation</h2>
+    <ul class="key-points">
+      <li>Unit tests for the ported tools, and the golden test for the search.</li>
+      <li><code>install.sh</code> into a scratch directory leaves no <code>{{</code> behind, and the manifest lists every binding.</li>
+      <li><code>tools/build.sh</code> builds. One local episode runs with the built image in each mode, and the tools run on its output.</li>
+      <li>ruff and the tool tests run in CI.</li>
+    </ul>
+  </section>
+
+  <section id="alternatives">
+    <h2>Alternatives considered</h2>
+    <table>
+      <thead><tr><th>Alternative</th><th>Why it lost</th></tr></thead>
+      <tbody>
+        <tr><td>Herald as the reference policy</td><td>A contract example, not a player.</td></tr>
+        <tr><td>A new heuristic bot</td><td>Pre-empts the user's own first strategy, which the seed's <code>seed-a-policy</code> owns.</td></tr>
+        <tr><td>Shipping only the press harness</td><td>The measured strength is in search.</td></tr>
+        <tr><td>Keeping Nim</td><td>Small speed gain and a fragile two-stage build.</td></tr>
+        <tr><td>A frozen opponent field forever</td><td>Results go stale as the field changes. Opponents follow the field and are fixed only within a campaign.</td></tr>
+        <tr><td>Pooled t-test</td><td>Scores are bounded and bunched near 0, and pooling ignores power.</td></tr>
+        <tr><td>Copying the coworld's full docs into the lab</td><td>Two copies drift.</td></tr>
+        <tr><td>Only linking to the coworld's docs</td><td>Fails the self-sufficiency rule.</td></tr>
+        <tr><td>pandas or numpy tools</td><td>Install friction in cloud sessions.</td></tr>
+        <tr><td>Building from a local checkout</td><td>The lab lives elsewhere.</td></tr>
+        <tr><td>Pulling the published registry image</td><td>Couples the lab to a registry address and release.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="open-questions">
+    <h2>Open questions</h2>
+    <div class="callout callout-open">
+      <span class="callout-label">Open · First opponent set</span>
+      Which opponent set should the first campaign use? The current press-league field includes the lab's filler roster.
+    </div>
+    <div class="callout callout-open">
+      <span class="callout-label">Open · Rotating countries cheaply</span>
+      Seven requests per arm is clumsy. Should we ask the platform for per-episode overrides?
+    </div>
+    <div class="callout callout-open">
+      <span class="callout-label">Open · Docker in other clouds</span>
+      Docker in Codex cloud and Devin is untested.
+    </div>
+    <div class="callout callout-open">
+      <span class="callout-label">Open · Hosted duration</span>
+      Measurements disagree, at 61 minutes against 80–100 minutes. Measure again.
+    </div>
+    <div class="callout callout-open">
+      <span class="callout-label">Open · Evaluation defaults</span>
+      Should <code>eval_defaults.yaml</code> ship now or later?
+    </div>
+  </section>
+
+  <section id="sources">
+    <h2>Sources</h2>
+    <ol class="sources">
+      <li id="src-1"><span class="cite">optimizer-seed games/_template/MIXIN.md @ 7ebea87</span></li>
+      <li id="src-2"><span class="cite">webdiplomacy_lab/WORKING_CONTEXT.md</span> — the lab, at <code>~/coding/personal_labs/personal_labs_webdip/webdiplomacy_lab/</code></li>
+      <li id="src-3"><span class="cite">docs/designs/.webdip-lab-feedback.md</span> — lab feedback file from the personal-labs-webdip session, 2026-10-09 (§headline, §2)</li>
+      <li id="src-4"><span class="cite">webdiplomacy_lab/best_practices.md</span></li>
+      <li id="src-5"><span class="cite">adapter/episode.py:83-85</span> — seeded country shuffle</li>
+      <li id="src-6"><span class="cite">Transcript be2ac73c (Oct 6–7)</span> — local tournament result, 2026-10-07</li>
+      <li id="src-7"><span class="cite">AGENTS.md:78-79</span> — silent order drops</li>
+      <li id="src-8"><span class="cite">players/api.py:104</span> — saved-order verification</li>
+      <li id="src-9"><span class="cite">docs/protocol.md:86-91</span> — scoring</li>
+      <li id="src-10"><span class="cite">docs/protocol.md:93-106</span> — <code>results.json</code> fields</li>
+      <li id="src-11"><span class="cite">docs/protocol.md:42, :206</span> — <code>WEBDIP_*</code> environment</li>
+      <li id="src-12"><span class="cite">coworld_manifest_template.json:203-235</span> — variants</li>
+      <li id="src-13"><span class="cite">adapter/config.py:20</span> — episode budget cap</li>
+      <li id="src-14"><span class="cite">docs/replay.md:15-40</span> — replay frames</li>
+      <li id="src-15"><span class="cite">docs/protocol.md:210-225</span> — player log and private-press artifacts</li>
+      <li id="src-16"><span class="cite">adapter/Dockerfile.player</span> — player base image</li>
+      <li id="src-17"><span class="cite">webdiplomacy_lab/{TENTATIVE_LESSONS.md, tools/, webdip_bot/, experiments/press-ab1/, docs/webdiplomacy-gameplay.md, docs/designs/press-agent-design.md}</span> — further lab material behind the brief</li>
+      <li id="src-18"><span class="cite">Transcripts a4970c56 (Oct 8), ad11746d (Oct 8–9), 471ef830 (Oct 9)</span> — further session history behind the brief</li>
+    </ol>
+  </section>
+
+</article>
+
+
+<!-- ================================================================
+     DC-COMMENTS BEGIN — markup + script (copy verbatim; do not modify)
+     ================================================================ -->
+<aside id="dc-sidebar" aria-label="Comments">
+  <h2 class="dc-title">Comments <span id="dc-count"></span></h2>
+  <div class="dc-actions">
+    <button class="dc-btn" id="dc-export">Export JSON</button>
+    <button class="dc-btn" id="dc-copy">Copy JSON</button>
+    <button class="dc-btn" id="dc-import">Import…</button>
+    <input type="file" id="dc-file" accept=".json,application/json" hidden>
+  </div>
+  <div id="dc-status" role="status"></div>
+  <div id="dc-list"><p class="dc-empty">No comments yet. Select text in the document to add one.</p></div>
+</aside>
+<button id="dc-fab" type="button">+ Comment</button>
+<button id="dc-toggle" type="button">Comments</button>
+<!-- Preload slot: a renderer may put a dc-comments/1 comments array here (each comment optionally carrying replies). Merged by id into the stored comments on load. Leave empty otherwise. -->
+<script id="dc-preload" type="application/json">[{"id": "cmv1jmv4k2", "text": "I don't want to prevent users from developing their own long references. I agree with the pinning idea here, but I think of it more as pinning the coworld-provided docs, rather than as a broader statement about where long references live.", "created": "2026-10-09T22:35:08.180Z", "resolved": false, "exact": "Users are free to write their own long references in the lab, and nothing restricts that.", "prefix": "", "suffix": "", "replies": [{"author": "Claude", "text": "Agreed. The pin now covers only the docs this coworld provides (bot API, replay schema, protocol), linked at a pinned commit so they match the coworld version. Users are free to write their own long references in the lab. See Cross-cutting decision 1.", "created": "2026-10-09T23:30:00.000Z"}]}, {"id": "cmv1joowm3", "text": "This is fine for most things, but how do we handle local runs?", "created": "2026-10-09T22:36:33.430Z", "resolved": false, "exact": "games locally need Docker, which exists on local machines and in Claude Code cloud.", "prefix": "", "suffix": "", "replies": [{"author": "Claude", "text": "The analysis tools only read files, and a local coworld run-episode writes the same results.json, replay and logs as a hosted episode, so the same tools cover both. For running games locally, we port the lab's wd.py local and wd.py arena plus its local LLM-sidecar emulator. Those need Docker (local machines and Claude Code cloud). The lab found local wins don't predict hosted results, so local runs are for debugging only.", "created": "2026-10-09T23:30:00.000Z"}]}, {"id": "cmv1jrv9f5", "text": "AGENTS.md should also link to the other knowledge sources and generally carry instructions on how to use the lab. Actually, it might make sense to off-lop a lot of this content into game.md. or other docs.", "created": "2026-10-09T22:39:01.635Z", "resolved": false, "exact": "explains how to use the lab and links every knowledge source", "prefix": "", "suffix": "", "replies": [{"author": "Claude", "text": "Done. AGENTS.md is now the lab's operating manual: how to use the lab, links to every knowledge source, the loop table and the gotchas. The game facts moved to docs/game.md. See section 1.", "created": "2026-10-09T23:30:00.000Z"}]}, {"id": "cmv1jxmib6", "text": "We'll probably want more docs, like the communication protocol?", "created": "2026-10-09T22:43:30.227Z", "resolved": false, "exact": "Four docs give a newcomer the game, the bot contract, the hosted platform and a strategy starting point.", "prefix": "", "suffix": "", "replies": [{"author": "Claude", "text": "Added docs/protocol.md (the bot contract, press and votes, the LLM sidecar, private-press artifacts) and docs/platform.md (XP requests and costs, artifact downloads, per-model sidecar quirks, credentials hygiene). See section 2.", "created": "2026-10-09T23:30:00.000Z"}]}, {"id": "cmv1jz1h17", "text": "That means an opponent wins everything, right?", "created": "2026-10-09T22:44:36.277Z", "resolved": false, "exact": "our power eliminated early, an opponent solo", "prefix": "", "suffix": "", "replies": [{"author": "Claude", "text": "Yes. One power reaches 18 supply centers and wins outright. It scores 1 and everyone else scores 0.", "created": "2026-10-09T23:30:00.000Z"}]}, {"id": "cmv1k04uz8", "text": "This is one of the big things we'll improve later on. For now, this is fine.", "created": "2026-10-09T22:45:27.323Z", "resolved": false, "exact": "James sees this as a big later improvement. It is fine for now.", "prefix": "", "suffix": "", "replies": [{"author": "Claude", "text": "Noted. The section stays simple for now, and the HTML game viewer port is listed as later work.", "created": "2026-10-09T23:30:00.000Z"}]}, {"id": "cmv1k0nne9", "text": "This is an issue I'd like to fix if possible. Can we change how the coworld works to allow pinning countries in XP requests?", "created": "2026-10-09T22:45:51.674Z", "resolved": false, "exact": "so an experiment can pin each slot's power.", "prefix": "", "suffix": "", "replies": [{"author": "Claude", "text": "Yes, and the change is small. A subagent is opening a separate PR now: an optional countries field in EpisodeConfig (countries[slot] = that slot's country) that XP requests set through game_config_overrides with fixed slots. Seeds still vary. Limitation: overrides apply per request, so a full rotation is one request per permutation. The same PR passes WEBDIP_END_YEAR to bots. See section 10b.", "created": "2026-10-09T23:30:00.000Z"}]}, {"id": "cmv1k3l9m10", "text": "Definitely going to have to refine this part as we go. Many of these are sorta reasonable, but we'll see.", "created": "2026-10-09T22:48:08.554Z", "resolved": false, "exact": "Diagnosis starts from failure modes the lab actually observed, with their counts.", "prefix": "", "suffix": "", "replies": [{"author": "Claude", "text": "Agreed. The binding now starts from the failures the lab actually observed (re-trusting betrayers, map hallucination, an unreliable promise ledger, invisible LLM degradation, wake timing) and will be refined as we go. See section 7.", "created": "2026-10-09T23:30:00.000Z"}]}, {"id": "cmv1k6prn11", "text": "This is the biggest problem. We should adapt Castlereagh from the ~/coding/personal_labs/personal_labs_webdip/webdiplomacy_lab/. Indeed, we should generally look to that to help fill out a lot of this stuff. It's already been working on improving webDip policies, so we should totally take whatever learnings it's gotten so far. Going a bit afield here, the real comment is that we'll adapt Castlereagh's framework but try and make it a) more modular and b) a bit simpler/less opinionated about knowledge structure.", "created": "2026-10-09T22:50:34.355Z", "resolved": false, "exact": "The press layer is optional and modular, made of four replaceable parts.", "prefix": "", "suffix": "", "replies": [{"author": "Claude", "text": "Done. The reference policy is now Castlereagh adapted: Kissinger search as the core, plus the press harness as an optional layer with four replaceable parts (search service, order floor, an event-driven press driver, plain notes for knowledge). One image, press off by default for now. The lab measured silent Kissinger at 0.172 against 0.124 for the press bot, so press-on beating press-off before release is an explicit goal. See section 9.", "created": "2026-10-09T23:30:00.000Z"}]}, {"id": "cmv1kaf4412", "text": "Make sure this works in all environments.", "created": "2026-10-09T22:53:27.172Z", "resolved": false, "exact": "Fails clearly when Docker is missing.", "prefix": "", "suffix": "", "replies": [{"author": "Claude", "text": "build.sh is now a single pure-Python Docker build (the Nim stage is dropped). It works wherever Docker and network exist: local machines and Claude Code cloud. Codex cloud has no documented Docker. There, an agent can still edit, analyze and test, but can't build or upload, and the script will say so clearly. See section 10a and open question 3.", "created": "2026-10-09T23:30:00.000Z"}]}]</script>
+
+<script>
+(() => {
+  'use strict';
+  const FORMAT = 'dc-comments/1';
+  const CTX = 32; // prefix/suffix context length, chars
+  const doc = document.getElementById('doc');
+  const fab = document.getElementById('dc-fab');
+  const listEl = document.getElementById('dc-list');
+  const countEl = document.getElementById('dc-count');
+  const statusEl = document.getElementById('dc-status');
+  const sidebar = document.getElementById('dc-sidebar');
+  const storeKey = 'dc:' + document.title;
+
+  let comments = []; // {id, exact, prefix, suffix, text, created, resolved}
+  let ranges = new Map(); // id -> Range (null if orphaned)
+  let seq = 0;
+
+  // ---- text indexing: one global string over #doc's text nodes ----
+  function docText() {
+    const r = document.createRange();
+    r.selectNodeContents(doc);
+    return r.toString();
+  }
+  function globalOffset(container, offset) {
+    const r = document.createRange();
+    r.setStart(doc, 0);
+    r.setEnd(container, offset);
+    return r.toString().length;
+  }
+  function offsetsToRange(start, end) {
+    const walker = document.createTreeWalker(doc, NodeFilter.SHOW_TEXT);
+    let pos = 0, range = document.createRange(), haveStart = false;
+    while (walker.nextNode()) {
+      const node = walker.currentNode, len = node.data.length;
+      if (!haveStart && pos + len >= start) {
+        range.setStart(node, start - pos);
+        haveStart = true;
+      }
+      if (haveStart && pos + len >= end) {
+        range.setEnd(node, end - pos);
+        return range;
+      }
+      pos += len;
+    }
+    return null;
+  }
+
+  // ---- anchoring: TextQuoteSelector-style exact + prefix/suffix ----
+  function selectorFromRange(range) {
+    const text = docText();
+    const start = globalOffset(range.startContainer, range.startOffset);
+    const end = globalOffset(range.endContainer, range.endOffset);
+    return {
+      exact: text.slice(start, end),
+      prefix: text.slice(Math.max(0, start - CTX), start),
+      suffix: text.slice(end, end + CTX),
+    };
+  }
+  function locate(c) {
+    const text = docText();
+    let i = text.indexOf(c.prefix + c.exact + c.suffix);
+    if (i >= 0) return offsetsToRange(i + c.prefix.length, i + c.prefix.length + c.exact.length);
+    i = text.indexOf(c.exact);
+    if (i >= 0) return offsetsToRange(i, i + c.exact.length);
+    return null;
+  }
+  function reanchorAll() {
+    ranges = new Map(comments.map(c => [c.id, locate(c)]));
+    paint();
+  }
+
+  // ---- painting via CSS Custom Highlight API ----
+  const hl = typeof Highlight !== 'undefined' ? new Highlight() : null;
+  const hlActive = typeof Highlight !== 'undefined' ? new Highlight() : null;
+  if (hl) { CSS.highlights.set('dc-hl', hl); CSS.highlights.set('dc-hl-active', hlActive); }
+  function paint(activeId) {
+    if (!hl) return;
+    hl.clear(); hlActive.clear();
+    for (const [id, r] of ranges) {
+      if (!r) continue;
+      (id === activeId ? hlActive : hl).add(r);
+    }
+  }
+
+  // ---- persistence (best-effort; file:// storage varies by browser) ----
+  function save() {
+    try { localStorage.setItem(storeKey, JSON.stringify(comments)); } catch (e) { /* unavailable on some file:// setups */ }
+  }
+  function load() {
+    try {
+      const raw = localStorage.getItem(storeKey);
+      if (raw) comments = JSON.parse(raw);
+    } catch (e) { /* ignore */ }
+  }
+
+  // ---- sidebar rendering ----
+  function flash(msg) {
+    statusEl.textContent = msg;
+    setTimeout(() => { if (statusEl.textContent === msg) statusEl.textContent = ''; }, 2500);
+  }
+  function sortedComments() {
+    const pos = c => {
+      const r = ranges.get(c.id);
+      return r ? globalOffset(r.startContainer, r.startOffset) : Infinity; // orphans last
+    };
+    return [...comments].sort((a, b) => pos(a) - pos(b));
+  }
+  function render(editingId) {
+    countEl.textContent = comments.length ? '(' + comments.length + ')' : '';
+    listEl.textContent = '';
+    if (!comments.length) {
+      const p = document.createElement('p');
+      p.className = 'dc-empty';
+      p.textContent = 'No comments yet. Select text in the document to add one.';
+      listEl.appendChild(p);
+      return;
+    }
+    for (const c of sortedComments()) {
+      const item = document.createElement('div');
+      item.className = 'dc-item' + (c.resolved ? ' dc-resolved' : '');
+      item.dataset.id = c.id;
+
+      const quote = document.createElement('div');
+      quote.className = 'dc-quote';
+      quote.textContent = c.exact.length > 90 ? c.exact.slice(0, 90) + '…' : c.exact;
+      if (!ranges.get(c.id)) {
+        const tag = document.createElement('span');
+        tag.className = 'dc-orphan-tag';
+        tag.textContent = 'orphaned';
+        quote.appendChild(tag);
+      }
+      item.appendChild(quote);
+
+      if (c.id === editingId) {
+        const ta = document.createElement('textarea');
+        ta.value = c.text;
+        ta.placeholder = 'Write a comment… (⌘/Ctrl+Enter to save, Esc to cancel)';
+        ta.addEventListener('keydown', e => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') commit();
+          if (e.key === 'Escape') cancel();
+        });
+        ta.addEventListener('click', e => e.stopPropagation());
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'dc-btn';
+        saveBtn.textContent = 'Save';
+        saveBtn.style.marginTop = '6px';
+        saveBtn.addEventListener('click', e => { e.stopPropagation(); commit(); });
+        function commit() {
+          c.text = ta.value.trim();
+          if (!c.text) return cancel();
+          save(); render();
+        }
+        function cancel() {
+          if (!c.text) { comments = comments.filter(x => x.id !== c.id); ranges.delete(c.id); paint(); }
+          save(); render();
+        }
+        item.appendChild(ta);
+        item.appendChild(saveBtn);
+        listEl.appendChild(item);
+        requestAnimationFrame(() => ta.focus());
+        continue;
+      }
+
+      const text = document.createElement('div');
+      text.className = 'dc-text';
+      text.textContent = c.text;
+      item.appendChild(text);
+
+      if (Array.isArray(c.replies) && c.replies.length) {
+        const box = document.createElement('div');
+        box.className = 'dc-replies';
+        for (const r of c.replies) {
+          const who = document.createElement('div');
+          who.className = 'dc-reply-author';
+          who.textContent = 'Reply from ' + (r.author || 'agent') + (r.created ? ' · ' + String(r.created).slice(0, 10) : '');
+          const body = document.createElement('div');
+          body.className = 'dc-reply-text';
+          for (const part of String(r.text || '').split(/(https?:\/\/[^\s)]+)/g)) {
+            if (/^https?:\/\//.test(part)) {
+              const a = document.createElement('a');
+              a.href = part; a.target = '_blank'; a.rel = 'noopener';
+              a.textContent = part;
+              a.addEventListener('click', e => e.stopPropagation());
+              body.appendChild(a);
+            } else body.appendChild(document.createTextNode(part));
+          }
+          box.append(who, body);
+        }
+        item.appendChild(box);
+      }
+
+      const meta = document.createElement('div');
+      meta.className = 'dc-meta';
+      const when = document.createElement('span');
+      when.textContent = c.created.slice(0, 10);
+      const resolved = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!c.resolved;
+      cb.addEventListener('click', e => e.stopPropagation());
+      cb.addEventListener('change', () => { c.resolved = cb.checked; save(); render(); });
+      resolved.append(cb, 'resolved');
+      const del = document.createElement('button');
+      del.className = 'dc-del';
+      del.textContent = 'delete';
+      del.addEventListener('click', e => {
+        e.stopPropagation();
+        comments = comments.filter(x => x.id !== c.id);
+        ranges.delete(c.id);
+        paint(); save(); render();
+      });
+      meta.append(when, resolved, del);
+      item.appendChild(meta);
+
+      item.addEventListener('click', () => {
+        const r = ranges.get(c.id);
+        if (!r) return flash('Anchor not found in this version of the document.');
+        const rect = r.getBoundingClientRect();
+        window.scrollTo({ top: window.scrollY + rect.top - 160, behavior: 'smooth' });
+        paint(c.id);
+        setTimeout(() => paint(), 2000);
+      });
+      // double-click text to edit
+      text.addEventListener('dblclick', e => { e.stopPropagation(); render(c.id); });
+      listEl.appendChild(item);
+    }
+  }
+
+  // ---- selection -> floating Comment button ----
+  document.addEventListener('mouseup', e => {
+    if (fab.contains(e.target)) return;
+    setTimeout(() => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.rangeCount) { fab.style.display = 'none'; return; }
+      const range = sel.getRangeAt(0);
+      if (!doc.contains(range.commonAncestorContainer) || !range.toString().trim()) {
+        fab.style.display = 'none';
+        return;
+      }
+      const rect = range.getBoundingClientRect();
+      fab.style.display = 'block';
+      fab.style.left = Math.min(rect.right + 8 + window.scrollX, window.scrollX + document.documentElement.clientWidth - 120) + 'px';
+      fab.style.top = (rect.top + window.scrollY - 4) + 'px';
+      fab.dataset.pending = '1';
+    }, 0);
+  });
+  fab.addEventListener('click', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    const c = Object.assign({ id: 'c' + Date.now().toString(36) + (seq++), text: '', created: new Date().toISOString(), resolved: false }, selectorFromRange(range));
+    comments.push(c);
+    ranges.set(c.id, range.cloneRange());
+    paint(c.id);
+    sel.removeAllRanges();
+    fab.style.display = 'none';
+    sidebar.classList.add('dc-open');
+    render(c.id);
+  });
+
+  // ---- export / import ----
+  function payload() {
+    return JSON.stringify({
+      format: FORMAT,
+      doc: document.title,
+      exported: new Date().toISOString(),
+      comments: comments,
+    }, null, 2);
+  }
+  document.getElementById('dc-export').addEventListener('click', () => {
+    const blob = new Blob([payload()], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (document.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'doc') + '.comments.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    flash('Downloaded.');
+  });
+  document.getElementById('dc-copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(payload()); flash('Copied to clipboard.'); }
+    catch (e) { flash('Clipboard blocked — use Export instead.'); }
+  });
+  document.getElementById('dc-import').addEventListener('click', () => document.getElementById('dc-file').click());
+  document.getElementById('dc-file').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    file.text().then(raw => {
+      const data = JSON.parse(raw);
+      if (data.format !== FORMAT || !Array.isArray(data.comments)) { flash('Not a dc-comments file.'); return; }
+      const byId = new Map(comments.map(c => [c.id, c]));
+      for (const c of data.comments) byId.set(c.id, c);
+      comments = [...byId.values()];
+      reanchorAll(); save(); render();
+      flash('Imported ' + data.comments.length + ' comment(s).');
+    }).catch(() => flash('Could not parse that file.'));
+    e.target.value = '';
+  });
+
+  document.getElementById('dc-toggle').addEventListener('click', () => sidebar.classList.toggle('dc-open'));
+
+  // ---- init ----
+  load();
+  // Merge the renderer's preloaded comments (with replies) by id: a stored
+  // comment keeps its own text/resolved state and takes the preloaded replies.
+  try {
+    const pre = document.getElementById('dc-preload');
+    const preloaded = pre && pre.textContent.trim() ? JSON.parse(pre.textContent) : [];
+    if (Array.isArray(preloaded) && preloaded.length) {
+      const byId = new Map(comments.map(c => [c.id, c]));
+      for (const c of preloaded) {
+        const existing = byId.get(c.id);
+        if (existing) { if (c.replies) existing.replies = c.replies; }
+        else byId.set(c.id, c);
+      }
+      comments = [...byId.values()];
+      save();
+    }
+  } catch (e) { /* malformed preload: ignore */ }
+  reanchorAll();
+  render();
+})();
+</script>
+<!-- ============ DC-COMMENTS END ============ -->
+</div>
+</body>
+</html>

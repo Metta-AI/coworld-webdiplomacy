@@ -4,6 +4,12 @@
 with webDiplomacy's identity filled in: no skill bindings, docs or reference
 policy yet. `ide/` and `INSTALL.md` do not exist yet.
 
+The plan for filling `mixin/` is the design doc
+[docs/designs/webdiplomacy-mixin-2026-10-09.html](../docs/designs/webdiplomacy-mixin-2026-10-09.html).
+Its reference policy adapts the personal_labs webdiplomacy_lab's Castlereagh:
+Kissinger search as the core, plus an optional press layer, with press off by
+default for now.
+
 ```sh
 optimizer/install.sh ~/coding/webdip-optimizer             # wires Claude Code
 optimizer/install.sh ~/coding/webdip-optimizer --harness none
