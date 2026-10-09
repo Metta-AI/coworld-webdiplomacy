@@ -128,6 +128,7 @@ public frame whenever it changes.
 | `players/launcher.py` | Connects to `COWORLD_PLAYER_WS_URL` with `mode=bot`, reconnects on drop, starts the bot once with `WEBDIP_*` env, runs the press archive worker, stops the bot's process group and acks `game_over` |
 | `players/press.py` | Separate process: snapshots the seat's private messages every 2 s and writes the final archive to stdout and `COWORLD_PLAYER_ARTIFACT_UPLOAD_URL` |
 | `players/api.py` | Synchronous upstream API client, order helpers, `verify_orders` |
+| `players/bridge.py` | Loopback HTTP API for an external bot controlling a human seat through the existing WebSocket tunnel |
 | `players/legal_orders.py` | Classic legal-order generator from `variant.json` and `game.json` |
 | `players/random_bot.py`, `players/hold_bot.py` | The two bundled policies |
 | `players/examples/herald_bot.py` | Stdlib-only third-party example built from the docs |
@@ -154,6 +155,7 @@ All under `tools/`; see the README for which to run when.
 | `check_press.py` | Private press stays private in logs, ZIPs and replay |
 | `check_compatibility.py`, `stock_stack.py`, `stock_prepare.php` | Same API scenarios against stock upstream compose |
 | `check_herald.py` | The documented Herald episode's press, holds and draw |
+| `check_bridge.py` | External HTTP client through the local bridge and simulated lobby proxy, including saved orders, press privacy and completion |
 | `check_replay.py` | Static replay bundle in Chromium, with no game container |
 | `player_fixture.py` | Shared fixture: fresh hardened game containers for player checks |
 | `sync_manifest_docs.py` | Copies README and docs into the manifest template |

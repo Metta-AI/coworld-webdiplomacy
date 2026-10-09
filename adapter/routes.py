@@ -10,7 +10,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from adapter.episode import SOURCE_URL
-from adapter.tunnel import Tunnel
+from adapter.tunnel import BOT_API_CAPABILITY, Tunnel
 
 
 def install_routes(app, episode):
@@ -95,6 +95,7 @@ def install_routes(app, episode):
                 {
                     "type": "hello",
                     "protocol": "webdip-coworld/1",
+                    "capabilities": [BOT_API_CAPABILITY],
                     "slot": slot,
                     "webdip": webdip,
                     "rules": episode.config.model_dump(exclude={"tokens"}),
@@ -106,6 +107,9 @@ def install_routes(app, episode):
                     started, finished, result = episode.started, episode.finished, episode.result
                     current = episode.connections.get(slot) is websocket
                 if not current:
+                    # Carry takeover as application data: platform proxies may not
+                    # preserve WebSocket close codes across the relay.
+                    await websocket.send_json({"type": "seat_replaced"})
                     await websocket.close(code=1000)
                     return
                 if started and not sent_started:
@@ -127,6 +131,7 @@ def install_routes(app, episode):
                     if message.get("type") == "game_over_ack" and sent_finished:
                         with episode.lock:
                             episode.acknowledged.add(slot)
+                        await websocket.send_json({"type": "game_over_acknowledged"})
                 except TimeoutError:
                     pass
                 except (ValueError, TypeError):

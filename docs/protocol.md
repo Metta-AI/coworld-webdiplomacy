@@ -15,6 +15,7 @@ The first message is:
 {
   "type": "hello",
   "protocol": "webdip-coworld/1",
+  "capabilities": ["http-bot-api-v1"],
   "slot": 0,
   "webdip": {
     "base_url": "http://game:8080",
@@ -54,8 +55,15 @@ Lifecycle messages after hello:
   seats acknowledge. The launcher stops its child, finishes its private archive, then acknowledges
   completion. A previously failed bot preserves a nonzero player exit status;
   optional artifact-upload failure does not fail an otherwise successful player.
+  The server replies `{"type":"game_over_acknowledged"}` to the acknowledgment.
+  The bridge waits for that response before reporting HTTP 410 and closing, so a
+  relay does not discard its acknowledgment during connection teardown.
+  If the connection drops after `game_over`, that observed terminal state still
+  produces 410 even when the confirmation was lost; the bridge does not reconnect.
 
-A reconnect replaces that seat's previous socket. Losing a connection or sending
+A reconnect replaces that seat's previous socket. The old socket receives
+`{"type":"seat_replaced"}` before closing; browser and bridge clients stop
+reconnecting after this message so controllers do not fight over a seat. Losing a connection or sending
 an invalid/stale HTTP order does not fail the episode. The upstream API handles
 order errors; a silent seat keeps the engine's default orders (holds, disbands,
 or skipped builds). The next phase still waits for its native deadline unless
@@ -142,13 +150,28 @@ The shim replaces fetch, XMLHttpRequest and EventSource with WebSocket messages:
   the same `id`. `unsubscribe` with that `id` closes the stream.
 
 The adapter supplies Authorization server-side, strips cookies, refuses redirects,
-and forwards only `game/playercontext`, `game/sendmessage`, `game/messagesseen`,
-`game/setvote`, `game/markbackfromleft`, this game's four public JSON files, and
-Classic's variant JSON. `ajax.php` is loopback-only and accepts only signed order
+and forwards only `game/playercontext` (GET), `game/sendmessage` (POST),
+`game/messagesseen` (POST), `game/setvote` (POST), `game/markbackfromleft` (POST),
+`game/orders` (POST), `game/togglevote` (GET), this game's four public JSON files,
+and Classic's variant JSON. API game/country IDs in query and JSON body must match
+this seat, as must any country IDs inside individual bot orders. Upstream checks
+order legality and phase freshness. Paths are limited to 8192 characters.
+Query names must be ASCII identifiers; PHP-normalized aliases such as `+route`
+and array parameters are rejected before forwarding.
+`ajax.php` is loopback-only and accepts only signed order
 saves whose context matches the authenticated game, user and country. Upstream
 still verifies the signature and orders. Client headers, destinations and SSE
 channel choices cannot override the seat binding. Unsupported requests return 403;
 upstream connection failures return 502. HTTP forwarding has a 15-second timeout.
+
+`http-bot-api-v1` in hello identifies support for the bot API routes above.
+The synchronous local `players.bridge` client uses the same browser-mode tunnel
+and exposes GET/POST over loopback HTTP with a separate local Bearer key.
+It returns upstream status/body/Content-Type/X-JSON unchanged, reconnects without
+replaying requests, acknowledges game-over, and returns HTTP 410 afterward.
+Seat takeover returns HTTP 409 until the bridge is restarted.
+The bridge supports polling, not HTTP SSE; the browser's tunneled SSE is unchanged.
+See [external bot setup](write-a-policy.md#run-an-external-bot-in-a-human-seat).
 
 The wrapper's meta CSP survives header-stripping proxies and blocks external
 scripts, images, forms and fonts. The compiled board initializes Google Analytics,

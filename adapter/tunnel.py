@@ -3,9 +3,12 @@
 import asyncio
 import contextlib
 import json
+import re
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 import aiohttp
+
+BOT_API_CAPABILITY = "http-bot-api-v1"
 
 
 class Tunnel:
@@ -33,7 +36,12 @@ class Tunnel:
         method = message.get("method", "GET")
         path = message.get("path", "")
         body = message.get("body", "")
-        if not isinstance(path, str) or not isinstance(body, str) or len(body.encode("utf-8")) > 131072:
+        if (
+            not isinstance(path, str)
+            or len(path) > 8192
+            or not isinstance(body, str)
+            or len(body.encode("utf-8")) > 131072
+        ):
             raise ValueError("Invalid request")
         url = urlsplit(path)
         if url.scheme or url.netloc or url.fragment or not path.startswith("/"):
@@ -42,6 +50,10 @@ class Tunnel:
         if any(len(values) != 1 for values in query.values()):
             raise ValueError("Repeated parameter")
         query = {key: values[0] for key, values in query.items()}
+        # PHP normalizes names (e.g. leading spaces and array brackets). Reject
+        # aliases so the validated route and seat fields are what PHP receives.
+        if any(re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", key) is None for key in query):
+            raise ValueError("Invalid query parameter name")
         content_type = "application/json"
         if url.path == "/api.php":
             route = query.get("route")
@@ -51,6 +63,8 @@ class Tunnel:
                 "game/messagesseen": {"POST"},
                 "game/setvote": {"POST"},
                 "game/markbackfromleft": {"POST"},
+                "game/orders": {"POST"},
+                "game/togglevote": {"GET"},
             }
             if method not in allowed.get(route, set()):
                 raise ValueError("Not available in this game")
@@ -60,8 +74,19 @@ class Tunnel:
             for fields in (query, data):
                 if "gameID" in fields and str(fields["gameID"]) != str(self.game_id):
                     raise ValueError("Wrong game")
+                if "countryID" in fields and str(fields["countryID"]) != str(self.seat["country_id"]):
+                    raise ValueError("Wrong country")
                 if "sbToken" in fields:
                     raise ValueError("Sandbox not available in this game")
+            if route == "game/orders":
+                orders = data.get("orders")
+                if not isinstance(orders, list):
+                    raise ValueError("Invalid orders")
+                for order in orders:
+                    if not isinstance(order, dict) or (
+                        "countryID" in order and str(order["countryID"]) != str(self.seat["country_id"])
+                    ):
+                        raise ValueError("Wrong order country")
         elif url.path == "/ajax.php":
             if method != "POST" or set(query) - {"ready", "notready"}:
                 raise ValueError("Only order saves are available")

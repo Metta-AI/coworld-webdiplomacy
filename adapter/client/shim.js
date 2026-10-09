@@ -53,6 +53,7 @@
   let counter = 0;
   let loaded = false;
   let finished = false;
+  let superseded = false;
   const show = (text) => {
     status.textContent = text;
   };
@@ -272,6 +273,9 @@
               message.data
             );
         }
+      } else if (message.type === "seat_replaced") {
+        superseded = true;
+        socket.close();
       } else if (message.type === "game_over") {
         finished = true;
         show("Game finished");
@@ -281,7 +285,9 @@
     socket.onclose = () => {
       clearTimeout(stableTimer);
       show(
-        finished
+        superseded
+          ? "Seat opened by another controller. Reload to take control."
+          : finished
           ? "Game finished"
           : loaded
           ? "Disconnected. Reconnecting to your seat…"
@@ -292,7 +298,7 @@
         item.reject(new Error("Disconnected"));
       }
       pending.clear();
-      if (!finished) {
+      if (!finished && !superseded) {
         if (attempts < maxAttempts) {
           const delay = Math.min(500 * 2 ** attempts++, 5000);
           setTimeout(connect, delay);

@@ -14,7 +14,7 @@ git submodule update --init --recursive
 uv sync --group dev
 docker compose build player
 docker build --platform linux/amd64 -t herald:local players/examples
-uv run coworld build --version 0.7.7
+uv run coworld build --version 0.7.8
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json herald:local \
   --run /opt/.venv/bin/python --run=-m --run players.launcher \
@@ -199,3 +199,81 @@ from inside Docker. Use `--secret-env COWORLD_LLM_MODEL=...` for the local model
 Follow the [hosted model guide](https://softmax.com/docs/coworld/build-a-player/hosted-llm)
 and [runtime contract](https://github.com/Metta-AI/coworld/blob/main/src/coworld/docs/HOSTED_LLM.md)
 for SDK setup, local credentials and current limits.
+
+## Run an external bot in a human seat
+
+Use this when the bot should run on your laptop or server while the game runs on
+Softmax infrastructure. Your bot occupies a **human lobby seat**, not a submitted
+policy or ranked player. The bridge needs the updated Coworld image advertising
+`http-bot-api-v1`; if it reports that capability missing, the game owner must
+publish the updated Coworld and start a new lobby. Existing games cannot acquire
+new routes from a local checkout update.
+
+1. Sign in as a Softmax **user**, then create a league lobby or claim an open
+   human seat before the host starts it. Lobby creation assigns seat 0 to the
+   host. The claim API is `POST /v2/lobbies/{lobby_id}/seats/{position}/claim`.
+2. After startup, call `POST /v2/lobbies/{lobby_id}/launch` as that same user.
+   Wait while it returns `kind: pending`. Save the `kind: player` JSON response,
+   or its `viewer_url` alone, to a private file such as `tmp/seat.json`. A spectator
+   URL cannot control a seat. A direct player WebSocket URL also works.
+3. From this repository, install the bridge dependencies and run it:
+
+   ```sh
+   uv sync --no-dev
+   chmod 600 tmp/seat.json
+   uv run --no-dev python -m players.bridge \
+     --seat-url-file tmp/seat.json --env-file tmp/bot.env
+   ```
+
+   The bridge chooses a free loopback port; use `--port 8765` if your bot needs
+   a fixed port. The env file must not already exist. It is created with mode
+   0600 and contains a newly generated **local** API key, plus the game's IDs
+   and seat seed. The hosted token is never forwarded to the bot.
+4. In a second shell, run the bot itself, without `players.launcher`:
+
+   ```sh
+   source tmp/bot.env
+   python /path/to/your_bot.py
+   ```
+
+   An ordinary webDip bot can use `WEBDIP_URL` as its base URL and
+   `WEBDIP_API_KEY` as its Bearer key. If it expects the full API endpoint,
+   configure `$WEBDIP_URL/api.php`. The existing `players.api.WebDiplomacy`
+   client works unchanged. Keep the bridge running for the game; stop it with
+   Ctrl-C when finished, then remove the private seat and env files. A new
+   bridge process gets a new local key, so restart/reconfigure the bot too.
+
+Only one controller should connect for a seat: a browser and bridge connected
+simultaneously transfers control to the newest connection. The displaced browser
+stops reconnecting; a displaced bridge returns HTTP 409 until restarted. Seat URLs confer control of that
+seat; never put them in command-line arguments, shared logs, or version control.
+Stop the old controller before switching: if its connection was already lost,
+it cannot receive the takeover notice and a pending reconnect can reclaim the seat.
+
+Supported API routes are `game/playercontext`, `game/orders`, `game/sendmessage`,
+`game/messagesseen`, `game/setvote`, `game/togglevote` and `game/markbackfromleft`,
+using their upstream methods and JSON bodies. Public game/status/history/messages
+JSON and Classic variant JSON can be fetched without the local key, matching the
+normal webDip file API. Other routes, sandbox games, HTTP SSE and access to other
+seats/games are unavailable. Use polling; private context and API writes require
+the local Bearer key. The bridge accepts at most 128 KiB request bodies and 16 MiB
+WebSocket responses. It listens only on 127.0.0.1, rejects browser Origin headers,
+and is intended for bots on the same machine, not public HTTP hosting.
+
+Upstream statuses and response bodies are preserved. Continue checking saved
+orders: an upstream 200 can still silently drop invalid orders. Bridge-specific
+errors are 401 for a missing/wrong local key, 409 when another controller takes
+the seat, 502 for a malformed tunnel response or invalid reconnect
+handshake or changed seat identity, 503 for a disconnected tunnel,
+504 for a response deadline, and 410 after game-over. Treat 410 as normal
+completion. On 503/504, **a write may already have taken effect**. Refetch context
+before deciding whether to send another order/message/vote; the bridge never
+replays a request, including the mutating GET `game/togglevote`.
+
+The receiver handles lifecycle messages while the bot is idle. It retries a
+lost connection up to eight times with 0.5–5 second backoff, checking the seat's
+identity after reconnect. After retries are exhausted, check the lobby status: the game may have ended
+while disconnected, in which case no game-over message can arrive. If the game
+is still running, restart the bridge with a fresh env-file path. It acknowledges game-over and continues returning 410
+until stopped. It does not create a hosted player artifact or private-press
+archive; the external bot owns any local history it needs to keep.
