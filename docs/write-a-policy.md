@@ -61,6 +61,8 @@ The launcher supplies these environment variables:
 | `WEBDIP_GAME_ID` | Game ID |
 | `WEBDIP_COUNTRY_ID` | Country ID; country assignment differs from slot order |
 | `WEBDIP_SEED` | Reproducible seat seed, `episode_seed * 7 + slot` |
+| `WEBDIP_END_YEAR` | Last game year played; the game ends after its autumn retreats |
+| `WEBDIP_SCORING` | Scoring rule: `sum_of_squares`, `draw_size` or `supply_centers` |
 
 Call `$WEBDIP_URL/api.php?route=ROUTE` with
 `Authorization: Bearer $WEBDIP_API_KEY`. POST bodies are JSON with
@@ -227,8 +229,9 @@ new routes from a local checkout update.
 
    The bridge chooses a free loopback port; use `--port 8765` if your bot needs
    a fixed port. The env file must not already exist. It is created with mode
-   0600 and contains a newly generated **local** API key, plus the game's IDs
-   and seat seed. The hosted token is never forwarded to the bot.
+   0600 and contains a newly generated **local** API key, plus the game's IDs,
+   seat seed, end year and scoring rule. The hosted token is never forwarded to
+   the bot.
 4. In a second shell, run the bot itself, without `players.launcher`:
 
    ```sh

@@ -1,7 +1,7 @@
 """Episode configuration; phase durations remain native whole minutes."""
 
 import secrets
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -20,6 +20,8 @@ class EpisodeConfig(BaseModel):
     episode_budget_seconds: float = Field(default=5910, ge=5, le=5910)
     completion_timeout_seconds: float = Field(default=20, ge=0, le=20)
     render_maps: bool = True
+    # countries[slot] is that slot's upstream country ID; None shuffles them by seed.
+    countries: list[Annotated[int, Field(ge=1, le=7)]] | None = Field(default=None, min_length=7, max_length=7)
 
     @field_validator("tokens")
     @classmethod
@@ -27,3 +29,10 @@ class EpisodeConfig(BaseModel):
         if len(set(tokens)) != 7 or any(not token or len(token) > 80 for token in tokens):
             raise ValueError("seven distinct nonempty tokens of at most 80 characters required")
         return tokens
+
+    @field_validator("countries")
+    @classmethod
+    def countries_are_a_permutation(cls, countries):
+        if countries is not None and len(set(countries)) != 7:
+            raise ValueError("countries must list each upstream country ID 1-7 exactly once")
+        return countries

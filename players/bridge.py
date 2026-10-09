@@ -246,6 +246,8 @@ class BridgeServer(HTTPServer):
             "WEBDIP_GAME_ID": str(hello["webdip"]["game_id"]),
             "WEBDIP_COUNTRY_ID": str(hello["webdip"]["country_id"]),
             "WEBDIP_SEED": str(hello["rules"]["seed"] * 7 + hello["slot"]),
+            "WEBDIP_END_YEAR": str(hello["rules"]["end_year"]),
+            "WEBDIP_SCORING": hello["rules"]["scoring"],
         }
 
 

@@ -100,7 +100,7 @@ bootstrap upstream's own code (`php/wdc_bootstrap.php`).
 | Script | Called by | Does |
 | --- | --- | --- |
 | `wdc_install.php` | bake | Registers Classic in `wD_VariantInfo` |
-| `wdc_create_game.php` | `Episode.__init__` | One transaction: `processGame::create` (Unranked, `MemberVsBots`), seven `User` accounts `Seat1`–`Seat7`, one `wD_ApiKeys` row per seat token, memberships in seed-shuffled countries |
+| `wdc_create_game.php` | `Episode.__init__` | One transaction: `processGame::create` (Unranked, `MemberVsBots`), seven `User` accounts `Seat1`–`Seat7`, one `wD_ApiKeys` row per seat token, memberships in seed-shuffled countries, or the config's pinned `countries` |
 | `wdc_state.php` | every tick | Consistent snapshot of the game row, member rows and public file URLs/versions |
 | `wdc_start.php` | tick, when 7 seats are connected or `player_connect_timeout_seconds` passes | Sets `processTime` to now so the gamemaster starts the game |
 | `wdc_end.php` | tick, at the year cap or `episode_budget_seconds` | Takes upstream's `gamemaster` lock and calls `setDrawn()` |
@@ -174,5 +174,5 @@ is the exact list.
 | `WEBDIP_MODE` | You, for regression runs | `adapter/boot.py` |
 | `COWORLD_PLAYER_WS_URL` | Coworld runner | `players/launcher.py` |
 | `COWORLD_PLAYER_ARTIFACT_UPLOAD_URL`, `COWORLD_PLAYER_ARTIFACT_UPLOAD_METHOD` | Coworld runner (optional) | `players/press.py` |
-| `WEBDIP_URL`, `WEBDIP_API_KEY`, `WEBDIP_GAME_ID`, `WEBDIP_COUNTRY_ID`, `WEBDIP_SEED` | Launcher | The bot |
+| `WEBDIP_URL`, `WEBDIP_API_KEY`, `WEBDIP_GAME_ID`, `WEBDIP_COUNTRY_ID`, `WEBDIP_SEED`, `WEBDIP_END_YEAR`, `WEBDIP_SCORING` | Launcher, `players/bridge.py` env file | The bot |
 | `WEBDIP_STOCK_SUBNET` | You (optional) | `tools/stock_stack.py` (compatibility check) |

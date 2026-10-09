@@ -3,7 +3,7 @@ import unittest
 from pydantic import ValidationError
 
 from adapter.config import EpisodeConfig
-from adapter.episode import scores, year_complete
+from adapter.episode import Episode, scores, year_complete
 
 
 class EpisodeRules(unittest.TestCase):
@@ -38,3 +38,29 @@ class EpisodeRules(unittest.TestCase):
         for tokens in (["x"] * 7, ["x" * 81] + list("abcdef")):
             with self.assertRaises(ValidationError):
                 EpisodeConfig(tokens=tokens)
+
+    def test_countries_must_be_a_permutation_of_upstream_ids(self):
+        tokens = list("abcdefg")
+        self.assertEqual(EpisodeConfig(tokens=tokens, countries=[7, 6, 5, 4, 3, 2, 1]).countries, [7, 6, 5, 4, 3, 2, 1])
+        self.assertIsNone(EpisodeConfig(tokens=tokens).countries)
+        for countries in (
+            [1, 1, 2, 3, 4, 5, 6],
+            [1, 2, 3, 4, 5, 6],
+            [1, 2, 3, 4, 5, 6, 7, 1],
+            [0, 1, 2, 3, 4, 5, 6],
+            [2, 3, 4, 5, 6, 7, 8],
+        ):
+            with self.assertRaises(ValidationError):
+                EpisodeConfig(tokens=tokens, countries=countries)
+
+    def test_episode_uses_pinned_countries_and_otherwise_shuffles_by_seed(self):
+        from unittest.mock import patch
+
+        created = {"ok": True, "game_id": 1, "seats": []}
+        with patch("adapter.episode.php", return_value=created) as php, patch.object(Episode, "tick"):
+            pinned = Episode(EpisodeConfig(tokens=list("abcdefg"), seed=5, countries=[3, 1, 2, 7, 6, 5, 4]))
+            self.assertEqual(pinned.countries, [3, 1, 2, 7, 6, 5, 4])
+            self.assertEqual(php.call_args.kwargs["payload"]["countries"], [3, 1, 2, 7, 6, 5, 4])
+            first = Episode(EpisodeConfig(tokens=list("abcdefg"), seed=5)).countries
+            self.assertEqual(Episode(EpisodeConfig(tokens=list("abcdefg"), seed=5)).countries, first)
+            self.assertEqual(sorted(first), list(range(1, 8)))

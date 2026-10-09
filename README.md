@@ -186,9 +186,10 @@ packaging, local tests, upload and hosted evaluation commands.
 The [player protocol](docs/protocol.md) explains hello, upstream HTTP play,
 reconnection, deadlines, scoring and output. The launcher can run another bot:
 `python -m players.launcher python -m your_bot`. It passes the upstream URL,
-key, game ID, country ID and a distinct seed derived from episode seed and slot
-through environment variables. Omitted episode seeds are randomly chosen and
-recorded in results and replay; explicit seeds remain reproducible.
+key, game ID, country ID, a distinct seed derived from episode seed and slot,
+the end year and the scoring rule through environment variables. Omitted
+episode seeds are randomly chosen and recorded in results and replay; explicit
+seeds remain reproducible.
 The random player checks saved orders against its requests and fails visibly on
 a current-phase rejection. Legal orders may still bounce or lose support.
 See [player validation](docs/players.md) for the generator, private archives and

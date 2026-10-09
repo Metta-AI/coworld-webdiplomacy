@@ -22,7 +22,7 @@ HELLO = {
     "capabilities": ["http-bot-api-v1"],
     "slot": 0,
     "webdip": {"game_id": 101, "country_id": 6},
-    "rules": {"seed": 2},
+    "rules": {"seed": 2, "end_year": 1905, "scoring": "draw_size"},
 }
 
 
@@ -120,6 +120,10 @@ class SocketTest(unittest.TestCase):
                         return result
 
                     self.assertEqual(request("GET", "/api.php?route=game/playercontext")[0], 401)
+                    environment = server.environment
+                    self.assertEqual(
+                        (environment["WEBDIP_END_YEAR"], environment["WEBDIP_SCORING"]), ("1905", "draw_size")
+                    )
                     auth = {"Authorization": "Bearer " + server.api_key}
                     status, headers, body = request("POST", "/api.php?route=game/orders", '{"orders":[]}', auth)
                     self.assertEqual((status, body), (409, "upstream error: café"))
