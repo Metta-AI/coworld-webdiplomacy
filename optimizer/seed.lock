@@ -1,0 +1,5 @@
+# optimizer-seed pin, sourced by install.sh.
+# 7ebea87 is main as of 2026-08-04. It is used instead of tag v0.1.0
+# (5783022) because the 9 commits after the tag fix onboarding and hooks.
+SEED_URL=https://github.com/Metta-AI/optimizer-seed
+SEED_COMMIT=7ebea87334331e8410f4c0f2ccf5e2376d81cd1f

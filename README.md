@@ -25,6 +25,7 @@ certification and publication are separate release steps.
 | [Architecture](docs/architecture.md) | Processes, routes, episode lifecycle, code map, environment variables |
 | [Design and rationale](docs/design.md) | Goals, key decisions, rejected alternatives, upstream updates, risks |
 | [Source bundle](SOURCE_BUNDLE.md) | Reproducible AGPL source archive |
+| [Optimizer (prototype)](optimizer/README.md) | optimizer-seed mixin, IDE and the `webdip-optimizer` template generator |
 
 Coding agents should start with [AGENTS.md](AGENTS.md).
 
