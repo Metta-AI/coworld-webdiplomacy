@@ -58,6 +58,8 @@ Lifecycle messages after hello:
   The server replies `{"type":"game_over_acknowledged"}` to the acknowledgment.
   The bridge waits for that response before reporting HTTP 410 and closing, so a
   relay does not discard its acknowledgment during connection teardown.
+  If the connection drops after `game_over`, that observed terminal state still
+  produces 410 even when the confirmation was lost; the bridge does not reconnect.
 
 A reconnect replaces that seat's previous socket. The old socket receives
 `{"type":"seat_replaced"}` before closing; browser and bridge clients stop

@@ -229,6 +229,27 @@ class SocketTest(unittest.TestCase):
         with peer(handler) as address, self.assertRaisesRegex(BridgeError, "updated Coworld"):
             TunnelClient(address)
 
+    def test_game_over_remains_terminal_if_confirmation_is_lost(self):
+        connections = []
+
+        def handler(ws):
+            connections.append(ws)
+            ws.send(json.dumps(HELLO))
+            ws.send(json.dumps({"type": "game_over"}))
+            ws.recv(timeout=2)
+            ws.close()  # The relay can disappear after delivering our acknowledgment.
+
+        with peer(handler) as address:
+            tunnel = TunnelClient(address)
+            try:
+                wait_for(lambda: not tunnel.thread.is_alive())
+                self.assertEqual(len(connections), 1)
+                with self.assertRaises(BridgeError) as error:
+                    tunnel.request("GET", "/api.php?route=game/playercontext", "")
+                self.assertEqual(error.exception.status, 410)
+            finally:
+                tunnel.close()
+
     def test_bot_mode_fails_at_handshake(self):
         def handler(ws):
             ws.send(json.dumps(HELLO | {"webdip": HELLO["webdip"] | {"api_key": "hosted-secret"}}))

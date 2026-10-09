@@ -85,8 +85,8 @@ Docker acceptance check.
 Passed locally:
 
 - `uv run ruff check adapter players tools` and `git diff --check`.
-- Adapter unit suite (17 tests), existing player suite (7 tests), and bridge
-  socket suite (11 tests). Manifest synchronization was checked again after the
+- Adapter unit suite (20 tests), existing player suite (7 tests), and bridge
+  socket suite (12 tests). Manifest synchronization was checked again after the
   final documentation update.
 - Image built with `docker build --platform linux/amd64 -f adapter/Dockerfile
   -t coworld-webdiplomacy-game:external-bridge .`.
@@ -97,6 +97,6 @@ Passed locally:
 - `uv run python -m tools.check_browser coworld-webdiplomacy-game:external-bridge`:
   both direct and proxied Chromium cases, retaining signed orders and SSE.
 
-No hosted game was started and no image/Coworld was published. The upstream
-submodule is unchanged. Release and a real hosted lobby smoke test remain the
-steps required to make and verify this capability on hosted infrastructure.
+These implementation checks establish local behavior. The upstream submodule
+is unchanged. A release additionally requires publication and a real hosted
+lobby smoke test to establish the capability on hosted infrastructure.

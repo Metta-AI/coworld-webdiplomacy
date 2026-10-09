@@ -75,6 +75,7 @@ class TunnelClient:
         self.request_lock = threading.Lock()
         self.stopped = threading.Event()
         self.finished = False
+        self.game_over_seen = False
         self.unavailable = (503, "Tunnel reconnecting")
         self.pending = None
         self.sequence = 0
@@ -126,6 +127,7 @@ class TunnelClient:
                             self._fail_pending(BridgeError(*self.unavailable))
                         return
                     if message.get("type") == "game_over":
+                        self.game_over_seen = True
                         ws.send(json.dumps({"type": "game_over_ack"}))
                         continue
                     if message.get("type") == "game_over_acknowledged":
@@ -143,7 +145,13 @@ class TunnelClient:
             finally:
                 with self.lock:
                     self.ws = None
-                    self._fail_pending(BridgeError(503, "Connection lost; outcome unknown; refetch before retrying"))
+                    self.finished = self.finished or self.game_over_seen
+                    error = (
+                        BridgeError(410, "Game finished")
+                        if self.finished
+                        else BridgeError(503, "Connection lost; outcome unknown; refetch before retrying")
+                    )
+                    self._fail_pending(error)
                 self.connection.close()
             if self.finished:
                 return
