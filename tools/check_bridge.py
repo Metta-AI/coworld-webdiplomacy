@@ -110,6 +110,7 @@ def run(image):
                 wrong_seat = WebDiplomacy(api.url, api.key, api.game_id, other_country)
                 expect_status(lambda: wrong_seat.orders(context, requested, ready="No"), 403)
                 expect_status(lambda: api.request("sandbox/copy", body={}), 403)
+                expect_status(lambda: api.request("game/playercontext", **{" route": "sandbox/create"}), 403)
                 api.request(
                     "game/sendmessage",
                     body=dict(gameID=api.game_id, countryID=api.country_id, toCountryID=other_country, message=marker),

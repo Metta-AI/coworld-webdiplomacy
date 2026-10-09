@@ -42,6 +42,8 @@ def player_address(value):
         if not url.path.endswith("/client/player"):
             raise ValueError("Expected a player viewer URL")
         if "address" in query:
+            if urlsplit(query["address"]).scheme not in {"ws", "wss"}:
+                raise ValueError("Viewer address must be a WebSocket URL")
             return player_address(query["address"])
         url = url._replace(
             scheme="wss" if url.scheme == "https" else "ws", path=url.path.removesuffix("client/player") + "player"
@@ -124,10 +126,12 @@ class TunnelClient:
                             self._fail_pending(BridgeError(*self.unavailable))
                         return
                     if message.get("type") == "game_over":
+                        ws.send(json.dumps({"type": "game_over_ack"}))
+                        continue
+                    if message.get("type") == "game_over_acknowledged":
                         with self.lock:
                             self.finished = True
                             self._fail_pending(BridgeError(410, "Game finished"))
-                        ws.send(json.dumps({"type": "game_over_ack"}))
                         return
                     if message.get("type") == "response":
                         with self.lock:

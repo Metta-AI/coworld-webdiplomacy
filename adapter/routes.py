@@ -129,6 +129,7 @@ def install_routes(app, episode):
                     elif tunnel and message.get("type") == "unsubscribe":
                         await tunnel.unsubscribe(message)
                     if message.get("type") == "game_over_ack" and sent_finished:
+                        await websocket.send_json({"type": "game_over_acknowledged"})
                         with episode.lock:
                             episode.acknowledged.add(slot)
                 except TimeoutError:

@@ -247,6 +247,8 @@ Only one controller should connect for a seat: a browser and bridge connected
 simultaneously transfers control to the newest connection. The displaced browser
 stops reconnecting; a displaced bridge returns HTTP 409 until restarted. Seat URLs confer control of that
 seat; never put them in command-line arguments, shared logs, or version control.
+Stop the old controller before switching: if its connection was already lost,
+it cannot receive the takeover notice and a pending reconnect can reclaim the seat.
 
 Supported API routes are `game/playercontext`, `game/orders`, `game/sendmessage`,
 `game/messagesseen`, `game/setvote`, `game/togglevote` and `game/markbackfromleft`,

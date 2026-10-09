@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import json
+import re
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 import aiohttp
@@ -49,8 +50,10 @@ class Tunnel:
         if any(len(values) != 1 for values in query.values()):
             raise ValueError("Repeated parameter")
         query = {key: values[0] for key, values in query.items()}
-        if any("[" in key or "]" in key for key in query):
-            raise ValueError("Array query parameters are not supported")
+        # PHP normalizes names (e.g. leading spaces and array brackets). Reject
+        # aliases so the validated route and seat fields are what PHP receives.
+        if any(re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", key) is None for key in query):
+            raise ValueError("Invalid query parameter name")
         content_type = "application/json"
         if url.path == "/api.php":
             route = query.get("route")

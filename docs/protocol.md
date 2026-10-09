@@ -55,6 +55,9 @@ Lifecycle messages after hello:
   seats acknowledge. The launcher stops its child, finishes its private archive, then acknowledges
   completion. A previously failed bot preserves a nonzero player exit status;
   optional artifact-upload failure does not fail an otherwise successful player.
+  The server replies `{"type":"game_over_acknowledged"}` to the acknowledgment.
+  The bridge waits for that response before reporting HTTP 410 and closing, so a
+  relay does not discard its acknowledgment during connection teardown.
 
 A reconnect replaces that seat's previous socket. The old socket receives
 `{"type":"seat_replaced"}` before closing; browser and bridge clients stop
@@ -151,6 +154,8 @@ and forwards only `game/playercontext` (GET), `game/sendmessage` (POST),
 and Classic's variant JSON. API game/country IDs in query and JSON body must match
 this seat, as must any country IDs inside individual bot orders. Upstream checks
 order legality and phase freshness. Paths are limited to 8192 characters.
+Query names must be ASCII identifiers; PHP-normalized aliases such as `+route`
+and array parameters are rejected before forwarding.
 `ajax.php` is loopback-only and accepts only signed order
 saves whose context matches the authenticated game, user and country. Upstream
 still verifies the signature and orders. Client headers, destinations and SSE

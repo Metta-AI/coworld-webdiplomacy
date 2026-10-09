@@ -196,16 +196,22 @@ class SocketTest(unittest.TestCase):
 
     def test_idle_game_over_acknowledged_and_terminal(self):
         ack = queue.Queue()
+        confirm = threading.Event()
 
         def handler(ws):
             ws.send(json.dumps(HELLO))
             ws.send(json.dumps({"type": "game_over", "results": {}}))
             ack.put(json.loads(ws.recv(timeout=2)))
+            confirm.wait(timeout=2)
+            ws.send(json.dumps({"type": "game_over_acknowledged"}))
 
         with peer(handler) as address:
             tunnel = TunnelClient(address)
             try:
                 self.assertEqual(ack.get(timeout=3), {"type": "game_over_ack"})
+                self.assertFalse(tunnel.finished)
+                confirm.set()
+                wait_for(lambda: tunnel.finished)
                 with self.assertRaises(BridgeError) as error:
                     tunnel.request("GET", "/api.php?route=game/playercontext", "")
                 self.assertEqual(error.exception.status, 410)

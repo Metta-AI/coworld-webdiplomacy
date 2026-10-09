@@ -29,6 +29,10 @@ class TunnelBoundaryTest(unittest.TestCase):
             "/api.php?route=game/playercontext&gameID=102",
             "/api.php?route=game/playercontext&gameID=101&gameID=102",
             "/api.php?route=game/togglevote&gameID=101&countryID[]=6&vote=Draw",
+            "/api.php?route=game/playercontext&+route=sandbox/create",
+            "/api.php?route=game/playercontext&%20route=sandbox/create",
+            "/api.php?route=game/playercontext&route.x=sandbox/create",
+            "/api.php?route=game/togglevote&gameID=101&countryID=6&+countryID=7&vote=Draw",
         ):
             with self.subTest(path=path), self.assertRaises(ValueError):
                 self.tunnel.validate({"path": path})

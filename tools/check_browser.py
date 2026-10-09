@@ -171,6 +171,10 @@ def run_case(image, mode):
                 target = base + "/client/player?" + urlencode(query)
             browser = playwright.chromium.launch()
             context = browser.new_context(viewport={"width": 1040 if mode == "proxy" else 1000, "height": 900})
+            context.add_init_script("""const NativeWebSocket = window.WebSocket;
+                window.WebSocket = class extends NativeWebSocket {
+                    constructor(...args) { super(...args); window.testSeatSocket = this; }
+                };""")
             page = context.new_page()
             errors, requests, messages, console = [], [], [], []
             page.on("pageerror", lambda error: errors.append(str(error)))
@@ -282,22 +286,10 @@ def run_case(image, mode):
             frame.get_by_role("link", name="Legacy Board", exact=True).click()
             expect(frame.get_by_role("status")).to_have_text("Site navigation is not available in this game")
             evidence["authorization_rejections"] = check_boundaries(base, tokens, human.context())
-            # Replacing the connection must recover without reloading or reapplying orders.
-            with connect(
-                base.replace("http", "ws")
-                + "/player?"
-                + urlencode(
-                    {
-                        "slot": 0,
-                        "token": tokens[0],
-                        "mode": "browser",
-                    }
-                ),
-                ping_timeout=None,
-            ) as replacement:
-                replacement.recv(timeout=5)
-                expect(frame.get_by_role("status")).to_contain_text("Disconnected")
-                page.screenshot(path=str(shots / f"{mode}-disconnected.png"))
+            # A dropped transport reconnects; an explicit seat takeover is tested separately.
+            frame.locator("body").evaluate("() => window.testSeatSocket.close()")
+            expect(frame.get_by_role("status")).to_contain_text("Disconnected")
+            page.screenshot(path=str(shots / f"{mode}-disconnected.png"))
             deadline = time.monotonic() + 15
             while len([m for m in messages if m.get("type") == "hello"]) < 2:
                 assert time.monotonic() < deadline, "automatic reconnect did not authenticate"
