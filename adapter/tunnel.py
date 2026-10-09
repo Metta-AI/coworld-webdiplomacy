@@ -49,6 +49,8 @@ class Tunnel:
         if any(len(values) != 1 for values in query.values()):
             raise ValueError("Repeated parameter")
         query = {key: values[0] for key, values in query.items()}
+        if any("[" in key or "]" in key for key in query):
+            raise ValueError("Array query parameters are not supported")
         content_type = "application/json"
         if url.path == "/api.php":
             route = query.get("route")

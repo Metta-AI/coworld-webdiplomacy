@@ -32,7 +32,10 @@ serializes requests. Reconnect uses bounded backoff and checks seat identity.
 No HTTP request is automatically replayed, including GET (upstream togglevote
 mutates state). A lost or timed-out response is an uncertain outcome: return a
 local error and require the bot to refetch before deciding what to do next.
-Game-over is acknowledged and subsequent HTTP requests return 410.
+Game-over is acknowledged and subsequent HTTP requests return 410. A
+`seat_replaced` message stops reconnects in both browser and bridge; the bridge
+then returns 409. This uses application data because proxies may discard close
+codes. The bridge rejects bot-mode hello and malformed responses with 502.
 
 Research: [websockets synchronous client](https://websockets.readthedocs.io/en/stable/reference/sync/client.html)
 fits the repository's synchronous convention and is already installed. Adding
@@ -83,7 +86,7 @@ Passed locally:
 
 - `uv run ruff check adapter players tools` and `git diff --check`.
 - Adapter unit suite (17 tests), existing player suite (7 tests), and bridge
-  socket suite (9 tests). Manifest synchronization was checked again after the
+  socket suite (11 tests). Manifest synchronization was checked again after the
   final documentation update.
 - Image built with `docker build --platform linux/amd64 -f adapter/Dockerfile
   -t coworld-webdiplomacy-game:external-bridge .`.

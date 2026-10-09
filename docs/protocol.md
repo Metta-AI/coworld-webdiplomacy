@@ -56,7 +56,9 @@ Lifecycle messages after hello:
   completion. A previously failed bot preserves a nonzero player exit status;
   optional artifact-upload failure does not fail an otherwise successful player.
 
-A reconnect replaces that seat's previous socket. Losing a connection or sending
+A reconnect replaces that seat's previous socket. The old socket receives
+`{"type":"seat_replaced"}` before closing; browser and bridge clients stop
+reconnecting after this message so controllers do not fight over a seat. Losing a connection or sending
 an invalid/stale HTTP order does not fail the episode. The upstream API handles
 order errors; a silent seat keeps the engine's default orders (holds, disbands,
 or skipped builds). The next phase still waits for its native deadline unless
@@ -160,6 +162,7 @@ The synchronous local `players.bridge` client uses the same browser-mode tunnel
 and exposes GET/POST over loopback HTTP with a separate local Bearer key.
 It returns upstream status/body/Content-Type/X-JSON unchanged, reconnects without
 replaying requests, acknowledges game-over, and returns HTTP 410 afterward.
+Seat takeover returns HTTP 409 until the bridge is restarted.
 The bridge supports polling, not HTTP SSE; the browser's tunneled SSE is unchanged.
 See [external bot setup](write-a-policy.md#run-an-external-bot-in-a-human-seat).
 

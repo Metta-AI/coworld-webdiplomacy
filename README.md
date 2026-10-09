@@ -216,6 +216,8 @@ and can be reopened with **?**. If storage is blocked, dismissal still works unt
 the page is reloaded. Disconnects show a notice and retry automatically up to eight times,
 with delays from 0.5 to 5 seconds. Reconnection refreshes state and subscriptions;
 interrupted commands are not replayed. After exhausted retries, reload the seat link.
+If another controller opens the same seat, this board stops reconnecting and
+shows a takeover notice; reload only when you intend to take control again.
 
 Run the real-browser checks with [Playwright](https://playwright.dev/python/docs/library):
 

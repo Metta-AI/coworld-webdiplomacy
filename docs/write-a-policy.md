@@ -244,7 +244,8 @@ new routes from a local checkout update.
    bridge process gets a new local key, so restart/reconfigure the bot too.
 
 Only one controller should connect for a seat: a browser and bridge connected
-simultaneously replace each other's WebSocket. Seat URLs confer control of that
+simultaneously transfers control to the newest connection. The displaced browser
+stops reconnecting; a displaced bridge returns HTTP 409 until restarted. Seat URLs confer control of that
 seat; never put them in command-line arguments, shared logs, or version control.
 
 Supported API routes are `game/playercontext`, `game/orders`, `game/sendmessage`,
@@ -259,7 +260,8 @@ and is intended for bots on the same machine, not public HTTP hosting.
 
 Upstream statuses and response bodies are preserved. Continue checking saved
 orders: an upstream 200 can still silently drop invalid orders. Bridge-specific
-errors are 401 for a missing/wrong local key, 502 for an invalid reconnect
+errors are 401 for a missing/wrong local key, 409 when another controller takes
+the seat, 502 for a malformed tunnel response or invalid reconnect
 handshake or changed seat identity, 503 for a disconnected tunnel,
 504 for a response deadline, and 410 after game-over. Treat 410 as normal
 completion. On 503/504, **a write may already have taken effect**. Refetch context
@@ -268,7 +270,8 @@ replays a request, including the mutating GET `game/togglevote`.
 
 The receiver handles lifecycle messages while the bot is idle. It retries a
 lost connection up to eight times with 0.5–5 second backoff, checking the seat's
-identity after reconnect. After retries are exhausted, restart the bridge with
-a fresh env-file path. It acknowledges game-over and continues returning 410
+identity after reconnect. After retries are exhausted, check the lobby status: the game may have ended
+while disconnected, in which case no game-over message can arrive. If the game
+is still running, restart the bridge with a fresh env-file path. It acknowledges game-over and continues returning 410
 until stopped. It does not create a hosted player artifact or private-press
 archive; the external bot owns any local history it needs to keep.

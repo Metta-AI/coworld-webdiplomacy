@@ -93,6 +93,8 @@ class TunnelClient:
                 raise BridgeError(502, "Unexpected game protocol")
             if "http-bot-api-v1" not in hello.get("capabilities", []):
                 raise BridgeError(502, "Game lacks http-bot-api-v1; use an updated Coworld image")
+            if "api_key" in hello["webdip"]:
+                raise BridgeError(502, "Seat opened in bot mode; use the player viewer/proxy URL")
             identity = (hello["slot"], hello["webdip"]["game_id"], hello["webdip"]["country_id"])
             if self.hello is not None:
                 previous = (self.hello["slot"], self.hello["webdip"]["game_id"], self.hello["webdip"]["country_id"])
@@ -115,6 +117,12 @@ class TunnelClient:
             try:
                 for raw in ws:
                     message = json.loads(raw)
+                    if message.get("type") == "seat_replaced":
+                        with self.lock:
+                            self.unavailable = (409, "Seat taken over by another controller; restart bridge")
+                            self.ws = None
+                            self._fail_pending(BridgeError(*self.unavailable))
+                        return
                     if message.get("type") == "game_over":
                         with self.lock:
                             self.finished = True
@@ -268,6 +276,18 @@ class BridgeHandler(BaseHTTPRequestHandler):
             except UnicodeDecodeError:
                 raise BridgeError(400, "Body must be UTF-8") from None
             result = self.server.tunnel.request(self.command, self.path, body)
+            headers = result.get("headers", {})
+            if (
+                type(result.get("status")) is not int
+                or not 100 <= result["status"] <= 599
+                or not isinstance(result.get("body"), str)
+                or not isinstance(headers, dict)
+                or any(
+                    not isinstance(name, str) or not isinstance(value, str) or "\r" in value or "\n" in value
+                    for name, value in headers.items()
+                )
+            ):
+                raise BridgeError(502, "Invalid tunnel response")
             self.reply(result["status"], result["body"], result.get("headers", {}))
         except BridgeError as error:
             self.reply(error.status, str(error))

@@ -329,6 +329,16 @@ def run_case(image, mode):
                     or request["origin"] == "www.googletagmanager.com"
                     for request in requests
                 )
+            takeover_address = (
+                address if mode == "proxy" else base.replace("http", "ws") + "/player?" + urlencode(query)
+            )
+            with connect(takeover_address) as takeover:
+                assert json.loads(takeover.recv(timeout=5))["type"] == "hello"
+                expect(frame.get_by_role("status")).to_contain_text("Seat opened by another controller")
+                page.wait_for_timeout(1200)  # Beyond the first automatic reconnect delay.
+                assert takeover.ping().wait(timeout=2), "browser took the seat back"
+                assert sum(message.get("type") == "seat_replaced" for message in messages) == 1
+            evidence["takeover_stops_reconnect"] = True
             invalid = context.new_page()
             # An invalid seat exercises wrapper help without starting upstream React,
             # whose own storage dependencies are outside this wrapper's contract.

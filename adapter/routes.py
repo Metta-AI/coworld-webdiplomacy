@@ -107,6 +107,9 @@ def install_routes(app, episode):
                     started, finished, result = episode.started, episode.finished, episode.result
                     current = episode.connections.get(slot) is websocket
                 if not current:
+                    # Carry takeover as application data: platform proxies may not
+                    # preserve WebSocket close codes across the relay.
+                    await websocket.send_json({"type": "seat_replaced"})
                     await websocket.close(code=1000)
                     return
                 if started and not sent_started:

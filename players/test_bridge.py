@@ -88,6 +88,9 @@ class SocketTest(unittest.TestCase):
             for raw in ws:
                 request = json.loads(raw)
                 requests.put(request)
+                if request["path"] == "/bad-response":
+                    ws.send(json.dumps({"type": "response", "id": request["id"], "body": None}))
+                    continue
                 ws.send(
                     json.dumps(
                         {
@@ -126,6 +129,8 @@ class SocketTest(unittest.TestCase):
                     self.assertEqual(forwarded["body"], '{"orders":[]}')
                     self.assertNotIn(server.api_key, json.dumps(forwarded))
                     self.assertEqual(request("GET", "/cache/games/1/101/game.json")[0], 409)
+                    requests.get(timeout=1)
+                    self.assertEqual(request("GET", "/bad-response", headers=auth)[0], 502)
                     requests.get(timeout=1)
                     self.assertEqual(request("POST", "/api.php", "x" * 131073, auth)[0], 413)
                     self.assertEqual(request("GET", "/api.php", headers=auth | {"Host": "evil.example"})[0], 403)
@@ -217,6 +222,37 @@ class SocketTest(unittest.TestCase):
 
         with peer(handler) as address, self.assertRaisesRegex(BridgeError, "updated Coworld"):
             TunnelClient(address)
+
+    def test_bot_mode_fails_at_handshake(self):
+        def handler(ws):
+            ws.send(json.dumps(HELLO | {"webdip": HELLO["webdip"] | {"api_key": "hosted-secret"}}))
+            try:
+                ws.recv(timeout=2)
+            except ConnectionClosed:
+                pass
+
+        with peer(handler) as address, self.assertRaisesRegex(BridgeError, "bot mode"):
+            TunnelClient(address)
+
+    def test_replaced_seat_does_not_reconnect(self):
+        connections = []
+
+        def handler(ws):
+            connections.append(ws)
+            ws.send(json.dumps(HELLO))
+            ws.send(json.dumps({"type": "seat_replaced"}))
+            ws.close()
+
+        with peer(handler) as address:
+            tunnel = TunnelClient(address)
+            try:
+                wait_for(lambda: not tunnel.thread.is_alive())
+                self.assertEqual(len(connections), 1)
+                with self.assertRaises(BridgeError) as error:
+                    tunnel.request("GET", "/api.php?route=game/playercontext", "")
+                self.assertEqual(error.exception.status, 409)
+            finally:
+                tunnel.close()
 
     def test_reconnect_rejects_changed_seat_identity(self):
         connections = []
