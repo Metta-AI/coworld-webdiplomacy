@@ -98,15 +98,15 @@ effect lands at z ≈ 1.9 to 2.9. At 16 per arm the difference SE is 0.04 to
 
 - **Default: powers are shuffled** by the episode seed. Decompose by power in
   analysis (the ab binding); that needs no pinning.
-- **Merged, pending republish:** coworld-webdiplomacy `b4aca73` (PR #9) adds
-  an optional `countries` episode setting: `countries[slot]` is that slot's
-  upstream country ID (a permutation of 1 to 7). Set it through
+- **Pin powers with `countries`** (coworld 0.7.9 and later): `countries[slot]`
+  is that slot's upstream country ID (a permutation of 1 to 7). Set it through
   `game_config_overrides.countries` with **fixed integer slots** in the roster.
-  Seeds still vary, so episodes still differ. Hosted requests can use it only
-  after the coworld is rebuilt and republished; check the hosted
-  `config_schema` (`coworld games`) first. One request holds one assignment, so
-  a full rotation of powers takes **one request per permutation**.
-- Workaround available today (not tried): `game_config_overrides.seed` fixes
+  Seeds still vary, so episodes still differ. The setting is not yet tried in a
+  hosted eval; confirm it in the hosted `config_schema`
+  (`coworld show <coworld-id> --json`) and check `results.countries` in the
+  first episode. One request holds one assignment, so a full rotation of powers
+  takes **one request per permutation**.
+- Alternative (not tried): `game_config_overrides.seed` fixes
   every episode in a request to that seed, and therefore to that seed's power
   assignment. Every episode then repeats the same seed, so deterministic bots
   replay identical games.

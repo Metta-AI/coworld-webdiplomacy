@@ -10,7 +10,7 @@ extra capabilities are discoverable.
 | | |
 |---|---|
 | **Game** | webDiplomacy: classic seven-power Diplomacy on the real, unmodified webDiplomacy server. Seven seats per episode, simultaneous orders, scored by share of supply centers squared |
-| **Coworld** | `webdiplomacy`, built from https://github.com/Metta-AI/coworld-webdiplomacy (`coworld_manifest_template.json`). This lab was written against commit `b4aca73`; check the hosted version with `coworld games` |
+| **Coworld** | `webdiplomacy`, built from https://github.com/Metta-AI/coworld-webdiplomacy (`coworld_manifest_template.json`). This lab was written against commit `b4aca73`; check the hosted version with `coworld list` |
 | **League(s)** | "webDiplomacy" `league_1bccc63d-cd0a-47d7-92d7-e762797b5f1c` (`classic-press`, the main league) and "webDiplomacy Gunboat" `league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17` (`classic-gunboat`, no press). Re-resolve with `coworld leagues --json` |
 | **Game source of truth** | The upstream webDiplomacy server at the coworld-webdiplomacy submodule commit, via that repo's `docs/upstream-bot-api.md` (cites upstream file and line) — never answer mechanics questions from memory |
 
@@ -47,7 +47,7 @@ announce gaps and proceed on their generic method with the human warned.
 | `ab` | `skills/ab/` | Score vs same-batch field par **per power** as the headline metric; paired seating as the default design; \|z\| < 2 = no result; measured sizing priors (SD 0.12–0.18, about 150/arm for 0.04); the taint list (cancelled, rejected orders, exceptions, missing artifacts, failing LLM seats, mixed opponent sets); `wd.py metrics`, `paired.py`, `compare.py` | Any comparison between versions or policies (core: `ab-compare`) |
 | `survey` | `skills/survey/` | The per-power overview table with outcome, reason and health lines; which episodes are worth opening (crashes, failing LLM seats, opponent solos, early elimination, big swings, best and worst per power); `wd.py metrics` and `seats` | Reading any batch of episodes (core: `survey`) |
 | `replay-inspection` | `skills/replay-inspection/` | The replay frame format (gzip JSON of public upstream files), our own artifacts (`decision` lines, `llm_call` events, private press), the `(turn, phase)` clock, what to look at; the episode loader. A local game viewer comes later | Extracting truth from episodes (core: `replay-inspection`) |
-| `eval-design` | `skills/eval-design/` | Opponents from the current field, fixed within a campaign, explicit `policy_ref`s; paired and separate-arm rosters with a request example; no self-play verdicts; health check on `classic-press-short`; floors; country pinning (merged, pending republish); cost and duration; local-run tools | Designing any hosted eval (core: `run-eval`) |
+| `eval-design` | `skills/eval-design/` | Opponents from the current field, fixed within a campaign, explicit `policy_ref`s; paired and separate-arm rosters with a request example; no self-play verdicts; health check on `classic-press-short`; floors; country pinning (coworld 0.7.9+); cost and duration; local-run tools | Designing any hosted eval (core: `run-eval`) |
 | `diagnosis` | `skills/diagnosis/` | Known failure modes (silent order drops, invisible degradation, wrong map knowledge, misplaced trust, ignoring the game horizon, over-tuning) and a six-step procedure for new problems (a sketch, to build out) | Turning signals into hypotheses (core: `diagnose`) |
 
 ### Meta-recon support

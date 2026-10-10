@@ -40,11 +40,9 @@ This lab's `tools/build.sh` does all of this for the reference policy
 | `WEBDIP_SCORING` | Scoring rule: `sum_of_squares`, `draw_size` or `supply_centers` |
 | `COWORLD_LLM_ENDPOINT`, `COWORLD_LLM_MODEL` | Hosted LLM sidecar, only when the version was uploaded with `--use-llm` |
 
-**Merged, pending republish:** `WEBDIP_END_YEAR` and `WEBDIP_SCORING` were
-added in coworld-webdiplomacy `b4aca73` (PR #9). Hosted games have them only once
-the coworld is rebuilt and republished; check with `coworld games`. Until then,
-fall back to the variant's end year (1908 for `classic-press`, 1910 for
-`classic-gunboat`) when `WEBDIP_END_YEAR` is unset.
+`WEBDIP_END_YEAR` and `WEBDIP_SCORING` are set from coworld 0.7.9. Older
+versions do not set them, so fall back to the variant's end year (1908 for
+`classic-press`, 1910 for `classic-gunboat`) when `WEBDIP_END_YEAR` is unset.
 
 ## HTTP API
 
