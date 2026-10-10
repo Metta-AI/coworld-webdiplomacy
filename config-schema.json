@@ -84,6 +84,25 @@
       "default": true,
       "title": "Render Maps",
       "type": "boolean"
+    },
+    "countries": {
+      "anyOf": [
+        {
+          "items": {
+            "maximum": 7,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maxItems": 7,
+          "minItems": 7,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Countries"
     }
   },
   "required": [

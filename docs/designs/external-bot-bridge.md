@@ -57,7 +57,8 @@ files. A generic TCP tunnel would still need our seat protocol and route control
   to 128 KiB and WebSocket responses to 16 MiB. SSE and arbitrary site endpoints
   are not exposed by the local bridge; polling is supported.
 - Write shell-quoted WEBDIP_URL, WEBDIP_API_KEY, WEBDIP_GAME_ID,
-  WEBDIP_COUNTRY_ID and WEBDIP_SEED to a newly created mode-0600 env file.
+  WEBDIP_COUNTRY_ID, WEBDIP_SEED, WEBDIP_END_YEAR and WEBDIP_SCORING to a newly
+  created mode-0600 env file.
   Never print tokens, request paths, private payloads or exception messages.
 - Return 503 while disconnected, 504 for a response deadline, and 410 after
   game-over. Reconnection never replays an in-flight request. Keep serving 410

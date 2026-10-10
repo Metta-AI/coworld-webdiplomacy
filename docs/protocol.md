@@ -30,7 +30,9 @@ The first message is:
 ```
 
 `rules` contains all episode settings except tokens. Country assignment is a
-seeded permutation; results are always in **slot order**, not country order.
+seeded permutation unless the `countries` setting pins it (see
+[Configuration](#configuration)); results are always in **slot order**, not
+country order.
 The base URL preserves the connection's Host header, including its port.
 With `mode=browser`, hello omits `api_key`; the token in the browser URL is still
 its seat capability. The launcher explicitly adds `mode=bot`. Connections carrying
@@ -38,9 +40,14 @@ its seat capability. The launcher explicitly adds `mode=bot`. Connections carryi
 `mode=bot`: a lobby proxy can replace the query, discarding custom mode flags
 and substituting a runtime token. This keeps that runtime key out of browser hello.
 
-The launcher sets `WEBDIP_URL`, `WEBDIP_API_KEY`, `WEBDIP_GAME_ID`, and
-`WEBDIP_COUNTRY_ID`, and `WEBDIP_SEED` for its bot subprocess. Bots use upstream HTTP routes directly,
-with `Authorization: Bearer <api_key>`. The adapter never submits their actions.
+The launcher sets `WEBDIP_URL`, `WEBDIP_API_KEY`, `WEBDIP_GAME_ID`,
+`WEBDIP_COUNTRY_ID`, `WEBDIP_SEED`, `WEBDIP_END_YEAR` and `WEBDIP_SCORING` for
+its bot subprocess. `WEBDIP_END_YEAR` is the last game year played: the episode
+ends after that year's autumn retreats. `WEBDIP_SCORING` is the `scoring` rule.
+Press type and phase lengths are not duplicated: upstream's public `game.json`
+reports them as `pressType`, `phaseMinutes` and `phaseMinutesRB`. Bots use
+upstream HTTP routes directly, with `Authorization: Bearer <api_key>`. The
+adapter never submits their actions.
 `game/setvote` returns plain text; context and order responses are JSON.
 See the [upstream bot API reference](upstream-bot-api.md) and upstream's own
 [API README](../webdiplomacy/api/README.md).
@@ -204,6 +211,15 @@ The 5910-second maximum reserves 90 seconds below the 100-minute episode ceiling
 `seed` defaults to a newly chosen 53-bit random integer per episode; explicit
 integers are preserved. Results and replay record the chosen seed. Launchers set
 `WEBDIP_SEED` to `episode_seed * 7 + slot`, distinct for all seven seats.
+`countries` is optional. When omitted, the episode seed shuffles the seven
+upstream country IDs across slots. When set, it must list each ID 1–7 exactly
+once, and `countries[slot]` becomes that slot's country (Classic order: 1
+England, 2 France, 3 Italy, 4 Germany, 5 Austria, 6 Turkey, 7 Russia), the same
+shape as the `countries` field in `results.json`. The seed still drives
+everything else. For example, `{"countries": [1, 2, 3, 4, 5, 6, 7]}` gives slot
+0 England and slot 6 Russia in every episode. A config holds one assignment, so
+rotating every seat through every power needs one config (for example one
+experiment request's `game_config_overrides`) per assignment.
 `render_maps` defaults to true and captures public PNGs through unmodified
 `map.php`. False omits PNGs; the public position map still renders.
 

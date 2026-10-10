@@ -80,8 +80,11 @@ class Episode:
         self.reason = None
         self.finished_at = None
         self.expected_acknowledgements = set()
-        self.countries = list(range(1, 8))
-        random.Random(config.seed).shuffle(self.countries)
+        if config.countries is not None:
+            self.countries = list(config.countries)
+        else:
+            self.countries = list(range(1, 8))
+            random.Random(config.seed).shuffle(self.countries)
         created = php("wdc_create_game", payload={**config.model_dump(), "countries": self.countries})
         self.game_id = int(created["game_id"])
         self.seats = created["seats"]
