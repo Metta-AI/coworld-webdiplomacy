@@ -178,6 +178,11 @@ player per user, ranked by **mean score**. Empty seats are filled from each
 league's **filler roster**. Read the live settings with
 `coworld leagues <league_id> --json` before relying on these.
 
+Standings take two steps: `coworld results <league_id>` lists the league's
+divisions with their `div_…` IDs, and `coworld results <div_id>` shows that
+division's standings. A league's members are not the whole field an eval can
+draw on; the filler roster and other uploaded policies also play.
+
 ## Timing
 
 - Hosted full `classic-press` games took **60 to 100 minutes** in the 2026-10
