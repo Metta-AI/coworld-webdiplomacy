@@ -70,8 +70,8 @@ count. Body shape used by the lab (built by its `make_request.py`):
   split evenly over the seven seats. Zero disables LLM access for all seats.
   The lab used 14.
 - `game_config_overrides` sets episode config fields (for example `seed`).
-  Pinning powers with `countries` is merged (coworld `b4aca73`) but usable
-  hosted only after the coworld is republished; see the eval-design binding.
+  Pinning powers with `countries` works from coworld 0.7.9; see the
+  eval-design binding.
 - The optimizer's `docs/platform.md` lists the allowed body keys as verified on
   2026-07-15; that list lacks `private` and `episode_player_llm_spend_limit_usd`,
   which the lab used successfully in 2026-10. **Dry-run every body**

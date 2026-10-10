@@ -10,7 +10,7 @@ server, pinned as a submodule in
 [Metta-AI/coworld-webdiplomacy](https://github.com/Metta-AI/coworld-webdiplomacy).
 Its docs are the long references; this file summarizes them. The links below
 point at commit `b4aca73` so they match what this lab was written against.
-Check the hosted version with `coworld games` before relying on a detail that
+Check the hosted version with `coworld list` before relying on a detail that
 may have changed.
 
 - [Player protocol](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/protocol.md): lifecycle, scoring, `results.json`
@@ -127,7 +127,7 @@ equal shares to survivors) but the leagues use the default.
 
 - The roster **slot** (0 to 6) is not the power. The adapter assigns powers by a
   seeded shuffle per episode, unless the optional `countries` setting pins them
-  (merged in `b4aca73`, pending republish; see the eval-design binding).
+  (coworld 0.7.9 and later; see the eval-design binding).
   `WEBDIP_COUNTRY_ID` tells the bot its power.
 - **`results.json` is in slot order.** `results.countries[slot]` is that slot's
   power ID.
