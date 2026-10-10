@@ -97,6 +97,15 @@ webdip-optimizer/          its own git repository, cloned from seed.lock
   clones a repository root, and `mixin/` is a subdirectory. `install.sh` writes
   the same provenance block itself. A separate `webdiplomacy-mixin` repository
   can be published later.
-- **The mixin's `tools/build.sh` (not written yet) will build against a
-  pinned ref of this public repository**, the same way `sugarscape-mixin`
-  does. Once installed, the lab no longer sits next to this checkout.
+- **The mixin's `tools/build.sh` builds against a pinned ref of this public
+  repository**, the same way `sugarscape-mixin` does. Once installed, the lab
+  no longer sits next to this checkout.
+- **`install.sh` adapts a few seed files to a single-game optimizer.** It
+  records the seed commit in `SEED.md`, because template copies squash history
+  and drop the `seed` remote. It replaces the onboarding's "pick a game" beat in
+  `docs/getting-started.md`, which would otherwise send the agent to
+  `add_game.sh` for a game that is already installed. With the Claude Code
+  harness it adds a SessionStart hook running the lab's `tools/check_clis.py`
+  and records the wiring under "Harness wiring" in `WORKING_CONTEXT.md`.
+  Each edit anchors on the pinned seed's text and fails the install if that text
+  moves, so bumping `seed.lock` surfaces them.
