@@ -1,8 +1,22 @@
 # webDiplomacy optimizer (prototype)
 
-**Status: prototype.** `install.sh` works. `mixin/` is the seed's template
-with webDiplomacy's identity filled in: no skill bindings, docs or reference
-policy yet. `ide/` and `INSTALL.md` do not exist yet.
+**Status: prototype.** `install.sh` works, and `mixin/` is filled: the lab
+manual (`mixin/AGENTS.md`), game docs, the five skill bindings, analysis tools
+(`mixin/tools/`), and the reference policy `mixin/players/castlereagh/`, built by
+`mixin/tools/build.sh`. `ide/` and `INSTALL.md` do not exist yet.
+
+The design is
+[docs/designs/webdiplomacy-mixin-2026-10-09.html](../docs/designs/webdiplomacy-mixin-2026-10-09.html).
+The reference policy adapts the personal_labs webdiplomacy_lab's Castlereagh:
+Kissinger search as the core, plus an optional press layer
+(`CASTLEREAGH_POLICY=search|press`, default `search`).
+
+Checks for the mixin (also run in CI):
+
+```sh
+uv run ruff check optimizer
+(cd optimizer/mixin && python3 -m unittest discover -s tools/tests)
+```
 
 ```sh
 optimizer/install.sh ~/coding/webdip-optimizer             # wires Claude Code

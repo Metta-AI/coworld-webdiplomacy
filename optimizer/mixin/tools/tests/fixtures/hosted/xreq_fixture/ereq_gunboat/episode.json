@@ -1,0 +1,51 @@
+{
+ "id": "ereq_gunboat",
+ "status": "completed",
+ "coworld_name": "webdiplomacy",
+ "coworld_version": "0.7.7",
+ "variant_name": "Classic gunboat",
+ "participants": [
+  {
+   "position": 0,
+   "policy_version_id": "272d637a-6628-4040-a28c-8e9fb1ccf96f",
+   "policy_name": "coworld-smoke/cow_c04cc127-41a3-48da-8e34-b5fa1965ba66",
+   "version": 1
+  },
+  {
+   "position": 1,
+   "policy_version_id": "272d637a-6628-4040-a28c-8e9fb1ccf96f",
+   "policy_name": "coworld-smoke/cow_c04cc127-41a3-48da-8e34-b5fa1965ba66",
+   "version": 1
+  },
+  {
+   "position": 2,
+   "policy_version_id": "272d637a-6628-4040-a28c-8e9fb1ccf96f",
+   "policy_name": "coworld-smoke/cow_c04cc127-41a3-48da-8e34-b5fa1965ba66",
+   "version": 1
+  },
+  {
+   "position": 3,
+   "policy_version_id": "272d637a-6628-4040-a28c-8e9fb1ccf96f",
+   "policy_name": "coworld-smoke/cow_c04cc127-41a3-48da-8e34-b5fa1965ba66",
+   "version": 1
+  },
+  {
+   "position": 4,
+   "policy_version_id": "272d637a-6628-4040-a28c-8e9fb1ccf96f",
+   "policy_name": "coworld-smoke/cow_c04cc127-41a3-48da-8e34-b5fa1965ba66",
+   "version": 1
+  },
+  {
+   "position": 5,
+   "policy_version_id": "272d637a-6628-4040-a28c-8e9fb1ccf96f",
+   "policy_name": "coworld-smoke/cow_c04cc127-41a3-48da-8e34-b5fa1965ba66",
+   "version": 1
+  },
+  {
+   "position": 6,
+   "policy_version_id": "177cede5-8535-4c47-add4-106d229c3003",
+   "policy_name": "webdiplomacy-random",
+   "version": 1
+  }
+ ]
+}

@@ -17,3 +17,6 @@ tactical-history.json
 .bazelrc.local
 
 build/
+.runtime/
+# Trimmed public seat logs used as test fixtures (no press text or credentials).
+!optimizer/mixin/tools/tests/fixtures/**/*.log

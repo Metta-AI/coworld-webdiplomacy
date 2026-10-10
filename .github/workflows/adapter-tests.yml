@@ -49,3 +49,27 @@ jobs:
             [ -f "$log" ] || continue
             echo "::group::$log"; cat "$log"; echo "::endgroup::"
           done
+  optimizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.11.8'
+          python-version: '3.12'
+      - run: uv sync --locked --group dev
+      - run: uv run ruff check optimizer
+      - working-directory: optimizer/mixin
+        run: python3 -m unittest discover -s tools/tests -v
+      # Includes the golden search test (334 recorded decisions, about a minute).
+      - working-directory: optimizer/mixin
+        run: >-
+          uv run --no-project --python 3.12 --with "pydantic-ai-slim[openai]==2.54.0"
+          python -m unittest discover -s players/castlereagh/tests -v
+      - run: |
+          git config --global user.name "CI"
+          git config --global user.email "ci@example.invalid"
+          optimizer/install.sh "$RUNNER_TEMP/webdip-optimizer" --harness claude-code
+      - name: Installed lab has no unfilled placeholders
+        run: |
+          ! grep -rn '{{' "$RUNNER_TEMP/webdip-optimizer/games/webdiplomacy" --include='*.md'
