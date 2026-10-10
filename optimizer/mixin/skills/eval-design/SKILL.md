@@ -98,7 +98,7 @@ effect lands at z ≈ 1.9 to 2.9. At 16 per arm the difference SE is 0.04 to
 
 - **Default: powers are shuffled** by the episode seed. Decompose by power in
   analysis (the ab binding); that needs no pinning.
-- **Pin powers with `countries`** (coworld 0.7.9 and later): `countries[slot]`
+- **Pin powers with `countries`** (webDiplomacy Coworld 0.7.9 and later): `countries[slot]`
   is that slot's upstream country ID (a permutation of 1 to 7). Set it through
   `game_config_overrides.countries` with **fixed integer slots** in the roster.
   Seeds still vary, so episodes still differ. The setting is not yet tried in a

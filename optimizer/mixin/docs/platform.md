@@ -13,7 +13,10 @@ marked otherwise. The platform changes; re-check anything a decision depends on.
 
 - Install the CLIs as uv tools, not into a project:
   `uv tool install coworld` and `uv tool install softmax-cli`. Then
-  `softmax login` and `softmax status`.
+  `softmax login` and `softmax status`. `python3 games/webdiplomacy/tools/check_clis.py`
+  (also a SessionStart hook) reports a missing or outdated tool with the fix;
+  `uv tool install --force <package>` updates one, including a stale install
+  from a local checkout.
 - **Use a private `HOME` per session.** The CLI keeps credentials and the active
   player in `~/.softmax/credentials.yaml`, shared by every session on the
   machine. Another session running `coworld player use` silently switches your
@@ -70,7 +73,7 @@ count. Body shape used by the lab (built by its `make_request.py`):
   split evenly over the seven seats. Zero disables LLM access for all seats.
   The lab used 14.
 - `game_config_overrides` sets episode config fields (for example `seed`).
-  Pinning powers with `countries` works from coworld 0.7.9; see the
+  Pinning powers with `countries` works from webDiplomacy Coworld 0.7.9; see the
   eval-design binding.
 - The optimizer's `docs/platform.md` lists the allowed body keys as verified on
   2026-07-15; that list lacks `private` and `episode_player_llm_spend_limit_usd`,

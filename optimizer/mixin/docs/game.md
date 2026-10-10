@@ -127,7 +127,7 @@ equal shares to survivors) but the leagues use the default.
 
 - The roster **slot** (0 to 6) is not the power. The adapter assigns powers by a
   seeded shuffle per episode, unless the optional `countries` setting pins them
-  (coworld 0.7.9 and later; see the eval-design binding).
+  (webDiplomacy Coworld 0.7.9 and later; see the eval-design binding).
   `WEBDIP_COUNTRY_ID` tells the bot its power.
 - **`results.json` is in slot order.** `results.countries[slot]` is that slot's
   power ID.

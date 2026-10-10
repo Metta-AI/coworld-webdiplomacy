@@ -11,8 +11,12 @@
 #    add_game.sh itself cannot be used: it clones a repository root, and the
 #    mixin is a subdirectory here.
 # 3. Copy optimizer/ide/ to ide/, when it exists.
-# 4. List the lab under "Active games" in the root WORKING_CONTEXT.md.
-# 5. Run the seed's harness wiring (default: claude-code).
+# 4. List the lab under "Active games" in the root WORKING_CONTEXT.md, record the seed
+#    commit in SEED.md, replace the onboarding's "pick a game" beat (the game is already
+#    installed), and put a webDiplomacy banner on README.md.
+# 5. Run the seed's harness wiring (default: claude-code), plus a SessionStart hook
+#    that warns when the coworld or softmax CLI is stale; record the wiring in
+#    WORKING_CONTEXT.md.
 # 6. Commit the install as one unit in the new repository.
 #
 # Only files git would track are copied (tracked, or untracked and not
@@ -120,7 +124,49 @@ else
   echo "warning: WORKING_CONTEXT.md has no 'Active games' placeholder; add the lab by hand" >&2
 fi
 
-# --- 4b. README banner ---
+# --- 4a. seed provenance ---
+# SEED.md says to diff against the recorded seed version, but the seed records only
+# "0.1.0-dev". Record the commit: template copies squash history and drop the seed remote,
+# so this row is the only place the planted seed commit survives.
+python3 - "$TARGET/SEED.md" "$SEED_COMMIT" << 'PYEOF'
+import pathlib, sys
+path, commit = pathlib.Path(sys.argv[1]), sys.argv[2]
+anchor = "| **Upstream** | https://github.com/Metta-AI/optimizer-seed |\n"
+text = path.read_text()
+if anchor not in text:
+    sys.exit(f"error: {path} has no Upstream row; update install.sh for this seed version")
+path.write_text(text.replace(anchor, anchor + f"| **Commit** | {commit} |\n", 1))
+PYEOF
+
+# --- 4b. onboarding ---
+# The seed's guided session has the user pick a game and run add_game.sh. This optimizer
+# already has its game, so replace that beat; an agent following it would try to reinstall.
+python3 - "$TARGET/docs/getting-started.md" << 'PYEOF'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+beat = """### 2 · Your game: webDiplomacy
+
+This optimizer already has its game: the webDiplomacy lab is installed in
+`games/webdiplomacy/` and listed under "Active games" in `WORKING_CONTEXT.md`.
+**Do not run `tools/add_game.sh`** and do not offer other games.
+
+Show the webDiplomacy leagues (`coworld leagues`) with one plain line each: the
+main league plays with press (negotiation), the Gunboat league without. Explain
+that their optimizer already has a **lab** for this game: its rules, its
+community's earned knowledge, a reference policy, and the tools to measure it.
+Then set the expectation for the next beat: **"before we change anything,
+we're going to learn how this game is actually won."**
+
+"""
+text = path.read_text()
+pattern = re.compile(r"### 2 · Pick a game\n.*?tools/add_game\.sh <mixin-repo-url>.*?(?=### 3 · )", re.S)
+text, count = pattern.subn(lambda _: beat, text)
+if count != 1:
+    sys.exit(f"error: {path} has no 'Pick a game' beat to replace; update install.sh for this seed version")
+path.write_text(text)
+PYEOF
+
+# --- 4c. README banner ---
 # The seed's README describes the bare seed; say what this copy is first.
 README="$TARGET/README.md"
 {
@@ -141,8 +187,10 @@ Use GitHub's "Use this template" button, or:
 gh repo create my-webdip-optimizer --template Metta-AI/webdip-optimizer --private --clone
 \`\`\`
 
-Then sign in with \`softmax login\`, start your coding agent in the clone, and
-have it open \`docs/getting-started.md\`. Cloud sessions keep nothing that is
+Install the Softmax CLIs with [uv](https://docs.astral.sh/uv/)
+(\`uv tool install coworld\` and \`uv tool install softmax-cli\`), sign in with
+\`softmax login\`, then start your coding agent in the clone and have it open
+\`docs/getting-started.md\`. Cloud sessions keep nothing that is
 not pushed, so commit and push before a session ends.
 
 ---
@@ -155,6 +203,38 @@ mv "$README.new" "$README"
 # --- 5. harness ---
 if [[ "$HARNESS" == "claude-code" ]]; then
   "$TARGET/harness/claude-code/install.sh"
+  # Add the lab's CLI version check to SessionStart. It prints only when the coworld or
+  # softmax uv tool is missing or older than PyPI's latest, and never fails the session.
+  python3 - "$TARGET/.claude/settings.json" << 'PYEOF'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+settings = json.loads(path.read_text())
+settings["hooks"]["SessionStart"].append({"hooks": [{
+    "type": "command",
+    "command": 'python3 "$CLAUDE_PROJECT_DIR/games/webdiplomacy/tools/check_clis.py"',
+    "timeout": 20,
+    "statusMessage": "Checking coworld and softmax CLI versions",
+}]})
+path.write_text(json.dumps(settings, indent=2) + "\n")
+PYEOF
+  echo "Hooks: added the webDiplomacy CLI version check to SessionStart."
+  # Record the wiring, as harness/README.md's self-wiring step requires, so the first
+  # session can tell from disk that Claude Code is already wired.
+  python3 - "$WORKING_CONTEXT" "$TODAY" << 'PYEOF'
+import pathlib, sys
+path, today = pathlib.Path(sys.argv[1]), sys.argv[2]
+placeholder = """*(recorded by the self-wiring step during onboarding: which runtime, which
+hooks were installed, date)*"""
+record = f"""- Claude Code: wired by `optimizer/install.sh` on {today}. Skills are linked in
+  `.claude/skills/`; `.claude/settings.json` runs `rotate_lessons.sh` and the lab's
+  `check_clis.py` at SessionStart, and both stop nudges at Stop. Nothing to do.
+- Any other runtime: not wired. Do the self-wiring step in `harness/README.md`
+  and record it here."""
+text = path.read_text()
+if placeholder not in text:
+    sys.exit(f"error: {path} has no 'Harness wiring' placeholder; update install.sh for this seed version")
+path.write_text(text.replace(placeholder, record, 1))
+PYEOF
 fi
 
 # --- 6. commit ---
