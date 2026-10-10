@@ -14,7 +14,7 @@ git submodule update --init --recursive
 uv sync --group dev
 docker compose build player
 docker build --platform linux/amd64 -t herald:local players/examples
-uv run coworld build --version 0.7.8
+uv run coworld build --version 0.7.9
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json herald:local \
   --run /opt/.venv/bin/python --run=-m --run players.launcher \

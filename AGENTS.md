@@ -62,7 +62,7 @@ uv run ruff check adapter players tools optimizer
 (cd optimizer/mixin && python3 -m unittest discover -s tools/tests)   # optimizer tools
 (cd optimizer/mixin && uv run --no-project --python 3.12 --with "pydantic-ai-slim[openai]==2.54.0" \
   python -m unittest discover -s players/castlereagh/tests)          # reference policy
-uv run coworld build --version 0.7.8                              # images + dist/ manifest
+uv run coworld build --version 0.7.9                              # images + dist/ manifest
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```
