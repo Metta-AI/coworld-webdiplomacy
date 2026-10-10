@@ -150,8 +150,10 @@ This optimizer already has its game: the webDiplomacy lab is installed in
 `games/webdiplomacy/` and listed under "Active games" in `WORKING_CONTEXT.md`.
 **Do not run `tools/add_game.sh`** and do not offer other games.
 
-Show the webDiplomacy leagues (`coworld leagues`) with one plain line each: the
-main league plays with press (negotiation), the Gunboat league without. Explain
+Show the two webDiplomacy leagues with one plain line each: the main league plays
+with press (negotiation), the Gunboat league without. Their IDs and the standings
+commands are under "Leagues" in `games/webdiplomacy/docs/game.md`; plain
+`coworld leagues` lists every public league, so don't scan it. Explain
 that their optimizer already has a **lab** for this game: its rules, its
 community's earned knowledge, a reference policy, and the tools to measure it.
 Then set the expectation for the next beat: **"before we change anything,
