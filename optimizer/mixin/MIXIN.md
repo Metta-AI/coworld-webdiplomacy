@@ -5,24 +5,14 @@ the load-bearing part — **every skill this mixin provides**, so core skills
 resolve bindings here instead of guessing, gaps are machine-checkable, and
 extra capabilities are discoverable.
 
-**Placeholder conventions** (delete this note when filling in):
-`webDiplomacy` = the human-readable game name. `webdiplomacy` = the
-lowercase directory-safe name; it should match the lab's directory
-(`games/<slug>/`, i.e. what `add_game.sh --name` was given) — core skills
-address the lab by directory, so a mismatched slug in skill frontmatter is
-cosmetic, but keep them aligned anyway. Rows marked *(optional)* may be
-deleted when not shipped; `.gitkeep` files exist only to keep empty
-directories in git — delete them once a directory has real content (keep
-`instruments/.gitkeep`: that directory should exist even when empty).
-
 ## Identity
 
 | | |
 |---|---|
-| **Game** | webDiplomacy |
-| **Coworld** | `webdiplomacy`, built from https://github.com/Metta-AI/coworld-webdiplomacy (`coworld_manifest_template.json`); check the hosted version with `coworld games` — free-form for humans (name + version + where its manifest lives); no core skill parses this |
-| **League(s)** | "webDiplomacy" `league_1bccc63d-cd0a-47d7-92d7-e762797b5f1c` (`classic-press`, main) and "webDiplomacy Gunboat" `league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17` (`classic-gunboat`) — the `league_…` id(s), from `coworld leagues --json` |
-| **Game source of truth** | the upstream webDiplomacy server at the coworld-webdiplomacy submodule commit, via that repo's `docs/upstream-bot-api.md` — never answer mechanics questions from memory |
+| **Game** | webDiplomacy: classic seven-power Diplomacy on the real, unmodified webDiplomacy server. Seven seats per episode, simultaneous orders, scored by share of supply centers squared |
+| **Coworld** | `webdiplomacy`, built from https://github.com/Metta-AI/coworld-webdiplomacy (`coworld_manifest_template.json`). This lab was written against commit `b4aca73`; check the hosted version with `coworld games` |
+| **League(s)** | "webDiplomacy" `league_1bccc63d-cd0a-47d7-92d7-e762797b5f1c` (`classic-press`, the main league) and "webDiplomacy Gunboat" `league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17` (`classic-gunboat`, no press). Re-resolve with `coworld leagues --json` |
+| **Game source of truth** | The upstream webDiplomacy server at the coworld-webdiplomacy submodule commit, via that repo's `docs/upstream-bot-api.md` (cites upstream file and line) — never answer mechanics questions from memory |
 
 ## Provenance
 
@@ -54,20 +44,20 @@ announce gaps and proceed on their generic method with the human warned.
 
 | Binding | Path | What it provides | Use when |
 |---|---|---|---|
-| `ab` | `skills/ab/` | Metrics that matter here, decompositions (roles/seats/phases), taint definition, appropriate statistical tests, N floors — ideally with working tooling | Any comparison between versions or policies (core: `ab-compare`) |
-| `survey` | `skills/survey/` | What a batch overview shows for this game; which stats and splits make an episode "interesting" | Reading any batch of episodes (core: `survey`) |
-| `replay-inspection` | `skills/replay-inspection/` | How to open/decode/expand this game's replays; what the policy's own artifacts contain; the shared clock for joining them | Extracting truth from episodes (core: `replay-inspection`) |
-| `eval-design` | `skills/eval-design/` | Sensible rosters, episode-count floors by question type, role pinning options, pacing limits for this game | Designing any hosted eval (core: `run-eval`) |
-| `diagnosis` | `skills/diagnosis/` | This game's failure vocabulary and diagnostic instruments | Turning signals into hypotheses (core: `diagnose`) |
+| `ab` | `skills/ab/` | Score vs same-batch field par **per power** as the headline metric; paired seating as the default design; \|z\| < 2 = no result; measured sizing priors (SD 0.12–0.18, about 150/arm for 0.04); the taint list (cancelled, rejected orders, exceptions, missing artifacts, failing LLM seats, mixed opponent sets); `wd.py metrics`, `paired.py`, `compare.py` | Any comparison between versions or policies (core: `ab-compare`) |
+| `survey` | `skills/survey/` | The per-power overview table with outcome, reason and health lines; which episodes are worth opening (crashes, failing LLM seats, opponent solos, early elimination, big swings, best and worst per power); `wd.py metrics` and `seats` | Reading any batch of episodes (core: `survey`) |
+| `replay-inspection` | `skills/replay-inspection/` | The replay frame format (gzip JSON of public upstream files), our own artifacts (`decision` lines, `llm_call` events, private press), the `(turn, phase)` clock, what to look at; the episode loader. A local game viewer comes later | Extracting truth from episodes (core: `replay-inspection`) |
+| `eval-design` | `skills/eval-design/` | Opponents from the current field, fixed within a campaign, explicit `policy_ref`s; paired and separate-arm rosters with a request example; no self-play verdicts; health check on `classic-press-short`; floors; country pinning (merged, pending republish); cost and duration; local-run tools | Designing any hosted eval (core: `run-eval`) |
+| `diagnosis` | `skills/diagnosis/` | Known failure modes (silent order drops, invisible degradation, wrong map knowledge, misplaced trust, ignoring the game horizon, over-tuning) and a six-step procedure for new problems (a sketch, to build out) | Turning signals into hypotheses (core: `diagnose`) |
 
 ### Meta-recon support
 
-*(expected: at least entry-level decode knowledge or tooling so `meta-recon`
-is never blind — strategy docs count; deeper instruments can grow in the lab)*
-
 | Provides | Path | Notes |
 |---|---|---|
-| {{e.g. strategy/meta docs}} | `docs/strategy.md` | … |
+| Strategy doc | `docs/strategy.md` | A general Diplomacy primer (not yet verified against this field) and measured field facts from 2026-10: power par, the strongest seats, league rosters |
+| Game reference | `docs/game.md` | Rules, scoring, `results.json`, variants, leagues, timing |
+| Platform notes | `docs/platform.md` | XP requests, costs, artifacts, LLM sidecar quirks, credentials |
+| Field decode | `skills/replay-inspection/`, `skills/survey/` | Replays carry every power's adjudicated orders and public press; `wd.py seats` gives every seat's center trajectory. Rivals' logs are not readable |
 
 ### Additional skills
 
@@ -82,7 +72,8 @@ required set. List them all: an unlisted skill is an undiscoverable one.)*
 
 | Element | Path | Notes |
 |---|---|---|
-| Game docs | `docs/` | Enough that a newcomer understands the game without leaving the repo, including how it's won |
-| Reference policy | `players/{{REF_POLICY}}/` | Buildable; the starting point `seed-a-policy` improves on. Give it a real `VERSION_LOG.md`; keep `players/_VERSION_LOG_template.md` in place for future policies |
-| Build tooling | `tools/build.sh` | The build entry point `build-upload` invokes. Convention: `build.sh [--ref <game-ref>] [--tag <image-tag>]` — builds the policy image for linux/amd64 and prints the image tag; pinned game/SDK refs live inside with their rationale |
-| Eval defaults | `eval_defaults.yaml` | *(optional — machine-readable defaults for `run-eval`; delete this row if not shipped and say so in the eval-design binding)* |
+| Lab manual | `AGENTS.md` | How to use this lab, the knowledge map, the loop table and the gotchas |
+| Game docs | `docs/` | `game.md` (rules, scoring, results, variants, leagues), `protocol.md` (the bot contract), `platform.md` (hosted specifics), `strategy.md` (primer and measured field facts) |
+| Reference policy | `players/castlereagh/` | Python package `castlereagh`. Kissinger search as the core, plus an optional LLM press layer. Mode set by `CASTLEREAGH_POLICY`: `search` (default; press off), `press` (search plus press; plays its search floor without `COWORLD_LLM_ENDPOINT`). Logs one `decision` line per phase. The starting point `seed-a-policy` improves on |
+| Build tooling | `tools/build.sh` | `tools/build.sh [--ref <game-ref>] [--tag <image-tag>] [--policy search\|press]`. Builds the coworld player base image from a pinned coworld-webdiplomacy commit on GitHub, then the reference policy, for linux/amd64; prints the tag (default `webdip-castlereagh-<policy>:latest`). Needs Docker |
+| Instruments | `tools/` | Standard-library Python: `webdip_episodes.py` (loader), `wd.py` (`metrics`, `seats`, `costs`, `local`, `arena`, `slim`), `paired.py`, `compare.py`, `llm_sidecar_local.py`. See `AGENTS.md` |

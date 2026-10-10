@@ -595,11 +595,11 @@
     <h2>4 · The <code>survey</code> binding</h2>
     <ul class="key-points">
       <li>An overview per policy and power, then a short list of games worth opening.</li>
-      <li>One tool, <code>wd_summary.py</code>, ported from the lab.</li>
+      <li>One tool, <code>wd.py metrics</code> and <code>wd.py seats</code>, ported from the lab.</li>
     </ul>
     <p>The overview gives, for each policy and power: games played, score against par, final centers, survival and solo rate, plus the mix of outcomes and reasons.</p>
     <p>Games worth opening: our power eliminated early, an opponent solo, our best and worst game per power, a large center swing within one year (a stab or a collapse) and failing LLM seats.</p>
-    <p><code>wd_summary.py</code> ports the lab's <code>wd.py metrics</code> and <code>seats</code> commands. <code>seats</code> gives one JSON row per seat, including the supply-center trajectory by year.</p>
+    <p><code>wd.py metrics</code> and <code>wd.py seats</code> are the lab's commands, ported. <code>seats</code> gives one JSON row per seat, including the supply-center trajectory by year.</p>
   </section>
 
   <section id="s5">
@@ -677,10 +677,10 @@
       <thead><tr><th>Tool</th><th>What it does</th><th>Needs</th></tr></thead>
       <tbody>
         <tr><td><code>webdip_episodes.py</code> (193 lines)</td><td>The single episode loader: results, replay and seat logs. Handles bytes-literal logs.</td><td>Standard library</td></tr>
-        <tr><td><code>wd_summary.py</code></td><td>Port of <code>wd.py metrics</code> and <code>seats</code>: per-power score against field par, coverage and telemetry.</td><td>Standard library</td></tr>
+        <tr><td><code>wd.py metrics</code>, <code>wd.py seats</code></td><td>Ported from the lab: per-power score against field par, coverage and telemetry.</td><td>Standard library</td></tr>
         <tr><td><code>paired.py</code> (42 lines)</td><td>Paired difference and z.</td><td>Standard library</td></tr>
         <tr><td><code>compare.py</code> (102 lines)</td><td>A/B by power.</td><td>Standard library</td></tr>
-        <tr><td><code>wd_costs</code></td><td>From <code>wd.py costs</code>: LLM cost per seat and phase.</td><td>Standard library</td></tr>
+        <tr><td><code>wd.py costs</code></td><td>LLM cost per seat and phase.</td><td>Standard library</td></tr>
         <tr><td><code>wd.py local</code></td><td>Local run with all seats on one image.</td><td>Docker</td></tr>
         <tr><td><code>wd.py arena</code></td><td>One candidate against a local field.</td><td>Docker</td></tr>
         <tr><td><code>llm_sidecar_local.py</code> (125 lines)</td><td>Local emulator of the hosted LLM sidecar. It is the only way to run an LLM bot locally on its hosted code path.</td><td><code>OPENROUTER_API_KEY</code></td></tr>
