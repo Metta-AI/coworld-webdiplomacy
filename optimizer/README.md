@@ -29,7 +29,8 @@ first version (2026-10-11). `INSTALL.md` is planned and does not exist yet.
   The coding agent comes first: it starts the IDE (`ide/ide start --open`), and what the
   user types in the browser reaches that running session through Claude Code hooks. The
   pages: a home page (where the followed policy stands and which games to open), replays
-  with notes and the press audit laid over them, a dashboard of `matchups.py`, and the
+  with notes and the press audit laid over them, a dashboard of `matchups.py`, the
+  experiment records with the paired result of their games so far, and the
   reports the write-up skills produce. The agent answers and posts
   cards with `ide/ide say` and `ide/ide show`, or the same actions as tools on the
   `ide/ide mcp` stdio server.

@@ -3,8 +3,9 @@
   GET /    the headline number for the policy the user follows (the `dashboard_policy` cookie,
            else the dashboard's own default), "Games worth opening" (the lowest and highest
            scores among that policy's recent games, with flags and who lied to us), the
-           user's notes not yet sent to the agent, and the reports written since the last
-           sitting.
+           experiments that are running (with how many of their games are in), the user's
+           notes not yet sent to the agent, the reports written since the last sitting, and
+           the agent's newest idea cards with their two actions.
 
 Nothing here is computed twice. The headline is `routes_dashboard.summary()`: the dashboard's
 choice of policy and variant, its cached report and its sentence. The games come from the
@@ -21,7 +22,7 @@ import time
 
 from fastapi import APIRouter, Request
 
-from . import episodes, hooks, paths, routes_dashboard, routes_reports, store
+from . import episodes, hooks, paths, routes_dashboard, routes_experiments, routes_reports, store
 from .server import render
 
 router = APIRouter()
@@ -212,6 +213,7 @@ def home(request: Request):
         games=total,
         notes=unsent_notes(),
         reports=reports(since),
+        experiments=routes_experiments.running(),
         since=since,
         parity=episodes.PARITY,
         status=hooks.agent_status(),

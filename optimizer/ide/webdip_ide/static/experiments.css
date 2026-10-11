@@ -1,0 +1,48 @@
+/* Experiments: the list of records, one record, and what the lab has closed.
+   Tokens and base components are in app.css; a record's text uses the report styles (reports.css). */
+
+.nowrap { white-space: nowrap; }
+
+/* The list: one entry per record, set as text and parted by hairlines. No boxes. */
+.experiment-list { list-style: none; margin: 0; padding: 0; max-width: 100ch; }
+.experiment { padding: var(--s4) 0; border-bottom: 1px solid var(--rule-subtle); }
+.experiment:first-child { padding-top: var(--s2); }
+.experiment:last-child { border-bottom: 0; padding-bottom: 0; }
+.experiment p { margin: 0; }
+.experiment-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s3); }
+.experiment-head .tag { align-self: center; }
+.tag .dot { width: 6px; height: 6px; margin-right: 5px; vertical-align: 0; }
+.experiment-title { font: 700 var(--text-lg)/1.3 var(--serif); color: var(--ink); text-decoration-color: transparent; }
+.experiment-title:hover { color: var(--navy); text-decoration-color: var(--navy); }
+.experiment-versions { margin-top: 2px !important; }
+.experiment-hypothesis {
+  margin-top: var(--s2) !important; max-width: var(--measure); color: var(--ink-2);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+}
+.experiment-facts { margin: var(--s2) 0 0; }
+.experiment-facts dd .tag { margin: 0 var(--s1); }
+.experiments-page .about, .experiment-view .about { max-width: 100ch; }
+
+/* What is closed: a name and the number that closed it; the rest opens in place. */
+.experiments-page h3 .count { font-family: var(--mono); font-weight: 400; letter-spacing: 0; color: var(--ink-3); }
+.closed-list { list-style: none; margin: 0 0 var(--s4); padding: 0; max-width: 100ch; }
+.closed-list > li { border-bottom: 1px solid var(--rule-subtle); }
+.closed-list summary { cursor: pointer; padding: 6px 0; list-style-position: outside; margin-left: 1.1em; }
+.closed-list summary:hover .closed-name { color: var(--navy); }
+.closed-name { font-weight: 600; }
+.closed-why { display: block; color: var(--ink-2); font-size: var(--text-sm); }
+.closed-list .md { margin: 0 0 var(--s3) 1.1em; max-width: var(--measure); font-size: var(--text-sm); }
+
+/* One record. */
+.experiment-view .eyebrow a { color: inherit; text-decoration: none; }
+.experiment-view .eyebrow a:hover { color: var(--navy); }
+.experiment-view .page-head { margin-bottom: var(--s3); align-items: center; }
+.experiment-record { max-width: 100ch; font-size: var(--text-md); gap: var(--s2) var(--s4); }
+.experiment-record dd { max-width: var(--measure); overflow-wrap: anywhere; }
+.experiment-record summary { cursor: pointer; }
+.experiment-lead { margin: 2px 0 var(--s1); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s3); }
+.experiment-lead strong { font: 700 1.6rem/1.2 var(--serif); letter-spacing: -0.01em; }
+.experiment-lead .tag { align-self: center; }
+.experiment-links { margin-bottom: var(--s2); }
+.experiment-links .btn { padding-left: 0; color: var(--navy); text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 3px; }
+.experiment-versions-table td { max-width: 60ch; }

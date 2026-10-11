@@ -12,6 +12,8 @@
 //   window.ide.onUpdate(fn)                fn({status, presence, messages, cards}) after every poll
 //   window.ide.openPanel()
 //   window.ide.draft(text)                 put text in the message box for the user to edit and send
+//   window.ide.ideaActions(card)           "Test this idea" and "Not now" for an idea card, or null when the
+//                                          card is not an idea or the user chose "Not now" in this browser
 //
 // No dependencies, no build step. The page polls the JSON API every two seconds.
 (function () {
@@ -243,7 +245,51 @@
       if (href.charAt(0) !== "/") { open.target = "_blank"; open.rel = "noopener"; }
       node.appendChild(open);
     }
+    // Under the title, not under the body: an idea's evidence can run to several screens.
+    var actions = ideaActions(card);
+    if (actions) heading.after(actions);
     return node;
+  }
+
+  // --- idea cards: from an idea to an experiment in one click ---
+
+  // "Not now" is remembered in this browser only (card ids in localStorage): the card stays, its
+  // two buttons go. The server keeps no state about it.
+  var IDEAS_NOT_NOW = "ide.ideasNotNow";
+  function ideasNotNow() {
+    try { return JSON.parse(localStorage.getItem(IDEAS_NOT_NOW)) || []; } catch (error) { return []; }
+  }
+
+  // The request "Test this idea" puts in the message box. It asks for the whole loop the lab's
+  // experiment skill describes, so the user only has to press Enter (or change it first).
+  function testIdeaText(card) {
+    return "Test this idea: \u201c" + card.title + "\u201d. Open an experiment record for it with the experiment skill " +
+      "(check closed_levers.md first; write the hypothesis, the predictions and the decision rule before anything is built), " +
+      "make the one change as a new version, run a paired A/B against the current version at the lab's default size " +
+      "(tools/run_ab.py: 28 games) and a health game, and post a result card that links to the record (/experiments/<id>).";
+  }
+
+  function ideaActions(card) {
+    if (card.kind !== "idea" || ideasNotNow().indexOf(card.id) !== -1) return null;
+    var row = el("div", "idea-actions");
+    row.dataset.idea = card.id;
+    var test = el("button", "small", "Test this idea");
+    test.type = "button";
+    test.title = "Puts a request for an experiment in the message box. Nothing is sent until you press Enter.";
+    test.addEventListener("click", function () { draft(testIdeaText(card)); });
+    var later = el("button", "small plain", "Not now");
+    later.type = "button";
+    later.title = "Hide these two buttons for this idea in this browser. The card stays in the Cards tab.";
+    later.addEventListener("click", function () {
+      try { localStorage.setItem(IDEAS_NOT_NOW, JSON.stringify(ideasNotNow().concat([card.id]))); } catch (error) { /* private mode */ }
+      document.querySelectorAll(".idea-actions").forEach(function (other) {
+        if (other.dataset.idea === card.id) other.remove();
+      });
+      listeners.forEach(function (fn) { try { fn(state); } catch (error) { console.error(error); } });
+    });
+    row.appendChild(test);
+    row.appendChild(later);
+    return row;
   }
 
   // Where a card's link goes, in words rather than as a path.
@@ -255,6 +301,8 @@
     if (/^\/dashboard/.test(href)) return "Open the dashboard →";
     if (/^\/reports\/[^/?]+\/[^/?]+/.test(href)) return "Read the report →";
     if (/^\/reports/.test(href)) return "Open Reports →";
+    if (/^\/experiments\/[^/?]+/.test(href)) return "Open the experiment →";
+    if (/^\/experiments/.test(href)) return "Open Experiments →";
     return "Open " + href.split("?")[0] + " →";
   }
 
@@ -498,6 +546,7 @@
     safeHref: safeHref,
     when: when,
     cardElement: cardElement,
+    ideaActions: ideaActions,
     onUpdate: function (fn) { listeners.push(fn); if (state.status) fn(state); },
     openPanel: openPanel,
   };

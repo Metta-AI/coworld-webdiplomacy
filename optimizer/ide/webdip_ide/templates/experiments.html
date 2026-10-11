@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Experiments{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/experiments.css">{% endblock %}
+{# The list of experiment records (routes_experiments.py) and what the lab has already closed. #}
+{% block content %}
+<div class="page experiments-page"{% if pending %} data-reload="4"{% elif any_running %} data-reload="30"{% endif %}>
+  <div class="page-head">
+    <h1>Experiments</h1>
+    <span class="muted small">One record per hypothesis, written by the agent in <code>experiments/</code> before it
+      runs anything. The files are the record; this page lists them and reads the games on disk.</span>
+  </div>
+
+  {% if pending %}
+  <p class="small muted" role="status"><span class="dot warn pulse"></span>Still reading games: {{ pending }} to go.
+    The numbers below cover the games read so far; this page fills in by itself.</p>
+  {% endif %}
+
+  <section aria-labelledby="experiments-h">
+    <h2 id="experiments-h">Records</h2>
+    {% if rows %}
+    <p class="about">Newest first. “Now” is the lab's <code>tools/paired.py</code> on the games in the record's
+      artifact folder at this moment: the candidate's score minus the baseline's in the same games. The lab calls
+      |z| below 2 no result. A closed record's own Result section is the reading that counts.</p>
+    <ol class="experiment-list">
+      {% for row in rows %}
+      {% set r = row.result %}
+      <li class="experiment{{ ' is-running' if row.status == 'running' }}">
+        <p class="experiment-head">
+          <span class="tag {{ tones.get(row.status, '') }}">{% if row.status == "running" %}<span class="dot warn pulse"></span>{% endif %}{{ row.status }}</span>
+          <a class="experiment-title" href="{{ row.link }}">{{ row.title }}</a>
+          {% if row.date %}<span class="muted small nowrap">{{ row.date | day }}</span>{% endif %}
+        </p>
+        <p class="experiment-versions small">
+          {% if row.baseline or row.candidate %}<span class="mono">{{ row.baseline or "no baseline yet" }}</span>
+          <span class="muted" aria-label="to">→</span> <span class="mono">{{ row.candidate or "no candidate yet" }}</span>
+          {% else %}<span class="muted">No versions named yet</span>{% endif %}
+          <span class="muted">· {{ row.evals | length }} batch{{ "" if row.evals | length == 1 else "es" }}{% if row.title != row.id %} · <span class="mono">{{ row.id }}</span>{% endif %}</span>
+        </p>
+        {% if row.hypothesis %}
+        <p class="experiment-hypothesis" title="{{ row.hypothesis }}">{{ row.hypothesis_html | safe }}</p>
+        {% else %}
+        <p class="experiment-hypothesis empty">The agent has opened this record and not written its hypothesis yet.</p>
+        {% endif %}
+        <dl class="facts experiment-facts">
+          {% if row.decision_rule %}
+          <dt>Rule</dt>
+          <dd title="{{ row.decision_rule }}">{% if row.rule_brief %}a win needs {{ row.rule_brief }}{% else %}{{ row.decision_rule | truncate(140) }}{% endif %}</dd>
+          {% endif %}
+          <dt>Now</dt>
+          <dd>{% if r.report %}<span class="muted">{{ r.minus }}</span> <span class="num">{{ r.words }}</span>
+            <span class="tag {{ r.tone }}">{{ r.verdict }}</span>
+            <span class="muted">{{ r.progress }}{% if r.report.dropped_tainted %}, {{ r.report.dropped_tainted }} left out as tainted{% endif %}</span>
+            {% elif r.games_in %}<span class="muted">{{ r.progress }}; no game seats both versions{% if not (row.baseline and row.candidate) %} (the record does not name them yet){% endif %}</span>
+            {% else %}<span class="muted">{{ r.progress }}{% if row.status in ("running", "proposed") %}: nothing in <code>.runtime/artifacts/{{ row.batch }}</code>{% endif %}</span>{% endif %}</dd>
+        </dl>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="empty">No experiment records yet.</p>
+    <p class="prose">An experiment is a record the agent writes before it runs anything: one hypothesis, what it
+      expects to see if the hypothesis is true and if it is false, and the rule the result will be read against.
+      Then it builds the one change, plays the new version against the old one in the same games, and writes the
+      verdict in the same file. Records appear here as soon as the file exists in <code title="{{ folder }}">experiments/</code>.</p>
+    <p class="controls">
+      <button type="button" data-draft="Look at our recent games and reports and post up to three idea cards: each one change we could test, with the evidence it rests on. Check closed_levers.md first.">Ask the agent for ideas</button>
+      <span class="muted small">A click puts the request in the message box; nothing is sent until you press Enter.</span>
+    </p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="closed-h">
+    <h2 id="closed-h">What is closed</h2>
+    <p class="about">The lab's rule is to check these before proposing a change, so an idea that was already
+      measured is not measured again. Open an entry for its numbers.</p>
+
+    <h3>Refuted levers{% if levers %} <span class="count">{{ levers | length }}</span>{% endif %}</h3>
+    {% if levers %}
+    <ul class="closed-list">
+      {% for lever in levers %}
+      <li><details>
+        <summary><span class="closed-name">{{ lever.name }}</span>{% if lever.closed %} <span class="muted small nowrap">closed {{ lever.closed }}</span>{% endif %}
+          {% if lever.killed_by %}<span class="closed-why">{{ lever.killed_by | safe }}</span>{% endif %}</summary>
+        <div class="md">{{ lever.html | safe }}</div>
+      </details></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">Nothing is refuted yet: <code>closed_levers.md</code> has no entries.</p>
+    {% endif %}
+
+    <h3>What works</h3>
+    {% if practices %}
+    <ul class="closed-list">
+      {% for group in practices %}
+      <li><details>
+        <summary><span class="closed-name">{{ group.name }}</span> <span class="muted small">{{ group.entries }} practice{{ "" if group.entries == 1 else "s" }} from <code>best_practices.md</code></span></summary>
+        <div class="md">{{ group.html | safe }}</div>
+      </details></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">No practices recorded yet: <code>best_practices.md</code> has no entries.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/experiments.js"></script>{% endblock %}

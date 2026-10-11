@@ -7,6 +7,7 @@ is one module that exports `router` (and `NAV`, its entry in the top navigation)
   routes_home       the home page: the followed policy's headline and the games worth opening
   routes_replays    replay browser, viewer, annotations, press-audit overlay
   routes_dashboard  statistics by power, opponent, version and source
+  routes_experiments  the lab's experiment records, each with its paired result so far
   routes_reports    write-ups from the matchup and opponent-profile skills
 
 Handlers are plain `def` (FastAPI runs them in a thread pool); the browser polls for
@@ -25,7 +26,7 @@ from fastapi.templating import Jinja2Templates
 from . import dates, paths
 
 PACKAGE_DIR = Path(__file__).resolve().parent
-FEATURES = ("routes_chat", "routes_home", "routes_replays", "routes_dashboard", "routes_reports")
+FEATURES = ("routes_chat", "routes_home", "routes_replays", "routes_dashboard", "routes_experiments", "routes_reports")
 
 templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
 # Every date on every page goes through these two: `{{ row.time | when }}`, `{{ report.date | day }}`.
