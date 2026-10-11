@@ -34,6 +34,11 @@ How the numbers are made
   floor counts games, not seats, so paired seats in one game do not reach it sooner. With
   few games the 95% t interval is wider than 2 SE, so a verdict at z just over 2 can sit
   beside an interval that still touches zero: read that as borderline.
+- **Lean.** A row below the floor is never a result, but it need not be silent: `lean` is
+  "above par" or "below par" when |z| >= 2 and the 95% t interval stays on one side of par
+  (the t interval is what guards a row of three games from a large z), else null. The text
+  table prints it as "too few games (14 of 16), leaning below par". A lean says which rows to
+  play more games for; quote it as a lead, with its count.
   Nothing is corrected for the number of rows shown: with dozens of rows some reach
   |z| >= 2 by chance. Treat by-opponent and power-pair rows as leads to check in replays.
 - **Opponents are associations.** Seats are not assigned at random across opponents, so
@@ -48,7 +53,8 @@ How the numbers are made
   per line. Use it to repeat a run on the same games while more are being fetched.
 
 JSON shape (`--json`, and `report()`); every `stat` is
-`{n, games, mean, se, z, ci: [lo, hi], low_n, verdict}` (`mean`.. `ci` are null when unknown):
+`{n, games, mean, se, z, ci: [lo, hi], low_n, verdict, lean}` (`mean`.. `ci` are null when unknown;
+`lean` is null unless the row is below the floor and leans, see above):
 
   {policy, version, family, filters: {source, variant, opponent, alone},
    games, seats, variants: {variant: games}, mixed_variants, several_of_ours_games, no_par_seats,
@@ -213,6 +219,20 @@ def verdict_of(z: float | None, n: int, positive: str = "above par", negative: s
     return positive if z > 0 else negative
 
 
+def lean_of(z: float | None, n: int, ci: list[float] | None) -> str | None:
+    """Which way a row below the floor leans, or None. Not a verdict: see "Lean" at the top."""
+    if n >= LOW_N or z is None or abs(z) < MIN_ABS_Z or ci is None or ci[0] <= 0 <= ci[1]:
+        return None
+    return "above par" if z > 0 else "below par"
+
+
+def reading(s: dict) -> str:
+    """A stat's verdict as a reader sees it: below the floor it says how far below, and the lean."""
+    if s["verdict"] != "too few games" or not s.get("games"):
+        return s["verdict"]
+    return f"too few games ({s['games']} of {LOW_N})" + (f", leaning {s['lean']}" if s.get("lean") else "")
+
+
 def stat(observations: list[tuple[str, float]]) -> dict:
     """Mean of `(game, value)` observations with a game-clustered SE, z, 95% interval and verdict."""
     n = len(observations)
@@ -231,7 +251,7 @@ def stat(observations: list[tuple[str, float]]) -> dict:
     # The floor counts games, as the SE does: four of our seats in one game are one draw of the
     # table, not four.
     return {"n": n, "games": clusters, "mean": _round(mean), "se": _round(se), "z": _round(z, 2), "ci": ci,
-            "low_n": clusters < LOW_N, "verdict": verdict_of(z, clusters)}
+            "low_n": clusters < LOW_N, "verdict": verdict_of(z, clusters), "lean": lean_of(z, clusters, ci)}
 
 
 def rate(flags) -> dict:
@@ -579,7 +599,7 @@ def _plain(x: float | None, places: int = 3) -> str:
 
 def _stat_cells(s: dict) -> str:
     return f"{s['n']}{'*' if s['low_n'] and s['n'] else ''} | {_signed(s['mean'])} | {_plain(s['se'])} | " \
-           f"{_signed(s['z'], 2)} | {s['verdict'] if s['n'] else '-'}"
+           f"{_signed(s['z'], 2)} | {reading(s) if s['n'] else '-'}"
 
 
 def _pct(r: dict) -> str:
@@ -635,14 +655,16 @@ def render(r: dict) -> str:
                 f"| {_signed(p['with']['z'], 2)} | {_signed(p['without']['mean'])} (n={p['without']['n']}) "
                 f"| {_signed(d['diff'])} | {_signed(d['z'], 2)} | {d['verdict']} "
                 f"| {_signed(p['their_vs_par']['mean'])} | {h['ahead']}-{h['behind']} | {_signed(h['z'], 2)} "
-                f"| {h['verdict']} | {_signed(g['mean'])} | {_signed(g['z'], 2)} | {g['verdict']} |")
+                f"| {h['verdict']} | {_signed(g['mean'])} | {_signed(g['z'], 2)} | {reading(g)} |")
         lines += ["", "Each verdict belongs to the z on its left: with - without, the ahead-behind count, the paired "
                       "gap (there \"above par\" means we finish ahead of them, \"below par\" behind)."]
     for t in r["trajectory"]:
         if t["years"]:
             lines += ["", f"## Centres by year end, {t['variant']} (ours / field at the same powers)", "",
                       " ".join(f"{y['year']}: {y['ours']}/{y['field']}" for y in t["years"])]
-    lines += ["", f"\\* fewer than {LOW_N} games: directional only. |z| < 2 is no result."]
+    lines += ["", f"\\* fewer than {LOW_N} games: directional only, never a result. \"leaning\" marks such a row with "
+                  "|z| >= 2 whose 95% interval stays on one side of par: a lead to play more games for. "
+                  "|z| < 2 is no result."]
     return "\n".join(lines)
 
 

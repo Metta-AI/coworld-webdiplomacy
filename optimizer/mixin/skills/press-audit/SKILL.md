@@ -317,7 +317,7 @@ Rules that keep annotations checkable:
   commitment is `[{"p": "unverifiable", "why": "<short reason>"}]`. Never
   invent provinces a message does not name or plainly mean.
 - **One vague part spoils the claim.** A commitment with an `unverifiable`
-  predicate beside checkable ones comes out "not checkable" unless a checkable
+  predicate beside checkable ones comes out "cannot be checked" unless a checkable
   part is broken. When a sentence has a clear half and a vague half, record the
   clear half as one claim and the vague half as another.
 - **Record what was said, even when it is odd.** "Keep clear of TYR" said to a
@@ -329,7 +329,7 @@ Rules that keep annotations checkable:
   `context`, not in the quote.
 - **`success` is for results, not intentions.** "I will take Belgium" as a
   promise is `moves_to BEL`; if you add `"success": true`, an order that was
-  given and bounced still comes out "ordered, but it failed", not broken. Use
+  given and bounced still comes out "tried, but the move failed", not broken. Use
   `success` in statements about what happened ("my fleet took DEN").
 
 Predicates, with powers as upper-case names and provinces as three-letter
@@ -392,6 +392,17 @@ Only `betrayed`, `deceived`, `doubted_wrongly` and `we_broke_our_word` are
 flagged (`summary.powers.<POWER>.flagged`) and marked on the IDE's replay
 timeline.
 
+**The codes above are for you; the pages show words.** `audit.html` and the
+IDE's replay viewer never print an outcome or a category. `tools/press_report.py`
+turns each claim into a label and a note: `broken` + `betrayed` reads "broke
+their word · we relied on it", `kept` + `kept_to_other` reads "kept their word ·
+promise was to Turkey, not us", `attempted` reads "tried, but the move failed",
+`superseded` reads "plan changed openly", and a `*_no_stance` claim shows the
+label alone. Red is kept for `betrayed`, `deceived` and `we_broke_our_word`.
+When you tell the user about a claim, use the page's words, not the code; each
+label's one-line meaning is under "What the labels mean" on both pages
+(`press_report.LEGEND`).
+
 Each claim made to us by another power also carries `attacks_on_us` (the
 speaker's moves, supports and convoys against our units and centres in the
 claim's window), `attacks_on_us_before` (the turn before), `our_attacks_on_them`
@@ -427,7 +438,7 @@ claim lands in the two "no stance" categories. That still shows who lied.
   "Germany kept 4 of 5" is an observation about this game, not a rate.
 - **An ordered move is not a successful one.** A promise to "move to X" is kept
   when the order was given, even if it bounced; with `success` it reads
-  "ordered, but it failed". A deliberately hopeless order looks the same.
+  "tried, but the move failed". A deliberately hopeless order looks the same.
 - **Only movement phases are checked.** Retreat and build promises are
   `unverifiable`. A retreat onto our centre is not seen as an attack.
 - **Reach ignores convoys.** `could_break` looks for a unit next to the

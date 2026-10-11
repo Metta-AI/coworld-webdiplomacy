@@ -622,10 +622,11 @@
 
   // ---------- press and audit ----------
 
-  function chip(code) {
-    var words = view.verdicts.words[code] || String(code).replace(/_/g, " ");
-    var tone = { ok: "ok", err: "err", gold: "warn", muted: "" }[view.verdicts.chips[code] || "muted"];
-    return el("span", "tag " + tone, words);
+  // A verdict's label, in the lab's words and tone (press_report.py): only "err" is alarming.
+  function chip(words, tone, tip) {
+    var node = el("span", "tag " + (tone === "quiet" ? "" : tone), words);
+    if (tip) node.title = tip;
+    return node;
   }
 
   function claimNode(claim, message) {
@@ -636,13 +637,16 @@
     if (claim.quote) head.appendChild(el("q", "claim-quote", claim.quote));
     node.appendChild(head);
     var verdict = el("div", "claim-verdict");
-    verdict.appendChild(chip(claim.outcome));
-    if (claim.category && claim.category !== "none") verdict.appendChild(chip(claim.category));
-    if (claim.kind === "request" && claim.asked) verdict.appendChild(el("span", "muted small", "asked of " + title(claim.asked)));
-    // Said in this message, but a word given to someone else: it could not betray us.
-    if (claim.to && claim.to !== view.our_power && claim.to !== message.to) {
+    // What happened to the words, then how that stood for us (or whom it concerned).
+    var said = claim.verdict;
+    verdict.appendChild(chip(said.label, said.tone, said.tip));
+    if (said.note) verdict.appendChild(el("span", "claim-stood small " + (said.tone === "err" ? "err" : "muted"), said.note));
+    // Said in this message, but a word given to someone else (the note says so when it was kept or broken).
+    if (claim.to && claim.to !== view.our_power && claim.to !== message.to && !/_to_other$/.test(claim.category || "")) {
       verdict.appendChild(el("span", "muted small", "to " + title(claim.to)));
     }
+    if (claim.condition === "met") verdict.appendChild(el("span", "muted small", "its condition was met"));
+    if (claim.condition === "unverifiable") verdict.appendChild(el("span", "muted small", "its condition cannot be checked"));
     if (claim.window && (claim.window[0] !== message.turn || claim.window[1] !== message.turn)) {
       verdict.appendChild(el("span", "muted small", "covers " + turnLabel(claim.window[0]) +
         (claim.window[1] !== claim.window[0] ? " to " + turnLabel(claim.window[1]) : "")));
@@ -752,7 +756,19 @@
       var a = view.audit;
       box.appendChild(el("p", "muted", "Press audit for " + title(a.our_power) + ": " + a.messages_with_claims + " of " + a.messages +
         " messages make a checkable claim. Each claim below shows what was said, the verdict, and the orders that settled it." +
-        (a.belief_logged ? "" : " Our policy logged no stance on other powers, so claims cannot be marked relied on or doubted.")));
+        (a.belief_logged ? "" : " Our policy did not log whom it trusts, so the audit cannot say which claims we relied on.")));
+      if (a.legend && a.legend.rows.length) {
+        var legend = el("details", "audit-legend small");
+        legend.appendChild(el("summary", "", "What the labels mean"));
+        legend.appendChild(el("p", "muted", a.legend.lead));
+        var list = legend.appendChild(el("ul"));
+        a.legend.rows.forEach(function (row) {
+          var item = list.appendChild(el("li"));
+          item.appendChild(chip(row.words, row.tone));
+          item.appendChild(document.createTextNode(" " + row.tip));
+        });
+        box.appendChild(legend);
+      }
     } else if (view.audit) {
       var other = view.seats.find(function (x) { return x.slot === view.audit.slot; });
       var p = el("p", "notice");
@@ -772,8 +788,8 @@
       button.addEventListener("click", askForAudit);
       row.appendChild(button);
       row.appendChild(el("span", "muted", asked
-        ? " Asked at " + new Date(asked).toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit" }) +
-          " PT. An audit takes the agent about ten minutes; this page shows it when it is done."
+        ? " Asked at " + window.ide.when(asked / 1000) +
+          ". An audit takes the agent about ten minutes; this page shows it when it is done."
         : " No press audit yet. The agent reads every message, lists its promises and threats, and checks them against the orders (about ten minutes)."));
       box.appendChild(row);
     }
@@ -837,8 +853,12 @@
     var powers = view.audit.powers, our = view.audit.our_power;
     var table = el("table", "trust-table");
     var head = el("tr");
-    [["Power", ""], ["Word held", "num"], ["Lied to us", "num"], ["Doubted wrongly", "num"], ["Did as asked", "num"]]
-      .forEach(function (h) { head.appendChild(el("th", h[1], h[0])); });
+    [["Power", "", ""],
+     ["Word held", "num", "Promises kept, threats carried out and statements that were true, of those that could be checked"],
+     ["Lied to us", "num", "Promises to us, and statements or threats, that we relied on and that did not hold"],
+     ["Kept, but we doubted", "num", "Perhaps a missed alliance: a pledge not to move on us that was kept, while we had not relied on it and moved on them"],
+     ["Did as asked", "num", "Requests made to this power that it met"]]
+      .forEach(function (h) { var th = el("th", h[1], h[0]); if (h[2]) th.title = h[2]; head.appendChild(th); });
     table.appendChild(el("thead")).appendChild(head);
     var body = table.appendChild(el("tbody"));
     var flagged = [];
@@ -883,7 +903,7 @@
     [
       ["Where we were betrayed or deceived", ["betrayed", "deceived"], "We relied on these and they did not hold."],
       ["Kept their word though we attacked them", ["kept_despite_doubt"], "We had not relied on these, they held, and in the same turns we moved on the power that kept them: perhaps a missed alliance."],
-      ["Where we doubted wrongly", ["doubted_wrongly"], "We did not rely on these and they were kept."],
+      ["Kept, but we doubted it and attacked them", ["doubted_wrongly"], "A pledge not to move on us that was kept. We had not relied on it and moved on the power that gave it: perhaps a missed alliance."],
       ["Where we broke our own word", ["we_broke_our_word"], "What our policy said and then did not do."],
     ].forEach(function (group) {
       var items = flagged.filter(function (f) { return group[1].indexOf(f.item.category) >= 0; });

@@ -20,7 +20,7 @@
       </div>
     </div>
     <p class="small muted replay-meta">
-      <span title="Pacific Time">Finished {{ episode.time | when }}</span> · {{ source_words.get(episode.source, episode.source) }}{% if episode.batch %} · batch {{ episode.batch }}{% endif %}
+      Finished {{ episode.time | when(zone=true) }} · {{ source_words.get(episode.source, episode.source) }}{% if episode.batch %} · batch {{ episode.batch }}{% endif %}
       {% set winner = episode.seats | selectattr("solo") | first %}
       · {% if winner %}{{ winner.power }} won alone{% else %}{{ episode.outcome or "no result" }}{% endif %}{% if episode.final_year %}, last year played {{ episode.final_year }}{% endif %}{% if episode.reason and episode.reason not in ("end_year", episode.outcome) %} ({{ episode.reason | replace("_", " ") }}){% endif %}
       {% for t in episode.taint %}<span class="tag err" title="Tainted: leave this game out of averages">{{ t | replace("_", " ") }}</span>{% endfor %}

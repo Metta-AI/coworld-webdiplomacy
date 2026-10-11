@@ -339,6 +339,8 @@ dl.facts dd { margin: 0; }
 .home-lead { margin: 2px 0 var(--s1); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s3); }
 .home-lead strong { font: 700 1.6rem/1.2 var(--serif); letter-spacing: -0.01em; }
 .home-lead .tag { align-self: center; }
+.home-alone { margin: 0 0 var(--s2); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s2); color: var(--ink-2); }
+.home-alone .tag { align-self: center; }
 .home-games { margin-bottom: 0; }
 .home-games td, .home-games th { padding-top: 5px; padding-bottom: 5px; }
 .home-games .nowrap, .home .nowrap { white-space: nowrap; }

@@ -312,8 +312,12 @@ class ReplayTests(unittest.TestCase):
         markers = [e for e in after["events"] if e["kind"] == "betrayed"]
         self.assertEqual([(m["pi"], m["power"]) for m in markers], [(claim["settled"], "Germany")])
         self.assertEqual(after["audit"]["powers"]["GERMANY"]["flagged"][0]["pi"], claim["settled"])
-        self.assertEqual(after["verdicts"]["words"]["betrayed"], "we relied on it: betrayed")
+        # The lab's words for the verdict (press_report.verdict), not the audit's codes; this one is loud.
+        self.assertEqual(claim["verdict"]["label"], "broke their word")
+        self.assertEqual((claim["verdict"]["note"], claim["verdict"]["tone"]), ("we relied on it", "err"))
+        self.assertTrue(after["audit"]["legend"]["rows"][0]["tip"])
         self.assertTrue(self.row("ereq_press")["audit"])
+        self.assertEqual(self.row("ereq_press")["audit_slot"], 3)
 
         other = self.client.get("/api/replays/ereq_press", params={"seat": 2}).json()
         self.assertFalse(other["audit"]["joined"], "an audit for seat 3 must not be laid over seat 2's press")
@@ -322,6 +326,27 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual((other["audit"]["slot"], other["audit"]["powers"], other["audit"]["markers"]), (3, {}, []))
         self.assertNotIn("I keep out of Tyrolia", json.dumps(other["audit"]))
         self.assertEqual([e for e in other["events"] if e["kind"] == "betrayed"], [])
+        self.assertIsNone(other["audit"]["legend"])
+
+    def test_the_list_marks_only_the_audited_seat(self):
+        """Two of our seats in one game (slots 2 and 3 have logs) and an audit of seat 3."""
+        out = self.lab / ".runtime" / "press" / "ereq_press"
+        out.mkdir(parents=True)
+        (out / "audit.json").write_text(json.dumps(audit_for(3, "AUSTRIA")))
+        powers = {s["slot"]: s["power"] for s in self.row("ereq_press")["seats"]}
+        page = self.client.get("/replays", params={"policy": "", "variant": "classic-press"}).text
+        self.assertEqual(page.count('<span class="tag ok">audited</span>'), 1)
+        self.assertEqual(page.count(f"audit is for {powers[3]}</span>"), 1)
+        # The filter is about the row's own seat too.
+        audited = self.client.get("/replays", params={"policy": "", "audit": "yes"}).text
+        self.assertEqual((audited.count("/replays/ereq_press?seat=3"), audited.count("/replays/ereq_press?seat=2")),
+                         (1, 0))  # fmt: skip
+        other = self.client.get("/replays", params={"policy": "", "audit": "no", "variant": "classic-press"}).text
+        self.assertIn("/replays/ereq_press?seat=2", other)
+        # An audit that cannot be read names no seat: the game is still marked, and opening it says why.
+        (out / "audit.json").write_text("{")
+        os.utime(out / "audit.json", (2_000_000_000, 2_000_000_000))
+        self.assertIsNone(self.row("ereq_press")["audit_slot"])
 
     def test_audit_fields_and_categories_added_later_reach_the_viewer(self):
         """`press_audit.py` gained outcomes, categories and claim fields; the viewer shows them in the
@@ -356,15 +381,11 @@ class ReplayTests(unittest.TestCase):
         # Only the flagged category marks the timeline.
         self.assertEqual([e["kind"] for e in view["events"] if e.get("message")], ["betrayed"])
         self.assertEqual(set(self.episodes.AUDIT_MARKERS), set(self.episodes.tool("press_audit").FLAGGED))
-        # Every outcome and category the audit can write has words and a chip: none is shown as a raw code.
-        words, chips = view["verdicts"]["words"], view["verdicts"]["chips"]
-        for code in ("attempted", "superseded", "released_by_them", "forecast_right", "forecast_wrong",
-                     "kept_despite_doubt", "kept_but_attacked_us", "kept_to_other", "broken_to_other", "misstated",
-                     "we_misstated", "changed_plans", "we_changed_plans", "our_attack_announced",
-                     "our_attack_not_made"):  # fmt: skip
-            self.assertIn(code, words)
-            self.assertNotIn("_", words[code])
-            self.assertIn(code, chips)
+        # Each claim carries the lab's words (tools/tests/test_press_audit.py checks that every code has some).
+        self.assertEqual((doubted["verdict"]["label"], doubted["verdict"]["note"], doubted["verdict"]["tone"]),
+                         ("kept their word", "we had not relied on it", "ok"))  # fmt: skip
+        self.assertEqual((replaced["verdict"]["label"], replaced["verdict"]["tone"]), ("plan changed openly", "quiet"))
+        self.assertIn("before the orders", replaced["verdict"]["tip"])
 
     def test_press_after_the_last_movement_phase_is_listed_on_it(self):
         """Press is drawn only on movement phases; a turn the game never reached must not hide its press."""

@@ -376,7 +376,8 @@ def ledger_messages(private: list[dict], public: list[dict], our_power: str) -> 
                 "from": sender,
                 "to": to,
                 "direction": "out" if sender == our_power else "in",
-                "text": html.unescape(raw.get("message") or ""),
+                # Upstream stores a line break as "<br />": a reader (and the annotator) gets a new line.
+                "text": html.unescape(re.sub(r"<br\s*/?>", "\n", raw.get("message") or "")),
             }
         )
     unique = {m["id"]: m for m in out}

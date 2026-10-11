@@ -267,7 +267,44 @@ def stat_tip(label: str, s: dict) -> str:
         text += f" · SE {plain(s['se'])} · z {signed(s['z'], 2)}"
     if s["ci"]:
         text += f" · 95% interval {signed(s['ci'][0])} to {signed(s['ci'][1])}"
-    return f"{text} · {s['verdict']}"
+    return f"{text} · {matchups().reading(s)}"
+
+
+def few_tip(s: dict) -> str:
+    """Why a row below the lab's floor has no verdict, and what its lean is worth."""
+    low = report_low_n()
+    text = (f"{s['games']} games, and the lab calls nothing a result on fewer than {low}: one or two unusual games "
+            "move so small a sample, and among many rows some reach |z| ≥ 2 by chance.")
+    if s.get("lean"):
+        text += (f" This row leans {s['lean']} (z {signed(s['z'], 2)}, and its 95% interval stays on one side of "
+                 "par): a lead to play more games for, not a result.")
+    return text
+
+
+def _cover(report: dict, alone: dict | None, filters: dict) -> dict:
+    """What the headline number covers, in a few words, and the alone-runs figure to put beside it.
+
+    The lab manual has the agent quote alone runs for "how good is this version" (a second seat of
+    ours in the game changes the score level), so a page that leads with every game says so and
+    shows the other number too. `alone` is the same report with `alone=True`, or None when the
+    view has no paired games or is the alone view already.
+    """
+    paired = report["paired_games"]
+    runs = "a paired run" if paired == 1 else "paired runs"
+    text = f"{report['games']} game{'' if report['games'] == 1 else 's'}"
+    if filters["alone"]:
+        text += ", alone runs only" + (f" ({paired} paired run{'' if paired == 1 else 's'} left out)" if paired else "")
+    elif paired:
+        text += f", {paired} of them {runs}"
+    beside = None
+    if alone is not None and alone["overall"]["vs_par"]["n"]:
+        s = alone["overall"]["vs_par"]
+        beside = {"stat": s, "mean": signed(s["mean"]), "score": plain(alone["overall"]["score"]),
+                  "reading": matchups().reading(s), "link": _link(filters, alone="1"),
+                  "tone": {"above par": "ok", "below par": "err"}.get(s["verdict"], "")}  # fmt: skip
+    return {"text": text, "paired": paired, "alone": beside,
+            "tip": "A paired run seats two or more seats of this policy in one game (an A/B). Its score level "
+                   "is not what one seat gets alone."}  # fmt: skip
 
 
 def _headline(report: dict) -> dict:
@@ -509,12 +546,15 @@ def _load(policy: str, version: str, source: str, variant: str, opponent: str, r
     filters = _choose(policies, policy, version, source, variant, remembered)
     filters["opponent"] = opponent
     filters["alone"] = "1" if alone else ""  # only games that seat one seat of the policy (matchups.py --alone)
-    report = None
+    report = cover = None
     if filters["row"]:
         name = filters["policy"] + (f':{filters["version"]}' if filters["version"] else "")
-        report = CACHE.report(games, generation, (name, filters["source"], None if filters["variant"] == "all"
-                                                  else filters["variant"], opponent or None, bool(alone)))
-    return games, pending, policies, filters, report
+        key = (name, filters["source"], None if filters["variant"] == "all" else filters["variant"], opponent or None)
+        report = CACHE.report(games, generation, (*key, bool(alone)))
+        # The same view without the paired games, for the figure beside the headline (cached like the first).
+        apart = CACHE.report(games, generation, (*key, True)) if report["paired_games"] and not alone else None
+        cover = _cover(report, apart, filters)
+    return games, pending, policies, filters, report, cover
 
 
 def summary(remembered: str = "", wait: float = 0.0) -> dict:
@@ -525,11 +565,12 @@ def summary(remembered: str = "", wait: float = 0.0) -> dict:
     for a large read (a handful of new games is waited for, `SMALL_BATCH_WAIT`): `pending` says
     how many games are still to be read, and the numbers cover the rest.
     """
-    games, pending, _, filters, report = _load("", "", "", "", "", remembered, wait)
+    games, pending, _, filters, report, cover = _load("", "", "", "", "", remembered, wait)
     return {
         "policy": filters["policy"], "variant": filters["variant"], "pending": pending, "games_on_disk": len(games),
         "stat": report["overall"]["vs_par"] if report else None,
         "headline": _headline(report) if report else None,
+        "cover": cover,
         "link": _link(filters) if report else "/dashboard",
     }  # fmt: skip
 
@@ -541,14 +582,14 @@ def dashboard(request: Request, policy: str = "", version: str = "", source: str
         CACHE.forget()
         query = {k: v for k, v in request.query_params.items() if k != "refresh"}
         return RedirectResponse("/dashboard" + (f"?{urlencode(query)}" if query else ""), status_code=303)
-    games, pending, policies, filters, report = _load(policy, version, source, variant, opponent,
-                                                      request.cookies.get(COOKIE, ""), alone=alone)
+    games, pending, policies, filters, report, cover = _load(policy, version, source, variant, opponent,
+                                                             request.cookies.get(COOKIE, ""), alone=alone)
     response = render(
         request, "dashboard.html", report=report, view=_view(report, filters) if report else None,
         policies=policies, filters=filters, games_on_disk=len(games), pending=pending,
-        read_at=dates.when(CACHE.read_at),
+        read_at=dates.when(CACHE.read_at, zone=True),
         source_labels=SOURCE_LABELS, parity=PARITY, link=lambda **changes: _link(filters, **changes),
-        signed=signed, plain=plain, share=share,
+        signed=signed, plain=plain, share=share, cover=cover, few_tip=few_tip,
     )
     if policy and filters["policy"] == policy.partition(":v")[0]:
         response.set_cookie(COOKIE, filters["policy"], max_age=365 * 24 * 3600, samesite="lax")
@@ -558,6 +599,6 @@ def dashboard(request: Request, policy: str = "", version: str = "", source: str
 @router.get("/api/dashboard")
 def dashboard_json(policy: str = "", version: str = "", source: str = "", variant: str = "", opponent: str = "",
                    alone: int = 0):
-    _, pending, policies, filters, report = _load(policy, version, source, variant, opponent, alone=alone)
+    _, pending, policies, filters, report, _ = _load(policy, version, source, variant, opponent, alone=alone)
     return {"filters": {k: filters[k] for k in ("policy", "version", "source", "variant", "opponent", "alone")},
             "reading": pending, "policies": policies, "report": report}

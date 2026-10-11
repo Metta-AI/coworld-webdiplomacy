@@ -52,6 +52,8 @@
     timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit", timeZoneName: "short",
   });
   var dayFormat = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", month: "short", day: "numeric" });
+  // A time in seconds since 1970, as Pacific time with the abbreviation that is right for its date
+  // ("4:46 AM PDT", "Jan 5, 1:42 AM PST"), whatever zone the browser is in. Never write "PT".
   function when(ts) {
     var date = new Date(ts * 1000);
     var sameDay = dayFormat.format(date) === dayFormat.format(new Date());
@@ -261,9 +263,9 @@
     var seen = status.seen_age === null ? "" : "last seen " + ago(status.seen_age);
     if (status.state === "listening") return "Agent is listening" + (seen ? " · " + seen : "") + ". Messages reach it in a few seconds.";
     if (status.state === "ended") return "The agent session has ended. Start claude again in the optimizer folder: it reads waiting messages when it starts.";
-    if (status.state === "working" && stuck(status)) return "Agent " + seen + " and a message is still waiting. It is in a long step, or its turn was interrupted: if its terminal sits at the prompt, type anything there.";
+    if (status.state === "working" && stuck(status)) return "Agent " + seen + ", and a message has waited " + ago(status.waiting_age).replace(" ago", "") + ": it is in one long step, or its turn was interrupted. What to do is under the message.";
     if (status.state === "working") return "Agent is working · " + seen + ". It reads new messages at its next step.";
-    if (status.state === "idle") return "Agent " + seen + " and not listening. Messages wait until it next runs; type anything in its terminal to wake it.";
+    if (status.state === "idle") return "Agent " + seen + " and not listening. Messages wait until it next runs: to wake it, type any word in its terminal and press Enter.";
     return "No agent attached. Start Claude Code in the optimizer root and say “open the IDE”.";
   }
 
@@ -271,6 +273,10 @@
   // turn (Esc in the terminal) runs no hook, so from here it looks busy too: after this long,
   // stop saying "busy" and say what the user can do.
   var STUCK_AFTER_SECONDS = 25;
+  // The one thing that works then. A message typed in the terminal runs the session's
+  // UserPromptSubmit hook, which hands over what is waiting here and starts a new waiter. Enter on
+  // an empty prompt submits nothing, so no hook runs (hooks.py: HOOK_EVENTS).
+  var WAKE = "click into its terminal, type any word (“go” will do) and press Enter: this message is delivered with it. Enter alone does nothing.";
   function stuck(status) {
     return status.waiting_age !== null && status.waiting_age !== undefined && status.waiting_age > STUCK_AFTER_SECONDS;
   }
@@ -292,9 +298,9 @@
       line.classList.add("waiting");
       if (!status || status.state === "listening") line.textContent = "Sending to the agent…";
       else if (status.state === "ended") line.textContent = "Waiting: the agent session has ended. Start claude again and it reads this.";
-      else if (status.state === "working" && stuck(status)) line.textContent = "Still waiting. If the agent's terminal sits at the prompt, type anything there to wake it.";
+      else if (status.state === "working" && stuck(status)) line.textContent = "Not delivered yet. The agent is in one long step, or its turn was interrupted (Esc). If its terminal shows an empty prompt, " + WAKE;
       else if (status.state === "working") line.textContent = "Waiting: the agent is busy and will read this at its next step.";
-      else if (status.state === "idle") line.textContent = "Waiting: the agent is idle and not listening.";
+      else if (status.state === "idle") line.textContent = "Waiting: the agent is idle and not listening. To wake it, " + WAKE;
       else line.textContent = "Waiting: no agent is attached.";
     });
     var last = nodes[nodes.length - 1];
@@ -490,6 +496,7 @@
     getContext: function () { return context; },
     renderMarkdown: renderMarkdown,
     safeHref: safeHref,
+    when: when,
     cardElement: cardElement,
     onUpdate: function (fn) { listeners.push(fn); if (state.status) fn(state); },
     openPanel: openPanel,
