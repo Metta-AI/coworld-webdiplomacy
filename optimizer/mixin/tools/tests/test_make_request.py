@@ -42,6 +42,15 @@ class PlainBodies(unittest.TestCase):
         with self.assertRaises(ValueError):
             make_request.build_bodies("field", "a", None, field(6), "set", 1, balanced=True, pin_a="Austria")
 
+    def test_the_shipped_field_sets_are_placeholders_and_are_refused(self):
+        # field_sets.json ships with the format only; a real set needs ids from tools/field.py.
+        shipped = make_request.load_field_sets()
+        self.assertTrue(shipped)
+        for name, field_set in shipped.items():
+            kind = "paired" if len(field_set["seats"]) == 5 else "field"
+            with self.assertRaisesRegex(ValueError, "placeholder"):
+                make_request.build_bodies(kind, "a", "b" if kind == "paired" else None, field_set, name, 1)
+
 
 class BalancedPaired(unittest.TestCase):
     def setUp(self):

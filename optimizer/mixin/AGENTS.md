@@ -37,7 +37,6 @@ kept in the game docs so each fact has one home:
 | The bot contract: image, launcher, environment, HTTP API, LLM sidecar | [docs/protocol.md](docs/protocol.md) |
 | Hosted specifics: XP requests, cost, artifacts, model quirks, credentials | [docs/platform.md](docs/platform.md) |
 | How the game is won; measured field facts (2026-10) | [docs/strategy.md](docs/strategy.md) |
-| Who the league's filler opponents are and how each is built | [docs/field.md](docs/field.md) |
 | The live field picture | [META.md](META.md) (maintained by meta-recon; dated) |
 | Comparing versions | [skills/ab](skills/ab/SKILL.md) |
 | Reading a batch | [skills/survey](skills/survey/SKILL.md) |
@@ -113,7 +112,7 @@ Also in `tools/`, run the same way; flags are in each docstring.
 | Tool | For |
 |---|---|
 | `field.py gunboat\|press` | Who is in a league's field (from its rounds), with version ids for rosters |
-| `make_request.py` + `../field_sets.json` | Request bodies from a named opponent set; `--balanced` (powers pinned and rotated; a paired A/B gets both seat orders, 14 bodies), `--pin-a POWER` (our seat fixed to one power), `--no-maps`. `field_sets.json` ships as a dated snapshot: its version ids go stale when the league's fillers change (a stale id fails at create time with "Policy version … was not found"); regenerate with `field.py` |
+| `make_request.py` + `../field_sets.json` | Request bodies from a named opponent set; `--balanced` (powers pinned and rotated; a paired A/B gets both seat orders, 14 bodies), `--pin-a POWER` (our seat fixed to one power), `--no-maps`. `field_sets.json` ships with the format only: list the field with `field.py`, then write your own named, dated sets (a stale id fails at create time with "Policy version … was not found") |
 | `seat_bias.py` | Whether one roster seat outscores another whoever sits there (reads `wd.py seats` on stdin); for same-code checks |
 | `mine_variance.py` | Which measured behaviours go with a policy's own good and bad games (correlations: hypothesis fuel only) |
 | `run_ab.py` | One paired A/B end to end from an experiment record: bodies, dry run, launch, ids into the record, fetch, compress, read. `--alone` runs the candidate-alone check (each version alone against a six-seat field), which every paired win needs before promotion |

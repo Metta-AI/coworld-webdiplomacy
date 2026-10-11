@@ -72,6 +72,9 @@ def build_bodies(kind: str, a: str, b: str | None, field: dict, field_set: str, 
                  llm_budget_usd: float = 0.0, balanced: bool = False, pin_a: str | None = None,
                  no_maps: bool = False) -> list[tuple[str, dict]]:
     """The request bodies for one eval, as (file-name suffix, body) pairs. Raises ValueError on a bad combination."""
+    if any(seat["policy_ref"].startswith("<") for seat in field["seats"]):
+        raise ValueError(f"set {field_set!r} still has placeholder ids; list the field with tools/field.py and "
+                         "fill field_sets.json with real policy version ids")
     if len(field["seats"]) != FIELD_SEATS[kind]:
         raise ValueError(f"{kind} needs {FIELD_SEATS[kind]} field seats; set {field_set!r} has {len(field['seats'])}")
     if (kind == "paired") != bool(b):
