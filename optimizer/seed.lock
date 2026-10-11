@@ -1,7 +1,8 @@
 # optimizer-seed pin, sourced by install.sh.
-# e168402 is main as of 2026-10-10. It includes the fixes from the first test drive
+# cfa0cb3 is main as of 2026-10-11. It includes the fixes from the first test drive
 # (optimizer-seed#5 and #6): scripts act as the active player, runnable seed scripts,
-# hook fixes, and the instrument-check doctrine.
+# hook fixes, and the instrument-check doctrine; and from the second (optimizer-seed#7):
+# fetch-artifacts --watch prints a batch's status only when it changes.
 # Main is used instead of tag v0.1.0 (5783022) because later commits fix onboarding and hooks.
 SEED_URL=https://github.com/Metta-AI/optimizer-seed
-SEED_COMMIT=e168402dd8db09a4d2a821033673df608fe46b6d
+SEED_COMMIT=cfa0cb335809e67490921d07b89be6d2afcd5833
