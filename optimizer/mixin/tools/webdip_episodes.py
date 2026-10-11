@@ -319,6 +319,24 @@ def episode_dirs(root: Path) -> list[Path]:
     return out
 
 
+def episode_source(ep_dir: Path) -> str:
+    """Where an episode came from: "league", "xp" (an experience request) or "local".
+
+    `local` when the directory has no `episode.json` (a `coworld run-episode` run). `league`
+    when `episode.json` has a `round_id` (hosted league episodes carry one; experience-request
+    episodes have it null and name their `experience_request_id` instead; verified on 0.7.9
+    rows, 2026-10-11) or when a directory above the episode is named `league-*`, which is where
+    `fetch_league.py` stores league games and which also covers rows saved before the
+    platform sent `round_id`. Everything else hosted is `xp`.
+    """
+    path = ep_dir / "episode.json"
+    if not path.exists():
+        return "local"
+    if read_json_file(path).get("round_id") or any(p.name.startswith("league-") for p in ep_dir.resolve().parents):
+        return "league"
+    return "xp"
+
+
 def load_dirs(roots: list[Path]) -> tuple[list[Seat], list[dict]]:
     seats, statuses = [], []
     for root in roots:

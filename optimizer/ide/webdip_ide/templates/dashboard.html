@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+{# The dashboard. Numbers come from the lab's tools/matchups.py; routes_dashboard.py turns them into
+   pixel positions (`view`). An interval is drawn the same way everywhere: see the `interval` macro. #}
+{% block title %}Dashboard{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/dashboard.css">{% endblock %}
+
+{# One stat on a shared axis: gridlines, the par line, a 95% whisker and a dot.
+   Filled dot: |z| >= 2 with enough games. Ring: no result. Grey ring: too few games. #}
+{% macro interval(scale, mark, tip) %}
+<svg class="dash-iv" width="{{ scale.width }}" height="30" viewBox="0 0 {{ scale.width }} 30" role="img" aria-label="{{ tip }}" data-tip="{{ tip }}">
+  {% for t in scale.ticks %}<line class="{{ 'par' if t.value == 0 else 'grid' }}" x1="{{ t.x }}" x2="{{ t.x }}" y1="0" y2="30"/>{% endfor %}
+  {% if mark %}
+    {% if mark.lo is not none %}
+      <line class="whisker {{ mark.kind }}" x1="{{ mark.lo }}" x2="{{ mark.hi }}" y1="15" y2="15"/>
+      {% if mark.cut_lo %}<path class="cut {{ mark.kind }}" d="M{{ mark.lo + 5 }},11 L{{ mark.lo + 1 }},15 L{{ mark.lo + 5 }},19"/>{% else %}<line class="whisker {{ mark.kind }}" x1="{{ mark.lo }}" x2="{{ mark.lo }}" y1="11" y2="19"/>{% endif %}
+      {% if mark.cut_hi %}<path class="cut {{ mark.kind }}" d="M{{ mark.hi - 5 }},11 L{{ mark.hi - 1 }},15 L{{ mark.hi - 5 }},19"/>{% else %}<line class="whisker {{ mark.kind }}" x1="{{ mark.hi }}" x2="{{ mark.hi }}" y1="11" y2="19"/>{% endif %}
+    {% endif %}
+    {% if not mark.off %}<circle class="dot-mark {{ mark.kind }}" cx="{{ mark.x }}" cy="15" r="5"/>{% endif %}
+  {% endif %}
+</svg>
+{% endmacro %}
+
+{% macro axis(scale) %}
+<svg class="dash-axis" width="{{ scale.width }}" height="16" viewBox="0 0 {{ scale.width }} 16" aria-hidden="true">
+  {% for t in scale.ticks %}<text x="{{ t.x if t.anchor == 'middle' else (t.x - 10 if t.anchor == 'start' else t.x + 10) }}" y="12" text-anchor="{{ t.anchor }}">{{ t.label }}</text>{% endfor %}
+</svg>
+{% endmacro %}
+
+{% macro verdict(stat) %}
+  {%- if not stat.n %}<span class="muted">–</span>
+  {%- elif stat.verdict in ("above par", "better with them", "we finish ahead") %}<span class="tag ok">{{ stat.verdict }}</span>
+  {%- elif stat.verdict in ("below par", "worse with them", "they finish ahead") %}<span class="tag err">{{ stat.verdict }}</span>
+  {%- else %}<span class="tag">{{ stat.verdict }}</span>{% endif %}
+{% endmacro %}
+
+{% macro stat_cells(s) %}
+  <td class="num">{{ s.n if s.n else "0" }}</td>
+  <td class="num strong">{{ signed(s.mean) }}</td>
+  <td class="num">{{ plain(s.se) }}</td>
+  <td class="num">{{ signed(s.z, 2) }}</td>
+  <td>{{ verdict(s) }}</td>
+{% endmacro %}
+
+{% block content %}
+<div class="page dash"{% if pending %} data-reload="4"{% endif %}>
+  <div class="page-head">
+    <h1>Dashboard</h1>
+    <span class="muted small">{{ games_on_disk }} games read from <code>.runtime/artifacts</code>{% if read_at %} · checked {{ read_at }}{% endif %}</span>
+    <span class="spacer"></span>
+    <a class="btn small" href="{{ link(refresh='1') if report else '/dashboard?refresh=1' }}" title="Forget what was read and read every episode again">Read again</a>
+  </div>
+
+  {% if pending %}
+  <p class="notice">Still reading episodes: {{ pending }} to go. The numbers below cover the {{ games_on_disk }} read so far, and this page reloads itself until the rest are in.</p>
+  {% endif %}
+  {% if filters.unknown %}
+  <p class="notice err">No policy named <code>{{ filters.unknown }}</code> is in the fetched games{% if filters.policy %}, so this shows <strong>{{ filters.policy }}</strong> instead{% endif %}.</p>
+  {% endif %}
+
+  {% if not report %}
+  <div class="placeholder">
+    {% if pending %}Nothing is read yet. The first read takes about a tenth of a second per game.
+    {% else %}No games are on disk yet. Fetch a batch into <code>{{ lab }}/.runtime/artifacts/</code> (the fetch-artifacts skill for experience requests, <code>tools/fetch_league.py</code> for league matches), then press “Read again”.{% endif %}
+  </div>
+  {% else %}
+
+  <form class="controls dash-filters" method="get" action="/dashboard" id="dash-filters">
+    <label>Policy
+      <select name="policy">
+        {% for p in policies %}<option value="{{ p.name }}"{% if p.name == filters.policy %} selected{% endif %}>{{ p.name }} · {{ p.games }} games{% if not p.seats_with_log %} · no logs{% endif %}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Version
+      <select name="version">
+        <option value="">all versions</option>
+        {% for v in filters.row.versions %}{% set short = v[filters.policy|length + 1:] %}<option value="{{ short }}"{% if short == filters.version %} selected{% endif %}>{{ short }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Variant
+      <select name="variant">
+        {% for name, n in filters.row.variants.items() %}<option value="{{ name }}"{% if name == filters.variant %} selected{% endif %}>{{ name }} · {{ n }}</option>{% endfor %}
+        {% if filters.variant not in filters.row.variants and filters.variant != "all" %}<option value="{{ filters.variant }}" selected>{{ filters.variant }} · 0</option>{% endif %}
+        {% if filters.row.variants|length > 1 %}<option value="all"{% if filters.variant == "all" %} selected{% endif %}>all variants, pooled</option>{% endif %}
+      </select>
+    </label>
+    <label>Source
+      <select name="source">
+        {% for key in ("all", "league", "xp", "local") %}{% if key in ("all", "league", "xp") or key in filters.row.sources %}<option value="{{ key }}"{% if key == filters.source %} selected{% endif %}>{{ source_labels[key] }}{% if key != "all" %} · {{ filters.row.sources.get(key, 0) }}{% endif %}</option>{% endif %}{% endfor %}
+      </select>
+    </label>
+    {% if filters.opponent %}<input type="hidden" name="opponent" value="{{ filters.opponent }}">{% endif %}
+    <noscript><button type="submit">Show</button></noscript>
+  </form>
+  {% if filters.opponent %}
+  <p class="notice">Only games that also seat <strong>{{ filters.opponent }}</strong>. Par still comes from every clean game in this variant and source. <a href="{{ link(opponent='') }}">Show all games</a></p>
+  {% endif %}
+
+  {# ---------- headline ---------- #}
+  {% set o = report.overall %}
+  <section class="dash-headline" aria-labelledby="dash-h">
+    <p class="eyebrow" id="dash-h">{{ filters.policy }}{% if filters.version %}:{{ filters.version }}{% else %}, all versions{% endif %} · {{ "all variants pooled" if filters.variant == "all" else filters.variant }} · {{ source_labels[filters.source] }}</p>
+    <p class="dash-lead {{ view.headline.tone }}">{{ view.headline.lead }}</p>
+    {% if view.headline.reading %}<p class="dash-reading">{{ view.headline.reading }}</p>{% endif %}
+    {% if o.vs_par.n %}
+    <p class="muted small dash-basis">{{ o.vs_par.n }} of our seats in {{ report.games }} games · SE {{ plain(o.vs_par.se) }}{% if o.vs_par.ci %} · 95% interval {{ signed(o.vs_par.ci[0]) }} to {{ signed(o.vs_par.ci[1]) }}{% endif %}. Par is the field's mean score at the same power in the same variant, so a lucky draw of strong powers does not read as a better policy.</p>
+    <dl class="facts dash-facts">
+      <dt>Raw score</dt><dd><span class="num">{{ plain(o.score) }}</span> per game; an average seat scores {{ plain(parity) }}{% if o.raw_including_tainted.n != report.seats %} · <span class="num">{{ plain(o.raw_including_tainted.score) }}</span> with the {{ o.raw_including_tainted.n - report.seats }} tainted seats put back{% endif %}</dd>
+      <dt>Final centres</dt><dd><span class="num">{{ plain(o.final_centers, 1) }}</span> on average, of 34 on the board</dd>
+      <dt>How games ended</dt><dd>solo win {{ share(o.solo) }} · in the draw {{ share(o.draw) }} · eliminated {{ share(o.eliminated) }}</dd>
+      <dt>Top score in the game</dt><dd>{{ share(o.top_score) }}; one seat in seven would be 14%</dd>
+    </dl>
+    {% endif %}
+    <ul class="dash-caveats small">
+      {% for c in report.caveats %}<li>{{ c }}</li>{% endfor %}
+    </ul>
+  </section>
+
+  {# ---------- by power ---------- #}
+  <section aria-labelledby="dash-power">
+    <h2 id="dash-power">By power</h2>
+    <p class="muted small prose">Our score minus the field's score at the same power. The powers differ a lot in strength, so the raw score column is not comparable down the rows; the first three columns are.</p>
+    <div class="table-scroll">
+    <table class="dash-table">
+      <thead>
+        <tr><th>Power</th><th class="dash-plot">Score vs par, 95% interval{{ axis(view.power_scale) }}</th><th class="num">Seats</th><th class="num">vs par</th><th class="num">SE</th><th class="num">z</th><th>Reading</th><th class="num" title="Our mean score, then the field's mean score at that power">Raw score / par</th><th class="num">Centres</th></tr>
+      </thead>
+      <tbody>
+        {% for p in view.powers %}
+        <tr{% if p.all %} class="dash-total"{% endif %}>
+          <td>{% if not p.all %}<span class="dot" style="background: var(--power-{{ p.label|lower }})"></span>{% endif %}{{ p.label }}</td>
+          <td class="dash-plot">{{ interval(view.power_scale, p.mark, p.tip) }}</td>
+          {{ stat_cells(p.row.vs_par) }}
+          <td class="num">{{ plain(p.row.score) }}{% if not p.all and p.row.par is not none %} <span class="muted">/ {{ plain(p.row.par) }}</span>{% endif %}</td>
+          <td class="num">{{ plain(p.row.final_centers, 1) if not p.all else plain(o.final_centers, 1) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="dash-key small muted">
+      <svg width="14" height="12" aria-hidden="true"><circle class="dot-mark sure" cx="7" cy="6" r="5"/></svg> |z| ≥ 2 with at least {{ view.low_n }} seats
+      <svg width="14" height="12" aria-hidden="true"><circle class="dot-mark open" cx="7" cy="6" r="5"/></svg> no result
+      <svg width="14" height="12" aria-hidden="true"><circle class="dot-mark low" cx="7" cy="6" r="5"/></svg> fewer than {{ view.low_n }} seats: directional only
+      <span class="dash-key-note">A whisker that ends in an arrowhead runs past the edge of the axis.</span>
+    </p>
+  </section>
+
+  {# ---------- by opponent ---------- #}
+  <section aria-labelledby="dash-opp">
+    <h2 id="dash-opp">By opponent</h2>
+    <p class="muted small prose">Each row is another policy that shared a game with us. “Ours minus theirs” compares the two in the same games, each against par at its own power, so the board is the same for both. These rows are leads to check in replays, not results: nobody assigned opponents at random.</p>
+    <div class="table-scroll">
+    <table class="dash-table dash-opponents" id="dash-opponents">
+      <thead>
+        <tr>
+          <th data-sort="name">Opponent</th>
+          <th class="num" data-sort="games">Games</th>
+          <th data-sort="ahead" title="Games where our score was higher than theirs, against games where it was lower">Finished ahead</th>
+          <th class="dash-plot" data-sort="paired">Ours minus theirs, vs par{{ axis(view.paired_scale) }}</th>
+          <th class="num" data-sort="paired">Diff.</th>
+          <th class="num" data-sort="z">z</th>
+          <th class="num" data-sort="theirs" title="Their own score against par at their power, in the games they shared with us">Their vs par</th>
+          <th class="num" data-sort="with" title="Our score vs par in games with them, minus our score vs par in games without them">With − without</th>
+          <th></th>
+        </tr>
+      </thead>
+      {% for p in view.opponents %}
+      {% set h = p.head_to_head %}
+      <tbody data-name="{{ p.opponent }}" data-games="{{ p.games }}" data-ahead="{{ h.rate if h.rate is not none else -1 }}" data-paired="{{ p.paired.mean if p.paired.mean is not none else -9 }}" data-z="{{ p.paired.z if p.paired.z is not none else -99 }}" data-theirs="{{ p.their_vs_par.mean if p.their_vs_par.mean is not none else -9 }}" data-with="{{ p.difference.diff if p.difference.diff is not none else -9 }}">
+        <tr>
+          <td class="dash-name"><a href="{{ p.replays }}" title="{{ p.opponent }}: open these games in the replay browser">{{ p.opponent }}</a><span class="dash-versions muted">{% for v in p.versions %}{{ v[p.opponent|length + 1:] }}{{ ", " if not loop.last }}{% endfor %}</span></td>
+          <td class="num">{{ p.games }}{% if p.with.low_n %}<span class="dash-low" title="Fewer than {{ view.low_n }} games: directional only">*</span>{% endif %}</td>
+          <td class="dash-h2h" data-tip="Our score was higher in {{ h.ahead }} games and lower in {{ h.behind }}{% if h.tied %} ({{ h.tied }} tied){% endif %}{% if h.z is not none %} · sign test z {{ signed(h.z, 2) }} · {{ h.verdict }}{% endif %}">
+            <span class="dash-bar" aria-hidden="true"><i class="ahead" style="width: {{ p.ahead_width }}px"></i><i class="behind" style="width: {{ p.behind_width }}px"></i></span><span class="num">{{ h.ahead }}–{{ h.behind }}</span>
+          </td>
+          <td class="dash-plot">{{ interval(view.paired_scale, p.mark, p.tip) }}</td>
+          <td class="num strong">{{ signed(p.paired.mean) }}</td>
+          <td class="num">{{ signed(p.paired.z, 2) }}</td>
+          <td class="num" data-tip="{{ p.opponent }} against par at their own power, {{ p.their_vs_par.n }} seats: {{ signed(p.their_vs_par.mean) }}{% if p.their_vs_par.z is not none %}, z {{ signed(p.their_vs_par.z, 2) }}{% endif %} · raw score {{ plain(p.their_score) }}">{{ signed(p.their_vs_par.mean) }}</td>
+          <td class="num"{% if p.difference.diff is not none %} data-tip="With them {{ signed(p.with.mean) }} ({{ p.with.n }} seats), without them {{ signed(p.without.mean) }} ({{ p.without.n }} seats){% if p.difference.z is not none %} · z {{ signed(p.difference.z, 2) }}{% endif %} · {{ p.difference.verdict }}"{% else %} data-tip="They were in every one of our games in this view, so there is nothing to compare with"{% endif %}>{% if p.difference.diff is not none %}{{ signed(p.difference.diff) }}{% else %}<span class="muted">in every game</span>{% endif %}</td>
+          <td class="dash-actions"><button type="button" class="plain small" data-more aria-expanded="false">More</button></td>
+        </tr>
+        <tr class="dash-more" hidden>
+          <td colspan="9">
+            <div class="dash-more-grid">
+              <dl class="facts">
+                <dt>Paired reading</dt><dd>{{ verdict(p.paired) }} over {{ p.paired.n }} games{% if p.paired.ci %}, 95% interval {{ signed(p.paired.ci[0]) }} to {{ signed(p.paired.ci[1]) }}{% endif %}</dd>
+                <dt>Finished ahead</dt><dd>{{ h.ahead }} ahead, {{ h.behind }} behind{% if h.tied %}, {{ h.tied }} tied{% endif %}{% if h.z is not none %} · sign test z {{ signed(h.z, 2) }} · {{ h.verdict }}{% endif %}</dd>
+                <dt>We were eliminated</dt><dd>with them {{ share(p.eliminated_with) }}{% if p.eliminated_without.n %} · without them {{ share(p.eliminated_without) }}{% endif %}</dd>
+                <dt>They ended with more centres</dt><dd>{{ share(p.outgrew_us) }}</dd>
+                <dt>Games together</dt><dd>{{ p.games }}{% if p.first %}, {{ pacific(p.first) }}{% if pacific(p.last) != pacific(p.first) %} to {{ pacific(p.last) }}{% endif %}{% endif %} · versions {% for v, n in p.versions.items() %}{{ v }} ({{ n }}){{ ", " if not loop.last }}{% endfor %}</dd>
+              </dl>
+              <div>
+                {% set shown = p.pairs | selectattr("vs_par.n", "ge", view.min_cell) | list %}
+                <p class="eyebrow">Our score vs par by who played what</p>
+                {% if shown %}
+                <table class="dash-pairs">
+                  <thead><tr><th>We played</th><th>They played</th><th class="num">Games</th><th class="num">vs par</th><th class="num">z</th></tr></thead>
+                  <tbody>
+                  {% for c in shown | sort(attribute="vs_par.mean") %}
+                  <tr><td>{{ c.ours }}</td><td>{{ c.theirs }}</td><td class="num">{{ c.vs_par.n }}</td><td class="num">{{ signed(c.vs_par.mean) }}</td><td class="num">{{ signed(c.vs_par.z, 2) }}</td></tr>
+                  {% endfor %}
+                  </tbody>
+                </table>
+                <p class="muted small">Worst first. Pairs with fewer than {{ view.min_cell }} games are left out; none of these has the {{ view.low_n }} games a reading needs unless its count says so.</p>
+                {% else %}
+                <p class="empty small">No pairing of powers has {{ view.min_cell }} games yet.</p>
+                {% endif %}
+              </div>
+            </div>
+            <p class="dash-more-actions">
+              <a class="btn small" href="{{ p.replays }}">Open these games in Replays</a>
+              <button type="button" class="small" data-writeup="{{ p.opponent }}">Ask the agent for a write-up on this opponent</button>
+              <a class="btn plain small" href="{{ p.focus }}">Dashboard for these games only</a>
+            </p>
+          </td>
+        </tr>
+      </tbody>
+      {% else %}
+      <tbody><tr><td colspan="9" class="empty">No opponents yet: no clean game with this policy is on disk for this view.</td></tr></tbody>
+      {% endfor %}
+    </table>
+    </div>
+    {% if view.opponents %}<p class="small muted">* fewer than {{ view.low_n }} games together: directional only. Click a column heading to sort.</p>{% endif %}
+  </section>
+
+  {# ---------- power by opponent ---------- #}
+  <section aria-labelledby="dash-heat">
+    <h2 id="dash-heat">Powers against each opponent</h2>
+    {% if view.heat_theirs %}
+    <p class="muted small prose">Our score vs par, split by the power the opponent held, then by the power we held. Neighbours matter in Diplomacy: a row that turns brown under one power points at a border to open in replays. Each cell shows its games; cells under {{ view.min_cell }} games stay empty, and opponents with fewer than {{ view.heatmap_min_games }} shared games are left out. In the second table, rows that repeat belong to opponents that always sat together in one field set.</p>
+    <div class="dash-heat-pair">
+      {% for title, heat in (("When they play", view.heat_theirs), ("When we play, with them", view.heat_ours)) %}
+      {% if heat %}
+      <div class="table-scroll">
+      <table class="dash-heat">
+        <thead><tr><th>{{ title }}</th>{% for power in heat.powers %}<th title="{{ power }}">{{ power[:3] }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in heat.rows %}
+          <tr><th scope="row">{{ row.opponent }}</th>
+            {% for c in row.cells %}
+            {% if c.blank %}<td class="blank" data-tip="{{ c.tip }}">{% if c.n %}<span class="n">{{ c.n }}</span>{% endif %}</td>
+            {% else %}<td{% if c.low %} class="low" style="--cell: {{ c.background }}"{% else %} style="background: {{ c.background }}; color: {{ c.colour }}"{% endif %} data-tip="{{ c.tip }}"><span class="v">{{ c.value }}</span><span class="n">{{ c.n }}</span></td>{% endif %}
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    <p class="dash-key small muted">
+      {% for step in view.heat_theirs.legend %}<span class="dash-swatch" style="background: {{ step.background }}"></span>{{ step.label }} {% endfor %}
+      <span class="dash-key-note">Top number: our score vs par. Bottom number: games. A filled cell has at least {{ view.low_n }} games; a cell with only a strip of colour has fewer and is directional.</span>
+    </p>
+    {% if not view.heat_ours %}<p class="muted small">No second table by our own power: every opponent shown was in all of our games, so it would repeat “By power” above.</p>{% endif %}
+    {% else %}
+    <p class="placeholder">Not enough games yet. A cell needs {{ view.min_cell }} games with one opponent at one power, and an opponent needs {{ view.heatmap_min_games }} shared games to get a row.</p>
+    {% endif %}
+  </section>
+
+  {# ---------- versions ---------- #}
+  <section aria-labelledby="dash-versions">
+    <h2 id="dash-versions">Version history</h2>
+    <p class="muted small prose">Oldest first, each against the same par. Two versions measured in different weeks met different fields, so a gap between rows is a lead; the paired A/B (<code>tools/paired.py</code>) is the test.</p>
+    <div class="table-scroll">
+    <table class="dash-table">
+      <thead><tr><th>Version</th><th class="dash-plot">Score vs par, 95% interval{{ axis(view.version_scale) }}</th><th class="num">Seats</th><th class="num">vs par</th><th class="num">SE</th><th class="num">z</th><th>Reading</th><th class="num">Raw score</th><th>Games played</th></tr></thead>
+      <tbody>
+        {% for v in view.versions %}
+        <tr>
+          <td><a href="{{ v.link }}">{{ v.policy }}</a></td>
+          <td class="dash-plot">{{ interval(view.version_scale, v.mark, v.tip) }}</td>
+          {{ stat_cells(v.vs_par) }}
+          <td class="num">{{ plain(v.score) }}</td>
+          <td class="muted">{% if v.first %}{{ pacific(v.first) }}{% if pacific(v.last) != pacific(v.first) %} to {{ pacific(v.last) }}{% endif %}{% else %}local runs{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="empty">No clean games yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  {# ---------- sources ---------- #}
+  <section aria-labelledby="dash-sources">
+    <h2 id="dash-sources">League matches and experience requests</h2>
+    <p class="muted small prose">League matches are the games that rank us, one a day against whoever the league seats. Experience requests are games we asked for against a field we chose. If the two disagree, the league is the truth and the field in our requests is not the league's.</p>
+    <div class="table-scroll">
+    <table class="dash-table">
+      <thead><tr><th>Source</th><th class="dash-plot">Score vs par, 95% interval{{ axis(view.segment_scale) }}</th><th class="num">Seats</th><th class="num">vs par</th><th class="num">SE</th><th class="num">z</th><th>Reading</th><th class="num">Raw score</th><th></th></tr></thead>
+      {% for variant in view.source_variants %}
+      <tbody>
+        {% if view.source_variants|length > 1 %}<tr class="dash-group"><th colspan="9" scope="rowgroup">{{ variant }}</th></tr>{% endif %}
+        {% for s in view.sources if s.variant == variant %}
+        <tr>
+          <td>{{ s.label }}</td>
+          {% if s.row %}
+          <td class="dash-plot">{{ interval(view.segment_scale, s.mark, s.tip) }}</td>
+          {{ stat_cells(s.row.vs_par) }}
+          <td class="num">{{ plain(s.row.score) }}</td>
+          <td><a class="small" href="{{ link(source=s.source, variant=s.variant) }}">Show only these</a></td>
+          {% else %}
+          <td class="dash-plot">{{ interval(view.segment_scale, none, "No games") }}</td>
+          <td class="num">0</td><td colspan="6" class="empty">None on disk yet for this policy.</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% else %}
+      <tbody><tr><td colspan="9" class="empty">No clean games yet.</td></tr></tbody>
+      {% endfor %}
+    </table>
+    </div>
+  </section>
+
+  {# ---------- trajectory ---------- #}
+  <section aria-labelledby="dash-traj">
+    <h2 id="dash-traj">Supply centres through the game</h2>
+    {% if view.trajectories %}
+    <p class="muted small prose">Mean centres at the end of each game year: ours against field seats holding the same powers. It separates a weak opening from a weak endgame. The shaded band is two standard errors of the difference around our line: where the field's line runs inside it, that year shows no difference.</p>
+    <div class="dash-traj-row">
+      {% for t in view.trajectories %}
+      <figure class="dash-traj">
+        <figcaption><span class="eyebrow">{{ t.variant }}</span> <span class="muted small">{{ t.n_first }} seats{% if t.n_last != t.n_first %} ({{ t.n_last }} reach the last year){% endif %}</span></figcaption>
+        <svg width="{{ t.width }}" height="{{ t.height }}" viewBox="0 0 {{ t.width }} {{ t.height }}" role="img" aria-label="Mean supply centres by year end, {{ t.variant }}: ours end at {{ t.end.ours }}, the field at the same powers at {{ t.end.field }}">
+          {% for tick in t.y_ticks %}<line class="{{ 'base' if loop.first else 'grid' }}" x1="{{ t.left }}" x2="{{ t.plot_right }}" y1="{{ tick.y }}" y2="{{ tick.y }}"/><text class="tick" x="{{ t.left - 6 }}" y="{{ tick.y + 4 }}" text-anchor="end">{{ tick.label }}</text>{% endfor %}
+          {% for p in t.x_ticks %}<text class="tick" x="{{ p.x }}" y="{{ t.height - 6 }}" text-anchor="middle">{{ p.year }}</text>{% endfor %}
+          {% if t.band %}<polygon class="band" points="{{ t.band }}"/>{% endif %}
+          <polyline class="line field" points="{{ t.field }}"/>
+          <polyline class="line ours" points="{{ t.ours }}"/>
+          <circle class="end field" cx="{{ t.points[-1].x }}" cy="{{ t.points[-1].field }}" r="4"/>
+          <circle class="end ours" cx="{{ t.points[-1].x }}" cy="{{ t.points[-1].ours }}" r="4"/>
+          <text class="label" x="{{ t.plot_right + 9 }}" y="{{ t.end.ours_y + 4 }}"><tspan class="strong">Ours</tspan> {{ t.end.ours }}</text>
+          <text class="label muted" x="{{ t.plot_right + 9 }}" y="{{ t.end.field_y + 4 }}">Field {{ t.end.field }}</text>
+          {% for p in t.points %}<g class="hit" data-tip="{{ p.tip }}"><rect x="{{ p.x - 14 }}" y="0" width="28" height="{{ t.base }}"/><line x1="{{ p.x }}" x2="{{ p.x }}" y1="8" y2="{{ t.base }}"/><circle class="ours" cx="{{ p.x }}" cy="{{ p.ours }}" r="4"/><circle class="field" cx="{{ p.x }}" cy="{{ p.field }}" r="4"/></g>{% endfor %}
+        </svg>
+      </figure>
+      {% endfor %}
+    </div>
+    <details class="dash-data">
+      <summary class="small">The same numbers as a table</summary>
+      {% for series in report.trajectory %}
+      <table class="dash-years">
+        <thead><tr><th>{{ series.variant }}</th>{% for y in series.years %}<th class="num">{{ y.year }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          <tr><td>Ours</td>{% for y in series.years %}<td class="num">{{ plain(y.ours, 2) }}</td>{% endfor %}</tr>
+          <tr><td>Field, same powers</td>{% for y in series.years %}<td class="num">{{ plain(y.field, 2) }}</td>{% endfor %}</tr>
+          <tr><td>Difference</td>{% for y in series.years %}<td class="num">{{ signed(y.diff, 2) }}</td>{% endfor %}</tr>
+          <tr><td>Seats</td>{% for y in series.years %}<td class="num">{{ y.n }}</td>{% endfor %}</tr>
+        </tbody>
+      </table>
+      {% endfor %}
+    </details>
+    {% else %}
+    <p class="placeholder">No year-by-year centre counts yet. They come from the replay, so a game fetched without its replay adds nothing here.</p>
+    {% endif %}
+  </section>
+
+  {# ---------- notes ---------- #}
+  <section aria-labelledby="dash-notes">
+    <h2 id="dash-notes">What was left out, and what it cost</h2>
+    {% set t = report.taint %}
+    <dl class="facts dash-facts">
+      <dt>Dropped for taint</dt>
+      <dd>{% if t.games_dropped %}{{ t.games_dropped }} of {{ t.games_dropped + report.games }} games: {% for flag, n in t.flags.items() %}{{ flag.replace("_", " ") }} on {{ n }} seat{{ "s" if n != 1 }}{{ ", " if not loop.last }}{% endfor %}. A crashed or silent seat measures the crash, not the policy, so the whole game leaves every number above.{% else %}None of the {{ report.games }} games. Checked on our {{ t.seats_seen }} seats: rejected orders, exceptions, no decisions, a failing LLM, and cancelled, failed or timed-out games.{% endif %}</dd>
+      {% if t.games_missing_results %}<dt>No results file</dt><dd>{{ t.games_missing_results }} episode{{ "s" if t.games_missing_results != 1 }} on disk in this view (still running, or failed before the game ended)</dd>{% endif %}
+      {% if report.no_par_seats %}<dt>No par</dt><dd>{{ report.no_par_seats }} of our seats played a power that no field seat played in this view</dd>{% endif %}
+      {% set c = report.cost %}
+      <dt>LLM cost</dt>
+      <dd>{% if c.llm_seats %}<span class="num">${{ plain(c.usd_per_seat_game, 3) }}</span> per game for our seat, over {{ c.llm_seats }} seats with LLM calls (<span class="num">${{ plain(c.usd_total, 2) }}</span> in all) · {{ c.llm_failed }} of {{ "{:,}".format(c.llm_calls) }} calls failed{% elif c.seats_with_log %}No LLM calls in our {{ c.seats_with_log }} seat logs: this view played without the press layer.{% else %}Unknown: none of these seats has a log on disk.{% endif %}</dd>
+      <dt>Seat logs</dt><dd>{{ c.seats_with_log }} of {{ report.seats }} of our seats have a log on disk. Without a log a seat cannot be checked for crashes or dropped orders.</dd>
+    </dl>
+    <details class="dash-data">
+      <summary class="small">Field par by power: what “par” was in this view</summary>
+      <table class="dash-years">
+        <thead><tr><th>Variant</th><th>Power</th><th class="num">Field seats</th><th class="num">Par score</th><th class="num">Par centres</th></tr></thead>
+        <tbody>
+          {% for variant, by in report.par.items() %}{% for power, p in by.items() %}
+          <tr><td>{{ variant }}</td><td>{{ power }}</td><td class="num">{{ p.n }}</td><td class="num">{{ plain(p.score) }}</td><td class="num">{{ plain(p.final_centers, 1) }}</td></tr>
+          {% endfor %}{% else %}<tr><td colspan="5" class="empty">No field seats in this view.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </details>
+    <p class="muted small">The same numbers in a terminal: <code>python3 games/webdiplomacy/tools/matchups.py games/webdiplomacy/.runtime/artifacts --policy {{ report.policy }}{% if filters.variant != "all" %} --variant {{ filters.variant }}{% endif %}{% if filters.source != "all" %} --source {{ filters.source }}{% endif %}</code></p>
+  </section>
+  {% endif %}
+</div>
+<div id="dash-tip" class="dash-tip" role="status" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.dashboard = {{ {"policy": report.policy if report else "", "variant": filters.variant, "source": filters.source,
+                         "source_label": source_labels[filters.source], "page": request.url.path ~ "?" ~ request.url.query} | tojson }};
+</script>
+<script src="/static/dashboard.js"></script>
+{% endblock %}

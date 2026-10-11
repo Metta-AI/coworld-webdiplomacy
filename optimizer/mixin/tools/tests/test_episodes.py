@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -132,6 +133,21 @@ class TaintFlags(unittest.TestCase):
             timed_out = write_episode(Path(tmp) / "c", [1 / 7] * 7, list(range(1, 8)), [3] * 7,
                                       reason="episode_timeout")
             self.assertTrue(all(s.taint == ["episode_timeout"] for s in we.load_episode(timed_out)[0]))
+
+    def test_episode_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            row = dict(scores=[1 / 7] * 7, countries=list(range(1, 8)), centers=[3] * 7)
+            local = write_episode(Path(tmp) / "run" / "g1", **row)
+            xp = write_episode(Path(tmp) / "xreq_1" / "ereq_1", status="completed", **row)
+            in_league_dir = write_episode(Path(tmp) / "league-press" / "ereq_2", status="completed", **row)
+            with_round = write_episode(Path(tmp) / "xreq_1" / "ereq_3", status="completed", **row)
+            episode = json.loads((with_round / "episode.json").read_text())
+            (with_round / "episode.json").write_text(json.dumps({**episode, "round_id": "round_7"}))
+            self.assertEqual(we.episode_source(local), "local")
+            self.assertEqual(we.episode_source(xp), "xp")
+            self.assertEqual(we.episode_source(in_league_dir), "league")
+            self.assertEqual(we.episode_source(with_round), "league")
+        self.assertEqual(we.episode_source(PRESS), "xp")
 
 
 if __name__ == "__main__":
