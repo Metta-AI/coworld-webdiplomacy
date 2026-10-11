@@ -206,7 +206,8 @@ def cmd_start(args) -> int:
     while time.time() < deadline:
         info = hooks.server_info()
         if info and _healthy(info["url"]):
-            store.touch_agent_seen()
+            if os.environ.get("CLAUDECODE"):  # started by an agent's shell, not by the user in a terminal
+                store.touch_agent_seen()
             print(f"IDE running at {info['url']}")
             print("The user's messages reach this session through its hooks (ide/ide status shows how).")
             if args.open:
