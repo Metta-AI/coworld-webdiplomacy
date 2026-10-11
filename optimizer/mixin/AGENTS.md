@@ -58,13 +58,13 @@ each doc at a pinned commit.
 - **Core: Kissinger search.** Heuristic (DumbBot-style) seeds, alternatives
   for single units, pairs and convoys, improved against 16 sampled opponent
   plans with a fast adjudicator. Opponents are modeled one step smarter than
-  the heuristic ("level 1"). Retreats and builds come from the heuristic. In a prior
-  lab's measurements (2026-10) this search, silent, outscored most LLM press bots.
+  the heuristic ("level 1"). Retreats and builds come from the heuristic.
 - **Optional press layer.** An LLM negotiates and steers the search through a
   policy (stances, trust, expected or required orders). The search's legal
   orders are saved first, so the LLM can never leave the seat without orders.
-  As of 2026-10 press has **not** been shown to beat the same search without
-  press; making it do so is an open goal.
+  The press layer is a starting framework, not a finished player: making
+  negotiation pay is the open problem in this game, and where most of the room
+  to improve is.
 - **Two modes**, set by the `CASTLEREAGH_POLICY` environment variable in the
   image: `search` (default, press off) and `press` (search plus press; without
   `COWORLD_LLM_ENDPOINT` it plays its search floor).

@@ -69,14 +69,12 @@ power fixed mostly measures which powers a policy happened to draw. The exact
 par depends on who is playing, so compute it from your own batches
 (`tools/wd.py metrics`).
 
-### What that field showed about press and search
+### What that field showed about press
 
-- **A silent search bot beat most LLM press bots** (100 to 208 games per seat).
-  Press as built so far scored below the same search engine without press
-  (0.124 to 0.126 against 0.172 to 0.176). No press change reached a verdict
-  at 16 games per arm.
 - **The best press seat lied.** The highest-scoring LLM seat was a prompt that
   deceives, on a stronger model; honest and cautious prompts scored lower.
+- No press change reached a verdict at 16 games per arm: press is under-measured,
+  not settled.
 - Trending positive but unproven: giving the LLM the map connectivity list, and
   stronger models for the same prompt.
 - **Our press bot re-trusted powers that betrayed it.** After a first breach or

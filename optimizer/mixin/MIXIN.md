@@ -54,7 +54,7 @@ announce gaps and proceed on their generic method with the human warned.
 
 | Provides | Path | Notes |
 |---|---|---|
-| Strategy doc | `docs/strategy.md` | A general Diplomacy primer, dated lessons from a measured field (power par, press against search), and the recipe for rebuilding the field picture. It names no current opponents |
+| Strategy doc | `docs/strategy.md` | A general Diplomacy primer, dated lessons from a measured field (power par, what worked in press), and the recipe for rebuilding the field picture. It names no current opponents |
 | Game reference | `docs/game.md` | Rules, scoring, `results.json`, variants, leagues, timing |
 | Platform notes | `docs/platform.md` | XP requests, costs, artifacts, LLM sidecar quirks, credentials |
 | Field roster | `tools/field.py`, `field_sets.json`, `META.md` | Who is seated in a league's recent rounds, with version ids; named opponent sets; the dated field picture (ships empty) |

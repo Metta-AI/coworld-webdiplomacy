@@ -12,11 +12,9 @@ One image, two modes, selected by `CASTLEREAGH_POLICY` (baked at build time with
 Any other value is an error. DumbBot is internal to the search (seeds, retreats, builds,
 opponent samples); it is not a selectable mode. Local arenas use copies of `search` as the field.
 
-**What the evidence says.** Castlereagh's measured strength is the search. In about 100
-hosted press games the lab's press bot scored 0.124–0.126 per seat while silent Kissinger
-(the same search, no LLM) scored 0.172–0.176 in the same field (parity 1/7 = 0.143). No
-press change has a verdict yet. Treat the press layer as a **well-instrumented framework
-for experiments, not a proven gain**: the first A/B to run is `press` vs `search`.
+**Where to take it.** The search is the tested core. The press layer is a
+**well-instrumented starting framework**: no change to it has reached a verdict yet, so its
+strength is yours to establish and improve. Negotiation is the open problem in this game.
 
 ## Build, run, test
 
