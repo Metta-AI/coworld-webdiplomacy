@@ -42,6 +42,11 @@ Taint flags on a seat (drop or flag before computing means):
   rejected_orders   our decision log shows upstream dropped at least one order
   exception         our seat log has an `exception` event or an uncaught Python traceback
   no_decisions      our seat log has no `decision` line at all (the bot never played)
+  pod_deleted       the seat log is the platform's one line "No logs collected for pod …: the
+                    pod was deleted before log collection". The bot's pod died mid-game and the
+                    seat held from then on (28 of 29 such seats held their last three or more
+                    movement phases, against 21 of 3,513 other logged seats; hosted press and
+                    gunboat, 2026-10-11)
   llm_failing       at least half of the seat's `llm_call`s failed: the seat silently
                     played its non-LLM floor
 Seats without a log (rivals' hosted logs are private) cannot carry log taints.
@@ -121,6 +126,17 @@ def read_log(path: Path | None) -> list[dict]:
         # seat reads as a healthy policy that simply held every phase.
         rows.append({"event": "exception", "error": "uncaught traceback in the seat log"})
     return rows
+
+
+POD_DELETED = "No logs collected for pod"
+
+
+def pod_deleted(path: Path | None) -> bool:
+    """True when a seat log is only the platform's note that the pod died before its log was collected."""
+    if path is None or not path.exists():
+        return False
+    with open(path, errors="replace") as log:
+        return POD_DELETED in log.read(400)
 
 
 def llm_call_failed(call: dict) -> bool:
@@ -305,6 +321,8 @@ def load_episode(ep: Path) -> tuple[list[Seat], dict]:
         if rows:
             seat.log = summarize_log(rows)
             seat.taint += log_taint(seat.log)
+        elif pod_deleted(logs.get(slot)):
+            seat.taint.append("pod_deleted")
         seats.append(seat)
     return seats, status
 

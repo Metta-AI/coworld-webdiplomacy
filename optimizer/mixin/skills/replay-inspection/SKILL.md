@@ -103,6 +103,7 @@ Run from the optimizer root. **Exact flags live in each tool's docstring**.
 - `python3 games/webdiplomacy/tools/press_audit.py ...`: for a press game, what
   was said beside what was ordered, with each promise checked. See the
   [press-audit skill](../press-audit/SKILL.md).
-- **Not included:** a local HTML game viewer (the prior lab had one,
-  `game_viewer.py`, which needs the `diplomacy==1.1.2` package; it is not in
-  this mixin). Use the hosted viewer and the loader.
+- **Reading one game:** `tools/opponent_profile.py DIR... --game EPISODE_ID`
+  prints it phase by phase in the terminal; the IDE (`ide/ide start`, then
+  `/replays/<episode id>?phase=N`) draws the board, the orders and the press
+  with any press audit laid over them, and is where the user reads games.

@@ -41,6 +41,9 @@ kept in the game docs so each fact has one home:
 | Comparing versions | [skills/ab](skills/ab/SKILL.md) |
 | Reading a batch | [skills/survey](skills/survey/SKILL.md) |
 | Who lied, who kept their word, where we were betrayed | [skills/press-audit](skills/press-audit/SKILL.md) |
+| How one opponent plays (openings, first targets, how it treats us) | [skills/opponent-profile](skills/opponent-profile/SKILL.md); profiles in `reports/opponents/` |
+| Why we win or lose against each opponent | [skills/matchup-writeup](skills/matchup-writeup/SKILL.md); write-ups in `reports/matchups/` |
+| Showing the user replays, results and ideas in the browser, and reading their notes | [skills/ide](skills/ide/SKILL.md): the local web IDE in `ide/` (`ide/ide start --open`) |
 | Reading replays and our logs | [skills/replay-inspection](skills/replay-inspection/SKILL.md) |
 | Designing a hosted eval | [skills/eval-design](skills/eval-design/SKILL.md) |
 | Finding why we lose | [skills/diagnosis](skills/diagnosis/SKILL.md) |
@@ -96,6 +99,8 @@ docstring**; they may shift slightly from what is shown here.
 | `wd.py local` | Local episodes, one image in all seats (needs Docker and `coworld`) | `wd.py local ...` |
 | `wd.py arena` | Local: one candidate against a local field (needs Docker and `coworld`) | `wd.py arena ...` |
 | `wd.py slim` | Strip map PNGs from replays to save disk | `wd.py slim DIR...` |
+| `matchups.py` | One policy's score vs par by power, by opponent (with and without them, head to head, power pairs), by version, by source (league matches or experience requests) and by game year. SE clustered by game; fewer than 16 games is "too few". The IDE dashboard shows this report | `matchups.py DIR... --policy NAME[:vN] [--source league\|xp\|all] [--variant V] [--opponent NAME] [--list] [--json]` |
+| `opponent_profile.py` | What one policy does, from the public orders: openings by power, first targets (and replies), captures, order mix and trajectory beside the field, dead and stalled seats, how it treats our policy (`--versus`). `--game` prints one game phase by phase (the way to read a game without the IDE) | `opponent_profile.py DIR... --opponent NAME[:vN] [--versus OURS] [--variant classic-press] [--out PREFIX] [--episodes FILE] [--json]`; `opponent_profile.py DIR... --game EPISODE_ID [--powers P,Q] [--years 1901-1903] [--decisions] [--logs]` |
 | `paired.py` | Paired difference, its SD and z for two policies in the same games; `vs_par_by_power` compares the two at the same power | `paired.py ...` |
 | `compare.py` | A/B by power for separate arms | `compare.py BASE_DIR CAND_DIR --baseline NAME:vN --candidate NAME:vM` |
 | `session_env.sh` | Private credentials directory, Docker config and active player for this shell, in one step; `git` and `gh` keep using the real home. In an agent harness pin `WEBDIP_SESSION_HOME` and source it on every command line ([docs/platform.md](docs/platform.md#setup)) | `source games/webdiplomacy/tools/session_env.sh <player id>` |
@@ -123,7 +128,19 @@ Also in `tools/`, run the same way; flags are in each docstring.
 | `flag_episodes.py` | Episodes worth opening (reads `wd.py seats` on stdin) |
 | `year_deltas.py` | Centre change per game year by policy (reads `wd.py seats` on stdin) |
 | `gzip_replays.py` | Compress fetched replays in place, about 20x; the loader reads them |
-| `press_audit.py extract\|verify\|report` | One press game from our seat: every message we saw, its claims (an agent lists them), each checked by code against the orders, and a local HTML page. Read the flagged claims' evidence before quoting its counts. See the press-audit skill |
+| `fetch_league.py press\|gunboat` | A league's finished rounds into `.runtime/artifacts/league-<press\|gunboat>/round-NNNN/`, so league matches sit beside experience requests (`webdip_episodes.episode_source` tells them apart); `--policy NAME` keeps only the rounds that seat it |
+| `press_audit.py extract\|check\|verify\|report` | One press game from our seat: every message we saw, its claims (an agent lists them from `annotate.json`, which shows no orders or results; `check` tests the format), each checked by code against the orders, and a local HTML page. Read the flagged claims' evidence before quoting its counts. See the press-audit skill |
+
+## The IDE
+
+`ide/` (at the optimizer root) is a local web page for the user: replays with notes and the
+press audit laid over them, the `matchups.py` dashboard, the reports the two write-up skills
+produce, and a chat panel that reaches **this session**. You start it (`ide/ide start --open`)
+when the user asks or when you have something to show; their messages arrive through this
+session's hooks as text starting `[webDiplomacy IDE]`, and you answer with `ide/ide say` and
+`ide/ide show`. Their replay notes (`annotations/<episode id>.json`, `ide/ide annotations`) are
+evidence for the loop: read them before a diagnosis. The [IDE skill](skills/ide/SKILL.md) has
+the commands; `ide/README.md` explains how delivery works.
 
 ## How the loop runs here
 
@@ -257,5 +274,9 @@ Each of these cost a previous session real time or a wrong conclusion.
 - **A failing LLM seat looks healthy.** It plays its search floor with no error.
   Check `llm_call` statuses per seat after any model or prompt change.
 - **Never use `random` roster seats.** They can seat you against yourself.
+- **A deleted pod is a dead seat, not only a lost log.** A seat log that says only "No logs
+  collected for pod … the pod was deleted before log collection" means the platform deleted
+  the bot's pod mid-game and the seat held from then on (taint `pod_deleted`; about 2.5% of
+  press seats on 2026-10-11). The tools drop those games; report how many.
 - **The bot is killed at game end.** Log every phase; do not rely on an
   end-of-game summary.

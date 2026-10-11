@@ -116,6 +116,17 @@ class TaintFlags(unittest.TestCase):
         self.assertEqual(summary["exceptions"], 1)
         self.assertEqual(we.log_taint(summary), ["exception", "no_decisions"])
 
+    def test_deleted_pod_is_a_taint(self):
+        # The platform's one-line log for a pod it deleted mid-game: the bot stopped playing.
+        with tempfile.TemporaryDirectory() as tmp:
+            ep = write_episode(Path(tmp) / "ep", [1 / 7] * 7, list(range(1, 8)), [3] * 7, logs={0: [], 1: []})
+            (ep / "logs" / "policy_agent_0.log").write_text(
+                "No logs collected for pod job-1-game-player-0 container player: "
+                "the pod was deleted before log collection.\n")
+            seats, _ = we.load_episode(ep)
+        self.assertEqual(seats[0].taint, ["pod_deleted"])
+        self.assertEqual(seats[1].taint, [])
+
     def test_launcher_child_exit_counts_as_exception_only_when_nonzero(self):
         # A bot killed mid-game prints nothing itself; the launcher's `child_exit` line is the only sign.
         decision = {"event": "decision", "rejected": 0}

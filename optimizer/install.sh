@@ -257,6 +257,13 @@ if not skill.exists():
 PYEOF
     echo "IDE: added hooks to .claude/settings.json, the webdip-ide server to .mcp.json, and the skill link."
   fi
+  # The seed links only its own skills. Link the lab's extra skills too (the ones that are
+  # not bindings of a core skill), so Claude Code lists them by name.
+  for skill in press-audit opponent-profile matchup-writeup; do
+    [[ -f "$LAB/skills/$skill/SKILL.md" ]] || { echo "error: lab skill $skill is missing" >&2; exit 1; }
+    ln -s "../../games/webdiplomacy/skills/$skill" "$TARGET/.claude/skills/webdiplomacy-$skill"
+  done
+  echo "Skills: linked the lab's press-audit, opponent-profile and matchup-writeup skills."
   # Record the wiring, as harness/README.md's self-wiring step requires, so the first
   # session can tell from disk that Claude Code is already wired.
   python3 - "$WORKING_CONTEXT" "$TODAY" << 'PYEOF'
@@ -269,7 +276,8 @@ record = f"""- Claude Code: wired by `optimizer/install.sh` on {today}. Skills a
   `check_clis.py` at SessionStart, and both stop nudges at Stop. The IDE (`ide/`) adds
   `ide/ide hook <event>` at SessionStart, UserPromptSubmit, PostToolUse and Stop (they hand
   the user's browser messages to the session), the `webdip-ide` server in `.mcp.json`, and
-  the `webdiplomacy-ide` skill link. Nothing to do.
+  the `webdiplomacy-ide` skill link. The lab's `press-audit`, `opponent-profile` and
+  `matchup-writeup` skills are linked in `.claude/skills/` too. Nothing to do.
 - Any other runtime: not wired. Do the self-wiring step in `harness/README.md`
   and record it here."""
 text = path.read_text()

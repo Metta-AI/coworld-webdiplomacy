@@ -60,6 +60,7 @@ uv run python -m unittest discover -s adapter -p 'test_*.py' -v   # adapter unit
 uv run python -m unittest players.test_players -v                 # player unit tests
 uv run ruff check adapter players tools optimizer
 (cd optimizer/mixin && python3 -m unittest discover -s tools/tests)   # optimizer tools
+(cd optimizer/ide && uv run python -m unittest discover -s tests)     # optimizer IDE
 (cd optimizer/mixin && uv run --no-project --python 3.12 --with "pydantic-ai-slim[openai]==2.54.0" \
   python -m unittest discover -s players/castlereagh/tests)          # reference policy
 uv run coworld build --version 0.7.9                              # images + dist/ manifest

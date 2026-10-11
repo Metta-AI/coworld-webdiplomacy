@@ -5,8 +5,8 @@ Tooling to improve webDiplomacy policies with
 the **source**. Nobody runs it from here: `install.sh` copies it into a
 standalone optimizer repository owned by the user.
 
-**Status: prototype.** `install.sh` works and `mixin/` is filled. `ide/` and
-`INSTALL.md` are planned and do not exist yet.
+**Status: prototype.** `install.sh` works, `mixin/` is filled and `ide/` is a working
+first version (2026-10-11). `INSTALL.md` is planned and does not exist yet.
 
 ## What is here
 
@@ -15,18 +15,23 @@ standalone optimizer repository owned by the user.
   (`AGENTS.md`), the five required skill bindings (`ab`, `survey`,
   `replay-inspection`, `eval-design`, `diagnosis`), game docs, analysis and
   campaign tools in `tools/` (one-command build-upload-log and A/B runs, request
-  builders, sizing), a `press-audit` skill that checks what was said in a press
-  game against what was ordered, and the reference policy `players/castlereagh/`, built by
+  builders, sizing, `matchups.py` for score by power and opponent, `fetch_league.py`
+  for league matches), a `press-audit` skill that checks what was said in a press
+  game against what was ordered, an `opponent-profile` skill and a `matchup-writeup`
+  skill (how each opponent plays, and why we win or lose against it), the `ide`
+  skill, and the reference policy `players/castlereagh/`, built by
   `tools/build.sh`. The reference policy adapts a prior lab's Castlereagh:
   Kissinger search as the core, plus an LLM press layer
   (`CASTLEREAGH_POLICY=press|search`, default `press`).
 - **`install.sh`** and **`seed.lock`**: the installer and the pinned
   optimizer-seed commit.
-- **`ide/`** (planned): a local web IDE for humans, plus an MCP server for
-  coding agents, as its own uv project. Both front ends would call one shared
-  core: a FastAPI web UI that runs locally, and an `ide mcp` command that
-  speaks stdio, so an agent can start it without a port, including in cloud
-  sessions.
+- **`ide/`**: a local web IDE, as its own uv project ([ide/README.md](ide/README.md)).
+  The coding agent comes first: it starts the IDE (`ide/ide start --open`), and what the
+  user types in the browser reaches that running session through Claude Code hooks. The
+  pages: replays with notes and the press audit laid over them, a dashboard of
+  `matchups.py`, and the reports the write-up skills produce. The agent answers and posts
+  cards with `ide/ide say` and `ide/ide show`, or the same actions as tools on the
+  `ide/ide mcp` stdio server.
 
 The design is
 [docs/designs/webdiplomacy-mixin-2026-10-09.html](../docs/designs/webdiplomacy-mixin-2026-10-09.html).
@@ -66,6 +71,7 @@ uv run ruff check optimizer
 (cd optimizer/mixin && python3 -m unittest discover -s tools/tests)
 (cd optimizer/mixin && uv run --no-project --python 3.12 --with "pydantic-ai-slim[openai]==2.54.0" \
   python -m unittest discover -s players/castlereagh/tests)
+(cd optimizer/ide && uv run python -m unittest discover -s tests)
 ```
 
 ## Known gaps
@@ -108,7 +114,7 @@ optimizer/
   install.sh     creates a complete optimizer directory
   mixin/         becomes games/webdiplomacy/ in the installed optimizer
   INSTALL.md     (planned) guide for a coding agent: install, login, harness setup
-  ide/           (planned) becomes ide/ in the installed optimizer
+  ide/           becomes ide/ in the installed optimizer
 ```
 
 Installed result, outside this repository (for example `~/coding/webdip-optimizer`):
@@ -117,7 +123,9 @@ Installed result, outside this repository (for example `~/coding/webdip-optimize
 webdip-optimizer/          its own git repository, cloned from seed.lock
   AGENTS.md, skills/, ...  optimizer-seed core
   games/webdiplomacy/      copy of mixin/, with provenance stamped in MIXIN.md
-  .claude/                 seed harness wiring (hooks, skills)
+  ide/                     copy of ide/: the local web IDE (`ide/ide start --open`)
+  .claude/                 seed harness wiring (hooks, skills), plus the IDE's hooks
+  .mcp.json                the IDE's MCP server
 ```
 
 ## Why it is built this way
@@ -144,7 +152,10 @@ webdip-optimizer/          its own git repository, cloned from seed.lock
   and drop the `seed` remote. It replaces the onboarding's "pick a game" beat in
   `docs/getting-started.md`, which would otherwise send the agent to
   `add_game.sh` for a game that is already installed. With the Claude Code
-  harness it adds a SessionStart hook running the lab's `tools/check_clis.py`
-  and records the wiring under "Harness wiring" in `WORKING_CONTEXT.md`.
+  harness it adds a SessionStart hook running the lab's `tools/check_clis.py`,
+  the IDE's hooks and `.mcp.json` entry, and links to the lab's own skills
+  (`press-audit`, `opponent-profile`, `matchup-writeup`, `ide`) in `.claude/skills/`,
+  where Claude Code discovers skills; it records the wiring under "Harness wiring"
+  in `WORKING_CONTEXT.md`.
   Each edit anchors on the pinned seed's text and fails the install if that text
   moves, so bumping `seed.lock` surfaces them.
