@@ -10,7 +10,8 @@ because `store.take_unread_for_agent()` advances one cursor under a file lock:
                                                It exits with code 2 when a message arrives, and
                                                that wakes the session, idle or busy. This is what
                                                reaches a session sitting at its prompt, and it
-                                               needs nothing from the agent.
+                                               needs nothing from the agent. It lives as long as
+                                               the session and waits while the server is down.
                PostToolUse, UserPromptSubmit   add unread messages to the agent's context,
                                                so a busy agent sees them mid-turn.
                Stop                            hold the turn open when messages are unread, or
@@ -22,8 +23,8 @@ because `store.take_unread_for_agent()` advances one cursor under a file lock:
              Claude Code); the Stop hook asks for it when it is needed.
   inbox      `ide inbox` or the MCP `inbox` tool, when the agent asks.
 
-All of this was tried against a live Claude Code 2.1.296 session on 2026-10-11; the IDE's
-README records what was seen.
+The hooks and the listener were tried against a live Claude Code 2.1.296 session on
+2026-10-11; the IDE's README records what was seen and what was not tried.
 
 A hook must never break the session: `run_hook` catches everything and exits 0, and a
 hook that has nothing to say prints nothing.
@@ -127,7 +128,7 @@ def unregister_listener() -> None:
 
 
 def listener_alive() -> bool:
-    """True when an `ide listen` process is waiting. Clears the records of dead ones."""
+    """True when an `ide listen` process or a Rewake waiter is waiting. Clears the records of dead ones."""
     alive = False
     for record in _listeners_dir().iterdir():
         if record.name.isdigit() and pid_alive(int(record.name)):
@@ -308,14 +309,22 @@ def rewake() -> int:
     except OSError:
         return 0
     parent = os.getppid()
+    if parent == 1:
+        # The session ended before this line ran. The waiter now belongs to the system's first
+        # process, which never goes away, so "has my parent changed" would never be true.
+        return 0
     chat = paths.state_dir() / "chat.jsonl"
-    checked_mtime = None
+    checked = None
     register_listener()
     try:
         while os.getppid() == parent:
-            mtime = chat.stat().st_mtime if chat.exists() else None
-            if mtime != checked_mtime:
-                checked_mtime = mtime
+            try:
+                info = chat.stat()
+                stamp = (info.st_mtime_ns, info.st_size)  # the size too: some disks keep whole seconds
+            except OSError:  # no chat yet, or the state directory was deleted to reset the IDE
+                stamp = None
+            if stamp != checked:
+                checked = stamp
                 if store.has_unread_for_agent():
                     text = take_formatted()
                     if text:

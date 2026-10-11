@@ -201,8 +201,8 @@ Marks on those lines, and what to do with them:
 | Mark or wording | Meaning |
 |---|---|
 | "never made a hostile act on each other" | The cause is somewhere else on the board. Do not build this opponent's mechanism on the game |
-| `[it soloed]`, or a first centre between the two after about 1905 | The game was decided elsewhere. Print it without `--powers` and follow where its centres came from in the early years |
-| `[a seat in this game is tainted]` | Some seat crashed or lost its LLM (ours, its, or a third) |
+| `[it soloed: every other seat scores 0]`, or a first centre between the two after about 1905 | The game was decided elsewhere. Print it without `--powers` and follow where its centres came from in the early years |
+| `[a seat in this game is tainted]` | Some seat crashed, lost its pod or lost its LLM (ours, its, or a third) |
 | `[OUR seat held to the end]`, `[its seat held to the end]` | That bot stopped playing or was locked in place. Ours: not evidence about the opponent |
 | `[press audit on disk]` | Step 4 can read an audit for this game |
 
@@ -258,7 +258,7 @@ For each game, collect:
 | The orders around the turning phase | What happened: who moved on whom, with whose support |
 | Our `decision` lines for those phases: the "committed (its log)" lines of `--decisions`. For more, `--logs` prints the seat's log path and `webdip_episodes.read_log(Path(...))` returns its rows (`event == "decision"`, with `turn` and `phase`). The replay page shows them too | Press builds: what the press layer committed (`press_policy`), so whether it overrode the search. Search builds log only counts (`trace`): skip the log, the adjudicated orders are all there is |
 | Press games only: the press audit, when `.runtime/press/<episode id>/audit.json` exists | Who lied, where we were `betrayed`, where we `doubted_wrongly`, whether we broke our own word. Read the evidence beside each flagged claim before quoting a count; a count you did not check may appear only with "not checked" beside it |
-| The user's annotations: `ide/ide annotations <episode id>` (or `annotations/<episode id>.json`) | What an expert reader saw. Quote them as evidence, with the phase, and say they are the user's reading |
+| The user's annotations: `ide/ide annotations <episode id>` (or `$L/annotations/<episode id>.json`) | What an expert reader saw. Quote them as evidence, with the phase, and say they are the user's reading |
 
 Read only our own seats' logs. When a batch seats only our account's policies
 every seat has a log on disk; a rival's log is not evidence a matchup may rest

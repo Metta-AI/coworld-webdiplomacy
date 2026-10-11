@@ -202,6 +202,12 @@ class FlagEpisodes(unittest.TestCase):
         self.assertTrue(flags["worst games"][0].startswith("g1"))
         self.assertTrue(flags["best games"][0].startswith("g2"))
 
+    def test_a_deleted_pod_is_flagged_as_a_crash(self):
+        seats = [seat("g1", 0, "A", 0.1, taint=["pod_deleted"]), seat("g2", 0, "A", 0.2)]
+        found = flag_episodes.seat_flags(seats, "A")[2]
+        self.assertEqual([(f["flag"], f["episode_id"], f["detail"]) for f in found],
+                         [("crash or dropped orders", "g1", "pod deleted mid-game, no seat log")])
+
     def test_seat_flags_are_structured_and_the_printed_lines_come_from_them(self):
         seats = [
             seat("g1", 0, "A", 0.0, years={"1901": 3, "1902": 0, "1903": 0, "1904": 0, "1905": 0}),

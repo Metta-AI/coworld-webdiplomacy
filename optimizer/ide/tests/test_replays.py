@@ -212,7 +212,7 @@ class ReplayTests(unittest.TestCase):
         self.assertLess(page.text.index('id="note-form"'), page.text.index('class="side-col"'))
         self.assertLess(page.text.index('class="side-col"'), page.text.index('id="press"'))
         missing = self.client.get("/replays/ereq_nope")
-        self.assertEqual(missing.status_code, 200)
+        self.assertEqual(missing.status_code, 404)  # the page is still drawn, as for a missing report
         self.assertIn("No such game", missing.text)
         self.assertEqual(self.client.get("/api/replays/ereq_nope").status_code, 404)
 
@@ -253,6 +253,21 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(view["phases"], [])
         self.assertTrue(any("no replay" in p for p in view["problems"]))
         self.assertEqual(self.client.get("/replays/ereq_press").status_code, 200)
+
+    def test_a_replay_that_cannot_be_read_is_a_problem_line_not_an_error(self):
+        import gzip
+
+        whole = gzip.compress((self.press_dir / "replay.json").read_bytes())
+        for damaged in (whole[: len(whole) // 2], gzip.compress(b'[{"history": '), b"[1, 2]", b'{"not": "a list"}',
+                        b'[{"history": {"phases": [{}]}}]'):  # fmt: skip
+            (self.press_dir / "replay.json").write_bytes(damaged)
+            self.episodes._views.clear()
+            response = self.client.get("/api/replays/ereq_press", params={"seat": 3})
+            self.assertEqual(response.status_code, 200, damaged[:20])
+            view = response.json()
+            self.assertEqual(view["phases"], [])
+            self.assertTrue(any("could not be read" in p for p in view["problems"]), view["problems"])
+            self.assertEqual(self.client.get("/replays/ereq_press").status_code, 200)
 
     def test_private_press_and_audit_overlay(self):
         log = next((self.press_dir / "policy-logs").glob("*.3.log"))

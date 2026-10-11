@@ -9,17 +9,28 @@ Standard library only (hooks import it without `uv`).
 Files, under `paths.state_dir()` unless noted:
   chat.jsonl      one message per line: {seq, id, ts, sender: "user"|"agent", text, context}
                   `context` is optional and names what the user was looking at, for example
-                  {"episode": "...", "phase": 7, "annotations": ["a1f"]}.
+                  {"episode": "...", "phase": 7, "annotations": ["a1f"]}. It is whatever small
+                  object the page sent: `seat`, `label`, `page`, `request` and others also occur.
   agent_cursor    the `seq` of the last user message delivered to the agent.
   cards.jsonl     things the agent shows the user: {seq, id, ts, kind, title, body, link}
                   kind: "idea" | "replay" | "report" | "result" | "note"; `body` is Markdown;
                   `link` is an IDE path such as "/replays/<episode>?phase=7".
-  agent_seen      touched whenever the agent side runs (hook, CLI, MCP): its presence signal.
+  agent_seen      the time (seconds since 1970) the agent side last acted: a chat, card or
+                  annotation command, `start`, an MCP tool, or a hook while the IDE is in use.
+                  Its presence signal.
   annotations/<episode id>.json   (in `paths.annotations_dir()`, tracked by git)
                   a list of {id, ts, author: "user"|"agent", phase, power, territory, tag,
                   text}. `phase` indexes the replay's last frame `history.phases`; `power`
                   and `territory` are optional names. tag: "blunder" | "missed-alliance" |
                   "bad-trust" | "good" | "suggestion" | "question" | "note".
+
+Each write takes `<file name>.lock` beside the file it changes (`chat.jsonl.lock`,
+`cards.jsonl.lock`, `agent_cursor.lock`, `annotations/<episode id>.json.lock`).
+
+Other modules keep their own files in `paths.state_dir()`: `server.json`, `server.lock`,
+`server.log`, `listeners/<pid>` and `rewake.lock` (`cli.py`, `hooks.py`), and the two saved
+reads of the fetched games, `episode_index.json` (`episodes.py`) and `dashboard_games.pickle`
+(`routes_dashboard.py`). The IDE's README lists them all.
 """
 
 from __future__ import annotations

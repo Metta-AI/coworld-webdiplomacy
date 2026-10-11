@@ -13,8 +13,9 @@ Inputs: episode directories (see `webdip_episodes.py`). One observation = one ta
 seat. Groups: `all` plus each of the seven powers, because country is shuffled per
 episode and power strength dominates raw score.
 
-Taint first: an episode whose target seat is tainted (rejected orders, exception,
-failing LLM), or that was cancelled, failed, or has no results.json, is dropped
+Taint first: an episode whose target seat is tainted (rejected orders, exception, no
+decisions, deleted pod, failing LLM), or that was cancelled, failed, timed out, or has no
+results.json, is dropped
 before any mean and counted in `taint_rate` (an episode-level metric, lower is
 better). A large asymmetry in taint between arms is itself a finding.
 

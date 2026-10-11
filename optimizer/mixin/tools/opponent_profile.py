@@ -2,7 +2,7 @@
 """Measure what one opponent policy actually does, from the public orders in replays.
 
     python3 games/webdiplomacy/tools/opponent_profile.py DIR... --opponent NAME[:vN]
-        [--versus OURPOLICY[:vN]] [--variant classic-press] [--json]
+        [--versus OURPOLICY[:vN]] [--variant classic-press] [--out PREFIX] [--episodes FILE] [--json]
     python3 games/webdiplomacy/tools/opponent_profile.py DIR... --game EPISODE_ID [--powers Turkey,Russia]
         [--years 1901-1903] [--logs] [--decisions]
 
@@ -15,7 +15,7 @@ are different games (press, a different last year): profile one variant at a tim
 `--variant` (the ids `matchups.py` uses). Without it every variant is pooled and the header
 says so.
 
-`--out PREFIX` also saves the text and the JSON (with `episodes`, the opponent's games, and
+`--out PREFIX` also saves the text (PREFIX.md) and the JSON (PREFIX.json, with `episodes`, the opponent's games, and
 `episodes_read`, every game the run read, the field's included). `--episodes
 FILE` reads only the listed games (a saved PREFIX.json, a saved `matchups.py --json`, or one id
 per line), so a profile can be repeated, or lined up with a matchups run, while more games are
@@ -101,9 +101,10 @@ table, so it is a lead to check in replays, not an effect of the opponent.
 "Episodes to open" lists, for each pattern, the games that show it best, as IDE links
 (`/replays/<episode id>?phase=N`; N indexes the last replay frame's `history.phases`).
 A link marked `[its seat tainted]` or `[another seat tainted]` is a game where a seat log
-shows a crash or failing LLM calls: that seat played its fallback, so read the game with care.
+shows a taint (a crash, failing LLM calls, a deleted pod): that seat played its fallback or
+nothing, so read the game with care. `[held to the end]` marks a seat that only held at the end.
 
-The header also says where the games came from (`sources`), which powers the opponent never
+The header also says which directory the games were found under (`sources`), which powers the opponent never
 played, and `tables`: per power, how many different seatings (which policy held which power)
 its games had. One table in every game means its neighbours never changed, and every count
 at that power describes play against those neighbours only.
@@ -126,9 +127,10 @@ final_centers, solo, top, eliminated_year, centers_by_year, taint, other_taint, 
 dislodged, openings {turn: [order text]}, orders {type: count}, orders_total, orders_failed,
 supports, supports_other, supports_given {POWER: count}, first_hostile {POWER: turn},
 first_centre_attack {POWER: turn}, first_targets [POWER], taken_from, lost_to {POWER|neutral:
-count}, captured [province], home_lost_year, builds {army, fleet, disband}, press_messages,
-press_by_year, phase_index {turn: index into history.phases}, idle_end (movement phases in a
-row, up to the last, with every unit holding). `replying_to` [POWER] is added by
+count}, first_taken_from {POWER|neutral: turn}, captured [province], home_lost_year,
+builds {army, fleet, disband}, press_messages, press_by_year, phase_index {turn: index into
+history.phases}, idle_end (movement phases in a row, up to the last, with every unit holding),
+units_at_end, spring_1901 [order text], rival_solo. `replying_to` [POWER] is added by
 `mark_replies(facts)` once it has the facts of every seat in the game, keyed any way. Mind the case: `power` and
 `table` use "Turkey"; every key written POWER above, and the powers in `game.phases`, are
 upper case ("TURKEY"). `game.phases` is one dict per
@@ -160,7 +162,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from matchups import read_episode_list, variant_of
+from matchups import read_episode_list, stat, variant_of
 from press_audit import ABBREVIATION, movement_phases, province, public_press, turn_label
 from webdip_episodes import (
     EPISODE_TAINTS,
@@ -510,9 +512,11 @@ def _mean(values) -> float | None:
     return round(statistics.mean(values), 4) if values else None
 
 
-def _se(values) -> float | None:
-    values = list(values)
-    return round(statistics.stdev(values) / len(values) ** 0.5, 4) if len(values) > 1 else None
+def _se(observations) -> float | None:
+    """The standard error of the mean of `(episode, value)` observations, clustered by game as
+    everywhere in the lab (`matchups.stat`): two seats of one policy in a game, or our one score
+    paired with each of its two seats, are not independent draws. None with fewer than two games."""
+    return stat(list(observations))["se"]
 
 
 def _median(values) -> float | None:
@@ -670,7 +674,7 @@ def episodes_to_open(rows: list[dict]) -> dict[str, list[str]]:
 def power_profile(power: str, rows: list[dict], field: list[dict]) -> dict:
     n = len(rows)
     par_score, par_centers = _mean(r["score"] for r in field), _mean(r["final_centers"] for r in field)
-    gaps = [r["score"] - par_score for r in rows] if par_score is not None else []
+    gaps = [(r["episode"], r["score"] - par_score) for r in rows] if par_score is not None else []
     spring = opening_table(rows, 0, power, field)
     builds = Counter()
     for r in rows:
@@ -686,7 +690,7 @@ def power_profile(power: str, rows: list[dict], field: list[dict]) -> dict:
         "score": _mean(r["score"] for r in rows),
         "par_score": par_score,
         "field_n": len(field),
-        "score_vs_par": _mean(gaps),
+        "score_vs_par": _mean(gap for _, gap in gaps),
         "score_vs_par_se": _se(gaps),
         "final_centers": _mean(r["final_centers"] for r in rows),
         "par_final_centers": par_centers,
@@ -798,7 +802,7 @@ def versus_profile(games: list[Game], facts: dict, is_opponent, is_ours, top: in
             "centres_we_took_from_them": sum(r["we_took_from_them"] for r in rows),
             "our_score": _mean(r["our_score"] for r in rows),
             "our_vs_par": _mean(r["our_vs_par"] for r in rows),
-            "our_vs_par_se": _se(r["our_vs_par"] for r in rows if r["our_vs_par"] is not None),
+            "our_vs_par_se": _se((r["episode"], r["our_vs_par"]) for r in rows if r["our_vs_par"] is not None),
             "their_score": _mean(r["their_score"] for r in rows),
         }
 
@@ -867,7 +871,7 @@ def build_profile(games: list[Game], dropped: Counter, opponent: str, versus: st
     field = [f for f in facts.values() if not is_opponent(f["policy"])]
     per_game = Counter(r["episode"] for r in rows)
     par = {p: _mean(f["score"] for f in field if f["power"] == p) for p in POWERS.values()}
-    gaps = [r["score"] - par[r["power"]] for r in rows if par[r["power"]] is not None]
+    gaps = [(r["episode"], r["score"] - par[r["power"]]) for r in rows if par[r["power"]] is not None]
     builds = Counter()
     for r in rows:
         builds.update(r["builds"])
@@ -902,7 +906,7 @@ def build_profile(games: list[Game], dropped: Counter, opponent: str, versus: st
         "games_with_any_public_press": sum(bool(g.press) for g in games if g.episode in per_game),
         "overall": {
             "score": _mean(r["score"] for r in rows),
-            "score_vs_par": _mean(gaps),
+            "score_vs_par": _mean(gap for _, gap in gaps),
             "score_vs_par_se": _se(gaps),
             "solo": sum(r["solo"] for r in rows),
             "top_of_board": sum(r["top"] for r in rows),

@@ -233,7 +233,7 @@ Rules that keep annotations checkable:
   (`not attacks ... provinces`), and add `holds` only if the message makes the
   hold itself the point.
 - **Turns.** Leave `turns` out when the claim is about the turn it was said in
-  (the message's `turn`). "This year" is both turns of the year; "until 1903"
+  (the turn the message is listed under). "This year" is both turns of the year; "until 1903"
   is that range. A claim that says "this turn" or names its season is one
   turn, even inside a message that also restates standing terms.
   Turn 0 is Spring 1901, turn 1 Autumn 1901. An open-ended
@@ -325,7 +325,7 @@ Rules that keep annotations checkable:
   kept, and the page shows the orders beside it.
 - **Quote the words.** `quote` is the part of the message the claim comes from,
   copied exactly, so a reader can check your reading. `verify` refuses a quote
-  that is not in the message. Leave words out with `...`; put your own notes in
+  that is not in the message. Leave words out with `...` (the parts must stay in the message's order); put your own notes in
   `context`, not in the quote.
 - **`success` is for results, not intentions.** "I will take Belgium" as a
   promise is `moves_to BEL`; if you add `"success": true`, an order that was
@@ -333,7 +333,7 @@ Rules that keep annotations checkable:
   `success` in statements about what happened ("my fleet took DEN").
 
 Predicates, with powers as upper-case names and provinces as three-letter
-abbreviations (the ledger's `phases` show the spelling):
+abbreviations (`units_at_start` in `annotate.json` shows the spelling):
 
 | Predicate | True when |
 |---|---|
@@ -343,7 +343,7 @@ abbreviations (the ledger's `phases` show the spelling):
 | `{"p": "leaves", "power": P, "province": "TRI"}` | P's unit in TRI was ordered to move |
 | `{"p": "supports", "power": P, "of": Q, "province": "X", "kind": "move"}` | P supported a unit. Optional: `of` (whose unit), `province` (into or in X), `kind` (`move` or `hold`), `unit` (only P's unit in that province) |
 | `{"p": "attacks", "power": P, "target": Q}` | P moved on, or supported a move on, a unit or supply centre of Q. Optional: `"what": "unit"` or `"centre"`; `"unit": "ALB"` (only that unit of P's); `"how": "move"` or `"support"` ("no support against your centres" is `"how": "support", "what": "centre"`) |
-| `{"p": "attacks", "power": P, "provinces": ["SER", "RUM"]}` | The same, for a list of provinces. In a private message, P supporting the other party's own move into the province is help, not an attack (the code spares the addressee; `"spare": Q` names another power) |
+| `{"p": "attacks", "power": P, "provinces": ["SER", "RUM"]}` | The same, for a list of provinces. P supporting the move of the power the claim was made to (the addressee, or `to`) into the province is help, not an attack (the code spares that power; `"spare": Q` names another power) |
 | `{"p": "dislodged", "power": P, "province": "RUH"}` | P's unit in RUH was dislodged |
 | `{"p": "unit_at", "power": P, "province": "PRU", "when": "start"}` | P has a unit there at the start (or `"end"`, the default) of the window |
 | `{"p": "owns", "power": P, "province": "DEN"}` | P owns that supply centre (`when` as above) |
@@ -352,14 +352,14 @@ abbreviations (the ledger's `phases` show the spelling):
 
 Every predicate in a list must hold. Over several turns a predicate holds if it
 holds in any movement phase, and `not` only if it never does. On `order`,
-`moves_to` and `attacks`, `"success": true` requires that the move worked ("I
+`moves_to`, `leaves` and `attacks`, `"success": true` requires that the move worked ("I
 will take Belgium") and `"success": false` that it was ordered and failed
 ("your fleet bounces off KIE").
 
 ## Reading the result
 
 `audit.json` holds, per message, each claim with its `condition` (none, met,
-unmet), `outcome`, the `evidence` (the orders that settled it, then `note:`
+unmet, unverifiable), `outcome`, the `evidence` (the orders that settled it, then `note:`
 lines for any rule below that changed the verdict), `relied` and a `category`.
 
 Outcomes beyond kept / broken / true / false:
@@ -367,7 +367,7 @@ Outcomes beyond kept / broken / true / false:
 | Outcome | Meaning |
 |---|---|
 | `attempted` | The promised order was given and it failed (bounced, was cut, the unit was dislodged). Counted as the speaker keeping its word |
-| `superseded` | The plan was changed in the open before the orders: a later claim `replaces` it, or every order that broke it was announced to the same party, or asked for by that party, in a later message. `replaced_by` names the message |
+| `superseded` | The plan was changed in the open before the orders: a later claim `replaces` it, or every order that broke it was announced to the same party, or asked for by that party, in a later message. `replaced_by` names the replacing message; in the other two cases a `note:` line names it |
 | `released` | A conditional promise whose condition was not met |
 | `released_by_them` | The other side broke the deal first: a pledge not to move on someone, broken only after that power had attacked the speaker earlier in the claim's window; or a promise broken only after the other party had, in an earlier turn, not done what the same message asked of it |
 | `forecast_right`, `forecast_wrong` | A statement about another power's orders in a turn not yet played. Nobody's honesty |
@@ -375,14 +375,14 @@ Outcomes beyond kept / broken / true / false:
 
 | Category | Meaning | What to do with it |
 |---|---|---|
-| `betrayed`, `deceived` | A promise made **to us**, or a statement of the speaker's own coming orders, that we relied on and that did not hold, with no notice beforehand | The cases that cost centers. Open the turn: what did we commit because of it? |
+| `betrayed`, `deceived` | A promise made **to us** (`betrayed`), or a statement of the speaker's own coming orders or a threat that was not carried out (`deceived`), that we relied on and that did not hold, with no notice beforehand | The cases that cost centers. Open the turn: what did we commit because of it? |
 | `doubted_wrongly` | Perhaps a missed alliance: a pledge **not to move on us** was kept, the speaker had a unit that could have broken it, it did not move on us in the window or the turn before, we had not relied on it, **we moved on the speaker** in the window, and we had not given that power our own word for those turns (that would be `we_broke_our_word`) | Rare by design, and still the least certain flag: in the 2026-10-11 measurement no reader agreed with any of the eight raised by a looser rule. Was our distrust earned? |
 | `kept_despite_doubt` | Kept or true, and we had not relied on it, but nothing shows we lost by that | No action. It still counts for the speaker's honesty |
 | `kept_but_attacked_us` | Kept in the letter while the speaker moved on our units or centres that turn or the turn before (the orders are in the `note:` lines) | Evidence the distrust was right |
 | `trusted_rightly`, `doubted_rightly` | Our stance matched what happened | Evidence the trust rule works |
 | `attack_announced`, `attack_not_made` | The sender said it would move on our own unit or centre ("PIC falls this autumn"), and did or did not. Worked out by code from the board; never counted as a betrayal or a missed alliance | Whether a power's threats to us are real |
 | `kept_to_other`, `broken_to_other` | A promise made to another power (`to`), which we only watched | A power that breaks its word to others; never a betrayal of us |
-| `changed_plans`, `we_changed_plans` | The only thing broken was "this unit will stay put" (`holds`, or a hold order), and the speaker made no move on the party it was said to | A changed plan nobody was told about. Not a stab |
+| `changed_plans`, `we_changed_plans` | The only thing broken was "this unit will stay put" (`holds`, or a hold order; a promised support-hold of its own unit too, but not one of the other party's unit: that is help withheld), and the speaker made no move on the party it was said to | A changed plan nobody was told about. Not a stab |
 | `our_attack_announced`, `our_attack_not_made` | We told a power we would move on its unit or centre, and did or did not | Whether our threats are real. Not a matter of our word |
 | `misstated`, `we_misstated` | A wrong statement about orders already played. Everyone can read those off the board, so nobody was deceived | Sloppy or taunting talk. Counted in `did_not_hold`, never flagged |
 | `true_no_stance`, `false_no_stance` | It held or did not; our policy recorded no stance on that power that turn | Count them per power: this is each power's honesty |
@@ -440,4 +440,6 @@ claim lands in the two "no stance" categories. That still shows who lied.
 - A pattern across games (a power that lies, a trust rule that fails) is a
   hypothesis: take it to `diagnose` and an experiment record.
 - Episodes worth the human's eyes: give them `audit.html` and the hosted replay
-  (`coworld replay-open <episode-request-id> --hosted`).
+  (`coworld replay-open <episode-request-id> --hosted`), or the IDE's viewer,
+  `/replays/<episode id>?seat=<our slot>`, which shows the audit beside the
+  game.

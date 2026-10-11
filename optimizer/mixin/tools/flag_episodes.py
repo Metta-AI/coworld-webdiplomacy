@@ -5,11 +5,13 @@
         python3 games/webdiplomacy/tools/flag_episodes.py --policy NAME:vN [--top 3]
 
 Reads `wd.py seats` JSON lines on stdin and prints, for the named policy:
-crashes or dropped orders, opponent solos (and who soloed), our early
+crashes or dropped orders (a seat log with no decision counts as a crash, and so
+does a pod the platform deleted mid-game: taint `pod_deleted`),
+opponent solos (and who soloed), our early
 eliminations (zero centres before the last two years), swings of three or more
 centres within one year, and our best and worst games by raw score (not per
 power, and not against par: use `wd.py metrics` for that). It does not flag a
-failing LLM seat; `wd.py metrics` reports those as taint. Each line carries
+failing LLM seat; `wd.py metrics` reports that as taint. Each line carries
 the episode id to pass to `coworld replay-open <id> --hosted`. Standard library only.
 """
 
@@ -43,7 +45,10 @@ def seat_flags(seats: list[dict], policy: str) -> tuple[list[dict], int, list[di
                 found.append({"flag": name, "episode_id": episode_id, "power": seat["power"], "detail": detail})
 
             log = seat.get("log") or {}
-            if log.get("exceptions") or log.get("rejected") or "no_decisions" in (seat.get("taint") or []):
+            if "pod_deleted" in (seat.get("taint") or []):
+                # No log to count from: the platform deleted the pod, and the seat held from then on.
+                flag("crash or dropped orders", "pod deleted mid-game, no seat log")
+            elif log.get("exceptions") or log.get("rejected") or "no_decisions" in (seat.get("taint") or []):
                 flag("crash or dropped orders", f"exceptions {log.get('exceptions')}, rejected {log.get('rejected')}, "
                                                 f"decisions {log.get('decisions')}")
             winner = next((s for s in game if s["solo"] and s["policy"] != policy), None)

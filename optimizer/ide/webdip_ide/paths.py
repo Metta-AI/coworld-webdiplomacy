@@ -49,7 +49,8 @@ def artifacts_dir() -> Path:
 
 
 def press_dir() -> Path:
-    """Press audits: `.runtime/press/<episode id>/{ledger,claims,audit}.json`."""
+    """Press audits: `.runtime/press/<episode id>/` holds `ledger.json`, `annotate.json`, `claims.json`,
+    `audit.json` and `audit.html` (written by the lab's `tools/press_audit.py`; the IDE reads `audit.json`)."""
     return lab_dir() / ".runtime" / "press"
 
 

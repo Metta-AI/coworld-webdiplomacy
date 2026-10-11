@@ -14,7 +14,8 @@ says how, and recommends a sub-agent per game).
    phase's adjudicated orders and board in standard notation, and what our policy believed
    about each power that turn (from its own seat log). It also writes `DIR/annotate.json`, the
    same press with each turn's STARTING board and no orders or results, and `DIR/claims.json`,
-   one empty entry per message, for step 2 to fill in.
+   one empty entry per message, for step 2 to fill in (a `claims.json` already there is kept;
+   `--force` starts it again). `--slot N` picks the seat when the policy holds more than one.
 2. An agent reads `annotate.json` and lists each message's claims in `DIR/claims.json` using the
    small vocabulary below. It records what was SAID; it does not judge whether it came true, and
    it does not see how any turn came out.
@@ -67,8 +68,8 @@ Predicates (provinces are three-letter abbreviations, powers are upper-case name
                                                               P moved on, or supported a move on, Q's units or centres
                                                               (`what`, `how` narrow it; `unit` = that unit of P's)
     {"p": "attacks", "power": P, "provinces": ["SER", "RUM"]} the same, for a list of provinces
-                                                              (in a private message, P supporting the other party's
-                                                              own move into the province is not an attack; "spare": Q
+                                                              (P supporting the move of the power the claim was made
+                                                              to into the province is not an attack; "spare": Q
                                                               names another power to spare)
     {"p": "dislodged", "power": P, "province": "RUH"}         P's unit in RUH was dislodged
     {"p": "unit_at", "power": P, "province": "PRU", "when": "start" | "end"}
@@ -102,6 +103,8 @@ Rules `verify` applies after checking the orders (each from a false alarm in rea
 - "changed_plans" / "we_changed_plans": the only thing broken was "this unit will stay put",
   and the speaker made no move on the party it was said to.
 - "our_attack_announced" / "our_attack_not_made": we told a power we would move on it.
+  "attack_announced" / "attack_not_made": a power told us it would move on us. Neither is a
+  promise anyone relied on.
 - "doubted_wrongly" (perhaps a missed alliance) needs: a pledge not to move on us, kept; the
   speaker could have broken it (a unit able to move into what it protects); the speaker did not
   move on us in the window or the turn before; we moved on the speaker in the window; and we
@@ -785,7 +788,7 @@ def check_claim(claim: dict, message: dict, phases: list[dict]) -> dict:
             return {**result, "outcome": UNMET.get(kind, "not_applicable")}
     commitment = claim["commitment"]
     other = said_to(claim, message) if message["from"] != said_to(claim, message) else None
-    if message["to"] in POWER.values() and other in POWER.values():  # a private message: the party it was said to
+    if other in POWER.values():  # said to one power: a private message, or a public one with `to`
         commitment = sparing(commitment, other)
     used: list = []
     held, evidence = evaluate_all(commitment, window, used=used)
@@ -866,7 +869,9 @@ def could_break(commitment: list[dict], window: list[dict], borders: dict | None
     Only a commitment made of nothing but "will not move on / attack / support into" is ever
     judged impossible to break: when the power has no unit that could move into any province it
     protects, in any turn of the window. (Convoys are not followed: an army that could only
-    arrive by sea counts as out of reach.) Without a border table the answer is "yes"."""
+    arrive by sea counts as out of reach. The ledger keeps provinces, not coasts, so a fleet in
+    SPA, STP or BUL is given the borders of both coasts and can count as able when it is not.)
+    Without a border table the answer is "yes"."""
     if not borders:
         return True
     for pred in commitment:
@@ -891,14 +896,29 @@ def pledge_of_peace(commitment: list[dict]) -> bool:
     return all("not" in pred and pred["not"].get("p") in ("moves_to", "attacks", "supports") for pred in commitment)
 
 
-def only_holds_failed(commitment: list[dict], window: list[dict]) -> bool:
+def protects_another(commitment: list[dict], party: str) -> bool:
+    """Is every part of a pledge of peace "will not attack Q", with Q a power other than `party`?
+    "I will not attack Italy", said to us, is a plan about Italy and no pledge to us."""
+    inner = [pred["not"] for pred in commitment if "not" in pred]
+    return bool(inner) and all(p.get("p") == "attacks" and p.get("target") not in (None, party) for p in inner)
+
+
+def only_holds_failed(commitment: list[dict], window: list[dict], to: str | None = None) -> bool:
     """Did the commitment fail only in parts that say one of the speaker's units will stay put
-    (`holds`, or an exact hold or support-hold order)? "A BUR holds", then A BUR - MAR."""
+    (`holds`, or an exact hold or support-hold order)? "A BUR holds", then A BUR - MAR.
+
+    A support-hold of a unit of `to`, the party it was said to, is not such a part: that is help
+    promised to them, and withholding it can cost them the province."""
     failed = [pred for pred in commitment if evaluate(pred, window)[0] is False]
     def stays(pred: dict) -> bool:
         if pred.get("p") == "holds":
             return True
-        return pred.get("p") == "order" and parse_order(pred["order"])["type"] in ("hold", "support_hold")
+        if pred.get("p") != "order":
+            return False
+        order = parse_order(pred["order"])
+        if order["type"] == "support_hold":
+            return to is None or all(owner_of_unit(phase, order["to"]) != to for phase in window)
+        return order["type"] == "hold"
     return bool(failed) and all(stays(pred) for pred in failed)
 
 
@@ -971,7 +991,6 @@ def category(kind: str, speaker: str, outcome: str, relied: bool | None, our_pow
     `against_us`: a promise that is itself an attack on the party it was said to: on us (see
     `aimed_at_us`), or, when we are the speaker, on the power we said it to.
     `to`: whom it was said to (None = to us). `scope`: a statement's `statement_scope`.
-    The last three decide whether a kept promise we doubted was a missed alliance:
     `harmless`: the only thing broken was "this unit will stay put", and the speaker made no move
     on the party it was said to (see `only_holds_failed`).
     The last four decide whether a kept promise we doubted was a missed alliance:
@@ -1031,7 +1050,13 @@ def quote_missing(quote: str, text: str) -> str | None:
     if not parts:
         return quote or "(empty)"
     said = plain(text)
-    return next((part for part in parts if part not in said), None)
+    at = 0  # "..." leaves words out; it does not move them, so each part is looked for after the one before
+    for part in parts:
+        found = said.find(part, at)
+        if found < 0:
+            return part
+        at = found + len(part)
+    return None
 
 
 def claim_refs(refs: list[str], messages: dict[str, dict]) -> list[tuple[str, int | None]]:
@@ -1045,11 +1070,54 @@ def claim_refs(refs: list[str], messages: dict[str, dict]) -> list[tuple[str, in
     return out
 
 
+NEEDS = {  # predicate -> the fields it cannot be checked without
+    "order": ("power", "order"), "moves_to": ("power", "province"), "holds": ("power", "province"),
+    "leaves": ("power", "province"), "dislodged": ("power", "province"), "supports": ("power",),
+    "attacks": ("power",), "unit_at": ("power", "province"), "owns": ("power", "province"),
+    "centers": ("power",), "unverifiable": (),
+}  # fmt: skip
+
+
+def validate_predicate(pred) -> None:
+    """Refuse a predicate `evaluate` could not read. Checked for every claim, also one about turns
+    the game never reached or behind a condition that was not met: whether claims.json is well
+    formed must not depend on how the game went."""
+    if not isinstance(pred, dict):
+        raise ValueError(f"a predicate must be an object, not {pred!r}")
+    if "not" in pred:
+        return validate_predicate(pred["not"])
+    for key in ("any", "all"):
+        if key in pred:
+            if not isinstance(pred[key], list) or not pred[key]:
+                raise ValueError(f"'{key}' needs a list of predicates")
+            for inner in pred[key]:
+                validate_predicate(inner)
+            return None
+    kind = pred.get("p")
+    if kind not in NEEDS:
+        raise ValueError(f"unknown predicate {kind!r}")
+    absent = [field for field in NEEDS[kind] if not pred.get(field)]
+    if kind == "attacks" and not (pred.get("target") or pred.get("provinces")):
+        absent.append("target or provinces")
+    if kind == "centers" and "count" not in pred and "at_least" not in pred:
+        absent.append("count or at_least")
+    if absent:
+        raise ValueError(f"predicate {kind!r} needs {', '.join(absent)}")
+    if kind == "order":
+        parse_order(pred["order"])
+    return None
+
+
 def validate_claim(claim: dict, message: dict, where: str) -> None:
     if claim.get("kind") not in KINDS:
         raise ValueError(f"{where}: kind must be one of {KINDS}, not {claim.get('kind')!r}")
     if not claim.get("commitment"):
         raise ValueError(f"{where}: commitment is empty (use an 'unverifiable' predicate when nothing can be checked)")
+    for pred in list(claim["commitment"]) + list(claim.get("condition") or []):
+        try:
+            validate_predicate(pred)
+        except ValueError as error:
+            raise ValueError(f"{where}: {error}") from error
     turns = claim.get("turns")
     if turns is not None and (len(turns) != 2 or turns[0] > turns[1]):
         raise ValueError(f"{where}: turns must be [first, last]")
@@ -1087,7 +1155,8 @@ def apply_replacements(ledger: dict, claims: dict, results: dict) -> None:
             where = f"{message['id']} claim {index + 1}"
             for mid, number in claim_refs(claim["replaces"], messages):
                 old = messages[mid]
-                if order[mid] >= order[message["id"]] or message["from"] not in (old["from"], old["to"]):
+                parties = {old["from"], old["to"]} | {said_to(made, old) for made in claims[mid]}
+                if order[mid] >= order[message["id"]] or message["from"] not in parties:
                     raise ValueError(f"{where}: 'replaces' must name an earlier message from the same sender "
                                      f"(or one whose promise was made to this sender), not {mid}")
                 targets = range(len(claims[mid])) if number is None else [number]
@@ -1184,8 +1253,11 @@ def audit(ledger: dict, claims: dict) -> dict:
                 earlier = [p for p in window if p["turn"] < first_break]
                 struck_first = attack_lines(to, message["from"], earlier) if to in POWER.values() else []
                 # The other half of a deal: what this same message asked of the party it was said to.
-                asked = [(other, first_refusal(other, message, phases)) for other in claims[message["id"]]
-                         if other["kind"] == "request" and (other.get("asked") or message["to"]) == to]  # fmt: skip
+                # Only a request that was refused: one whose condition never came about asked nothing.
+                asked = [(other, first_refusal(other, message, phases))
+                         for number, other in enumerate(claims[message["id"]])
+                         if other["kind"] == "request" and (other.get("asked") or message["to"]) == to
+                         and results[message["id"], number]["outcome"] == "refused"]  # fmt: skip
                 refused = [other for other, turn in asked if turn is not None and turn < first_break]
                 if told:
                     result["outcome"] = "superseded"
@@ -1214,14 +1286,15 @@ def audit(ledger: dict, claims: dict) -> dict:
             against_us = phase is not None and target in POWER.values() and aimed_at_us(
                 claim["commitment"], phase, target)  # fmt: skip
             harmless = (HONEST.get(result["outcome"]) is False and to in POWER.values() and bool(window)
-                        and only_holds_failed(claim["commitment"], window)
+                        and only_holds_failed(claim["commitment"], window, to)
                         and not attack_lines(message["from"], to, window))  # fmt: skip
             stood = category(
                 claim["kind"], message["from"], result["outcome"], relied, us, against_us,
                 to=to, scope=result.get("scope"),
                 attacked_us=bool(extra.get("attacks_on_us") or extra.get("attacks_on_us_before")),
                 breakable=extra.get("could_break", True), we_attacked=bool(extra.get("our_attacks_on_them")),
-                about_us=pledge_of_peace(claim["commitment"]), harmless=harmless,
+                about_us=pledge_of_peace(claim["commitment"]) and not protects_another(claim["commitment"], us),
+                harmless=harmless,
             )  # fmt: skip
             if stood == "kept_but_attacked_us":
                 hits = extra["attacks_on_us"] or extra["attacks_on_us_before"]
@@ -1229,7 +1302,7 @@ def audit(ledger: dict, claims: dict) -> dict:
             public = {k: v for k, v in result.items() if not k.startswith("_")}
             checked.append({**claim, **public, "to": to, "relied": relied, "category": stood, **extra})
         messages.append({**message, "claims": checked})
-    our_stabs = [(message["to"], claim["window"]) for message in messages for claim in message["claims"]
+    our_stabs = [(claim["to"], claim["window"]) for message in messages for claim in message["claims"]
                  if claim["category"] == "we_broke_our_word"]  # fmt: skip
     for message in messages:
         for claim in message["claims"]:

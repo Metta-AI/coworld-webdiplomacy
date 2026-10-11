@@ -64,6 +64,10 @@ Only our own seats' logs and artifacts are readable.
   private messages only.
 - Hosted logs sometimes arrive as a Python `b'...'` bytes literal;
   `webdip_episodes.py` decodes them.
+- A seat log that is one line, "No logs collected for pod …: the pod was
+  deleted before log collection", means the platform deleted the bot's pod
+  mid-game and the seat held from then on (the loader's taint `pod_deleted`).
+  The replay still shows that seat's orders up to then.
 
 ## The shared clock
 
@@ -105,5 +109,8 @@ Run from the optimizer root. **Exact flags live in each tool's docstring**.
   [press-audit skill](../press-audit/SKILL.md).
 - **Reading one game:** `tools/opponent_profile.py DIR... --game EPISODE_ID`
   prints it phase by phase in the terminal; the IDE (`ide/ide start`, then
-  `/replays/<episode id>?phase=N`) draws the board, the orders and the press
-  with any press audit laid over them, and is where the user reads games.
+  `/replays/<episode id>?seat=S&phase=N`) draws the board, the orders and the
+  press with any press audit laid over them, and is where the user reads
+  games. `seat` is the roster slot whose log, private press and audit are
+  shown; `phase` indexes the last frame's `history.phases`, and `turn=T` in
+  its place opens the movement phase of turn T (0 is Spring 1901).

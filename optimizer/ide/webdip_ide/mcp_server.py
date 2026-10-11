@@ -4,7 +4,8 @@ For agents and harnesses that cannot run `ide/ide` through a shell. The tools do
 what the CLI commands of the same name do, through the same store, so a message read
 here is not delivered again by a hook or the listener.
 
-MCP tools cannot wake an idle session; that still needs `ide/ide listen` in the background.
+MCP tools cannot wake an idle session. Under Claude Code the session's Rewake hook does that;
+elsewhere it needs `ide/ide listen` as a background task, or a call to `inbox` when the agent next runs.
 """
 
 from __future__ import annotations

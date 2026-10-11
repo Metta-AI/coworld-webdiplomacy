@@ -24,9 +24,10 @@ from the optimizer root.
 ide/ide start --open     # starts the server in the background, prints the URL, opens the browser
 ```
 
-Tell the user the URL. `ide/ide status` shows whether the server is up and
-whether something is waiting for the user's messages. `ide/ide stop` closes the
-IDE when the user is done.
+Tell the user the URL (`ide/ide url` prints it again). `ide/ide status` shows
+whether the server is up and whether something is waiting for the user's
+messages. `ide/ide stop` closes the IDE when the user is done. `start` on a
+running IDE only prints its URL; `--port N` moves it off the default 8642.
 
 ## How the user's messages reach you
 
@@ -46,15 +47,17 @@ Every time you receive one:
    terminal. Say what you will do before long work, and say when it is done.
 2. Do the work. Post a card for anything the user should be able to find again.
 
-`ide/ide inbox` prints anything unread on demand; `ide/ide inbox --recent 5`
-prints the last five messages again if you lost one.
+`ide/ide inbox` prints anything unread on demand and marks it delivered
+(`--peek` prints without marking); `ide/ide inbox --recent 5` prints the last
+five messages again if you lost one. The background hook keeps waiting while
+the IDE server is stopped, so you may stop and start the server freely.
 
 **If the Stop hook says nothing is waiting** (the hooks are missing, or the
 harness is not Claude Code), run the listener yourself as a background task
 (Bash with `run_in_background: true`):
 
 ```sh
-ide/ide listen           # waits; prints the user's next message and exits
+ide/ide listen           # waits; prints the user's next message and exits (--timeout S gives up after S seconds)
 ```
 
 Its exit calls you with the message. It exits after every delivery, so start
@@ -81,9 +84,20 @@ ide/ide show --kind result --title "v7 vs v6: no result (z = 0.8, n = 14)" --bod
   worth watching), `result` (a measured outcome, with n and z), `report` (a
   write-up), `note`.
 - The body is Markdown. Keep it short; lead with the finding.
-- Links are IDE paths: `/replays/<episode id>?phase=<n>` (`n` indexes the last
-  replay frame's `history.phases`), `/dashboard`, `/reports/matchups/<slug>`,
-  `/reports/opponents/<slug>`. The episode id is the episode directory's name.
+- `--link` takes an IDE path (it must start with `/`) or a full `http(s)` URL:
+  - `/replays/<episode id>?seat=<slot>&phase=<n>`: the viewer at one phase. `n`
+    indexes the last replay frame's `history.phases`; `seat` is the roster slot
+    to follow. The episode id is the episode directory's name.
+  - `/replays/<episode id>?seat=<slot>&turn=<t>`: the same, at the movement
+    phase of turn `t` (0 is Spring 1901, 1 is Autumn 1901). Use it when you
+    know the year and season but have not read the replay for the phase index.
+  - `/replays?policy=<name>&opponent=<name>&sort=score`: the game list, filtered.
+  - `/dashboard`, or one view of it:
+    `/dashboard?policy=<name>&variant=classic-press&alone=1`. Also `version=vN`,
+    `source=league|xp|local` and `opponent=<name>`. `alone=1` keeps only the
+    games with one seat of the policy, which leaves out paired A/B games.
+  - `/reports/matchups/<slug>` and `/reports/opponents/<slug>`: the slug is the
+    report's file name without `.md`.
 
 ## Annotations are input to the loop
 
@@ -92,9 +106,9 @@ In a replay the user marks phases: `blunder`, `missed-alliance`, `bad-trust`,
 territory. They are stored in `games/webdiplomacy/annotations/<episode id>.json`.
 
 ```sh
-ide/ide annotations                 # all of them, by episode
+ide/ide annotations                 # all of them, by episode (--json for the raw rows)
 ide/ide annotations <episode id>
-ide/ide annotate <episode id> --phase 9 --tag bad-trust --power TURKEY --text "…"   # your own
+ide/ide annotate <episode id> --phase 9 --tag bad-trust --power TURKEY --territory BLA --text "…"   # your own
 ```
 
 Treat them as evidence from an expert reader, not as orders:
@@ -105,6 +119,25 @@ Treat them as evidence from an expert reader, not as orders:
   an experiment record, check [closed_levers.md](../../closed_levers.md), and
   measure it like any other change. Tell the user what you did with it.
 - Answer a `question` in the chat, with the phase link.
+
+## What the user can ask for from a page
+
+Some buttons send a ready-made request. It arrives like any other message,
+with the page's context, and names the skill to use:
+
+| Asked from | The request | Answer it with |
+|---|---|---|
+| A replay with no audit of the followed seat | A press audit of that game for the followed seat | [press-audit](../press-audit/SKILL.md); see the next section |
+| The dashboard's opponent table | Why our policy wins or loses against one opponent | [matchup-writeup](../matchup-writeup/SKILL.md) |
+| Reports, a policy with no profile | An opponent profile of that policy | [opponent-profile](../opponent-profile/SKILL.md) |
+| Reports, when no write-up exists yet | A matchup write-up against the whole field | [matchup-writeup](../matchup-writeup/SKILL.md) |
+| A report, in the list or open | Refresh it: run the report's skill again on the games now on disk and rewrite the file | The skill that wrote it: opponent-profile for `reports/opponents/`, matchup-writeup for `reports/matchups/` |
+| A replay's notes | The user's notes on that game, each with a link to its phase | Read them as below; inspect the phases with [replay-inspection](../replay-inspection/SKILL.md) |
+
+Say in the chat that the work has started. When the file is written, post a
+card that links to it (`--kind report --link /reports/…`, or `--kind replay`
+for an audit). The Reports page lists a report as soon as its file exists under
+`games/webdiplomacy/reports/`.
 
 ## Press audits run on demand
 
@@ -131,4 +164,4 @@ and copy the first folder aside if the user wants both.
   ends, the chat stays on disk (`.runtime/ide/chat.jsonl`) and the next session
   is handed the unread messages.
 - If Bash is not available, the same actions are MCP tools on the `webdip-ide`
-  server: `say`, `show_card`, `inbox`, `annotations`, `annotate`.
+  server: `say`, `show_card`, `inbox`, `annotations`, `annotate`, `status`.

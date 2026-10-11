@@ -193,6 +193,20 @@ class Markdown(unittest.TestCase):
         self.assertEqual(inline("see docs/replays/x and a/replays/y"), "see docs/replays/x and a/replays/y")
         self.assertEqual(inline("one<br>two"), "one<br>two")
 
+    def test_a_link_label_keeps_its_code_and_bold(self):
+        html = reports_markdown.render_inline("[`ep-1` **lost**](/replays/ep-1) then [x](/replays/`y`)")
+        self.assertIn('<a href="/replays/ep-1"><code>ep-1</code> <strong>lost</strong></a>', html)
+        self.assertNotIn("\x00", html)
+        self.assertNotIn('href="/replays/<', html)  # a code span is never part of an address
+
+    def test_hostile_text_cannot_stall_or_break_the_page(self):
+        deep = "\n".join(" " * (2 * level) + "- x" for level in range(3000))
+        self.assertEqual(reports_markdown.render(deep).count("<li>"), 3000)  # was a RecursionError
+        for run in ("**a " * 5000, "[a](" * 5000, "[" * 20000, "x" * 1_000_000 + " <script>"):
+            html = reports_markdown.render(run)
+            self.assertNotIn("<script", html)
+        self.assertNotIn("\x00", reports_markdown.render("```\n\x00\n```\n\x000\x00 `a`"))
+
     def test_tables(self):
         source = "| as | n | note |\n|---|---|---|\n| Turkey | 21 | a `b|c` d |\n| Italy | 3* | - |"
         html = reports_markdown.render(source)

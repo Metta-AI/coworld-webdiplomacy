@@ -128,6 +128,12 @@
   });
 </script>
 {% if indexed < episodes_total %}
-<script>setTimeout(function () { location.reload(); }, 6000);</script>
+<script>
+  // Not under a message being typed in the agent panel: a reload would lose it.
+  setInterval(function () {
+    var box = document.getElementById("agent-input");
+    if (!(box && box.value)) location.reload();
+  }, 6000);
+</script>
 {% endif %}
 {% endblock %}

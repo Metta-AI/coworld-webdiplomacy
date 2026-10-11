@@ -23,9 +23,13 @@
     });
   }
 
-  // While the server is still reading episodes the page reloads itself.
+  // While the server is still reading episodes the page reloads itself, but not under a message
+  // being typed in the agent panel (a reload would lose it): it then tries again later.
   var reload = Number(page.getAttribute("data-reload"));
-  if (reload) setTimeout(function () { window.location.reload(); }, reload * 1000);
+  if (reload) setInterval(function () {
+    var box = document.getElementById("agent-input");
+    if (!(box && box.value)) window.location.reload();
+  }, reload * 1000);
 
   // Hover notes: any element with data-tip.
   var tip = document.getElementById("dash-tip");

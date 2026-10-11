@@ -4,16 +4,18 @@
     start [--port N] [--open]   start the web server in the background and print its URL
     stop                        stop it
     serve [--port N] [--open]   run the server in the foreground (what `start` runs)
-    status | url                is the server up, is an agent attached, anything unread
+    status [--json]             is the server up, is something waiting for messages, anything unread
+    url                         print the running server's URL (exit 1 when it is not running)
   Talk to the user (the user reads the browser, not the terminal)
     say TEXT                    post a chat message
     show --kind K --title T [--body MD | --body-file F] [--link /path]   post a card
-    inbox [--peek] [--recent N] print unread user messages and mark them delivered
+    inbox [--peek] [--recent N] print unread user messages and mark them delivered (--peek: do not
+                                mark; --recent N: the last N again, read or not)
     listen [--timeout S]        wait for the next user message, print it, exit. Run it as a
                                 background task: its exit wakes an idle session. Only needed
                                 when the session's Rewake hook is not doing this already
   Replay annotations
-    annotations [EPISODE]       print annotations (the user's and the agent's)
+    annotations [EPISODE] [--json]   print annotations (the user's and the agent's)
     annotate EPISODE --text T [--phase N] [--tag TAG] [--power P] [--territory X]
   Plumbing
     hook EVENT                  Claude Code hook entry; reads the hook JSON on stdin

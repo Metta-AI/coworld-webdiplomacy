@@ -7,11 +7,15 @@ Pages:
       (press first), from players/*/VERSION_LOG.md
       on disk (those are ours). Without `variant` it shows the variant that policy has most
       games in, because press and gunboat are never pooled silently; `variant=all` pools them.
+      `alone=1` keeps only the games that seat one seat of the policy (`matchups.py --alone`).
       `refresh=1` forgets everything read so far and reads the artifacts again.
 
 JSON:
-  GET /api/dashboard?...   same parameters -> {report, policies, reading}; `report` is the
-                           object documented at the top of the lab's `tools/matchups.py`.
+  GET /api/dashboard?...   same parameters (no `refresh`) -> {filters, reading, policies, report}.
+                           `report` is the object documented at the top of the lab's
+                           `tools/matchups.py`, or null when there is no policy to show;
+                           `reading` is how many games are still to be read; `filters` is what
+                           was shown after the defaults were filled in. It does not read the cookie.
 
 Every number comes from `tools/matchups.py` (the write-up skill uses the same module). This
 file only reads episodes once, keeps them, and turns the report into chart geometry.
@@ -45,6 +49,7 @@ NAV = ("Dashboard", "/dashboard")
 PARITY = 1 / 7
 CACHE_FORMAT = 1  # bump when Game or Seat changes shape
 WAIT_SECONDS = 0.5  # how long a page waits for the reader before showing a partial view
+SMALL_BATCH_WAIT = 0.4  # every page waits this long for a batch small enough to be read in a server thread
 SOURCE_LABELS = {"all": "all sources", "league": "league matches", "xp": "experience requests", "local": "local runs"}
 SCALE_MIN_N = 8  # rows with fewer seats do not stretch a chart's axis
 MIN_CELL = 3  # a heatmap cell or power pair with fewer games than this stays blank
@@ -138,6 +143,10 @@ class GameCache:
                 elif self.read_at is None:
                     self.read_at = time.time()
             thread = self.thread
+            if self.pending and self.pending < reader.POOL_MIN:
+                # A few games fetched while the server runs are read in a blink. Waiting for them
+                # is quicker than a page that says "1 to go" and reloads itself four seconds later.
+                wait = max(wait, SMALL_BATCH_WAIT)
         if thread is not None:
             thread.join(wait)
         with self.lock:
@@ -499,9 +508,9 @@ def summary(remembered: str = "", wait: float = 0.0) -> dict:
     """What `/dashboard` with no parameters would lead with, for the home page.
 
     The same choice of policy (the one remembered in the cookie, else what this lab shipped last)
-    and of variant, the same cached report and the same sentence. With `wait` 0 it never waits
-    for the reader: `pending` says how many games are still to be read, and the numbers cover
-    the rest.
+    and of variant, the same cached report and the same sentence. With `wait` 0 it does not wait
+    for a large read (a handful of new games is waited for, `SMALL_BATCH_WAIT`): `pending` says
+    how many games are still to be read, and the numbers cover the rest.
     """
     games, pending, _, filters, report = _load("", "", "", "", "", remembered, wait)
     return {

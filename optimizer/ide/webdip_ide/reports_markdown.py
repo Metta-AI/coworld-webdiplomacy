@@ -22,9 +22,14 @@ import html
 import re
 
 IDE_PATH = r"/(?:replays|reports|dashboard)(?:[/?#][\w\-./?=&%#;:+~]*)?"
-_LINK = re.compile(r"\[([^\]\n]+)\]\(([^)\s]+)\)")
+_LINK = re.compile(r"\[([^\[\]\n]+)\]\(([^)\s\x00]{1,2000})\)")  # no \x00: a code span is never part of an address
+_KEPT = re.compile(r"\x00(\d+)\x00")
+MAX_LIST_DEPTH = 12  # deeper items are shown at this depth
+# A longer paragraph, cell or list item is shown as plain text, so the time the patterns above
+# take on hostile text (thousands of unclosed `**`) stays small: about 0.1 s at this length.
+MAX_INLINE = 20_000
 _BARE_IDE_PATH = re.compile(r"(?<![\w/.\-;=])" + IDE_PATH)
-_BOLD = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*")
+_BOLD = re.compile(r"\*\*(?=\S)(.{1,2000}?)(?<=\S)\*\*")
 _ITALIC = re.compile(r"(?<![\w*])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![\w*])")
 _UNDERSCORE_ITALIC = re.compile(r"(?<![\w_])_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?![\w_])")
 _CODE_SPAN = re.compile(r"(`+)(.+?)\1")
@@ -71,7 +76,21 @@ def _anchor(target: str, label_html: str, css_class: str = "") -> str:
 
 def render_inline(text: str) -> str:
     """One run of text: escaped, then code spans, links, bold and italic."""
+    if len(text) > MAX_INLINE:
+        return html.escape(text.replace("\x00", ""), quote=False)
     kept: list[str] = []  # finished HTML pieces, swapped back in at the end
+    out = _inline(text.replace("\x00", ""), kept)
+    # A link's piece holds the marks of the pieces inside its label (always earlier ones), so
+    # one pass per piece is the most it can take to swap them all.
+    for _ in kept:
+        if "\x00" not in out:
+            break
+        out = _KEPT.sub(lambda m: kept[int(m.group(1))], out)
+    return out
+
+
+def _inline(text: str, kept: list[str]) -> str:
+    """`render_inline` for text with no `\x00` of its own; finished pieces go to `kept` behind marks."""
 
     def keep(piece: str) -> str:
         kept.append(piece)
@@ -84,17 +103,16 @@ def render_inline(text: str) -> str:
         target = safe_href(match.group(2))
         if target is None:
             return match.group(0)
-        return keep(_anchor(target, render_inline(match.group(1))))
+        return keep(_anchor(target, _inline(match.group(1), kept)))
 
-    text = _CODE_SPAN.sub(code, text.replace("\x00", ""))
+    text = _CODE_SPAN.sub(code, text)
     text = _LINK.sub(link, text)
     text = _BARE_IDE_PATH.sub(lambda m: keep(_anchor(m.group(0), html.escape(m.group(0)), "path")), text)
     out = html.escape(text, quote=False)
     out = out.replace("&lt;br&gt;", "<br>").replace("&lt;br /&gt;", "<br>").replace("&lt;br/&gt;", "<br>")
     out = _BOLD.sub(r"<strong>\1</strong>", out)
     out = _ITALIC.sub(r"<em>\1</em>", out)
-    out = _UNDERSCORE_ITALIC.sub(r"<em>\1</em>", out)
-    return re.sub(r"\x00(\d+)\x00", lambda m: kept[int(m.group(1))], out)
+    return _UNDERSCORE_ITALIC.sub(r"<em>\1</em>", out)
 
 
 def _cells(line: str) -> list[str]:
@@ -156,6 +174,9 @@ def _list(lines: list[str]) -> str:
             items.append((len(match.group(1).expandtabs(4)), match.group(2)[0].isdigit(), [match.group(3)]))
         elif items:
             items[-1][2].append(line.strip())
+    # `build` calls itself once per level: cap the levels, so no document can exhaust the stack.
+    levels = sorted({indent for indent, _, _ in items})[:MAX_LIST_DEPTH]
+    items = [(min(indent, levels[-1]), ordered, text) for indent, ordered, text in items]
 
     def build(start: int, indent: int) -> tuple[str, int]:
         tag = "ol" if items[start][1] else "ul"
@@ -179,7 +200,7 @@ def _list(lines: list[str]) -> str:
 
 def render(text: str, drop_first_h1: bool = False) -> str:
     """Markdown to HTML. `drop_first_h1` leaves out a leading `# title` (the page shows the title)."""
-    lines = text.replace("\r\n", "\n").split("\n")
+    lines = text.replace("\x00", "").replace("\r\n", "\n").split("\n")
     out: list[str] = []
     seen_block = False
     i = 0

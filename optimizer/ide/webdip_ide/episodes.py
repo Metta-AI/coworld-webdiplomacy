@@ -129,13 +129,7 @@ def _basic_row(ep: Path) -> dict:
     results = we.read_json_file(results_path) if results_path else {}
     outcome = results.get("outcome", "")
     status = episode.get("status", "local")
-    taint = []
-    if outcome == "cancelled":
-        taint.append("cancelled")
-    if status in we.FAILED_EPISODE_STATUSES:
-        taint.append("episode_failed")
-    if results.get("reason") == "episode_timeout":
-        taint.append("episode_timeout")
+    taint = we.episode_taint(status, results)
     if not results_path:
         taint.append("no_results")
 
@@ -431,23 +425,29 @@ def load_view(row: dict, slot: int | None) -> dict:
 def _build_view(row: dict, slot: int | None, replay_path: Path | None, log_path: Path | None) -> dict:
     we, pa, report = tool("webdip_episodes"), tool("press_audit"), tool("press_report")
     problems = []
-    replay = None
+    replay, last, territories, phases, public = None, {}, {}, [], []
     if replay_path is None:
         problems.append("This game has no replay file.")
     else:
+        # A replay is a downloaded file: it may be cut short (a gzip that ends early is an
+        # EOFError), half-written, or not a replay at all. The page then says so and shows the
+        # rest (results, press from the seat log, notes).
         try:
             replay = we.read_json_file(replay_path)
-        except (ValueError, OSError) as error:
+            if not isinstance(replay, list) or not all(isinstance(frame, dict) for frame in replay):
+                raise ValueError("not a list of frames")
+            last = replay[-1] if replay else {}
+            territories = _territories(last.get("variant") or {}, pa.ABBREVIATION)
+            supply = {tid for tid, t in territories.items() if t["supply"]}
+            phases = [_phase(i, ph, supply) for i, ph in enumerate((last.get("history") or {}).get("phases") or [])]
+            public = pa.public_press(replay)
+        except Exception as error:  # noqa: BLE001
             problems.append(f"The replay could not be read ({type(error).__name__}).")
-    last = replay[-1] if replay else {}
-    raw_phases = (last.get("history") or {}).get("phases") or []
-    territories = _territories(last.get("variant") or {}, pa.ABBREVIATION)
-    supply = {tid for tid, t in territories.items() if t["supply"]}
+            replay, last, territories, phases, public = None, {}, {}, [], []
     if replay and not any(t["x"] is not None for t in territories.values()):
         problems.append("This replay has no map coordinates, so the map is not drawn. Orders are listed below.")
 
     finals = {seat["country"]: seat["final_centers"] for seat in row["seats"]}
-    phases = [_phase(i, ph, supply) for i, ph in enumerate(raw_phases)]
     if phases and phases[-1]["phase"] == "Finished" and all(v is not None for v in finals.values()) and finals:
         # The Finished entry shows ownership from before the last autumn; results.json has the truth.
         phases[-1]["sc"] = {str(country): count for country, count in finals.items()}
@@ -456,7 +456,7 @@ def _build_view(row: dict, slot: int | None, replay_path: Path | None, log_path:
     seat = next((s for s in row["seats"] if s["slot"] == slot), None)
     rows = we.read_log(log_path) if log_path else []
     our_power = seat["power"].upper() if seat else ""
-    messages = _messages(pa, replay or [], rows, our_power, phases)
+    messages = _messages(pa, public, rows, our_power, phases)
     audit = _audit(row["id"], slot, messages, phases)
 
     return {
@@ -541,11 +541,11 @@ def _movement_index(phases: list[dict], turn: int) -> int | None:
     return last if last is not None else (phases[-1]["i"] if phases else None)
 
 
-def _messages(pa, replay: list, rows: list[dict], our_power: str, phases: list[dict]) -> list[dict]:
+def _messages(pa, public: list[dict], rows: list[dict], our_power: str, phases: list[dict]) -> list[dict]:
     """Public press, and the seat's private press, each pinned to the movement phase it is about."""
     private = pa.private_press(rows) if rows else []
     out = []
-    for message in pa.ledger_messages(private, pa.public_press(replay), our_power):
+    for message in pa.ledger_messages(private, public, our_power):
         out.append({**message, "public": message["to"] == "ALL", "pi": _movement_index(phases, message["turn"]),
                     "claims": []})  # fmt: skip
     return out

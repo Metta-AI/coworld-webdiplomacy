@@ -140,7 +140,7 @@ def variant_of(ep_dir: Path) -> str:
     episode = read_json_file(path) if path.exists() else {}
     if episode.get("variant_name"):
         return re.sub(r"[^a-z0-9]+", "-", episode["variant_name"].lower()).strip("-")
-    # A local `wd.py run` batch has no episode.json; it records its variant in run.json beside
+    # A local `wd.py local` or `wd.py arena` batch has no episode.json; it records its variant in run.json beside
     # the ep-<id>/ directories. Without this, local press and gunboat games would share one par.
     run_path = ep_dir.parent / "run.json"
     run = read_json_file(run_path) if not episode and run_path.exists() else {}

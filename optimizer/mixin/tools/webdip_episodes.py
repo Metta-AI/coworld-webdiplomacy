@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """Load webDiplomacy episode directories into per-seat records (the lab's one parser).
 
-Every other tool here (`wd.py`, `paired.py`, `compare.py`) reads episodes through
-this module. Standard-library Python 3.12+; import it from a script in this folder.
+Every other tool here that reads episode directories (`wd.py`, `paired.py`, `compare.py`,
+`matchups.py`, `opponent_profile.py`, `press_audit.py`) does it through this module.
+Standard-library Python 3.12+; import it from a script in this folder.
 
 Inputs (any mix; pass a directory and every episode below it is found):
 - Hosted episodes downloaded by the seed's `fetch-artifacts` skill:
   `.runtime/artifacts/<xreq>/<ereq>/` with `episode.json`, `results.json`,
   `replay.json` or `replay.bin` (plain or gzip JSON), and our own seat logs in
   `policy-logs/<policy_version_id>.<slot>.log`.
+- League games saved by `fetch_league.py`: the same files under
+  `.runtime/artifacts/league-<press|gunboat>/round-<NNNN>/<ereq>/` (`episode_source` tells
+  a league game from an experience-request game).
 - Local `coworld run-episode` output (from `wd.py local` / `wd.py arena` or by hand):
   `results.json`, `replay` (plain or gzip JSON), `logs/policy_agent_<slot>.log`,
   and, when `wd.py` wrote it, `seating.json` (one label per slot).
@@ -40,8 +44,9 @@ Taint flags on a seat (drop or flag before computing means):
   episode_failed    the hosted episode row is failed / error / cancelled
   episode_timeout   the game hit the episode time limit before its year cap
   rejected_orders   our decision log shows upstream dropped at least one order
-  exception         our seat log has an `exception` event or an uncaught Python traceback
-  no_decisions      our seat log has no `decision` line at all (the bot never played)
+  exception         our seat log has an `exception` event, an uncaught Python traceback, or the
+                    launcher's `child_exit` line with a nonzero code
+  no_decisions      our seat log has JSON lines but no `decision` line (the bot never played)
   pod_deleted       the seat log is the platform's one line "No logs collected for pod …: the
                     pod was deleted before log collection". The bot's pod died mid-game and the
                     seat held from then on (28 of 29 such seats held their last three or more
@@ -49,7 +54,9 @@ Taint flags on a seat (drop or flag before computing means):
                     gunboat, 2026-10-11)
   llm_failing       at least half of the seat's `llm_call`s failed: the seat silently
                     played its non-LLM floor
-Seats without a log (rivals' hosted logs are private) cannot carry log taints.
+Seats without a log (rivals' hosted logs are private) cannot carry log taints. Nor does a log
+with no JSON line in it (an empty file, for example), unless it is the deleted-pod note or holds
+a traceback.
 
 Example:
     from webdip_episodes import load_dirs
@@ -255,6 +262,18 @@ def replay_tables(replay: list | None) -> tuple[dict[int, Counter], dict[int, Co
     return centers_by_year, order_stats
 
 
+def episode_taint(episode_status: str, results: dict) -> list[str]:
+    """The taints of the whole game (`EPISODE_TAINTS`), from `episode.json`'s status and `results.json`."""
+    taint = []
+    if results.get("outcome", "") == "cancelled":
+        taint.append("cancelled")
+    if episode_status in FAILED_EPISODE_STATUSES:
+        taint.append("episode_failed")
+    if results.get("reason") == "episode_timeout":
+        taint.append("episode_timeout")
+    return taint
+
+
 def load_episode(ep: Path) -> tuple[list[Seat], dict]:
     """Return (seats, status) for one episode directory. `status` records coverage gaps."""
     episode = read_json_file(ep / "episode.json") if (ep / "episode.json").exists() else {}
@@ -280,13 +299,7 @@ def load_episode(ep: Path) -> tuple[list[Seat], dict]:
     members = {int(m["countryID"]): m for m in results.get("members") or []}
     final_year = final_year_of(results)
     outcome = results.get("outcome", "")
-    episode_taint = []
-    if outcome == "cancelled":
-        episode_taint.append("cancelled")
-    if status["episode_status"] in FAILED_EPISODE_STATUSES:
-        episode_taint.append("episode_failed")
-    if results.get("reason") == "episode_timeout":
-        episode_taint.append("episode_timeout")
+    game_taint = episode_taint(status["episode_status"], results)
     centers_by_year, order_stats = replay_tables(replay)
     scores = results.get("scores") or []
 
@@ -315,7 +328,7 @@ def load_episode(ep: Path) -> tuple[list[Seat], dict]:
             orders=stats["orders"],
             orders_failed=stats["failed"],
             dislodged=stats["dislodged"],
-            taint=list(episode_taint),
+            taint=list(game_taint),
         )
         rows = read_log(logs.get(slot))
         if rows:

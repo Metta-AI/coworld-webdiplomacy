@@ -119,9 +119,10 @@
     var card = state.cards[state.cards.length - 1];
     if (!card) return;
     var line = document.getElementById("home-card");
-    var title = document.createElement(card.link ? "a" : "strong");
+    var href = window.ide.safeHref(card.link);  // never javascript: or data:, as in the panel
+    var title = document.createElement(href ? "a" : "strong");
     title.textContent = card.title;
-    if (card.link) title.href = card.link;
+    if (href) title.href = href;
     line.replaceChildren(
       document.createTextNode("Newest from the agent (" + state.cards.length + " card" + (state.cards.length === 1 ? "" : "s") + "): "),
       title);
@@ -130,10 +131,27 @@
     button.addEventListener("click", function () { window.ide.draft(button.dataset.draft); });
   });
   // While games are still being read the page reloads itself, but never under a message being typed.
+  // The message box keeps the focus after every send, so focus alone must not hold the reload
+  // back (the line "1 of 510 to go" then stayed for ever): an empty box is reloaded and focused
+  // again, and under a draft only the status line is brought up to date.
+  var box = document.getElementById("agent-input");
+  try {
+    if (sessionStorage.getItem("ide.homeRefocus") && box) box.focus();
+    sessionStorage.removeItem("ide.homeRefocus");
+  } catch (error) { /* private mode */ }
   var reload = Number(document.querySelector(".home").dataset.reload);
   if (reload) setInterval(function () {
-    var box = document.getElementById("agent-input");
-    if (!(box && (box.value || document.activeElement === box))) location.reload();
+    if (!(box && box.value)) {
+      try { if (box && document.activeElement === box) sessionStorage.setItem("ide.homeRefocus", "1"); } catch (error) { /* private mode */ }
+      location.reload();
+      return;
+    }
+    fetch("/").then(function (response) { return response.text(); }).then(function (text) {
+      var line = document.querySelector(".home-reading");
+      var fresh = new DOMParser().parseFromString(text, "text/html").querySelector(".home-reading");
+      if (fresh) line.replaceWith(document.importNode(fresh, true));
+      else line.textContent = "All games are read. This page shows them once your message is sent or cleared.";
+    }).catch(function () { /* the server is restarting: the next turn tries again */ });
   }, reload * 1000);
 </script>
 {% endblock %}

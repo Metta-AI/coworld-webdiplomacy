@@ -64,7 +64,7 @@ saw in README.md under "What was verified".
   in tests) writes no `server.json`, so the hooks treat the IDE as closed.
 - `server.require_local_host` is on every route. The test client must use a loopback
   `base_url` (`http://127.0.0.1:8642`); `testserver`, Starlette's default, is also let
-  through for now because `tests/test_reports.py` still uses it.
+  through for now because `tests/test_reports.py` and `tests/test_dashboard.py` still use it.
 - The index (`episodes.py`) and the dashboard cache are shared by request threads and a
   background reader: touch their module-level dictionaries only under their lock.
 - Never parse many games in a server thread: parsing holds the interpreter lock and every

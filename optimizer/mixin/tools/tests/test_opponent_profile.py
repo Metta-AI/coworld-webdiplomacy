@@ -361,6 +361,14 @@ class Helpers(unittest.TestCase):
         self.assertFalse(op.policy_matcher("bot")("bot-press:v3"))
         self.assertFalse(op.policy_matcher("bot:v2")("bot:v3"))
 
+    def test_standard_errors_are_clustered_by_game(self):
+        # One score per game: the usual sd / sqrt(n).
+        self.assertEqual(op._se([("g1", 0.0), ("g2", 1.0)]), 0.5)
+        # The same two games seen twice each (our one score paired with each of its two seats)
+        # are still two draws, not four: counting four would give 0.2887.
+        self.assertEqual(op._se([("g1", 0.0), ("g1", 0.0), ("g2", 1.0), ("g2", 1.0)]), 0.5)
+        self.assertIsNone(op._se([("g1", 0.0), ("g1", 1.0)]))
+
     def test_slug_drops_the_version(self):
         self.assertEqual(op.slug("webdip-Kissinger:v2"), "webdip-kissinger")
 

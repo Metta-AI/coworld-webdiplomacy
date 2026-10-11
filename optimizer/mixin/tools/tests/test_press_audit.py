@@ -878,6 +878,98 @@ class Quotes(unittest.TestCase):
         self.assertIsNotNone(pa.quote_missing("[terms of prv-187]", self.TEXT))  # a note is not a quote
 
 
+class EdgesOfTheRules(unittest.TestCase):
+    """Made-up boards for rule edges a second reviewer found (no real game showed them yet)."""
+
+    def test_support_promised_to_the_other_party_and_withheld_is_not_a_changed_plan(self):
+        # France to us (England): "A PIC supports your army in BEL." A PIC held instead.
+        board = phase(4, [order("FRANCE", "A PIC H"), order("ENGLAND", "A BEL H")],
+                      [("FRANCE", "PIC"), ("ENGLAND", "BEL")], centers={"BEL": "ENGLAND"}, belief=TRUSTED)  # fmt: skip
+        said = message("prv-1", turn=4, sender="FRANCE", to="ENGLAND")
+        claim = promise({"p": "order", "power": "FRANCE", "order": "A PIC S A BEL"})
+        self.assertEqual(verdict(audited("ENGLAND", [board], [(said, [claim])])["prv-1"][0]), ("broken", "betrayed"))
+        # Its own arrangement ("PIC supports my army in BUR"), dropped without a move on us, stays a changed plan.
+        board = phase(4, [order("FRANCE", "A PIC H"), order("FRANCE", "A BUR H")],
+                      [("FRANCE", "PIC"), ("FRANCE", "BUR"), ("ENGLAND", "BEL")], belief=TRUSTED)  # fmt: skip
+        claim = promise({"p": "order", "power": "FRANCE", "order": "A PIC S A BUR"})
+        self.assertEqual(verdict(audited("ENGLAND", [board], [(said, [claim])])["prv-1"][0]),
+                         ("broken", "changed_plans"))  # fmt: skip
+
+    def test_a_request_whose_condition_never_came_about_releases_nothing(self):
+        # Germany to us (Russia): "I support you into GAL this autumn. If France enters BUR this spring, hold WAR."
+        # France stayed out, so the request never applied; our move from WAR is not our half of the deal undone.
+        spring = phase(0, [order("RUSSIA", "A WAR - GAL"), order("GERMANY", "A SIL H"), order("FRANCE", "A PAR H")],
+                       [("RUSSIA", "WAR"), ("GERMANY", "SIL"), ("FRANCE", "PAR")],
+                       belief=TRUSTED | {"trust": {"GERMANY": 0.9}})  # fmt: skip
+        autumn = phase(1, [order("RUSSIA", "A GAL H"), order("GERMANY", "A SIL H")],
+                       [("RUSSIA", "GAL"), ("GERMANY", "SIL")])  # fmt: skip
+        said = message("prv-1", turn=0, sender="GERMANY", to="RUSSIA")
+        claims = [
+            promise({"p": "supports", "power": "GERMANY", "of": "RUSSIA"}, turns=[0, 1]),
+            {"kind": "request", "quote": "words", "turns": [0, 0],
+             "condition": [{"p": "moves_to", "power": "FRANCE", "province": "BUR"}],
+             "commitment": [{"p": "holds", "power": "RUSSIA", "province": "WAR"}]},
+        ]
+        got = audited("RUSSIA", [spring, autumn], [(said, claims)])["prv-1"]
+        self.assertEqual(got[1]["outcome"], "not_applicable")
+        self.assertEqual(got[0]["outcome"], "broken")  # was released_by_them
+
+    def test_the_power_a_public_promise_was_made_to_can_let_it_go(self):
+        board = phase(1, [order("GERMANY", "A SIL H")], [("GERMANY", "SIL"), ("RUSSIA", "WAR")])
+        first = message("pub-1", turn=0, sender="GERMANY", to="ALL")
+        later = message("prv-2", turn=1, sender="RUSSIA", to="GERMANY", direction="out")
+        said = [(first, [promise({"p": "supports", "power": "GERMANY", "of": "RUSSIA"}, to="RUSSIA", turns=[1, 1])]),
+                (later, [{"kind": "request", "quote": "words", "replaces": ["pub-1"],
+                          "commitment": [{"p": "holds", "power": "GERMANY", "province": "SIL"}]}])]  # fmt: skip
+        self.assertEqual(audited("RUSSIA", [board], said)["pub-1"][0]["outcome"], "superseded")
+
+    def test_helping_the_named_power_in_is_not_an_attack_in_public_press_either(self):
+        # Turkey, in public, to us (Russia): "Bulgaria is yours." Then it supports our army into BUL.
+        board = phase(2, [order("TURKEY", "A CON S A RUM - BUL"), order("RUSSIA", "A RUM - BUL")],
+                      [("TURKEY", "CON"), ("RUSSIA", "RUM")], belief=TRUSTED | {"trust": {"TURKEY": 0.9}})  # fmt: skip
+        said = message("pub-1", turn=2, sender="TURKEY", to="ALL")
+        claim = promise({"not": {"p": "attacks", "power": "TURKEY", "provinces": ["BUL"]}}, to="RUSSIA")
+        self.assertEqual(audited("RUSSIA", [board], [(said, [claim])])["pub-1"][0]["outcome"], "kept")
+
+    def test_our_public_word_broken_to_a_power_is_not_also_a_doubt_that_turned_out_wrong(self):
+        # We (Russia), in public, to Germany: "I will not move on you." Germany, privately: the same. We attacked.
+        board = phase(2, [order("RUSSIA", "A WAR - SIL"), order("GERMANY", "A SIL H")],
+                      [("RUSSIA", "WAR"), ("GERMANY", "SIL")], centers={"WAR": "RUSSIA"},
+                      belief={"stances": {"GERMANY": "hostile"}})  # fmt: skip
+        ours = message("pub-1", turn=2, sender="RUSSIA", to="ALL", direction="out")
+        theirs = message("prv-2", turn=2, sender="GERMANY", to="RUSSIA")
+        said = [(ours, [promise({"not": {"p": "attacks", "power": "RUSSIA", "target": "GERMANY"}}, to="GERMANY")]),
+                (theirs, [promise({"not": {"p": "attacks", "power": "GERMANY", "target": "RUSSIA"}})])]
+        got = audited("RUSSIA", [board], said, {"A": {"SIL": ["WAR"], "WAR": ["SIL"]}, "F": {}})
+        self.assertEqual(got["pub-1"][0]["category"], "we_broke_our_word")
+        self.assertEqual(got["prv-2"][0]["category"], "kept_despite_doubt")
+
+    def test_a_pledge_that_protects_a_third_power_is_not_a_missed_alliance_with_us(self):
+        # France to us (Russia): "I will not attack Italy." Kept. We moved on France.
+        board = phase(2, [order("FRANCE", "A MAR H"), order("RUSSIA", "A BUR - MAR"), order("ITALY", "A PIE H")],
+                      [("FRANCE", "MAR"), ("RUSSIA", "BUR"), ("ITALY", "PIE")], centers={"MAR": "FRANCE"},
+                      belief=DOUBTED)  # fmt: skip
+        said = message("prv-1", turn=2, sender="FRANCE", to="RUSSIA")
+        claim = promise({"not": {"p": "attacks", "power": "FRANCE", "target": "ITALY"}})
+        got = audited("RUSSIA", [board], [(said, [claim])], {"A": {"MAR": ["PIE", "BUR"]}, "F": {}})["prv-1"][0]
+        self.assertEqual(verdict(got), ("kept", "kept_despite_doubt"))
+
+    def test_a_misspelt_predicate_is_refused_even_for_a_turn_the_game_never_reached(self):
+        said = message("prv-1", turn=0, sender="GERMANY", to="RUSSIA")
+        for bad in ({"p": "typo"}, {"p": "order", "power": "GERMANY", "order": "A BER X PRU"},
+                    {"not": {"p": "movesto", "power": "GERMANY"}},
+                    {"any": [{"p": "holds", "power": "GERMANY"}]}):  # fmt: skip
+            with self.assertRaises(ValueError, msg=bad):
+                audited("RUSSIA", [SPRING], [(said, [promise(bad, turns=[30, 31])])])
+            with self.assertRaises(ValueError, msg=bad):  # nor behind a condition that was not met
+                audited("RUSSIA", [SPRING], [(said, [promise(
+                    bad, condition=[{"p": "moves_to", "power": "RUSSIA", "province": "MOS"}])])])  # fmt: skip
+
+    def test_the_parts_of_a_quote_must_come_in_the_messages_order(self):
+        self.assertIsNone(pa.quote_missing("never ... France", "I will never attack France"))
+        self.assertEqual(pa.quote_missing("attack France ... never", "I will never attack France"), "never")
+
+
 class PlansAndBoards(unittest.TestCase):
     def test_things_promised_together_must_be_ordered_in_the_same_turn(self):
         # "BUD moves to SER with RUM's support this year": the move in spring and the support in

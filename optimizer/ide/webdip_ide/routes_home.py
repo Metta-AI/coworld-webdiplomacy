@@ -9,7 +9,7 @@
 Nothing here is computed twice. The headline is `routes_dashboard.summary()`: the dashboard's
 choice of policy and variant, its cached report and its sentence. The games come from the
 replay browser's index (`episodes.index()`), the flags from `episodes.flags()`, the liars from
-each game's `audit.json`. The page never waits for a reader: while the dashboard or the index
+each game's `audit.json`. The page does not wait for a large read: while the dashboard or the index
 is still reading games it says so in one line and reloads itself.
 """
 
@@ -177,7 +177,10 @@ def reports(since: float | None) -> dict:
     rows = [r for kind in routes_reports.list_reports().values() for r in kind]
     new = []
     for row in rows:
-        changed = (paths.lab_dir() / row["path"]).stat().st_mtime
+        try:
+            changed = (paths.lab_dir() / row["path"]).stat().st_mtime
+        except OSError:  # removed or renamed by the agent since the list was made
+            continue
         if since is not None and changed > since:
             new.append({"title": row["title"], "link": row["link"], "time": changed})
     return {"total": len(rows), "new": sorted(new, key=lambda r: r["time"], reverse=True)}

@@ -28,13 +28,16 @@ first version (2026-10-11). `INSTALL.md` is planned and does not exist yet.
 - **`ide/`**: a local web IDE, as its own uv project ([ide/README.md](ide/README.md)).
   The coding agent comes first: it starts the IDE (`ide/ide start --open`), and what the
   user types in the browser reaches that running session through Claude Code hooks. The
-  pages: replays with notes and the press audit laid over them, a dashboard of
-  `matchups.py`, and the reports the write-up skills produce. The agent answers and posts
+  pages: a home page (where the followed policy stands and which games to open), replays
+  with notes and the press audit laid over them, a dashboard of `matchups.py`, and the
+  reports the write-up skills produce. The agent answers and posts
   cards with `ide/ide say` and `ide/ide show`, or the same actions as tools on the
   `ide/ide mcp` stdio server.
 
-The design is
+The design of the mixin and the installer is
 [docs/designs/webdiplomacy-mixin-2026-10-09.html](../docs/designs/webdiplomacy-mixin-2026-10-09.html).
+It was written before the IDE and says nothing about it; the IDE's design record is
+[ide/README.md](ide/README.md).
 
 ## Install
 
@@ -102,8 +105,9 @@ IDE build (2026-10-11), and not yet fixed. Each is a setup gap, not a fact about
   background task or the MCP tools, which were not tested inside a live session.
 - **No hosted game has run** the press player's no-units fix or `run_ab.py --alone`'s
   two-arm fetch.
-- **`child_exit` and `no_decisions` taints have never fired on a hosted game** (about
-  890 of our seats in the second drive); they have unit tests only.
+- **Two taint rules have never fired on a hosted game** (about 890 of our seats in the
+  second drive): `no_decisions`, and the launcher's nonzero `child_exit` line, which
+  taints a seat as `exception`. They have unit tests only.
 - **An installed lab has no ruff config.** This repository's `pyproject.toml` sets the
   rules; a user's `ruff check` in their copy uses ruff's defaults and reports other things.
 - **Credits spent cannot be read back.** The lab quotes per-game estimates; nothing shows

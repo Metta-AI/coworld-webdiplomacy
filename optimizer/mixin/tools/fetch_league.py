@@ -7,9 +7,10 @@
 `fetch_artifacts.py` fetches experience requests (XP requests). League rounds are not
 requests, so this walks the league instead, with the same listing `tools/field.py` uses
 (`coworld rounds` -> `coworld episodes -r` -> `coworld episodes <ereq>`), and saves every
-finished episode, or with `--policy` only the episodes that seat that policy:
+finished episode of the most recent rounds (20 unless `--rounds N`), or with `--policy` only
+the episodes that seat that policy:
 
-    .runtime/artifacts/league-<press|gunboat>/round-<NNNN>/<ereq>/
+    .runtime/artifacts/league-<press|gunboat>/round-<NNNN>/<ereq>/     (`league-<league id>` for another league)
         episode.json    the episode row, plus a `league_round` block (league id and key, round id and number)
         results.json, replay.*, game.log
         policy-logs/<policy version id>.<seat>.log    our own seats only (others return 403)

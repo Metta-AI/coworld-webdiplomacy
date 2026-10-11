@@ -44,11 +44,17 @@ def fingerprint(ep: Path) -> tuple:
     """Changes when any file the loader reads in this episode directory changes."""
     out = []
     for folder in (ep, ep / "policy-logs", ep / "logs"):
-        if folder.is_dir():
-            for path in folder.iterdir():
-                if path.is_file():
-                    info = path.stat()
-                    out.append((folder.name if folder != ep else "", path.name, info.st_mtime_ns, info.st_size))
+        try:
+            entries = list(os.scandir(folder))
+        except OSError:  # not there, or removed while a page was being built
+            continue
+        for entry in entries:
+            try:
+                if entry.is_file():
+                    info = entry.stat()
+                    out.append((folder.name if folder != ep else "", entry.name, info.st_mtime_ns, info.st_size))
+            except OSError:  # a fetch renamed or removed it just now: the next look sees the result
+                pass
     return tuple(sorted(out))
 
 

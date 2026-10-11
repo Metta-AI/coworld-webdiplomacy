@@ -43,7 +43,7 @@ kept in the game docs so each fact has one home:
 | Who lied, who kept their word, where we were betrayed | [skills/press-audit](skills/press-audit/SKILL.md) |
 | How one opponent plays (openings, first targets, how it treats us) | [skills/opponent-profile](skills/opponent-profile/SKILL.md); profiles in `reports/opponents/` |
 | Why we win or lose against each opponent | [skills/matchup-writeup](skills/matchup-writeup/SKILL.md); write-ups in `reports/matchups/` |
-| Showing the user replays, results and ideas in the browser, and reading their notes | [skills/ide](skills/ide/SKILL.md): the local web IDE in `ide/` (`ide/ide start --open`) |
+| Showing the user replays, results and ideas in the browser, and reading their notes | [skills/ide](skills/ide/SKILL.md): the local web IDE in `ide/` at the optimizer root (`ide/ide start --open`) |
 | Reading replays and our logs | [skills/replay-inspection](skills/replay-inspection/SKILL.md) |
 | Designing a hosted eval | [skills/eval-design](skills/eval-design/SKILL.md) |
 | Finding why we lose | [skills/diagnosis](skills/diagnosis/SKILL.md) |
@@ -92,7 +92,7 @@ docstring**; they may shift slightly from what is shown here.
 
 | Tool | For | CLI |
 |---|---|---|
-| `webdip_episodes.py` | The one episode loader (results, replay, our seat logs; slot to power; bytes-literal logs). Import it in your own instruments | library |
+| `webdip_episodes.py` | The one episode loader (results, replay, our seat logs; slot to power; bytes-literal logs) and the taint flags, listed in its docstring. Import it in your own instruments | library |
 | `wd.py metrics` | Per-power score vs same-batch field par, coverage, telemetry | `wd.py metrics DIR... [--policy NAME:vN] [--json]` |
 | `wd.py seats` | One JSON line per seat with the center trajectory by year | `wd.py seats DIR...` |
 | `wd.py costs` | LLM spend per seat and per phase | `wd.py costs DIR...` |
@@ -128,8 +128,8 @@ Also in `tools/`, run the same way; flags are in each docstring.
 | `flag_episodes.py` | Episodes worth opening (reads `wd.py seats` on stdin) |
 | `year_deltas.py` | Centre change per game year by policy (reads `wd.py seats` on stdin) |
 | `gzip_replays.py` | Compress fetched replays in place, about 20x; the loader reads them |
-| `fetch_league.py press\|gunboat` | A league's finished rounds into `.runtime/artifacts/league-<press\|gunboat>/round-NNNN/`, so league matches sit beside experience requests (`webdip_episodes.episode_source` tells them apart); `--policy NAME` keeps only the rounds that seat it |
-| `press_audit.py extract\|check\|verify\|report` | One press game from our seat: every message we saw, its claims (an agent lists them from `annotate.json`, which shows no orders or results; `check` tests the format), each checked by code against the orders, and a local HTML page. Read the flagged claims' evidence before quoting its counts. See the press-audit skill |
+| `fetch_league.py press\|gunboat` | A league's finished rounds (the most recent 20; `--rounds N`) into `.runtime/artifacts/league-<press\|gunboat>/round-NNNN/`, so league matches sit beside experience requests (`webdip_episodes.episode_source` tells them apart); `--policy NAME` keeps only the rounds that seat it |
+| `press_audit.py extract\|check\|verify\|report` | One press game from our seat: every message we saw, its claims (an agent lists them from `annotate.json`, which shows no orders or results; `check` tests the format), each checked by code against the orders, and a local HTML page (`press_report.py` draws it). Read the flagged claims' evidence before quoting its counts. See the press-audit skill |
 
 ## The IDE
 
@@ -277,6 +277,7 @@ Each of these cost a previous session real time or a wrong conclusion.
 - **A deleted pod is a dead seat, not only a lost log.** A seat log that says only "No logs
   collected for pod … the pod was deleted before log collection" means the platform deleted
   the bot's pod mid-game and the seat held from then on (taint `pod_deleted`; about 2.5% of
-  press seats on 2026-10-11). The tools drop those games; report how many.
+  press seats on 2026-10-11). `wd.py metrics`, `paired.py`, `compare.py` and `matchups.py` drop
+  those games (`opponent_profile.py` keeps and counts them); report how many.
 - **The bot is killed at game end.** Log every phase; do not rely on an
   end-of-game summary.

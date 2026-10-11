@@ -188,8 +188,10 @@ def replay_page(
     request: Request, episode: str, phase: int | None = None, seat: int | None = None, turn: int | None = None
 ):
     row = episodes.find(episode)
-    if row is None:
-        return render(request, "replays_missing.html", episode=episode)
+    if row is None:  # a card or a note may link to a game that was never fetched or was removed
+        response = render(request, "replays_missing.html", episode=episode)
+        response.status_code = 404
+        return response
     return render(
         request,
         "replays_view.html",

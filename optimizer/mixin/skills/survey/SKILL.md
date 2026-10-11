@@ -30,8 +30,10 @@ Under it, one line each:
 - **Outcome and reason mix:** counts of `drawn` / `won` / `cancelled` and of
   `end_year` / `episode_timeout` / other.
 - **Health:** artifact coverage, episodes with nonzero `rejected`, episodes with
-  an `exception`, failing LLM seats. Infrastructure problems go here, not in the
-  score table.
+  an `exception`, seats that never played (`no_decisions`), seats whose pod the
+  platform deleted mid-game (`pod_deleted`), failing LLM seats. The `taint:`
+  line of `wd.py metrics` counts each. Infrastructure problems go here, not in
+  the score table.
 - **Field par by power** for the batch, so a reader sees whether the field
   itself looked unusual.
 
@@ -52,7 +54,8 @@ Flag cheaply from results and seat rows, rarer flags first:
 
 | Flag | How to detect |
 |---|---|
-| Our seat crashed or dropped orders | `exception` events or nonzero `rejected` in our seat log |
+| Our seat crashed or dropped orders | `exception` events or nonzero `rejected` in our seat log, or a seat log with no `decision` line (taint `no_decisions`) |
+| Our pod was deleted mid-game | taint `pod_deleted` in the seat's `wd.py seats` row: the seat held from then on. `flag_episodes.py` lists it under "crash or dropped orders" |
 | Failing LLM seat | at least half of the `llm_call`s failed in our seat log (`wd.py metrics` shows it as taint) |
 | Opponent solo | `outcome == "won"` and the winner is not us |
 | Our power eliminated early | our center count reaches 0 before the last two years |

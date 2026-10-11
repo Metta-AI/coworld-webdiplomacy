@@ -61,7 +61,8 @@
   // Links may only go to an IDE page or a web address: never javascript: or data:.
   function safeHref(href) {
     href = String(href || "").trim();
-    if (/^\/(?!\/)/.test(href) || /^https?:\/\//i.test(href)) return href;
+    // "/\host" is refused with "//host": a browser reads both as another site's address.
+    if (/^\/(?![\/\\])/.test(href) || /^https?:\/\//i.test(href)) return href;
     return null;
   }
 
@@ -474,6 +475,7 @@
     draft: draft,
     getContext: function () { return context; },
     renderMarkdown: renderMarkdown,
+    safeHref: safeHref,
     cardElement: cardElement,
     onUpdate: function (fn) { listeners.push(fn); if (state.status) fn(state); },
     openPanel: openPanel,

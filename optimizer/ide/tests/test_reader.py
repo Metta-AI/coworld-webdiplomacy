@@ -52,6 +52,12 @@ class ReaderTests(unittest.TestCase):
         self.addCleanup(setattr, self.reader, "load_game", original)
         return parsed
 
+    def test_fingerprint_of_a_directory_that_is_going_away(self):
+        ep = self.games[0]
+        (ep / "dangling.log").symlink_to(ep / "no-such-file")  # as a file removed mid-scan looks
+        self.assertNotIn("dangling.log", [item[1] for item in self.reader.fingerprint(ep)])
+        self.assertEqual(self.reader.fingerprint(ep / "removed"), ())
+
     def test_a_large_batch_is_read_in_worker_processes(self):
         self.addCleanup(setattr, self.reader, "POOL_MIN", self.reader.POOL_MIN)
         self.reader.POOL_MIN = 2

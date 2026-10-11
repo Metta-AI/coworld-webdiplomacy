@@ -32,7 +32,7 @@ against a number or a replay.
 - An opponent's private press with other powers, its logs and its reasons are
   **not** readable for a rival. When a batch seats only our own account's
   policies, every seat's log is on disk. The tool then uses the logs for one
-  thing: taint (a crashed seat, failing LLM calls). Do the same: a profile
+  thing: taint (a crashed seat, a dead pod, failing LLM calls). Do the same: a profile
   rests on orders, so it means the same thing for every opponent. If you do
   read a log for a reason, say in the report that this opponent's logs were
   readable.
@@ -54,8 +54,8 @@ Profile **one variant at a time**: press and gunboat are different games with
 different last years, and a press policy in a gunboat game plays its fallback.
 The ids are `classic-press` (the main "webDiplomacy" league) and
 `classic-gunboat` (the "webDiplomacy Gunboat" league). `--list` counts games
-over every variant; the profile's header gives the count for the one you
-chose. Name one version (`NAME:vN`) when the data holds more than one and they
+over every variant unless you add `--variant`; the profile's header gives the
+count for the one you chose. Name one version (`NAME:vN`) when the data holds more than one and they
 may differ; a bare `NAME` pools them.
 
 ### 2. Run the tool
@@ -63,7 +63,8 @@ may differ; a bare `NAME` pools them.
 ```sh
 python3 $L/tools/opponent_profile.py $A --opponent <name>[:vN] --variant $V \
     --versus <our policy> --out $L/.runtime/opponent-<name>-$V
-python3 $L/tools/matchups.py $A --policy <our policy> --variant $V --opponent <name>
+python3 $L/tools/matchups.py $A --policy <our policy> --variant $V --opponent <name> \
+    --episodes $L/.runtime/opponent-<name>-$V.json
 ```
 
 `--out` saves the text (`.md`) and the same numbers as JSON (`.json`, with the
@@ -72,12 +73,15 @@ still being fetched a second run reads more games and every count moves; to
 repeat the run, or to check something in your own script on the same games,
 pass `--episodes $L/.runtime/opponent-<name>-$V.json`.
 
-The second command is the score between us and them; the profile's "Versus"
-section describes behaviour and does not judge the score. From its "By
+The second command is the score between us and them, on the games the first
+one read (`--episodes`; its `--opponent` takes the name without a version).
+The profile's "Versus" section describes behaviour and does not judge the
+score. From its "By
 opponent" row quote the head-to-head count and the paired gap with their z:
-|z| < 2 or fewer than 16 games is "no result". `matchups.py` cannot be pinned
-to the saved list, so it may read a game or two more: give its game count
-beside its numbers. The two tools will not agree exactly on "vs par" (par is
+|z| < 2 is "no result" and fewer than 16 games is "too few games". `matchups.py`
+drops the games where one of our seats is tainted and the profile keeps them,
+so its game count can be lower: give its game count beside its numbers. The
+two tools will not agree exactly on "vs par" (par is
 drawn from slightly different seats) or on ahead and behind (Versus counts
 seat pairs, `matchups.py` counts games). Use the profile's numbers for how the
 opponent does and `matchups.py`'s for anything about us.
@@ -98,8 +102,9 @@ the end). What to look for:
 | Episodes to open | The games for step 3, as IDE links |
 
 **Seats that were not the policy playing.** Three header lines say which games
-to read with care. The header names the first six episodes of each kind; all
-are in the JSON.
+to read with care. The first and third name their first six episodes, and all
+are in the JSON; the second is a count, and its games carry the mark
+`[another seat tainted]` in "Episodes to open".
 
 - *Its tainted seats.* `llm_failing`, `no_decisions` and `pod_deleted` (the
   seat's pod died; its log holds one line, "No logs collected for pod") mean
@@ -108,7 +113,8 @@ are in the JSON.
   the "only held" line below gives how many phases each seat stood still, and
   its orders before that are still its own. `exception` needs a
   look at when: some bots throw on every phase once their last unit is gone,
-  and the header says how many tainted seats ended with no centres. Those
+  and the header says how many seats tainted only by `exception` ended with no
+  centres. Those
   games were the policy's own play until it was eliminated. Keep them, or you
   drop its worst results and flatter it.
 - *Its seats beside another policy's tainted seat*, with its score there and
@@ -191,7 +197,8 @@ order sets in 24 games); nothing to plan against" is a finding.
 
 The tool prints the path on its last line: `$L/reports/opponents/<slug>.md`
 for the main league, where `<slug>` is the policy name in lower case without
-the version, and `<slug>-gunboat.md` for a gunboat profile, so the two do not
+the version (anything that is not a letter or a digit becomes `-`), and
+`<slug>-gunboat.md` for a gunboat profile, so the two do not
 overwrite each other. Create the folder if it is not there
 (`mkdir -p $L/reports/opponents`). One file per opponent and league: when you
 profile a new version, rewrite the file and keep the old findings that still
@@ -224,7 +231,7 @@ policy: <our policy>:vN
 opponent: webdip-example:v2
 games: 56
 variant: classic-press
-sources: seed-press-1011 (56 games), league-press (1 game)
+sources: seed-press-1011 (55 games), league-press (1 game)
 ---
 
 # How webdip-example plays
