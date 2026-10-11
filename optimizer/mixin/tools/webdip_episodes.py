@@ -39,7 +39,8 @@ Taint flags on a seat (drop or flag before computing means):
   cancelled         the game was cancelled (every seat scores 1/7)
   episode_failed    the hosted episode row is failed / error / cancelled
   rejected_orders   our decision log shows upstream dropped at least one order
-  exception         our seat log has an `exception` event
+  exception         our seat log has an `exception` event or an uncaught Python traceback
+  no_decisions      our seat log has no `decision` line at all (the bot never played)
   llm_failing       at least half of the seat's `llm_call`s failed: the seat silently
                     played its non-LLM floor
 Seats without a log (rivals' hosted logs are private) cannot carry log taints.
@@ -112,6 +113,11 @@ def read_log(path: Path | None) -> list[dict]:
                 rows.append(json.loads(line))
             except ValueError:
                 pass
+    if "Traceback (most recent call last)" in text:
+        # A crash outside the bot's own try/except (for example an unknown config override at
+        # startup) prints a plain Python traceback, not an `exception` event. Count it, or the
+        # seat reads as a healthy policy that simply held every phase.
+        rows.append({"event": "exception", "error": "uncaught traceback in the seat log"})
     return rows
 
 
@@ -137,7 +143,11 @@ def summarize_log(rows: list[dict]) -> dict:
     return {
         "decisions": len(decisions) or len(legacy),
         "rejected": sum(d.get("rejected") or 0 for d in decisions + legacy),
-        "exceptions": sum(r.get("event") == "exception" for r in rows),
+        # `child_exit` is the launcher's line for a bot process that ended before the game did
+        # (launchers from coworld-webdiplomacy main after 2026-10-10); a nonzero code is a crash
+        # even when the bot printed nothing, for example when it was killed.
+        "exceptions": sum(r.get("event") == "exception" or (r.get("event") == "child_exit" and r.get("code") != 0)
+                          for r in rows),
         "http_errors": sum(r.get("event") == "http_error" for r in rows),
         "llm_calls": len(calls),
         "llm_failed": sum(llm_call_failed(c) for c in calls),
@@ -153,6 +163,9 @@ def log_taint(log: dict) -> list[str]:
         taint.append("rejected_orders")
     if log.get("exceptions"):
         taint.append("exception")
+    if not log.get("decisions"):
+        # A log with no decision at all: the bot never played (crashed at start, never connected).
+        taint.append("no_decisions")
     if log.get("llm_calls") and log["llm_failed"] / log["llm_calls"] >= LLM_FAILING_SHARE:
         taint.append("llm_failing")
     return taint

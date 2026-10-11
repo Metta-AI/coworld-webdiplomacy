@@ -1,0 +1,92 @@
+{
+ "_note": "EXAMPLE opponent sets, a snapshot of league fillers on 2026-10-10. Version ids go stale: regenerate with `python3 games/webdiplomacy/tools/field.py gunboat|press` and keep one named set per campaign.",
+ "gb-A5": {
+  "league": "gunboat",
+  "variant": "classic-gunboat",
+  "defined": "2026-10-10, five current gunboat league fillers; Kissinger left out (same search as our baseline)",
+  "seats": [
+   {
+    "label": "webdip-metternich:v2",
+    "policy_ref": "e7f7300a-2ea8-47c0-91ec-58cb3396d627"
+   },
+   {
+    "label": "webdip-rasputin:v1",
+    "policy_ref": "affa8175-8b82-48f5-8c0d-672668bf895f"
+   },
+   {
+    "label": "webdip-talleyrand:v2",
+    "policy_ref": "907306fb-30bd-4894-a789-c7e74a23c706"
+   },
+   {
+    "label": "webdip-bismarck:v2",
+    "policy_ref": "fe45834c-7cc1-4826-994b-724408f4a21d"
+   },
+   {
+    "label": "webdip-napoleon:v2",
+    "policy_ref": "31844f07-a361-4b07-8a08-9124e7d5cc83"
+   }
+  ]
+ },
+ "gb-A6": {
+  "league": "gunboat",
+  "variant": "classic-gunboat",
+  "defined": "2026-10-10, gb-A5 plus webdip-kissinger:v2",
+  "seats": [
+   {
+    "label": "webdip-kissinger:v2",
+    "policy_ref": "580d73eb-6a20-4762-8529-eef9655bfd83"
+   },
+   {
+    "label": "webdip-metternich:v2",
+    "policy_ref": "e7f7300a-2ea8-47c0-91ec-58cb3396d627"
+   },
+   {
+    "label": "webdip-rasputin:v1",
+    "policy_ref": "affa8175-8b82-48f5-8c0d-672668bf895f"
+   },
+   {
+    "label": "webdip-talleyrand:v2",
+    "policy_ref": "907306fb-30bd-4894-a789-c7e74a23c706"
+   },
+   {
+    "label": "webdip-bismarck:v2",
+    "policy_ref": "fe45834c-7cc1-4826-994b-724408f4a21d"
+   },
+   {
+    "label": "webdip-napoleon:v2",
+    "policy_ref": "31844f07-a361-4b07-8a08-9124e7d5cc83"
+   }
+  ]
+ },
+ "press-L6": {
+  "league": "press",
+  "variant": "classic-press",
+  "defined": "2026-10-10, the six filler seats of press league round 2 (Kissinger and Metternich-press each seated twice, as the league did)",
+  "seats": [
+   {
+    "label": "webdip-kissinger:v2",
+    "policy_ref": "580d73eb-6a20-4762-8529-eef9655bfd83"
+   },
+   {
+    "label": "webdip-metternich-press:v5",
+    "policy_ref": "aed005c0-023d-4cc0-bc8a-43309c6de71a"
+   },
+   {
+    "label": "webdip-talleyrand-press:v5",
+    "policy_ref": "95702e01-2e6a-43e2-802b-228be421b283"
+   },
+   {
+    "label": "webdip-machiavelli-press:v2",
+    "policy_ref": "228403f2-3db0-491c-b1e7-06538ca88200"
+   },
+   {
+    "label": "webdip-metternich-press:v5 (second seat)",
+    "policy_ref": "aed005c0-023d-4cc0-bc8a-43309c6de71a"
+   },
+   {
+    "label": "webdip-kissinger:v2 (second seat)",
+    "policy_ref": "580d73eb-6a20-4762-8529-eef9655bfd83"
+   }
+  ]
+ }
+}

@@ -40,6 +40,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from webdip_episodes import Seat, load_dirs  # noqa: E402
 
 MIN_ABS_Z = 2.0
+# Seat-order balance check: warn when A held the lower roster slot in almost all or almost none
+# of the games (a batch with free slots lands near one half).
+SEAT_ORDER_MIN_GAMES = 20
+SEAT_ORDER_LOW, SEAT_ORDER_HIGH = 0.2, 0.8
 
 
 def power_par(seats: list[Seat], a: str, b: str) -> dict[str, float]:
@@ -52,7 +56,7 @@ def power_par(seats: list[Seat], a: str, b: str) -> dict[str, float]:
 
 
 def paired_differences(seats: list[Seat], a: str, b: str, keep_tainted: bool = False):
-    """Return (list of (A's power, d), number of games dropped for taint)."""
+    """Return (list of (A's power, d, A sat in the lower roster slot), games dropped for taint)."""
     par = power_par(seats, a, b)
     games: dict[str, dict[str, Seat]] = defaultdict(dict)
     for s in sorted(seats, key=lambda s: (s.episode_id, s.slot)):
@@ -66,7 +70,7 @@ def paired_differences(seats: list[Seat], a: str, b: str, keep_tainted: bool = F
             dropped += 1
             continue
         d = (by[a].score - par[by[a].power]) - (by[b].score - par[by[b].power])
-        diffs.append((by[a].power, d))
+        diffs.append((by[a].power, d, by[a].slot < by[b].slot))
     return diffs, dropped
 
 
@@ -80,22 +84,32 @@ def verdict(n: int, z: float | None, a: str, b: str) -> str:
 
 def paired_report(seats: list[Seat], a: str, b: str, keep_tainted: bool = False) -> dict:
     diffs, dropped = paired_differences(seats, a, b, keep_tainted)
-    values = [d for _, d in diffs]
+    values = [d for _, d, _ in diffs]
+    a_first = sum(first for _, _, first in diffs)
     n = len(values)
     mean = statistics.mean(values) if values else 0.0
     se = statistics.stdev(values) / math.sqrt(n) if n > 1 else None
     z = mean / se if se else None
     by_power = defaultdict(list)
-    for power, d in diffs:
+    for power, d, _ in diffs:
         by_power[power].append(d)
-    return {
+    report = {
         "a": a, "b": b, "n": n, "dropped_tainted": dropped,
         "diff": round(mean, 4), "se": round(se, 4) if se is not None else None,
         "z": round(z, 2) if z is not None else None,
         "verdict": verdict(n, z, a, b),
-        "diff_by_a_power": {p: {"n": len(v), "diff": round(statistics.mean(v), 4)}
+        "a_in_lower_slot": f"{a_first}/{n}",
+        "diff_by_a_power": {p: {"n": len(v), "diff": round(statistics.mean(v), 4),
+                                "se": round(statistics.stdev(v) / math.sqrt(len(v)), 4) if len(v) > 1 else None}
                             for p, v in sorted(by_power.items())},
     }
+    if n >= SEAT_ORDER_MIN_GAMES and not SEAT_ORDER_LOW <= a_first / n <= SEAT_ORDER_HIGH:
+        # Measured 2026-10-10 with identical code: under pinned, rotated powers a fixed seat
+        # order alone was worth about +0.09 to the lower slot (test-drive lab, 84 games, z 2.6).
+        report["warning"] = (f"seat order is one-sided: {a} sat in the lower roster slot in {a_first} of {n} games. "
+                             "If powers were pinned, the result includes a seat-position effect of up to about 0.1; "
+                             "re-run with both seat orders (make_request.py --balanced).")
+    return report
 
 
 def main(argv=None):
@@ -106,6 +120,10 @@ def main(argv=None):
     ap.add_argument("--keep-tainted", action="store_true")
     ap.add_argument("--json", action="store_true", help="indented JSON (default: one line)")
     args = ap.parse_args(argv)
+    missing = [d for d in args.dirs if not Path(d).is_dir()]
+    if missing:
+        print(f"no such directory (nothing fetched yet?): {', '.join(missing)}", file=sys.stderr)
+        return 2
     seats, _ = load_dirs([Path(d) for d in args.dirs])
     report = paired_report(seats, args.a, args.b, args.keep_tainted)
     print(json.dumps(report, indent=1 if args.json else None))

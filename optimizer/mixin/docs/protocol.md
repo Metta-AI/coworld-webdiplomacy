@@ -127,6 +127,11 @@ fails. The reference policy's `press` mode does this.
   log and, when the platform provides an upload URL, writes
   `private-press.json` inside a ZIP artifact. `complete: true` means the final
   fetch succeeded.
+- If the bot process ends before the game does, the launcher prints one
+  `{"event": "child_exit", "code": N}` line to the player log and keeps the
+  seat present, holding every phase. The analysis tools count a nonzero code as
+  a crash. This needs a player base image built from coworld-webdiplomacy main
+  after 2026-10-10 (`tools/build.sh` pins the ref).
 - Public replays and the game log never contain private press.
 - **Log as you go.** The launcher kills the bot at game end, so anything you
   meant to write at the end may never appear. The reference policy writes one

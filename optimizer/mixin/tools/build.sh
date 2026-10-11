@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Build the Castlereagh reference policy image for linux/amd64 and print its tag.
 #
-#   tools/build.sh [--ref <game-ref>] [--tag <image-tag>] [--policy search|press]
+#   tools/build.sh --tag <image-tag> [--ref <game-ref>] [--policy search|press]
+#                  [--overrides "KEY=VAL,KEY=VAL"]
 #
 # Two steps, both linux/amd64:
 #   1. the coworld-webdiplomacy player base image, built straight from GitHub at
 #      <game-ref> (adapter/Dockerfile.player; no checkout or submodule needed);
 #   2. players/castlereagh on top of it, with CASTLEREAGH_POLICY baked in from --policy.
+# --overrides bakes CASTLEREAGH_OVERRIDES into the image, so a one-knob experiment (any
+# config.py value) needs no source edit. The bot logs the overrides in its `start` line.
 # Only the final image tag goes to stdout; build output goes to stderr.
 #
 # PINNED_GAME_REF rationale: coworld-webdiplomacy b4aca731 (main after PR #9) is the first
@@ -24,12 +27,15 @@ GAME_REPO="https://github.com/Metta-AI/coworld-webdiplomacy.git"
 GAME_REF="$PINNED_GAME_REF"
 POLICY="search"
 TAG=""
+OVERRIDES=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --ref) GAME_REF="$2"; shift 2 ;;
     --tag) TAG="$2"; shift 2 ;;
     --policy) POLICY="$2"; shift 2 ;;
+    --overrides) OVERRIDES="$2"; shift 2 ;;
+    -h|--help) sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -38,7 +44,12 @@ case "$POLICY" in
   search|press) ;;
   *) echo "--policy must be search or press, not '$POLICY'" >&2; exit 2 ;;
 esac
-TAG="${TAG:-webdip-castlereagh-$POLICY:latest}"
+if [[ -z "$TAG" ]]; then
+  # No default tag: a shared default such as ":latest" gets rebuilt while games are running,
+  # and later games then run the new code under the old name. One tag per experiment.
+  echo "build.sh: --tag is required, e.g. --tag webdip-<policy>:<one-change-slug>" >&2
+  exit 2
+fi
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "build.sh: docker is not installed. Building and uploading policies need Docker;" \
@@ -63,8 +74,10 @@ docker build --platform linux/amd64 \
 docker build --platform linux/amd64 \
   --build-arg "BASE_IMAGE=$BASE_TAG" \
   --build-arg "POLICY=$POLICY" \
+  --build-arg "OVERRIDES=$OVERRIDES" \
   --label "webdiplomacy.game_ref=$GAME_REF" \
   --label "castlereagh.policy=$POLICY" \
+  --label "castlereagh.overrides=$OVERRIDES" \
   -t "$TAG" \
   "$LAB_ROOT/players/castlereagh" >&2
 

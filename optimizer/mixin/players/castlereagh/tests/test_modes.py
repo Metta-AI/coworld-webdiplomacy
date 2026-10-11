@@ -1,5 +1,8 @@
 """Mode selection, config overrides and per-model sidecar settings."""
 
+import contextlib
+import io
+import json
 import os
 import unittest
 from unittest import mock
@@ -36,6 +39,17 @@ class OverridesTest(unittest.TestCase):
     def test_unknown_knob_fails(self):
         with self.assertRaises(AttributeError):
             bot.apply_overrides("NO_SUCH_KNOB=1")
+
+    def test_a_fatal_startup_error_is_logged_as_an_exception_event(self):
+        # A bot that dies before its first phase must leave an `exception` line in the seat log
+        # (the analysis tools count those), not only a Python traceback on stderr.
+        out = io.StringIO()
+        env = {"CASTLEREAGH_POLICY": "search", "CASTLEREAGH_OVERRIDES": "NO_SUCH_KNOB=1"}
+        with mock.patch.dict(os.environ, env), contextlib.redirect_stdout(out), self.assertRaises(AttributeError):
+            bot.main()
+        event = json.loads(out.getvalue().splitlines()[-1])
+        self.assertEqual((event["event"], event["fatal"]), ("exception", True))
+        self.assertIn("NO_SUCH_KNOB", event["error"])
 
 
 class ModelSettingsTest(unittest.TestCase):

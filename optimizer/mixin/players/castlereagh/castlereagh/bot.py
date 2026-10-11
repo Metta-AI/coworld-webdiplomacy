@@ -120,6 +120,20 @@ class GunboatPlayer:
 
 
 def main():
+    try:
+        run()
+    except Exception as error:
+        # Anything that escapes the phase loop (a bad override, a missing variable, a crash in
+        # setup) would otherwise print a plain traceback and leave the seat holding every phase
+        # with nothing in the log that the analysis tools count. Say so in the log's own format,
+        # then fail as before.
+        print(json.dumps({"policy": "castlereagh", "t": round(time.time(), 1), "event": "exception",
+                          "fatal": True, "error": repr(error)[:300],
+                          "where": traceback.format_exc()[-1200:]}), flush=True)
+        raise
+
+
+def run():
     mode = policy_mode()
     apply_overrides(os.environ.get("CASTLEREAGH_OVERRIDES", ""))
     policy = f"castlereagh-{mode}"

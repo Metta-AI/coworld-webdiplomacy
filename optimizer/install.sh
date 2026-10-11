@@ -211,7 +211,8 @@ if [[ "$HARNESS" == "claude-code" ]]; then
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 settings = json.loads(path.read_text())
-settings["hooks"]["SessionStart"].append({"hooks": [{
+# "startup" only: a resumed or compacted session has already had its check.
+settings["hooks"]["SessionStart"].append({"matcher": "startup", "hooks": [{
     "type": "command",
     "command": 'python3 "$CLAUDE_PROJECT_DIR/games/webdiplomacy/tools/check_clis.py"',
     "timeout": 20,

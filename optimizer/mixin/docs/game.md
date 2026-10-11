@@ -173,8 +173,10 @@ A full `classic-press` game has 16 movement phases (1901 to 1908).
 | webDiplomacy (main, full press) | `league_1bccc63d-cd0a-47d7-92d7-e762797b5f1c` | `classic-press` |
 | webDiplomacy Gunboat | `league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17` | `classic-gunboat` |
 
-As of 2026-10-06 (lab observation, not re-verified): one round per day, one
-player per user, ranked by **mean score**. Empty seats are filled from each
+As of 2026-10-10 (verified from `coworld rounds` and `coworld episodes -r`):
+one round per day at 08:00 UTC, and **a round is a single game**, so standings
+rest on one new game a day. One player per user, ranked by **mean score**. A new
+submission becomes the scoring entry at once ("Auto champion: always"). Empty seats are filled from each
 league's **filler roster**. Read the live settings with
 `coworld leagues <league_id> --json` before relying on these.
 
@@ -189,5 +191,10 @@ draw on; the filler roster and other uploaded policies also play.
   lab: about 61 minutes by one measurement, 80 to 100 by another. LLM seats
   rarely all mark Ready, so press phases usually run their full 4 minutes.
   Measure your own.
+- Hosted `classic-gunboat` games took a **median 2.4 minutes of play** (90th
+  percentile 3.8, maximum 6.6) plus a median 2.7 minutes queued, at about
+  **$0.027 and 0.5 credits per game** (353 games, 2026-10-10). One batch of 80
+  ran all at once and drained in about 8 minutes; batches of 10 to 12 fired
+  together queued behind each other for up to 8 minutes.
 - Local gunboat games with bots that mark Ready take 40 to 45 seconds. Local
   games with the search policy take about 4.5 minutes.

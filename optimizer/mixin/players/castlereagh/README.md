@@ -21,8 +21,9 @@ for experiments, not a proven gain**: the first A/B to run is `press` vs `search
 ## Build, run, test
 
 ```sh
-tools/build.sh --policy search            # prints webdip-castlereagh-search:latest
+tools/build.sh --policy search --tag webdip-castlereagh-search:exp1   # --tag is required; prints the tag
 tools/build.sh --policy press --tag webdip-castlereagh-press:exp1
+tools/build.sh --tag webdip-castlereagh-search:exp2 --overrides "SEARCH_RISK=0.5"   # a one-setting experiment
 python3 -m unittest discover -s players/castlereagh/tests      # from the lab root; ~1 min (golden)
 GOLDEN_EVERY=20 python3 -m unittest discover -s players/castlereagh/tests   # quick
 uv run --no-project --python 3.12 --with "pydantic-ai-slim[openai]==2.54.0" \
@@ -38,7 +39,7 @@ its hold-bot command on six certification seats.
 
 ```sh
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode dist/coworld_manifest.json \
-  webdip-castlereagh-search:latest --variant classic-gunboat \
+  webdip-castlereagh-search:exp1 --variant classic-gunboat \
   --run /opt/.venv/bin/python --run=-m --run players.launcher \
   --run /opt/.venv/bin/python --run=-m --run castlereagh \
   --output-dir tmp/castlereagh-search --timeout-seconds 1800
