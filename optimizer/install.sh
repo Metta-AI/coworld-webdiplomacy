@@ -15,8 +15,8 @@
 #    commit in SEED.md, replace the onboarding's "pick a game" beat (the game is already
 #    installed), and put a webDiplomacy banner on README.md.
 # 5. Run the seed's harness wiring (default: claude-code), plus a SessionStart hook
-#    that warns when the coworld or softmax CLI is stale; record the wiring in
-#    WORKING_CONTEXT.md.
+#    that warns when the coworld or softmax CLI is stale, plus the IDE's hooks, MCP
+#    server entry and skill link; record the wiring in WORKING_CONTEXT.md.
 # 6. Commit the install as one unit in the new repository.
 #
 # Only files git would track are copied (tracked, or untracked and not
@@ -225,6 +225,38 @@ settings["hooks"]["SessionStart"].append({"matcher": "startup", "hooks": [{
 path.write_text(json.dumps(settings, indent=2) + "\n")
 PYEOF
   echo "Hooks: added the webDiplomacy CLI version check to SessionStart."
+  # Wire the IDE into the session: hooks that hand the user's browser messages to the
+  # running agent (the entries come from the IDE itself, ide/webdip_ide/hooks.py), an MCP
+  # server with the same actions, and the IDE skill where Claude Code discovers skills.
+  if [[ -d "$TARGET/ide" ]]; then
+    python3 - "$TARGET" << 'PYEOF'
+import json, pathlib, sys
+target = pathlib.Path(sys.argv[1])
+sys.path.insert(0, str(target / "ide"))
+from webdip_ide.hooks import hook_settings
+
+path = target / ".claude" / "settings.json"
+settings = json.loads(path.read_text())
+for event, entries in hook_settings().items():
+    settings["hooks"].setdefault(event, []).extend(entries)
+path.write_text(json.dumps(settings, indent=2) + "\n")
+
+mcp = target / ".mcp.json"
+config = json.loads(mcp.read_text()) if mcp.exists() else {}
+config.setdefault("mcpServers", {})["webdip-ide"] = {
+    "type": "stdio",
+    "command": "python3",
+    "args": ["${CLAUDE_PROJECT_DIR:-.}/ide/ide", "mcp"],
+}
+mcp.write_text(json.dumps(config, indent=2) + "\n")
+
+skill = target / "games" / "webdiplomacy" / "skills" / "ide" / "SKILL.md"
+if not skill.exists():
+    sys.exit(f"error: {skill} is missing; the IDE hooks point the agent at it")
+(target / ".claude" / "skills" / "webdiplomacy-ide").symlink_to("../../games/webdiplomacy/skills/ide")
+PYEOF
+    echo "IDE: added hooks to .claude/settings.json, the webdip-ide server to .mcp.json, and the skill link."
+  fi
   # Record the wiring, as harness/README.md's self-wiring step requires, so the first
   # session can tell from disk that Claude Code is already wired.
   python3 - "$WORKING_CONTEXT" "$TODAY" << 'PYEOF'
@@ -234,7 +266,10 @@ placeholder = """*(recorded by the self-wiring step during onboarding: which run
 hooks were installed, date)*"""
 record = f"""- Claude Code: wired by `optimizer/install.sh` on {today}. Skills are linked in
   `.claude/skills/`; `.claude/settings.json` runs `rotate_lessons.sh` and the lab's
-  `check_clis.py` at SessionStart, and both stop nudges at Stop. Nothing to do.
+  `check_clis.py` at SessionStart, and both stop nudges at Stop. The IDE (`ide/`) adds
+  `ide/ide hook <event>` at SessionStart, UserPromptSubmit, PostToolUse and Stop (they hand
+  the user's browser messages to the session), the `webdip-ide` server in `.mcp.json`, and
+  the `webdiplomacy-ide` skill link. Nothing to do.
 - Any other runtime: not wired. Do the self-wiring step in `harness/README.md`
   and record it here."""
 text = path.read_text()

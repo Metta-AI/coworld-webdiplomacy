@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<div class="page">
+  <h1>webDiplomacy optimizer</h1>
+  <p class="lede">A local workbench for improving a webDiplomacy policy with a coding agent. The agent runs in a
+    terminal in the optimizer root and opened this page; you talk to it in the panel on the right, watch the games it
+    fetched, mark where things went wrong, and read how the policy is doing.</p>
+
+  <dl class="home-sections">
+    <dt><a href="/replays">Replays</a></dt>
+    <dd><span class="num">{{ episodes }}</span> episode{{ "" if episodes == 1 else "s" }} on disk to watch phase by phase.
+      {% if annotations %}<span class="num">{{ annotations }}</span> annotation{{ "" if annotations == 1 else "s" }} on
+      <span class="num">{{ annotated_episodes }}</span> episode{{ "" if annotated_episodes == 1 else "s" }}.{% else %}No annotations yet: mark a phase while watching and send it to the agent.{% endif %}</dd>
+    <dt><a href="/dashboard">Dashboard</a></dt>
+    <dd>How the policy scores by power, opponent, version and source, with the number of games behind each figure.</dd>
+    <dt><a href="/reports">Reports</a></dt>
+    <dd>{% if reports %}<span class="num">{{ reports }}</span> write-up{{ "" if reports == 1 else "s" }}: why we win or lose against each opponent, and opponent profiles.{% else %}No write-ups yet. Ask the agent why we lose to an opponent, or for an opponent profile.{% endif %}</dd>
+  </dl>
+
+  <h3>Agent</h3>
+  <p id="home-agent-status" class="prose">Checking for an agent…</p>
+  <p class="muted small prose">Lab: <code>{{ lab }}</code>. The agent started this server with <code>ide/ide start</code>;
+    what you type in the panel is handed to that session. If no agent is attached, start Claude Code in the
+    optimizer root and say “open the IDE”.</p>
+
+  <h3>Newest from the agent</h3>
+  <div class="home-cards" id="home-cards">
+    <p class="empty">No cards yet. Ask the agent for an idea, a replay worth watching, or a write-up.</p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  // The same data as the agent panel, shown larger: presence text and the five newest cards.
+  window.ide.onUpdate(function (state) {
+    document.getElementById("home-agent-status").textContent = state.presence;
+    var box = document.getElementById("home-cards");
+    var newest = state.cards.slice(-5).reverse();
+    if (!newest.length) return;
+    box.replaceChildren.apply(box, newest.map(window.ide.cardElement));
+  });
+</script>
+{% endblock %}

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import fcntl
 import json
+import os
 import secrets
 import time
 from contextlib import contextmanager
@@ -47,9 +48,19 @@ def _locked(path: Path):
 
 
 def _read_lines(path: Path) -> list[dict]:
+    """Every complete row. Readers take no lock, so a last line still being written is skipped."""
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    text = path.read_text()
+    complete = text if text.endswith("\n") else text[: text.rfind("\n") + 1]
+    return [json.loads(line) for line in complete.splitlines() if line.strip()]
+
+
+def _write_atomic(path: Path, text: str) -> None:
+    """Replace `path` in one step, so an unlocked reader never sees a partial file."""
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(text)
+    os.replace(temporary, path)
 
 
 def _append(path: Path, row: dict) -> dict:
@@ -83,7 +94,7 @@ def take_unread_for_agent() -> list[dict]:
         seen = int(cursor.read_text()) if cursor.exists() else 0
         unread = [m for m in messages(after=seen) if m["sender"] == "user"]
         if unread:
-            cursor.write_text(str(unread[-1]["seq"]))
+            _write_atomic(cursor, str(unread[-1]["seq"]))
     return unread
 
 
@@ -163,7 +174,7 @@ def add_annotation(
     with _locked(path):
         rows = annotations(episode)
         rows.append(row)
-        path.write_text(json.dumps(rows, indent=1) + "\n")
+        _write_atomic(path, json.dumps(rows, indent=1) + "\n")
     return row
 
 
@@ -174,5 +185,5 @@ def delete_annotation(episode: str, annotation_id: str) -> bool:
         kept = [row for row in rows if row["id"] != annotation_id]
         if len(kept) == len(rows):
             return False
-        path.write_text(json.dumps(kept, indent=1) + "\n")
+        _write_atomic(path, json.dumps(kept, indent=1) + "\n")
     return True

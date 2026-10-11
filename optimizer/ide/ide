@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+"""`ide/ide <command>`: the optimizer IDE's command line. See `ide/ide --help` and webdip_ide/cli.py."""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from webdip_ide.cli import main  # noqa: E402
+
+sys.exit(main())

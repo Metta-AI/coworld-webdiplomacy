@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}IDE{% endblock %} · webDiplomacy optimizer</title>
+  <link rel="stylesheet" href="/static/app.css">
+  {# Apply the saved panel state before first paint so the layout does not jump. #}
+  <script>
+    try {
+      var saved = localStorage.getItem("ide.agentPanel");
+      if (saved === "closed" || (saved === null && window.innerWidth <= 900)) {
+        document.documentElement.classList.add("agent-collapsed");
+      }
+    } catch (e) {}
+  </script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">webDiplomacy optimizer</a>
+    <nav>{% for label, href in nav %}<a href="{{ href }}"{% if request.url.path.startswith(href) %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</nav>
+    <button type="button" class="panel-toggle small" id="agent-panel-toggle" aria-controls="agent-panel" aria-expanded="true"><span class="dot off" id="agent-toggle-dot"></span><span id="agent-toggle-label">Agent</span></button>
+  </header>
+  <div class="layout">
+    <main>{% block content %}{% endblock %}</main>
+    <aside id="agent-panel" class="agent-panel" aria-label="Agent">{% include "agent_panel.html" %}</aside>
+  </div>
+  <script src="/static/chat.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
