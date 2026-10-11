@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Build the Castlereagh reference policy image for linux/amd64 and print its tag.
 #
-#   tools/build.sh --tag <image-tag> [--ref <game-ref>] [--policy search|press]
+#   tools/build.sh --tag <image-tag> [--ref <game-ref>] [--policy press|search]
 #                  [--overrides "KEY=VAL,KEY=VAL"]
 #
 # Two steps, both linux/amd64:
 #   1. the coworld-webdiplomacy player base image, built straight from GitHub at
 #      <game-ref> (adapter/Dockerfile.player; no checkout or submodule needed);
-#   2. players/castlereagh on top of it, with CASTLEREAGH_POLICY baked in from --policy.
+#   2. players/castlereagh on top of it, with CASTLEREAGH_POLICY baked in from --policy
+#      (default press; a press image plays its search core in no-press games).
 # --overrides bakes CASTLEREAGH_OVERRIDES into the image, so a one-knob experiment (any
 # config.py value) needs no source edit. The bot logs the overrides in its `start` line.
 # Only the final image tag goes to stdout; build output goes to stderr.
@@ -27,7 +28,7 @@ set -euo pipefail
 PINNED_GAME_REF="7e16afa1aa7e56388c885a694ae3443a6ed1d77e"
 GAME_REPO="https://github.com/Metta-AI/coworld-webdiplomacy.git"
 GAME_REF="$PINNED_GAME_REF"
-POLICY="search"
+POLICY="press"
 TAG=""
 OVERRIDES=""
 

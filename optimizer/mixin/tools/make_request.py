@@ -59,7 +59,16 @@ LEAGUES = {
     "gunboat": "league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17",
 }
 FIELD_SEATS = {"paired": 5, "field": 6}
+# Per-episode cap, split evenly over the seven seats (the prior lab's value; actual spend was
+# about $0.10 per LLM seat per full game). It is a cap, not a charge.
+PRESS_LLM_BUDGET_USD = 14.0
 POWERS = ["England", "France", "Italy", "Germany", "Austria", "Turkey", "Russia"]  # upstream ids 1..7
+
+
+def default_llm_budget(field: dict) -> float:
+    """A press game with a zero budget gives every LLM seat no model access: each then plays
+    its fallback with no error. So press sets get a budget unless one is given."""
+    return PRESS_LLM_BUDGET_USD if field["league"] == "press" else 0.0
 
 
 def load_field_sets(path: Path | None = None) -> dict:
@@ -139,8 +148,9 @@ def main(argv=None) -> None:
     ap.add_argument("--field-set", required=True)
     ap.add_argument("-n", "--episodes", type=int, required=True)
     ap.add_argument("--note", default="")
-    ap.add_argument("--llm-budget-usd", type=float, default=0.0,
-                    help="per-episode LLM budget split over seven seats (0 = no LLM access)")
+    ap.add_argument("--llm-budget-usd", type=float,
+                    help=f"per-episode LLM budget split over seven seats (0 = no LLM access). Default: "
+                         f"{PRESS_LLM_BUDGET_USD:g} for a press set, 0 for a gunboat set")
     ap.add_argument("--balanced", action="store_true",
                     help="pinned, rotated powers: 7 bodies (field) or 14 mirrored bodies (paired); -n is per body")
     ap.add_argument("--pin-a", choices=POWERS, help="field kind: A always plays this power; six bodies")
@@ -154,7 +164,8 @@ def main(argv=None) -> None:
     field = sets[args.field_set]
     try:
         bodies = build_bodies(args.kind, args.a, args.b, field, args.field_set, args.episodes, args.note,
-                              args.llm_budget_usd, args.balanced, args.pin_a, args.no_maps)
+                              default_llm_budget(field) if args.llm_budget_usd is None else args.llm_budget_usd,
+                              args.balanced, args.pin_a, args.no_maps)
     except ValueError as error:
         sys.exit(str(error))
     out = Path(args.out)

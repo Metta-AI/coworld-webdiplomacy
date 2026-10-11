@@ -66,9 +66,10 @@ each doc at a pinned commit.
   negotiation pay is the open problem in this game, and where most of the room
   to improve is.
 - **Two modes**, set by the `CASTLEREAGH_POLICY` environment variable in the
-  image: `search` (default, press off) and `press` (search plus press; without
-  `COWORLD_LLM_ENDPOINT` it plays its search floor).
-- **Build:** `tools/build.sh --tag <image-tag> [--ref <game-ref>] [--policy search|press] [--overrides "KEY=VAL,…"]`
+  image: `press` (default: search plus press; in a no-press game, or without
+  `COWORLD_LLM_ENDPOINT`, it plays its search floor) and `search` (press off).
+  Upload a press build with an LLM model; `tools/ship.py` does that by default.
+- **Build:** `tools/build.sh --tag <image-tag> [--ref <game-ref>] [--policy press|search] [--overrides "KEY=VAL,…"]`
   (`--overrides` bakes `CASTLEREAGH_OVERRIDES`, any `config.py` value, into the image, so a
   one-setting experiment needs no source edit). `--tag` is required and there is no default:
   one tag per experiment. `tools/ship.py` wraps build, upload and the version-log row. Needs Docker; it builds the
@@ -110,7 +111,7 @@ Also in `tools/`, run the same way; flags are in each docstring.
 
 | Tool | For |
 |---|---|
-| `field.py gunboat\|press` | Who is in a league's field (from its rounds), with version ids for rosters |
+| `field.py press\|gunboat` | Who is in a league's field (from its rounds), with version ids for rosters |
 | `make_request.py` + `../field_sets.json` | Request bodies from a named opponent set; `--balanced` (powers pinned and rotated; a paired A/B gets both seat orders, 14 bodies), `--pin-a POWER` (our seat fixed to one power), `--no-maps`. `field_sets.json` ships with the format only: list the field with `field.py`, then write your own named, dated sets (a stale id fails at create time with "Policy version … was not found") |
 | `seat_bias.py` | Whether one roster seat outscores another whoever sits there (reads `wd.py seats` on stdin); for same-code checks |
 | `mine_variance.py` | Which measured behaviours go with a policy's own good and bad games (correlations: hypothesis fuel only) |
@@ -129,19 +130,23 @@ Also in `tools/`, run the same way; flags are in each docstring.
 | Evaluate | Hosted XP requests on the league's full variant against explicit field `policy_ref`s; paired seating by default; stream artifacts. See [eval-design](skills/eval-design/SKILL.md) |
 | Read | Taint first, then score vs same-batch par **per power**; \|z\| < 2 is no result. See [ab](skills/ab/SKILL.md) and [survey](skills/survey/SKILL.md) |
 | Hypothesize | Known failure modes and the procedure in [diagnosis](skills/diagnosis/SKILL.md); check [closed_levers.md](closed_levers.md) first |
-| Build | `tools/ship.py` (build, upload and VERSION_LOG row in one step; it calls `tools/build.sh`), one image tag per experiment; `--llm-model` for press |
+| Build | `tools/ship.py` (build, upload and VERSION_LOG row in one step; it calls `tools/build.sh`), one image tag per experiment; press builds are uploaded with an LLM model (default `z-ai/glm-5.3-flash`, `--llm-model` to change) |
 
-## Run one A/B (gunboat), start to finish
+## Run one A/B, start to finish
 
-From the optimizer root, with the private `HOME` from [docs/platform.md](docs/platform.md#setup)
-and the right player active. `L=games/webdiplomacy`, `R=skills/run-eval/scripts`.
+In the main league (`classic-press`), which is where to work unless you have a
+reason to use Gunboat. From the optimizer root, with the private `HOME` from
+[docs/platform.md](docs/platform.md#setup) and the right player active.
+`L=games/webdiplomacy`, `R=skills/run-eval/scripts`. First fill
+`field_sets.json` with a five-seat set from the current field
+([how](docs/strategy.md#rebuilding-the-field-picture)).
 
 ```sh
 skills/experiment/scripts/record.py new $L <slug>          # then fill hypothesis, predictions, rule
 python3 $L/tools/ship.py --name <policy> --slug <slug> \
     --change "<the one change and its mechanism>" --overrides "KEY=VAL" --experiment <record id>
 python3 $L/tools/make_request.py paired --a <policy>:vNEW --b <policy>:vBASE \
-    --field-set <paired set> -n 6 --balanced --no-maps --note <record id> --out $L/.runtime/requests/<slug>.json
+    --field-set <paired set> -n 2 --balanced --no-maps --note <record id> --out $L/.runtime/requests/<slug>.json
 $R/eval_request.py create $L/.runtime/requests/<slug>-r0.json --dry-run
 bash -c 'for f in '$L'/.runtime/requests/<slug>-r*.json; do '$R'/eval_request.py create $f; done'   # 14 batches; note each id
 skills/fetch-artifacts/scripts/fetch_artifacts.py XREQ1 XREQ2 … --watch --out $L/.runtime/artifacts/<slug>
@@ -150,18 +155,41 @@ python3 $L/tools/paired.py $L/.runtime/artifacts/<slug> --a <policy>:vNEW --b <p
 ```
 
 Everything from the third command on is one step with
-`python3 $L/tools/run_ab.py --record <record id> --a <policy>:vNEW --b <policy>:vBASE --field-set <paired set> -n 6`
+`python3 $L/tools/run_ab.py --record <record id> --a <policy>:vNEW --b <policy>:vBASE --field-set <paired set> -n 2`
 (it refuses a record that still has template text, and `--resume` picks up an
 interrupted run).
 
-- `--balanced` with `-n 6` is 14 batches x 6 = 84 games: every power and both
-  seat positions equally for each version. 84 games see effects of about 0.075
-  or more (`python3 $L/tools/sizing.py --games 84`).
-- Cost and time (2026-10-10): about 0.5 credits and $0.03 per game; a game
-  plays in about 2.4 minutes; 84 games drain in 8 to 15 minutes depending on
-  the queue.
+- `ship.py` builds the press mode and uploads it with an LLM model by default.
+  For a press set, `make_request.py` gives each game an LLM budget (a cap of
+  $14 split over the seven seats); with a zero budget every LLM seat would play
+  its search floor and say nothing.
+- `--balanced` writes 14 batches: every power and both seat positions equally
+  for each version. `-n` is games per batch:
+
+  | `-n` | Games | Credits (about 15 per press game) | Smallest effect at z = 2 |
+  |---|---|---|---|
+  | 1 | 14 | about 210 | 0.12 |
+  | 2 | 28 | about 420 | 0.09 |
+  | 6 | 84 | about 1,260 | 0.05 |
+
+  The effect sizes come from `python3 $L/tools/sizing.py --games N`, and they
+  rest on an **estimated** paired SD for press (0.23). Work out the real SD from
+  your first batch (`paired.py` prints the standard error; SD = SE × √games)
+  and re-size with `--sd`.
+- **A press game takes 60 to 100 minutes.** Batches run in parallel (a prior
+  lab ran 16 games at once in about an hour); how long 84 take together is not
+  measured. Launch, record the ids, and read the result later: `--resume`
+  fetches and reads when the games are done.
+- After every press upload or model change, run one health game on
+  `classic-press-short` and confirm every `llm_call` in our seat logs succeeded
+  (the eval-design binding). A failing LLM seat looks healthy.
 - Put the batch ids and the artifact directory in the experiment record as
   soon as they exist. Use a bash loop, not zsh (zsh does not split `$ids`).
+
+**The Gunboat league** (`classic-gunboat`, no press) runs the same recipe with a
+gunboat field set. Games take about 2.4 minutes and half a credit
+(2026-10-10), so it is a fast way to test a change to the search core alone.
+It says nothing about negotiation.
 
 ## Mechanics ground truth
 

@@ -1,10 +1,11 @@
 """Castlereagh: the launcher's child process (`python -m castlereagh`).
 
 Mode, from env CASTLEREAGH_POLICY (baked at build time by `--build-arg POLICY=...`):
-- `search` (default): the Default search (the lab's Kissinger), no press. Every phase:
+- `press` (default): the search core plus the press layer (press/player.py). In a no-press
+  game, or without an LLM endpoint, it plays exactly what `search` plays.
+- `search`: the Default search (the lab's Kissinger), no press. Every phase:
   read context and public files, choose, save with Ready, diff the saved orders against
   the request (upstream silently drops invalid ones), and print one `decision` line.
-- `press`: the same search core plus the optional press layer (press/player.py).
 Any other value is an error.
 
 Every log line is one JSON object on stdout with `policy` and `event` fields. The seat
@@ -27,7 +28,7 @@ MODES = ("search", "press")
 
 
 def policy_mode():
-    mode = os.environ.get("CASTLEREAGH_POLICY", "search").strip() or "search"
+    mode = os.environ.get("CASTLEREAGH_POLICY", "press").strip() or "press"
     if mode not in MODES:
         raise SystemExit(f"CASTLEREAGH_POLICY={mode!r} is not a mode; use one of: {', '.join(MODES)}")
     return mode

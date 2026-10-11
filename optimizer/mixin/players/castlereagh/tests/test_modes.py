@@ -13,9 +13,9 @@ from castlereagh.press import llm
 
 
 class ModeTest(unittest.TestCase):
-    def test_default_is_search(self):
+    def test_default_is_press(self):
         with mock.patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(bot.policy_mode(), "search")
+            self.assertEqual(bot.policy_mode(), "press")
 
     def test_press(self):
         with mock.patch.dict(os.environ, {"CASTLEREAGH_POLICY": "press"}):

@@ -112,7 +112,7 @@ from webdip_episodes import (  # noqa: E402
 )
 
 CLASSIC_PRESS_MOVEMENT_PHASES = 16  # Spring and Autumn of 1901-1908
-# Default arena field: copies of the reference policy in its default (search) mode.
+# Default arena field: copies of the reference policy in its search mode (no LLM needed).
 DEFAULT_FIELD_ENV = {"CASTLEREAGH_POLICY": "search"}
 COUNTRY_IDS = {name.lower(): cid for cid, name in POWERS.items()}
 
@@ -651,7 +651,7 @@ def cmd_arena(args):
 
 
 def add_run_options(p):
-    p.add_argument("--variant", default="classic-gunboat", help="manifest variant id (default classic-gunboat)")
+    p.add_argument("--variant", default="classic-press", help="manifest variant id (default classic-press)")
     p.add_argument("--episodes", type=int, default=1)
     p.add_argument("--parallel", type=int, default=2, help="episodes run at once (each is 8 containers)")
     p.add_argument("--out", required=True, help="output directory; one ep-<id>/ per episode")

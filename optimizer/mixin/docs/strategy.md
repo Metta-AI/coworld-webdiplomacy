@@ -96,8 +96,8 @@ policy against the field it will meet.**
 Nothing here names the current opponents, on purpose. To see the field as it
 is today, from the optimizer root:
 
-1. **Who is seated.** `python3 games/webdiplomacy/tools/field.py gunboat` (or
-   `press`) lists every policy in the league's recent rounds, entrant or
+1. **Who is seated.** `python3 games/webdiplomacy/tools/field.py press` (or
+   `gunboat`) lists every policy in the league's recent rounds, entrant or
    filler, with its version id. Standings: `coworld results <league_id>`, then
    `coworld results <div_id>` ([game.md](game.md#leagues)).
 2. **Name your opponent sets.** Put the version ids into `field_sets.json` as

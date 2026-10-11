@@ -1,7 +1,9 @@
 """Pure-logic tests for the campaign tools: sizing, seat_bias, ship, run_ab, field,
 year_deltas, flag_episodes, mine_variance, gzip_replays. No network, no Docker."""
 
+import contextlib
 import gzip
+import io
 import json
 import math
 import tempfile
@@ -47,6 +49,14 @@ class Sizing(unittest.TestCase):
         effect = sizing.smallest_effect(289, 0.34, False, 2.0)
         self.assertAlmostEqual(effect, 0.04, places=3)
         self.assertLess(sizing.smallest_effect(400, 0.34, False, 2.0), effect)  # more games, smaller effect
+
+
+    def test_press_is_the_default_league_and_gunboat_keeps_its_measured_values(self):
+        self.assertEqual(sizing.LEAGUE_SD["gunboat"], (0.34, 0.22))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            sizing.main(["--games", "100"])
+        self.assertIn(f"SD {sizing.LEAGUE_SD['press'][0]}", out.getvalue())
 
 
 class SeatBias(unittest.TestCase):
@@ -96,6 +106,11 @@ class Ship(unittest.TestCase):
         press = ship.version_log_row("p", 1, "abc", "t", "c", "press", "", "vendor/model", "tag", "", None)
         self.assertIn("`--llm-model vendor/model`", press)
         self.assertIn("| unvalidated |", press)
+
+
+    def test_default_press_model_is_the_reference_policys_own(self):
+        config = (Path(ship.LAB) / "players" / "castlereagh" / "castlereagh" / "config.py").read_text()
+        self.assertIn(f'PRESS_MODEL = "{ship.DEFAULT_LLM_MODEL}"', config)
 
 
 class RunAbRecord(unittest.TestCase):

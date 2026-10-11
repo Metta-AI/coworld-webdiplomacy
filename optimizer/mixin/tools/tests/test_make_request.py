@@ -42,6 +42,12 @@ class PlainBodies(unittest.TestCase):
         with self.assertRaises(ValueError):
             make_request.build_bodies("field", "a", None, field(6), "set", 1, balanced=True, pin_a="Austria")
 
+    def test_press_sets_get_an_llm_budget_by_default_and_gunboat_sets_do_not(self):
+        # A press game with a zero budget leaves every LLM seat playing its fallback, silently.
+        self.assertEqual(make_request.default_llm_budget({"league": "press"}), make_request.PRESS_LLM_BUDGET_USD)
+        self.assertGreater(make_request.PRESS_LLM_BUDGET_USD, 0)
+        self.assertEqual(make_request.default_llm_budget({"league": "gunboat"}), 0.0)
+
     def test_the_shipped_field_sets_are_placeholders_and_are_refused(self):
         # field_sets.json ships with the format only; a real set needs ids from tools/field.py.
         shipped = make_request.load_field_sets()

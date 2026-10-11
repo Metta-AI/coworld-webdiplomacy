@@ -87,12 +87,13 @@ checked every time.
     policy, 0.08 to 0.18 for field seats).
   - At 16 episodes per arm, SE is about 0.02 to 0.03, so only effects of about
     0.08 or more can show up.
-  - Game counts: use `tools/sizing.py`, which carries the SDs measured
-    in hosted gunboat on 2026-10-10 (0.22 per seat, about 0.34 for a paired
-    difference). At those SDs a 0.04 difference needs about 290 paired games
-    for an even chance of reaching z = 2 (about 240 per arm with separate
-    arms, so pairing saves about 1.7x in games, not 2 to 3x). The prior lab's
-    "about 150 per arm" came from press games with lower variance.
+  - Game counts: use `tools/sizing.py` (press by default; `--league gunboat`
+    for the other league). The press paired SD in it is an estimate (0.23):
+    replace it with your own after the first paired batch. In hosted gunboat
+    (2026-10-10: 0.22 per seat, about 0.34 for a paired difference) a 0.04
+    difference needs about 290 paired games for an even chance of reaching
+    z = 2, about 240 per arm with separate arms, so pairing saved about 1.7x
+    in games there, not 2 to 3x.
 - **Do not peek and stop.** Fix the episode count when you write the decision
   rule.
 

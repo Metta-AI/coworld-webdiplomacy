@@ -77,12 +77,13 @@ named opponent set in `field_sets.json`, and `tools/run_ab.py` runs the whole
 A/B from an experiment record:
 
 ```sh
-# 14 bodies: every power and both seat orders for each version, 6 games each = 84 games
+# 14 bodies: every power and both seat orders for each version, 2 games each = 28 games.
+# A press set gets an LLM budget by default; a zero budget silences every LLM seat.
 python3 games/webdiplomacy/tools/make_request.py paired --a mybot:v4 --b mybot:v3 \
-    --field-set <paired set> -n 6 --balanced --no-maps --out games/webdiplomacy/.runtime/requests/v4.json
+    --field-set <paired set> -n 2 --balanced --no-maps --out games/webdiplomacy/.runtime/requests/v4.json
 # the candidate-alone check for a paired win: 7 bodies per arm against a six-seat set
 python3 games/webdiplomacy/tools/make_request.py field --a mybot:v4 \
-    --field-set <field set> -n 12 --balanced --no-maps --out games/webdiplomacy/.runtime/requests/v4-alone.json
+    --field-set <field set> -n 4 --balanced --no-maps --out games/webdiplomacy/.runtime/requests/v4-alone.json
 ```
 
 Dry-run it first: `skills/run-eval/scripts/eval_request.py create body.json --dry-run`
@@ -94,17 +95,19 @@ create time). Set
 
 From 2026-10 measurements; recompute from your first batch:
 
-- Per-seat score SD is about 0.12 to 0.18 (press, prior lab). **In hosted
-  gunboat (2026-10-10, one opponent set of five league fillers; re-measure) it was 0.22 for the search, and the SD
-  of a paired difference was 0.30 to 0.36**: 84 paired games see only effects
-  of about 0.075, and 0.04 needs about 290. Use `tools/sizing.py`.
+- **Press:** per-seat score SD is about 0.12 to 0.18 (prior lab). The SD of a
+  paired difference has **not been measured in press**; `tools/sizing.py`
+  uses an estimate of 0.23 until you measure it in your first paired batch.
+- **Gunboat** (hosted, 2026-10-10, one opponent set; re-measure): 0.22 per
+  seat for the search, and 0.30 to 0.36 for a paired difference. Use
+  `tools/sizing.py --league gunboat`.
 - **Smoke / health: 1 episode.** Answers "does it run".
 - **Directional: about 16 per arm.** SE about 0.02 to 0.03; only effects of
   about 0.08 or more show up. Most of the prior lab's results stopped here and
   none reached a verdict.
-- **Verdict: size it with `tools/sizing.py`.** In hosted gunboat a 0.04
-  difference needs about 290 paired games (about 240 per arm with separate
-  arms). The prior lab's press figure was about 150 per arm.
+- **Verdict: size it with `tools/sizing.py`** (press by default). The prior
+  lab's press figure was about 150 per arm for a 0.04 difference with separate
+  arms; in gunboat the same difference needs about 290 paired games.
 - **|z| < 2 is no result**, whatever the episode count.
 
 The calculation: the SE of a two-arm difference is about SD × √(2/n). The prior
@@ -135,7 +138,7 @@ effect lands at z ≈ 1.9 to 2.9. At 16 per arm the difference SE is 0.04 to
 
 - A full hosted `classic-press` game takes **60 to 100 minutes** (re-measure).
   Sixteen episodes in one request ran in parallel, about an hour of wall clock.
-  Gunboat games are much shorter.
+  Gunboat games take a few minutes, but they test only the search core.
 - Cost: about **15 XP credits per full press game** with five LLM seats; our
   own LLM seat cost about $0.10 per game on glm-5.3-flash.
 - **Stream artifacts while games run** (`fetch_artifacts.py XREQ --watch`).

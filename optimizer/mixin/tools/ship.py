@@ -3,7 +3,7 @@
 
     python3 games/webdiplomacy/tools/ship.py --name POLICY --slug one-change-slug \\
         --change "The one change and its mechanism" [--overrides "KEY=VAL,..."] \\
-        [--policy search|press] [--llm-model SLUG] [--experiment ID]
+        [--policy press|search] [--llm-model SLUG] [--experiment ID]
 
 Does, in order: `tools/build.sh` with a tag derived from the slug (one tag per
 experiment, never `latest`), `coworld upload-policy` with the slug as its
@@ -29,6 +29,10 @@ from pathlib import Path
 
 LAB = Path(__file__).resolve().parent.parent
 VERSION_LOG = LAB / "players" / "castlereagh" / "VERSION_LOG.md"
+# The model a press upload gets when --llm-model is not given: the reference policy's own
+# default (castlereagh/config.py PRESS_MODEL; a test keeps the two equal). The model is fixed
+# per uploaded version, so a different model is a new version.
+DEFAULT_LLM_MODEL = "z-ai/glm-5.3-flash"
 
 
 def run(cmd: list[str], env: dict | None = None) -> str:
@@ -44,14 +48,17 @@ def main(argv=None) -> None:
     ap.add_argument("--slug", required=True, help="short kebab-case name of the one change")
     ap.add_argument("--change", required=True, help="the one change and its mechanism (goes in the log row)")
     ap.add_argument("--overrides", default="", help='CASTLEREAGH_OVERRIDES to bake, "KEY=VAL,KEY=VAL"')
-    ap.add_argument("--policy", default="search", choices=["search", "press"])
-    ap.add_argument("--llm-model", help="OpenRouter slug; required for press")
+    ap.add_argument("--policy", default="press", choices=["press", "search"])
+    ap.add_argument("--llm-model",
+                    help=f"OpenRouter slug for press (default {DEFAULT_LLM_MODEL}); not allowed for search")
     ap.add_argument("--experiment", default="", help="experiment record id this version serves")
     args = ap.parse_args(argv)
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", args.slug):
         sys.exit("--slug must be kebab-case")
-    if (args.policy == "press") != bool(args.llm_model):
-        sys.exit("--llm-model is required for press and not allowed for search")
+    if args.policy == "search" and args.llm_model:
+        sys.exit("--llm-model is not allowed for search")
+    if args.policy == "press" and not args.llm_model:
+        args.llm_model = DEFAULT_LLM_MODEL
 
     who = run(["softmax", "status"])
     subject = dict(line.split(": ", 1) for line in who.splitlines() if ": " in line)

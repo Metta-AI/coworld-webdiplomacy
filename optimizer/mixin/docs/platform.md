@@ -43,7 +43,8 @@ marked otherwise. The platform changes; re-check anything a decision depends on.
   fixed per uploaded version.** Treat model × prompt ("soul") as one unit under
   test; a model change is a new version with its own version-log row.
 - The reference policy's mode is chosen by `CASTLEREAGH_POLICY` in the image
-  (`tools/build.sh --policy`). `--tag` is required: one image tag per experiment, rebuilding a tag
+  (`tools/build.sh --policy`, default `press`). `tools/ship.py` uploads a press
+  build with `--use-llm` and a default model. `--tag` is required: one image tag per experiment, rebuilding a tag
   while games are running silently switches later games to the new code.
 
 ## XP requests

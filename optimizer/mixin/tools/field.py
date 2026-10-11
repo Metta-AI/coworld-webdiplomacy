@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Who is in a league's field: every policy seen in its recent rounds.
 
-    python3 games/webdiplomacy/tools/field.py gunboat|press|league_<id> [--rounds N] [--json]
+    python3 games/webdiplomacy/tools/field.py press|gunboat|league_<id> [--rounds N] [--json]
 
 The league's filler roster is not readable with player credentials (the
 `/v2/leagues/{id}/filler-policies` route returns 403), so this reads it off the
@@ -73,7 +73,7 @@ def collect(league_id: str, rounds: int) -> dict[str, dict]:
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("league", help="gunboat, press, or a league_<id>")
+    ap.add_argument("league", help="press, gunboat, or a league_<id>")
     ap.add_argument("--rounds", type=int, default=10, help="most recent rounds to read (default 10)")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)

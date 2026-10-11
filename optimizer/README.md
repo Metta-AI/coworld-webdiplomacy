@@ -9,8 +9,8 @@ builders, sizing), and the reference policy `mixin/players/castlereagh/`, built 
 The design is
 [docs/designs/webdiplomacy-mixin-2026-10-09.html](../docs/designs/webdiplomacy-mixin-2026-10-09.html).
 The reference policy adapts the personal_labs webdiplomacy_lab's Castlereagh:
-Kissinger search as the core, plus an optional press layer
-(`CASTLEREAGH_POLICY=search|press`, default `search`).
+Kissinger search as the core, plus an LLM press layer
+(`CASTLEREAGH_POLICY=press|search`, default `press`).
 
 Checks for the mixin (also run in CI):
 
