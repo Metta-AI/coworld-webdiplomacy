@@ -11,6 +11,7 @@ shows a weaker final-year gain than its earlier years. Tainted seats are skipped
 Standard library only.
 """
 
+import argparse
 import json
 import sys
 from collections import defaultdict
@@ -31,7 +32,8 @@ def year_deltas(seats: list[dict]) -> dict[str, dict[str, list[int]]]:
     return deltas
 
 
-def main() -> None:
+def main(argv=None) -> None:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     deltas = year_deltas([json.loads(line) for line in sys.stdin])
     years = sorted({y for by_year in deltas.values() for y in by_year})
     print("| policy | seats | " + " | ".join(years) + " |")

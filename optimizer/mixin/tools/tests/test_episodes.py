@@ -25,7 +25,7 @@ class LoaderLayouts(unittest.TestCase):
         seats, status = we.load_episode(PRESS)
         self.assertEqual(status["episode_status"], "completed")
         self.assertEqual(status["coworld_version"], "0.7.7")
-        self.assertEqual(seat(seats, 3).policy, "webdip-castlereagh-press:v1")
+        self.assertEqual(seat(seats, 3).policy, "my-castlereagh-press:v1")
         self.assertEqual(seat(seats, 3).power, "France")  # results.countries[3] == 2
         self.assertEqual(seat(seats, 3).log["llm_calls"], 6)  # read from policy-logs/<pvid>.3.log
 
@@ -38,7 +38,7 @@ class LoaderLayouts(unittest.TestCase):
     def test_local_layout_uses_seating_labels(self):
         seats, status = we.load_episode(FIXTURES / "local/g-011287fb8a")
         self.assertEqual(status["episode_status"], "local")
-        self.assertEqual(seat(seats, 0).policy, "kissinger:SEARCH_OBJECTIVE=share")
+        self.assertEqual(seat(seats, 0).policy, "field-search:SEARCH_OBJECTIVE=share")
         self.assertEqual(seat(seats, 6).policy, "random")
         self.assertEqual(seat(seats, 5).log["decisions"], 7)
 
@@ -129,6 +129,9 @@ class TaintFlags(unittest.TestCase):
             failed = write_episode(Path(tmp) / "b", [1 / 7] * 7, list(range(1, 8)), [3] * 7, status="failed")
             self.assertTrue(all(s.taint == ["cancelled"] for s in we.load_episode(cancelled)[0]))
             self.assertTrue(all(s.taint == ["episode_failed"] for s in we.load_episode(failed)[0]))
+            timed_out = write_episode(Path(tmp) / "c", [1 / 7] * 7, list(range(1, 8)), [3] * 7,
+                                      reason="episode_timeout")
+            self.assertTrue(all(s.taint == ["episode_timeout"] for s in we.load_episode(timed_out)[0]))
 
 
 if __name__ == "__main__":

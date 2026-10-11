@@ -7,44 +7,44 @@
  "participants": [
   {
    "position": 0,
-   "policy_version_id": "a600ad8a-49e9-4fba-a506-ea0ac0cc47e5",
-   "policy_name": "webdip-machiavelli-press",
+   "policy_version_id": "00000000-0000-4000-8000-000000000008",
+   "policy_name": "field-press-a",
    "version": 1
   },
   {
    "position": 1,
-   "policy_version_id": "580d73eb-6a20-4762-8529-eef9655bfd83",
-   "policy_name": "webdip-kissinger",
+   "policy_version_id": "00000000-0000-4000-8000-000000000006",
+   "policy_name": "field-search-a",
    "version": 2
   },
   {
    "position": 2,
-   "policy_version_id": "2f27f55a-6b0e-4af5-af2b-58aee9e3c83f",
-   "policy_name": "webdip-calhamer",
+   "policy_version_id": "00000000-0000-4000-8000-000000000005",
+   "policy_name": "field-heuristic-a",
    "version": 1
   },
   {
    "position": 3,
-   "policy_version_id": "16b527ba-9c1e-4259-9e56-d8d900e4adc9",
-   "policy_name": "webdip-castlereagh-press",
+   "policy_version_id": "00000000-0000-4000-8000-000000000001",
+   "policy_name": "my-castlereagh-press",
    "version": 1
   },
   {
    "position": 4,
-   "policy_version_id": "dce81640-9329-4bb7-a928-54dedd747690",
-   "policy_name": "webdip-bismarck-press",
+   "policy_version_id": "00000000-0000-4000-8000-000000000009",
+   "policy_name": "field-press-b",
    "version": 3
   },
   {
    "position": 5,
-   "policy_version_id": "2f036c48-7d1c-42fa-be77-7547ab77971c",
-   "policy_name": "webdip-talleyrand-press",
+   "policy_version_id": "00000000-0000-4000-8000-000000000004",
+   "policy_name": "field-press-c",
    "version": 4
   },
   {
    "position": 6,
-   "policy_version_id": "628e6390-e9af-4993-af63-e84d16d0ef34",
-   "policy_name": "webdip-metternich-press",
+   "policy_version_id": "00000000-0000-4000-8000-000000000007",
+   "policy_name": "field-press-d",
    "version": 4
   }
  ]

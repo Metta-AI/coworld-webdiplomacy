@@ -23,14 +23,14 @@ likely to recur in new policies.
   it accepts. The policy believes it moved; the replay shows it held. Detect:
   nonzero `rejected` in our `decision` lines, or our orders differing from the
   replay's adjudicated orders. Convoys and split coasts are the likely places
-  (a guess; none were seen in the lab's hosted press games).
+  (a guess; none were seen in a prior lab's hosted press games).
 - **Invisible degradation.** A broken dependency fails every time while the
   policy keeps playing its fallback, with no error in the score. The common
   case: an LLM model or parameter mismatch at the sidecar makes every call fail
-  and the seat plays plain search. Detect: per-seat `llm_call` statuses; a
+  and the seat plays its search floor. Detect: per-seat `llm_call` statuses; a
   feature's own activation counters.
 - **Wrong map knowledge.** An LLM reasons about adjacency from memory and gets
-  it wrong (about 66 wrong adjacency claims per game in the lab; about 21 after
+  it wrong (about 66 wrong adjacency claims per game in a prior lab; about 21 after
   it was given the connectivity list). Fix direction: hand the LLM the map.
 - **Misplaced trust.** Re-trusting a power that already broke its word, or
   letting words restore trust before deeds do. The lab's press bot went back to
@@ -70,7 +70,7 @@ failure mode.
    the result in an experiment record, refutations included. A refuted lever
    goes in `closed_levers.md` with its numbers.
 
-## Instruments
+## Tools
 
 Run from the optimizer root; **exact flags live in each tool's docstring**.
 
@@ -78,5 +78,9 @@ Run from the optimizer root; **exact flags live in each tool's docstring**.
   rejected orders and exceptions.
 - `wd.py seats DIR...`: per-seat center trajectories by year.
 - `wd.py costs DIR...`: LLM spend and call counts per seat.
+- `wd.py seats DIR... | flag_episodes.py --policy NAME:vN`: the games worth
+  opening. `… | year_deltas.py`: where in the game centers are won or lost.
+  `… | mine_variance.py`: which measured behaviours go with our own good and
+  bad games (hypothesis fuel only).
 - `webdip_episodes.py`: the loader for new instruments. Persist new analysis in
   `../../instruments/`.

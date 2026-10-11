@@ -47,15 +47,14 @@ arena   (needs Docker and the coworld CLI)
     The two sides can use different images (`--field-image`), argv (`--candidate-run`,
     `--field-run`) and public env (`--candidate-env`, `--field-env`), or the field can
     be a player bundled with the game (`--field-player random`). With no field
-    options the field is six copies of `--image` with CASTLEREAGH_POLICY=search, the
-    reference policy's default mode. Countries are reshuffled every episode, so slot
+    options the field is six copies of `--image` with CASTLEREAGH_POLICY=search (the
+    search core, which needs no LLM). Countries are reshuffled every episode, so slot
     0 samples every power; `--country France` pins slot 0's power instead (needs a
     published coworld whose config accepts `countries`). Read the batch with
     `metrics OUT --policy candidate`; parity is 1/7 = 0.143. Local results do not
     transfer to the hosted field.
-    Example (reference policy, press mode vs a search field):
-        wd.py arena --image webdip-castlereagh-search:exp12 \\
-            --candidate-env CASTLEREAGH_POLICY=press --use-llm \\
+    Example (reference policy in its default press mode vs a search field):
+        wd.py arena --image webdip-castlereagh:exp12 --use-llm \\
             --episodes 8 --parallel 4 --out .runtime/local/exp12-arena
 
     How local runs find the game manifest, most explicit first:

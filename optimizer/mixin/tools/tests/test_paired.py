@@ -61,7 +61,7 @@ class PairedDifference(unittest.TestCase):
 
     def test_real_local_fixture(self):
         seats, _ = load_dirs([FIXTURES / "local"])
-        report = paired.paired_report(seats, "kissinger:SEARCH_OBJECTIVE=share", "kissinger")
+        report = paired.paired_report(seats, "field-search:SEARCH_OBJECTIVE=share", "field-search")
         self.assertEqual(report["n"], 3)
         self.assertTrue(report["verdict"].startswith("no result"))
 

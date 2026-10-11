@@ -2,7 +2,7 @@
 """Run one paired A/B end to end: bodies, dry run, launch, record, fetch, read.
 
     python3 games/webdiplomacy/tools/run_ab.py --record <experiment id> \\
-        --a NAME:vN --b NAME:vM --field-set <set name> [-n 6]
+        --a NAME:vN --b NAME:vM --field-set <set name> [-n 2]
 
 Does, in order, what the lab manual's "Run one A/B" recipe lists by hand:
 
@@ -164,7 +164,8 @@ def main(argv=None) -> None:
     ap.add_argument("--a-label", help="NAME:vN label for --a when it is an id")
     ap.add_argument("--b-label", help="NAME:vN label for --b when it is an id")
     ap.add_argument("--field-set", required=True)
-    ap.add_argument("-n", "--episodes", type=int, default=6, help="games per body; total = 14 x n (default 6)")
+    ap.add_argument("-n", "--episodes", type=int, default=2,
+                    help="games per body; total = 14 x n (default 2: 28 games, about 420 credits in press)")
     ap.add_argument("--resume", action="store_true", help="skip launch; fetch and read the batches in the record")
     ap.add_argument("--alone", action="store_true",
                     help="candidate-alone check: A alone and B alone against a six-seat field set")

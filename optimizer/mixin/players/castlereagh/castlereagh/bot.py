@@ -35,7 +35,7 @@ def policy_mode():
 
 
 def apply_overrides(text):
-    """`KEY=VAL,KEY=VAL` config overrides (CASTLEREAGH_OVERRIDES), for local experiments.
+    """`KEY=VAL,KEY=VAL` config overrides (CASTLEREAGH_OVERRIDES); `tools/build.sh --overrides` bakes them in.
 
     Values convert to the existing value's type; list values are JSON (one list per override)."""
     for item in filter(None, (part.strip() for part in text.split(","))):

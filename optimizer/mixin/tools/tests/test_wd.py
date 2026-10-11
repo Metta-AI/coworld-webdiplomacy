@@ -17,12 +17,12 @@ from webdip_episodes import load_dirs
 class Metrics(unittest.TestCase):
     def test_par_is_the_mean_of_non_target_seats_at_that_power(self):
         seats, statuses = load_dirs([FIXTURES / "local"])
-        report = wd.metrics_report(seats, statuses, policy="kissinger")
-        field = [s for s in seats if s.policy != "kissinger"]
+        report = wd.metrics_report(seats, statuses, policy="field-search")
+        field = [s for s in seats if s.policy != "field-search"]
         for power in ("France", "Italy", "Turkey"):
             expected = statistics.mean(s.score for s in field if s.power == power)
             self.assertAlmostEqual(report["field_par_per_power"][power]["score"], round(expected, 4))
-        target = [s for s in seats if s.policy == "kissinger"]
+        target = [s for s in seats if s.policy == "field-search"]
         par = {p: statistics.mean(s.score for s in field if s.power == p) for p in {s.power for s in target}}
         rel = statistics.mean(s.score - par[s.power] for s in target)
         self.assertAlmostEqual(report["overall"]["score_minus_field_par"], round(rel, 4))
@@ -30,11 +30,11 @@ class Metrics(unittest.TestCase):
 
     def test_tainted_target_episode_is_dropped_unless_kept(self):
         seats, statuses = load_dirs([FIXTURES / "hosted"])
-        dropped = wd.metrics_report(seats, statuses, policy="webdip-calhamer:v1")
+        dropped = wd.metrics_report(seats, statuses, policy="field-heuristic-a:v1")
         self.assertEqual(dropped["overall"]["n"], 0)
         self.assertEqual(dropped["taint"], {"target_seat_flags": {"exception": 1}, "episodes_dropped": 1,
                                             "kept_tainted": False})
-        kept = wd.metrics_report(seats, statuses, policy="webdip-calhamer:v1", keep_tainted=True)
+        kept = wd.metrics_report(seats, statuses, policy="field-heuristic-a:v1", keep_tainted=True)
         self.assertEqual(kept["overall"]["n"], 1)
         self.assertEqual(kept["telemetry"]["exceptions"], 1)
 

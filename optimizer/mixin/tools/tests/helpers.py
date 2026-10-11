@@ -6,14 +6,15 @@ from pathlib import Path
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
-def write_episode(ep: Path, scores, countries, centers, outcome="drawn", seating=None, logs=None, status=None):
+def write_episode(ep: Path, scores, countries, centers, outcome="drawn", seating=None, logs=None, status=None,
+                  reason="end_year"):
     """Write a minimal local-layout episode (results.json, optional seating, seat logs, episode row).
 
     `centers[slot]` is that slot's final supply-centre count; `logs[slot]` a list of event dicts."""
     ep.mkdir(parents=True, exist_ok=True)
     members = [{"countryID": str(c), "supplyCenterNo": str(n)} for c, n in zip(countries, centers)]
     results = {"scores": scores, "countries": countries, "members": members, "outcome": outcome,
-               "reason": "end_year", "final_state": {"turn": "4", "phase": "Finished"}}
+               "reason": reason, "final_state": {"turn": "4", "phase": "Finished"}}
     (ep / "results.json").write_text(json.dumps(results))
     if seating:
         (ep / "seating.json").write_text(json.dumps(seating))

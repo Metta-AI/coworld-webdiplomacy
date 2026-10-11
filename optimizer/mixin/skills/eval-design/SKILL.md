@@ -30,15 +30,16 @@ body details, costs and the LLM sidecar are in
 
 ## Sensible rosters
 
-Every episode has exactly seven seats. Use `slot: -1` everywhere; powers are
-shuffled per episode anyway.
+Every episode has exactly seven seats. For an A/B, pin and rotate the powers
+(`tools/make_request.py --balanced`, fixed integer slots). `slot: -1` with
+shuffled powers is for a quick field look, a health check or a crash test.
 
 | Question | Roster |
 |---|---|
 | **A/B (default: paired)** | Candidate + baseline + **five** field seats in the same games, **each version in each of the two seat positions for half the games** (`tools/make_request.py paired --balanced` writes the 14 bodies). Analyze with `paired.py`. A paired **win** is a screen result only: confirm it with separate arms before promotion (measured 2026-10-10: a z = 3.1 paired win vanished alone) |
 | A/B (separate arms) | Per arm: one candidate seat + **six** field seats, identical field in both arms, both arms in the same window. Analyze with `compare.py` |
 | Field eval | One candidate seat + six field seats |
-| Health check | One `classic-press-short` episode with the candidate (and any new model or prompt). Then confirm every `llm_call` in our seat logs succeeded and `rejected` is 0 |
+| Health check | One `classic-press-short` episode with the candidate (and any new model or prompt). Build it with `tools/make_request.py field … -n 1 --variant classic-press-short`. Then confirm every `llm_call` in our seat logs succeeded and `rejected` is 0 |
 | Crash test | One short episode, any field. Look only at connect, play every phase, exit |
 
 **Variant:** judge on the league's full variant: `classic-press` for the press
@@ -48,9 +49,11 @@ league, `classic-gunboat` for the gunboat league. `classic-press-short` ends in
 **LLM policies:** model × soul (prompt) is the unit under test. The model is
 fixed per uploaded version, so each model is its own version and its own arm.
 
-### Example request (paired A/B)
+### Example request
 
-From the prior lab's request builder, adapted for paired seating. Replace each
+The shape of one request body, with free slots and shuffled powers. A real
+paired A/B is fourteen of these with pinned powers and both seat orders, which
+`tools/make_request.py --balanced` writes for you (below). Replace each
 placeholder with an explicit version reference:
 
 ```json
@@ -102,12 +105,14 @@ From 2026-10 measurements; recompute from your first batch:
   seat for the search, and 0.30 to 0.36 for a paired difference. Use
   `tools/sizing.py --league gunboat`.
 - **Smoke / health: 1 episode.** Answers "does it run".
-- **Directional: about 16 per arm.** SE about 0.02 to 0.03; only effects of
-  about 0.08 or more show up. Most of the prior lab's results stopped here and
+- **Directional: about 16 per arm.** The standard error of the difference
+  between two arms is 0.04 to 0.06, so only effects of about 0.08 or more
+  show up. Most of the prior lab's results stopped here and
   none reached a verdict.
-- **Verdict: size it with `tools/sizing.py`** (press by default). The prior
-  lab's press figure was about 150 per arm for a 0.04 difference with separate
-  arms; in gunboat the same difference needs about 290 paired games.
+- **Verdict: size it with `tools/sizing.py`** (press by default). For a 0.04
+  difference in press it gives about 135 paired games, or about 115 per arm
+  with separate arms, for an even chance of reaching z = 2 (about double for an
+  80% chance). In gunboat the same difference needs about 290 paired games.
 - **|z| < 2 is no result**, whatever the episode count.
 
 The calculation: the SE of a two-arm difference is about SD × √(2/n). The prior
@@ -118,9 +123,12 @@ effect lands at z ≈ 1.9 to 2.9. At 16 per arm the difference SE is 0.04 to
 
 ## Role/seat pinning
 
-- **Default: powers are shuffled** by the episode seed. Decompose by power in
-  analysis (the ab binding); that needs no pinning.
-- **Pin powers with `countries`** (webDiplomacy Coworld 0.7.9 and later): `countries[slot]`
+- **A/B default: balanced pinning.** `tools/make_request.py --balanced` pins
+  powers and rotates them, so each version plays every power equally and, in a
+  paired A/B, holds each seat position equally. Without pinning, powers are
+  shuffled by the episode seed and an 80-game batch can give one policy a
+  strong power many more times than another.
+- **How pinning works: `countries`** (webDiplomacy Coworld 0.7.9 and later): `countries[slot]`
   is that slot's upstream country ID (a permutation of 1 to 7). Set it through
   `game_config_overrides.countries` with **fixed integer slots** in the roster.
   Seeds still vary, so episodes still differ. Verified in hosted evals on
@@ -131,8 +139,8 @@ effect lands at z ≈ 1.9 to 2.9. At 16 per arm the difference SE is 0.04 to
   every episode in a request to that seed, and therefore to that seed's power
   assignment. Every episode then repeats the same seed, so deterministic bots
   replay identical games.
-- Pin powers only when the question is about a specific power. Pinning changes
-  which powers the field plays too.
+- To ask about one power, use `--pin-a POWER`: our seat keeps that power and
+  the field seats rotate through the others.
 
 ## Pacing
 
