@@ -26,6 +26,10 @@ than over the field (measured 2026-10-10: a +0.079, z 3.1 paired win scored leve
 appended to the record's `evals:`, artifacts go to `.runtime/artifacts/<record id>-alone-a`
 and `-alone-b`, and the read is `compare.py` (B as baseline).
 
+`--alone` cannot be resumed: the record does not say which ids belong to which arm. If it
+is interrupted after launching, fetch each arm's ids into its directory with
+`fetch_artifacts.py` and read them with `compare.py` by hand.
+
 It does not judge: read the output against the rule you wrote in the record,
 then close the record yourself. `--resume` skips steps 1 to 4 and picks up at
 the fetch, using the ids already in the record (for an interrupted run).
