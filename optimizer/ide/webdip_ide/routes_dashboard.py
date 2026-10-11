@@ -1,7 +1,7 @@
 """Dashboard: how one of our policies performs, by power, opponent, version and source.
 
 Pages:
-  /dashboard?policy=NAME&version=vN&source=league|xp|local&variant=classic-press&opponent=NAME
+  /dashboard?policy=NAME&version=vN&source=league|xp|local&variant=classic-press&opponent=NAME&alone=1
       Every parameter is optional, so a card can link straight to a view. Without `policy`
       the page shows the policy picked last time, else the newest policy that has seat logs
       on disk (those are ours). Without `variant` it shows the variant that policy has most
@@ -28,21 +28,18 @@ import math
 import pickle
 import threading
 import time
-from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
-from . import paths
+from . import dates, paths
 from .server import render
 
 router = APIRouter()
 NAV = ("Dashboard", "/dashboard")
 
-PACIFIC = ZoneInfo("America/Los_Angeles")
 PARITY = 1 / 7
 CACHE_FORMAT = 1  # bump when Game or Seat changes shape
 WAIT_SECONDS = 6.0  # how long a page waits for the reader before showing a partial view
@@ -202,7 +199,7 @@ def _choose(policies: list[dict], policy: str, version: str, source: str, varian
 
 def _link(filters: dict, **changes) -> str:
     """The dashboard URL for `filters` with some of them changed (empty values are left out)."""
-    query = {k: filters.get(k, "") for k in ("policy", "version", "source", "variant", "opponent")} | changes
+    query = {k: filters.get(k, "") for k in ("policy", "version", "source", "variant", "opponent", "alone")} | changes
     query = {k: v for k, v in query.items() if v and not (k == "source" and v == "all")}
     return "/dashboard?" + urlencode(query)
 
@@ -225,16 +222,6 @@ def plain(x: float | None, places: int = 3) -> str:
 def share(r: dict) -> str:
     """A rate with its counts: '7 of 105 (7%)'."""
     return "none yet" if not r["n"] else f'{r["k"]} of {r["n"]} ({r["rate"] * 100:.0f}%)'
-
-
-def pacific(iso: str | None, with_time: bool = False) -> str:
-    if not iso:
-        return ""
-    try:
-        when = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(PACIFIC)
-    except ValueError:  # an episode.json with a date this cannot read: show it as written
-        return iso
-    return when.strftime("%b %-d, %-I:%M %p %Z" if with_time else "%b %-d")
 
 
 def stat_tip(label: str, s: dict) -> str:
@@ -480,34 +467,53 @@ def _view(report: dict, filters: dict) -> dict:
 # --- routes ---------------------------------------------------------------------------
 
 
-def _load(policy: str, version: str, source: str, variant: str, opponent: str, remembered: str = ""):
-    games, pending, generation = CACHE.sync()
+def _load(policy: str, version: str, source: str, variant: str, opponent: str, remembered: str = "",
+          wait: float = WAIT_SECONDS, alone: int = 0):
+    games, pending, generation = CACHE.sync(wait)
     policies = matchups().list_policies(games)
     filters = _choose(policies, policy, version, source, variant, remembered)
     filters["opponent"] = opponent
+    filters["alone"] = "1" if alone else ""  # only games that seat one seat of the policy (matchups.py --alone)
     report = None
     if filters["row"]:
         name = filters["policy"] + (f':{filters["version"]}' if filters["version"] else "")
         report = CACHE.report(games, generation, (name, filters["source"], None if filters["variant"] == "all"
-                                                  else filters["variant"], opponent or None))
+                                                  else filters["variant"], opponent or None, bool(alone)))
     return games, pending, policies, filters, report
+
+
+def summary(remembered: str = "", wait: float = 0.0) -> dict:
+    """What `/dashboard` with no parameters would lead with, for the home page.
+
+    The same choice of policy (the one remembered in the cookie, else the newest with seat logs)
+    and of variant, the same cached report and the same sentence. With `wait` 0 it never waits
+    for the reader: `pending` says how many games are still to be read, and the numbers cover
+    the rest.
+    """
+    games, pending, _, filters, report = _load("", "", "", "", "", remembered, wait)
+    return {
+        "policy": filters["policy"], "variant": filters["variant"], "pending": pending, "games_on_disk": len(games),
+        "stat": report["overall"]["vs_par"] if report else None,
+        "headline": _headline(report) if report else None,
+        "link": _link(filters) if report else "/dashboard",
+    }  # fmt: skip
 
 
 @router.get("/dashboard")
 def dashboard(request: Request, policy: str = "", version: str = "", source: str = "", variant: str = "",
-              opponent: str = "", refresh: int = 0):
+              opponent: str = "", alone: int = 0, refresh: int = 0):
     if refresh:
         CACHE.forget()
         query = {k: v for k, v in request.query_params.items() if k != "refresh"}
         return RedirectResponse("/dashboard" + (f"?{urlencode(query)}" if query else ""), status_code=303)
     games, pending, policies, filters, report = _load(policy, version, source, variant, opponent,
-                                                      request.cookies.get(COOKIE, ""))
-    read_at = datetime.fromtimestamp(CACHE.read_at, PACIFIC).strftime("%-I:%M %p %Z") if CACHE.read_at else ""
+                                                      request.cookies.get(COOKIE, ""), alone=alone)
     response = render(
         request, "dashboard.html", report=report, view=_view(report, filters) if report else None,
-        policies=policies, filters=filters, games_on_disk=len(games), pending=pending, read_at=read_at,
+        policies=policies, filters=filters, games_on_disk=len(games), pending=pending,
+        read_at=dates.when(CACHE.read_at),
         source_labels=SOURCE_LABELS, parity=PARITY, link=lambda **changes: _link(filters, **changes),
-        signed=signed, plain=plain, share=share, pacific=pacific,
+        signed=signed, plain=plain, share=share,
     )
     if policy and filters["policy"] == policy.partition(":v")[0]:
         response.set_cookie(COOKIE, filters["policy"], max_age=365 * 24 * 3600, samesite="lax")
@@ -515,7 +521,8 @@ def dashboard(request: Request, policy: str = "", version: str = "", source: str
 
 
 @router.get("/api/dashboard")
-def dashboard_json(policy: str = "", version: str = "", source: str = "", variant: str = "", opponent: str = ""):
-    _, pending, policies, filters, report = _load(policy, version, source, variant, opponent)
-    return {"filters": {k: filters[k] for k in ("policy", "version", "source", "variant", "opponent")},
+def dashboard_json(policy: str = "", version: str = "", source: str = "", variant: str = "", opponent: str = "",
+                   alone: int = 0):
+    _, pending, policies, filters, report = _load(policy, version, source, variant, opponent, alone=alone)
+    return {"filters": {k: filters[k] for k in ("policy", "version", "source", "variant", "opponent", "alone")},
             "reading": pending, "policies": policies, "report": report}

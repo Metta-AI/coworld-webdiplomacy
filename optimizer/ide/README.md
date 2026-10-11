@@ -5,8 +5,12 @@ the coding agent that is already running in the optimizer root.
 
 - **Agent panel** (every page): chat with the running agent session, and the cards it
   posts (ideas, replays to look at, results, reports).
+- **Home**: where the policy you follow stands (the dashboard's headline number), the
+  games worth opening (its lowest and highest recent scores, with flags and who lied to
+  us), your notes not yet sent to the agent, and reports written since you were last here.
 - **Replays**: watch any fetched game phase by phase, annotate where it went wrong, send
-  the annotations to the agent, overlay the press audit.
+  the annotations to the agent, overlay the press audit. The board stays in view while you
+  read the press beside it; pointing at an order or an audited claim lights it on the board.
 - **Dashboard**: how the policy performs by power, opponent, version and source.
 - **Reports**: matchup write-ups and opponent profiles the agent's skills produce.
 
@@ -138,7 +142,9 @@ The server and the agent never talk to each other directly; both use `webdip_ide
 | `webdip_ide/hooks.py` | The agent side: delivery text, hooks, the Rewake waiter, agent status |
 | `webdip_ide/mcp_server.py` | MCP tools `say`, `show_card`, `inbox`, `annotations`, `annotate`, `status` |
 | `webdip_ide/server.py` | The FastAPI app; one `routes_<feature>.py` per feature |
-| `webdip_ide/routes_chat.py` | `/api/chat`, `/api/cards`, `/api/agent/status`, the home page |
+| `webdip_ide/routes_chat.py` | `/api/chat`, `/api/cards`, `/api/agent/status` |
+| `webdip_ide/routes_home.py` | The home page: headline, games worth opening, what is waiting |
+| `webdip_ide/dates.py` | The one date format (Pacific, `Oct 11, 2:42 AM`); the Jinja filters `when` and `day` |
 | `webdip_ide/static/app.css` | The shared visual system (tokens and base components) |
 | `webdip_ide/static/chat.js` | The agent panel and `window.ide` |
 
@@ -178,6 +184,16 @@ class `set` to a select that narrows the page); a sortable column heading is a l
 `th[data-sort]` and shows its direction with `aria-sort`; `.about` is the grey line that
 explains a section. The policy the user follows is one cookie, `dashboard_policy`, read
 and written by both the dashboard and the replay browser.
+
+Write every date with the `when` filter (`{{ row.time | when }}` gives `Oct 11, 2:42 AM`,
+Pacific, with the year only when it is not this year) or `day`; in Python, `dates.when()`.
+Keep sortable values (epoch seconds, ISO strings) in the data and format them in the
+template. In page text a **game** is what the user watches; say **episode id** only where
+the id itself is shown (Episode stays the platform's word for the object, in code and docs).
+
+A link can open the replay viewer at a phase (`/replays/<episode id>?seat=S&phase=N`) or,
+when the phase index is not known without reading the replay, at a turn
+(`?seat=S&turn=T`: the movement phase of turn T, 0 being Spring 1901).
 
 Write routes with `dependencies=[Depends(routes_chat.require_same_origin)]` so another
 web site open in the same browser cannot post to the IDE.

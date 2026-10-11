@@ -6,8 +6,14 @@
 // position at its start with that phase's orders on top, so "what was ordered from here,
 // and did it work" is one picture.
 //
-// Sections: helpers · state · map · orders · timeline · press and audit · decision ·
-//           notes · talking to the agent · moving through the game · loading
+// Two phases are tracked. `current` is the board's: the map, the orders list, the timeline
+// cursor, the address bar. `pressAt` is the phase whose press and decision are listed. They
+// move together, except while the reader "peeks": a claim's "settled in …" link moves only
+// the board, so the claim being read stays where it is. Any ordinary step ends the peek.
+//
+// Sections: helpers · state · map · what an order or a claim points at · orders · timeline ·
+//           press and audit · decision · notes · talking to the agent ·
+//           moving through the game · loading
 (function () {
   "use strict";
 
@@ -61,7 +67,10 @@
   // ---------- state ----------
 
   var view = null;          // the API payload
-  var current = 0;          // phase index
+  var current = 0;          // the phase on the board
+  var pressAt = 0;          // the phase whose press and decision are listed
+  var peeked = null;        // while peeking: the claim's element on the page
+  var held = null;          // the highlight that stays on the board (the peeked claim's), or null
   var seat = root.dataset.seat === "" ? null : Number(root.dataset.seat);
   var playing = null;       // interval id while playing
   var pressShow = "all";
@@ -70,6 +79,8 @@
   var auditTimer = null;
 
   function phase() { return view.phases[current]; }
+  // The board stays in view beside the reading column (static/replay.css sets --pinned).
+  function pinned() { return getComputedStyle(root).getPropertyValue("--pinned").trim() === "1"; }
   function terr(id) { return view.territories[id]; }
   function abbr(id) { var t = terr(id); return t ? t.abbr : "?"; }
   function hasMap() {
@@ -303,6 +314,84 @@
     $("map-note").textContent = note;
   }
 
+  // ---------- what an order or a claim points at ----------
+  //
+  // A highlight is {orders: [index in the phase's orders], places: [province id]}. The arrows
+  // of those orders stay lit while the rest are dimmed, and each place gets a ring.
+
+  function parentId(id) { var t = terr(id); return t ? String(t.parent) : null; }
+
+  function showHighlight(mark) {
+    var layer = $("layer-orders"), rings = clear($("layer-focus"));
+    layer.querySelectorAll(".lit").forEach(function (node) { node.classList.remove("lit"); });
+    var lit = 0;
+    ((mark && mark.orders) || []).forEach(function (index) {
+      var node = layer.querySelector('[data-order="' + index + '"]');
+      if (node) { node.classList.add("lit"); lit += 1; }
+    });
+    layer.classList.toggle("dim", lit > 0);
+    var seen = {};
+    ((mark && mark.places) || []).forEach(function (id) {
+      var at = point(id);
+      if (!at || seen[id]) return;
+      seen[id] = true;
+      rings.appendChild(svg("circle", { cx: at.x, cy: at.y, r: 12.5, class: "focus-casing" }));
+      rings.appendChild(svg("circle", { cx: at.x, cy: at.y, r: 12.5, class: "focus-ring" }));
+    });
+  }
+
+  function orderMark(order, index) {
+    return { orders: [index], places: [order.at, order.to, order.from].filter(Boolean).map(parentId) };
+  }
+
+  var POWER_WORD = /\b(ENGLAND|FRANCE|ITALY|GERMANY|AUSTRIA|TURKEY|RUSSIA)\b/;
+
+  // Province ids for the abbreviations written in `text` ("A VEN - PIE", "BUR stays empty").
+  function placesIn(text) {
+    if (!placesIn.byAbbr) {
+      placesIn.byAbbr = {};
+      Object.keys(view.territories).forEach(function (id) {
+        var t = terr(id);
+        if (t.parent === Number(id)) placesIn.byAbbr[t.abbr.toUpperCase()] = id;
+      });
+    }
+    return (String(text).match(/\b[A-Z]{3}\b/g) || [])
+      .map(function (word) { return placesIn.byAbbr[word]; }).filter(Boolean);
+  }
+
+  // What a claim points at on the board as it is now. The audit's evidence lines name the orders
+  // that settled it ("ITALY A VEN - PIE (Autumn 1901, succeeded)"): a line about the turn on the
+  // board lights that unit's order (matched by power and by where the unit stood, never guessed)
+  // and rings its provinces. Provinces named in the quote are ringed in any phase.
+  function claimMark(claim) {
+    var ph = phase(), mark = { orders: [], places: placesIn(claim.quote || "") };
+    (claim.evidence || []).forEach(function (line) {
+      var when = /(Spring|Autumn) (\d{4})/.exec(line);
+      if (!when || (Number(when[2]) - 1901) * 2 + (when[1] === "Autumn" ? 1 : 0) !== ph.turn) return;
+      mark.places = mark.places.concat(placesIn(line));
+      var power = POWER_WORD.exec(line), unit = /\b[AF] ([A-Z]{3})\b/.exec(line);
+      if (!power || !unit || ph.phase !== "Diplomacy") return;
+      ph.orders.forEach(function (order, index) {
+        if (String(names[order.c]).toUpperCase() === power[1] && abbr(parentId(order.at)).toUpperCase() === unit[1]) {
+          mark.orders.push(index);
+        }
+      });
+    });
+    return mark;
+  }
+
+  // Light `markOf()` while the pointer or the keyboard is on `node`; afterwards the board goes back
+  // to the highlight that is held (a peeked claim's), or to none.
+  function lightsBoard(node, markOf) {
+    node.tabIndex = 0;
+    function on() { showHighlight(markOf()); }
+    function off() { showHighlight(held); }
+    node.addEventListener("mouseenter", on);
+    node.addEventListener("mouseleave", off);
+    node.addEventListener("focus", on);
+    node.addEventListener("blur", off);
+  }
+
   // ---------- orders ----------
 
   function drawOrders() {
@@ -345,8 +434,7 @@
         var item = el("li", result === "failed" ? "failed" : result === "dislodged" ? "dislodged" : "");
         item.appendChild(el("span", "mono", orderText(order)));
         if (result) item.appendChild(el("span", "result", result));
-        item.addEventListener("mouseenter", function () { highlightOrder(pair[1], true); });
-        item.addEventListener("mouseleave", function () { highlightOrder(pair[1], false); });
+        lightsBoard(item, function () { return orderMark(order, pair[1]); });
         list.appendChild(item);
       });
       if (!list.childNodes.length) {
@@ -358,14 +446,10 @@
     });
   }
 
-  function highlightOrder(index, on) {
-    var node = document.querySelector('#layer-orders [data-order="' + index + '"]');
-    $("layer-orders").classList.toggle("dim", on && !!node);
-    if (node) node.classList.toggle("lit", on);
-  }
-
   // ---------- timeline ----------
 
+  // `chart` and `row` are heights; beside a pinned board the chart is drawn at half height.
+  var keyOpen = false;      // the timeline's key, when the board is pinned (the "Key" button)
   var TL = { left: 46, right: 12, top: 8, chart: 120, rows: ["Board", "Press", "Notes"], row: 15 };
 
   function timelineX(width, index) {
@@ -396,7 +480,10 @@
 
   function drawTimeline() {
     var box = $("timeline");
-    var width = Math.max(480, box.clientWidth || 900);
+    var compact = pinned();
+    TL.chart = compact ? 58 : 120;
+    TL.row = compact ? 12 : 15;
+    var width = Math.max(compact ? 360 : 480, box.clientWidth || 900);
     var height = TL.top + TL.chart + 16 + TL.rows.length * TL.row + 4;
     var chart = svg("svg", { viewBox: "0 0 " + width + " " + height, width: width, height: height, class: "timeline-svg" });
     // The scale fits the game: most games never come near 18, and a chart scaled to 18 would be flat.
@@ -488,6 +575,7 @@
 
     clear(box).appendChild(chart);
     box.dataset.width = width;
+    box.dataset.compact = compact;
     drawTimelineKey();
     moveCursor();
   }
@@ -495,6 +583,8 @@
   // What the lines and marks mean. Only the rows this game has anything in are explained.
   function drawTimelineKey() {
     var box = clear($("timeline-key"));
+    box.hidden = pinned() && !keyOpen;  // beside a pinned board the key is folded away until asked for
+    $("key-toggle").setAttribute("aria-expanded", String(keyOpen));
     var rows = markersByRow();
     function key(shape, tone, text) {
       var item = el("span", "key");
@@ -513,14 +603,13 @@
       box.appendChild(item);
     }
     if (view.our_power) key("line", "", "the seat we follow");
-    if (rows.Board.some(function (m) { return m.shape === "bar"; })) key("bar", "", "gained or lost 3 or more centres in a year");
+    if (rows.Board.some(function (m) { return m.shape === "bar"; })) key("bar", "", "3 or more centres won or lost in a year");
     if (rows.Board.some(function (m) { return m.shape === "cross"; })) key("cross", "", "eliminated");
     if (rows.Press.some(function (m) { return m.tone === "bad"; })) key("diamond", "bad", "lied to us");
-    if (rows.Press.some(function (m) { return m.tone === "warn"; })) key("diamond", "warn", "we doubted a word that was kept");
+    if (rows.Press.some(function (m) { return m.tone === "warn"; })) key("diamond", "warn", "we doubted a kept word");
     if (rows.Press.some(function (m) { return m.tone === "hollow"; })) key("diamond", "hollow", "we broke our word");
     if (rows.Notes.some(function (m) { return m.shape === "circle"; })) key("circle", "", "your note");
     if (rows.Notes.some(function (m) { return m.shape === "square"; })) key("square", "", "the agent's note");
-    if (box.childNodes.length > 1) box.appendChild(el("span", "", "Click a mark to go to its phase."));
   }
 
   function moveCursor() {
@@ -541,6 +630,7 @@
 
   function claimNode(claim, message) {
     var node = el("div", "claim");
+    lightsBoard(node, function () { return claimMark(claim); });
     var head = el("div", "claim-head");
     head.appendChild(el("span", "claim-kind", claim.kind));
     if (claim.quote) head.appendChild(el("q", "claim-quote", claim.quote));
@@ -549,26 +639,50 @@
     verdict.appendChild(chip(claim.outcome));
     if (claim.category && claim.category !== "none") verdict.appendChild(chip(claim.category));
     if (claim.kind === "request" && claim.asked) verdict.appendChild(el("span", "muted small", "asked of " + title(claim.asked)));
+    // Said in this message, but a word given to someone else: it could not betray us.
+    if (claim.to && claim.to !== view.our_power && claim.to !== message.to) {
+      verdict.appendChild(el("span", "muted small", "to " + title(claim.to)));
+    }
     if (claim.window && (claim.window[0] !== message.turn || claim.window[1] !== message.turn)) {
       verdict.appendChild(el("span", "muted small", "covers " + turnLabel(claim.window[0]) +
         (claim.window[1] !== claim.window[0] ? " to " + turnLabel(claim.window[1]) : "")));
     }
-    if (claim.settled !== null && claim.settled !== undefined && claim.settled !== current) {
-      verdict.appendChild(el("span", "muted small", "settled in"));
-      verdict.appendChild(boardLink(claim.settled, view.phases[claim.settled].label));
+    if (claim.settled !== null && claim.settled !== undefined && claim.settled !== pressAt) {
+      verdict.appendChild(boardLink(claim.settled, "settled in " + view.phases[claim.settled].label.split(" · ")[0], claim, node));
+    }
+    if (claim.replaced_by) {
+      // "prv-39" or "prv-39#1" (the second claim of that message)
+      var later = String(claim.replaced_by).split("#")[0];
+      if (view.messages.some(function (m) { return m.id === later; })) {
+        var replaced = el("a", "small", "replaced by a later message");
+        replaced.href = "#";
+        replaced.title = "Go to the message that changed this before the orders were in";
+        replaced.addEventListener("click", function (event) { event.preventDefault(); jumpToFlag({ message: later, pi: null }); });
+        verdict.appendChild(replaced);
+      } else {
+        verdict.appendChild(el("span", "muted small", "replaced by a later message"));
+      }
     }
     node.appendChild(verdict);
-    (claim.evidence || []).forEach(function (line) { node.appendChild(el("div", "claim-evidence mono", line)); });
+    if (claim.context) node.appendChild(el("div", "claim-context", "Read as: " + claim.context));
+    (claim.evidence || []).forEach(function (line) {
+      // A line starting "note:" explains a rule that changed the verdict; the rest are orders.
+      var rule = /^note:\s*/.test(line);
+      node.appendChild(el("div", "claim-evidence " + (rule ? "rule" : "mono"), rule ? line.replace(/^note:\s*/, "") : line));
+    });
     return node;
   }
 
-  // A link to another phase's board: goes there and brings the board back into view.
-  function boardLink(index, label) {
+  // A link from a claim to the phase whose orders settled it. Beside a pinned board only the board
+  // moves and `node` (the claim on the page) stays put, marked; otherwise the page goes to that
+  // phase and scrolls up to the board, which is the only way to see it.
+  function boardLink(index, label, claim, node) {
     var jump = el("a", "small", label);
     jump.href = "#";
     jump.title = "Show the board and the orders of this phase";
     jump.addEventListener("click", function (event) {
       event.preventDefault();
+      if (pinned()) return peek(index, claim, node);
       go(index);
       root.scrollIntoView({ block: "start", behavior: "smooth" });
     });
@@ -595,11 +709,11 @@
   }
 
   function drawPress() {
-    var ph = phase(), box = clear($("press"));
+    var ph = view.phases[pressAt], box = clear($("press"));
     var movement = ph.phase === "Diplomacy";
     $("press-filter").hidden = !view.messages.length;  // nothing to filter in a gunboat game
     $("press-phase").textContent = movement ? "about " + turnLabel(ph.turn) : "";
-    var here = view.messages.filter(function (m) { return m.pi === current; });
+    var here = view.messages.filter(function (m) { return m.pi === pressAt; });
     var shown = here.filter(function (m) {
       return pressShow === "all" || (pressShow === "private" && !m.public) || (pressShow === "public" && m.public) ||
         (pressShow === "claims" && m.claims.length);
@@ -631,6 +745,7 @@
     var box = clear($("audit-state"));
     var s = seatRow();
     $("trust-section").hidden = !(view.audit && view.audit.powers && Object.keys(view.audit.powers).length);
+    $("side-trust").hidden = $("trust-section").hidden;
     if (view.audit && view.audit.error) {
       box.appendChild(el("p", "notice err", "The press audit file could not be read: " + view.audit.error));
     } else if (view.audit && view.audit.joined) {
@@ -754,22 +869,30 @@
     box.appendChild(table);
     box.appendChild(el("p", "small muted", "Counts are claims in this one game: a handful per power, not a rate. “Word held” counts promises, threats and statements that could be checked."));
 
-    if (!flagged.length) {
-      box.appendChild(el("p", "empty", "Nothing flagged: no claim we relied on was broken, and none we doubted was kept."));
-      return;
-    }
+    // Not flagged, but worth a look: they kept a word we had not relied on while we moved on them.
+    view.messages.forEach(function (message) {
+      message.claims.forEach(function (claim) {
+        if (claim.category !== "kept_despite_doubt" || !(claim.our_attacks_on_them || []).length) return;
+        flagged.push({ power: message.from, claim: claim, item: {
+          message: message.id, turn: message.turn, category: "kept_despite_doubt", quote: claim.quote, pi: claim.settled,
+        } });
+      });
+    });
     flagged.sort(function (a, b) { return (a.item.pi || 0) - (b.item.pi || 0); });
+    var shown = 0;
     [
       ["Where we were betrayed or deceived", ["betrayed", "deceived"], "We relied on these and they did not hold."],
-      ["Where we doubted wrongly", ["doubted_wrongly"], "We did not rely on these and they were kept: perhaps a missed alliance."],
+      ["Kept their word though we attacked them", ["kept_despite_doubt"], "We had not relied on these, they held, and in the same turns we moved on the power that kept them: perhaps a missed alliance."],
+      ["Where we doubted wrongly", ["doubted_wrongly"], "We did not rely on these and they were kept."],
       ["Where we broke our own word", ["we_broke_our_word"], "What our policy said and then did not do."],
     ].forEach(function (group) {
       var items = flagged.filter(function (f) { return group[1].indexOf(f.item.category) >= 0; });
+      if (!items.length) return;  // a group with nothing in it is not shown
+      shown += 1;
       var head = el("p", "flagged-head", group[0] + " ");
       head.appendChild(el("span", "num", "· " + items.length));
       head.title = group[2];
       box.appendChild(head);
-      if (!items.length) { box.appendChild(el("p", "empty small", "None.")); return; }
       var list = el("ul", "flagged");
       items.forEach(function (f) {
         // The link names the phase it goes to: where this was said. Where the orders settled it
@@ -786,14 +909,24 @@
         li.appendChild(dot(title(f.power)));
         li.appendChild(document.createTextNode(title(f.power) + ": "));
         li.appendChild(el("q", "", f.item.quote));
-        if (f.item.pi !== null && f.item.pi !== said && view.phases[f.item.pi]) {
+        var claim = f.claim || ((message || {}).claims || []).find(function (c) {
+          return c.category === f.item.category && (c.quote || "") === (f.item.quote || "");
+        }) || { quote: f.item.quote, evidence: [] };
+        lightsBoard(li, function () { return claimMark(claim); });
+        if (f.item.pi !== null && f.item.pi !== undefined && f.item.pi !== said && view.phases[f.item.pi]) {
           li.appendChild(el("span", "muted", " · settled in "));
-          li.appendChild(boardLink(f.item.pi, view.phases[f.item.pi].label));
+          li.appendChild(boardLink(f.item.pi, view.phases[f.item.pi].label, claim, li));
         }
+        (claim.our_attacks_on_them || []).forEach(function (line) {
+          li.appendChild(el("div", "claim-evidence mono", "we ordered: " + line));
+        });
         list.appendChild(li);
       });
       box.appendChild(list);
     });
+    if (!shown) {
+      box.appendChild(el("p", "empty", "Nothing flagged: no claim we relied on was broken, and none we doubted was kept."));
+    }
   }
 
   function setPressShow(value) {
@@ -817,7 +950,7 @@
     var has = Object.keys(view.decisions).length > 0;
     $("decision-section").hidden = !has;
     if (!has) return;
-    var decision = view.decisions[current], body = clear($("decision-body"));
+    var decision = view.decisions[pressAt], body = clear($("decision-body"));
     if (!decision) {
       $("decision-brief").textContent = "· no decision line for this phase";
       body.appendChild(el("p", "empty", "Our seat's log has no decision line for this phase."));
@@ -870,6 +1003,7 @@
     var box = clear($("notes"));
     var notes = view.annotations.slice().sort(function (a, b) { return (a.phase === null ? -1 : a.phase) - (b.phase === null ? -1 : b.phase); });
     $("notes-count").textContent = notes.length ? "· " + notes.length : "";
+    $("side-notes-count").textContent = notes.length || "";
     $("send-all").hidden = notes.length < 2;
     $("send-notes").hidden = !notes.length;
     $("send-notes").textContent = sendLabel(notes.length);
@@ -986,7 +1120,7 @@
 
   function gameLine() {
     var s = seatRow();
-    return view.episode.variant + " episode " + EPISODE +
+    return view.episode.variant + " game, episode id " + EPISODE +
       (s ? " (we are " + s.power + ", " + s.policy + ", score " + fmt(s.score) + ", " + s.final_centers + " centres at the end)" : "");
   }
 
@@ -1047,31 +1181,83 @@
 
   // ---------- moving through the game ----------
 
-  function go(index) {
-    if (index === null || index === undefined || !view || !view.phases.length) return;
-    index = Math.max(0, Math.min(view.phases.length - 1, index));
-    if (index === current && go.drawn) return;
-    current = index;
-    go.drawn = true;
+  // Everything that follows the board's phase.
+  function showBoard() {
     var ph = phase();
     $("phase-title").textContent = ph.label;
-    $("phase-count").textContent = "phase " + current + " of " + (view.phases.length - 1);
+    $("phase-count").textContent = current + " of " + (view.phases.length - 1);
+    $("phase-count").title = "Phase " + current + " of " + (view.phases.length - 1);
     $("note-phase").textContent = ph.label;
     drawMap();
     drawPins();
     mapNote();
     drawOrders();
-    drawPress();
-    drawDecision();
     moveCursor();
+    showHighlight(held);
     document.querySelectorAll("#notes .note").forEach(function (node) { node.classList.remove("here"); });
     view.annotations.forEach(function (note) { if (note.phase === current) { var n = $("note-" + note.id); if (n) n.classList.add("here"); } });
     var url = new URL(location.href);
     url.searchParams.set("phase", current);
+    url.searchParams.delete("turn");
     if (view.seat !== null) url.searchParams.set("seat", view.seat);
     history.replaceState(null, "", url);
     document.title = ph.label + " · " + view.episode.variant + " " + shortId() + " · webDiplomacy optimizer";
     setContext();
+  }
+
+  // Run `change` (which redraws parts of the page above `node`) and leave `node` where it was on screen.
+  function keepInPlace(node, change) {
+    var scroller = root.closest("main"), before = node.getBoundingClientRect().top;
+    change();
+    if (node.isConnected && scroller) scroller.scrollTop += node.getBoundingClientRect().top - before;
+  }
+
+  function endPeek() {
+    if (peeked) peeked.classList.remove("peeked");
+    peeked = null;
+    held = null;
+    $("peek-note").hidden = true;
+  }
+
+  // Go to a phase: the board, and the press and decision listed with it.
+  function go(index) {
+    if (index === null || index === undefined || !view || !view.phases.length) return;
+    index = Math.max(0, Math.min(view.phases.length - 1, index));
+    var was = peeked;
+    if (index === current && index === pressAt && go.drawn && !was) return;
+    endPeek();
+    var pressMoved = index !== pressAt || !go.drawn;
+    current = index;
+    pressAt = index;
+    go.drawn = true;
+    // Left alone when only a peek ended: the reader's place in the press does not move.
+    if (was && !pressMoved) return keepInPlace(was, showBoard);
+    showBoard();
+    if (pressMoved) { drawPress(); drawDecision(); }
+  }
+
+  // Move only the board to the phase that settled `claim`; the press stays where the reader is.
+  function peek(index, claim, node) {
+    if (index === pressAt) return go(index);
+    stop();
+    endPeek();
+    current = index;
+    peeked = node;
+    node.classList.add("peeked");
+    keepInPlace(node, function () {
+      held = null;
+      showBoard();
+      held = claimMark(claim);  // read against the phase now on the board
+      showHighlight(held);
+    });
+    var note = clear($("peek-note"));
+    note.appendChild(document.createTextNode("Where the marked claim was settled. The press is still " +
+      view.phases[pressAt].label.split(" · ")[0] + "’s."));
+    var back = el("a", "", "Back to " + view.phases[pressAt].label.split(" · ")[0]);
+    back.href = "#";
+    back.addEventListener("click", function (event) { event.preventDefault(); go(pressAt); });
+    note.appendChild(back);
+    note.hidden = false;
   }
 
   function stepMovement(direction) {
@@ -1107,6 +1293,7 @@
     else if (event.key === "ArrowRight") { stop(); event.shiftKey ? stepMovement(1) : go(current + 1); }
     else if (event.key === "Home") { stop(); go(0); }
     else if (event.key === "End") { stop(); go(view.phases.length - 1); }
+    else if (event.key === "Escape" && peeked) go(pressAt);
     else if (event.key === " " && tag !== "button" && tag !== "summary" && tag !== "a") play();
     else return;
     event.preventDefault();
@@ -1159,6 +1346,12 @@
     var query = seat === null ? "" : "?seat=" + seat;
     return request("GET", "/api/replays/" + encodeURIComponent(EPISODE) + query).then(function (data) {
       view = data;
+      placesIn.byAbbr = null;
+      if ((startAt === null || startAt === undefined) && root.dataset.turn !== "") {
+        // ?turn=T: the movement phase of that turn, for links made without reading the replay.
+        var asked = view.phases.find(function (ph) { return ph.turn === Number(root.dataset.turn) && ph.phase === "Diplomacy"; });
+        startAt = asked ? asked.i : null;
+      }
       drawAll(startAt === null || startAt === undefined ? 0 : startAt);
       watchForAudit();
     }).catch(function (error) {
@@ -1208,11 +1401,27 @@
     button.addEventListener("click", function () { setPressShow(button.dataset.show); });
   });
   document.addEventListener("keydown", onKey);
-  var resizeTimer = null;
-  window.addEventListener("resize", function () {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () { if (view && view.phases.length) drawTimeline(); }, 150);
+  $("key-toggle").addEventListener("click", function () { keyOpen = !keyOpen; if (view) drawTimelineKey(); });
+  // The links above the reading column scroll to a section of it.
+  document.querySelectorAll("#side-nav a").forEach(function (link) {
+    link.addEventListener("click", function (event) {
+      event.preventDefault();
+      $(link.getAttribute("href").slice(1)).scrollIntoView({ block: "start", behavior: "smooth" });
+    });
   });
+  // The chart is drawn to its box: again when the box changes width (the window, the agent panel)
+  // or when the board becomes pinned or stops being so.
+  var resizeTimer = null;
+  new ResizeObserver(function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      var box = $("timeline");
+      if (!view || !view.phases.length) return;
+      if (Math.abs(Number(box.dataset.width) - Math.max(pinned() ? 360 : 480, box.clientWidth)) > 2 ||
+          box.dataset.compact !== String(pinned())) drawTimeline();
+      if (peeked && !pinned()) go(pressAt);  // a peek needs the board in view beside the press
+    }, 150);
+  }).observe($("timeline"));
 
   load(root.dataset.phase === "" ? null : Number(root.dataset.phase));
 })();

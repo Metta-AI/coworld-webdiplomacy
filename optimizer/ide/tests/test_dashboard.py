@@ -75,7 +75,7 @@ class DashboardTests(unittest.TestCase):
         data = self.api()
         # "mine" is the newest policy with seat logs; press has 3 of its 4 games.
         self.assertEqual(data["filters"], {"policy": "mine", "version": "", "source": "all",
-                                           "variant": "classic-press", "opponent": ""})
+                                           "variant": "classic-press", "opponent": "", "alone": ""})
         self.assertEqual(data["reading"], 0)
         self.assertEqual(data["report"]["seats"], 3)
         self.assertAlmostEqual(data["report"]["overall"]["vs_par"]["mean"], 0.2)
@@ -95,6 +95,9 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(self.api(policy="mine:v2", variant="classic-gunboat")["report"]["policy"], "mine:v2")
         self.assertEqual(self.api(policy="mine", opponent="rival-a")["report"]["filters"]["opponent"], "rival-a")
         self.assertEqual(self.api(policy="mine", version="v9")["filters"]["version"], "")  # unknown: all versions
+        alone = self.api(policy="mine", alone=1)
+        self.assertEqual((alone["filters"]["alone"], alone["report"]["filters"]["alone"]), ("1", True))
+        self.assertIn("alone=1", self.client.get("/dashboard", params={"policy": "mine", "alone": 1}).text)
 
     def test_page_renders_every_section_with_links(self):
         self.lab_with_two_variants()

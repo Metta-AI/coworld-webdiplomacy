@@ -195,16 +195,25 @@ class ReplayTests(unittest.TestCase):
         self.assertIn("/replays/ereq_press", followed)
         self.assertNotIn("/replays/g-011287fb8a", followed)
         none = self.client.get("/replays", params={"annotated": "yes"}).text
-        self.assertIn("No episode matches these filters.", none)
+        self.assertIn("No game matches these filters.", none)
 
     def test_viewer_page_and_unknown_episode(self):
         page = self.client.get("/replays/ereq_press?phase=3")
         self.assertEqual(page.status_code, 200)
         self.assertIn('data-episode="ereq_press"', page.text)
         self.assertIn('data-phase="3"', page.text)
+        self.assertIn('data-turn=""', page.text)
+        # `turn` opens at that turn's movement phase; the page's script finds the phase in the replay.
+        by_turn = self.client.get("/replays/ereq_press?seat=3&turn=5").text
+        self.assertIn('data-turn="5"', by_turn)
+        self.assertIn('data-phase=""', by_turn)
+        # The board and what stays beside it, then the reading column.
+        self.assertLess(page.text.index('class="pin-col"'), page.text.index('id="timeline"'))
+        self.assertLess(page.text.index('id="note-form"'), page.text.index('class="side-col"'))
+        self.assertLess(page.text.index('class="side-col"'), page.text.index('id="press"'))
         missing = self.client.get("/replays/ereq_nope")
         self.assertEqual(missing.status_code, 200)
-        self.assertIn("No such episode", missing.text)
+        self.assertIn("No such game", missing.text)
         self.assertEqual(self.client.get("/api/replays/ereq_nope").status_code, 404)
 
     # ----- viewer data -----
@@ -285,6 +294,49 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual((other["audit"]["slot"], other["audit"]["powers"], other["audit"]["markers"]), (3, {}, []))
         self.assertNotIn("I keep out of Tyrolia", json.dumps(other["audit"]))
         self.assertEqual([e for e in other["events"] if e["kind"] == "betrayed"], [])
+
+    def test_audit_fields_and_categories_added_later_reach_the_viewer(self):
+        """`press_audit.py` gained outcomes, categories and claim fields; the viewer shows them in the
+        audit's own words, and only the four flagged categories earn a timeline marker."""
+        log = next((self.press_dir / "policy-logs").glob("*.3.log"))
+        with open(log, "a") as out:
+            out.write(json.dumps(PRIVATE_PRESS) + "\n")
+        audit = audit_for(3, "AUSTRIA")
+        audit["summary"]["powers"]["GERMANY"]["categories"] = {"betrayed": 1, "kept_despite_doubt": 1}
+        audit["messages"][0]["claims"] += [
+            {"kind": "promise", "quote": "I stay out of Bohemia", "outcome": "kept", "category": "kept_despite_doubt",
+             "relied": False, "window": [0, 1], "condition": "none", "to": "AUSTRIA", "could_break": True,
+             "evidence": ["note: no German unit entered BOH"], "attacks_on_us": [], "attacks_on_us_before": [],
+             "our_attacks_on_them": ["AUSTRIA A VIE - TYR (Autumn 1901, succeeded)"]},
+            {"kind": "promise", "quote": "I will support Italy into Marseilles", "outcome": "superseded",
+             "category": "none", "relied": None, "window": [1, 1], "condition": "none", "to": "ITALY",
+             "context": "Germany repeats to us what it told Italy", "replaced_by": "prv-2",
+             "evidence": ["note: replaced by prv-2 (Autumn 1901 Builds), before that turn's orders"]},
+        ]  # fmt: skip
+        out = self.lab / ".runtime" / "press" / "ereq_press"
+        out.mkdir(parents=True)
+        (out / "audit.json").write_text(json.dumps(audit))
+
+        view = self.client.get("/api/replays/ereq_press", params={"seat": 3}).json()
+        betrayed, doubted, replaced = view["messages"][0]["claims"]
+        self.assertEqual(doubted["our_attacks_on_them"], ["AUSTRIA A VIE - TYR (Autumn 1901, succeeded)"])
+        self.assertEqual((doubted["to"], doubted["category"]), ("AUSTRIA", "kept_despite_doubt"))
+        self.assertEqual((replaced["to"], replaced["replaced_by"]), ("ITALY", "prv-2"))
+        self.assertEqual(replaced["outcome"], "superseded")
+        self.assertEqual(replaced["context"], "Germany repeats to us what it told Italy")
+        self.assertIsNone(betrayed["replaced_by"])
+        # Only the flagged category marks the timeline.
+        self.assertEqual([e["kind"] for e in view["events"] if e.get("message")], ["betrayed"])
+        self.assertEqual(set(self.episodes.AUDIT_MARKERS), set(self.episodes.tool("press_audit").FLAGGED))
+        # Every outcome and category the audit can write has words and a chip: none is shown as a raw code.
+        words, chips = view["verdicts"]["words"], view["verdicts"]["chips"]
+        for code in ("attempted", "superseded", "released_by_them", "forecast_right", "forecast_wrong",
+                     "kept_despite_doubt", "kept_but_attacked_us", "kept_to_other", "broken_to_other", "misstated",
+                     "we_misstated", "changed_plans", "we_changed_plans", "our_attack_announced",
+                     "our_attack_not_made"):  # fmt: skip
+            self.assertIn(code, words)
+            self.assertNotIn("_", words[code])
+            self.assertIn(code, chips)
 
     def test_press_after_the_last_movement_phase_is_listed_on_it(self):
         """Press is drawn only on movement phases; a turn the game never reached must not hide its press."""

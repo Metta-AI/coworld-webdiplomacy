@@ -184,14 +184,6 @@ class ChatApiTest(LabCase):
         status = self.client.get("/api/agent/status").json()
         self.assertEqual((status["state"], status["waiting"], status["server"]), ("none", 0, None))
 
-    def test_home_page_renders_with_the_agent_panel(self):
-        store.add_annotation("e1", "user", "note")
-        page = self.client.get("/")
-        self.assertEqual(page.status_code, 200)
-        self.assertIn('id="agent-panel"', page.text)
-        self.assertIn('id="agent-input"', page.text)
-        self.assertIn('<span class="num">1</span> note on', page.text)
-
 
 if __name__ == "__main__":
     unittest.main()

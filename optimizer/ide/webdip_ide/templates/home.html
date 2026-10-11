@@ -1,53 +1,139 @@
 {% extends "base.html" %}
 {% block title %}Home{% endblock %}
+{# The home page (routes_home.py): where the followed policy stands and which games to open next. #}
+{% macro game_row(row) %}
+{% set e = row.episode %}{% set s = row.seat %}
+<tr>
+  <td class="muted nowrap" title="Finished {{ e.time | when }}, Pacific Time">{{ e.time | when }}</td>
+  <td class="nowrap"><span class="dot" style="background: var(--power-{{ s.power | lower }})"></span>{{ s.power }}</td>
+  <td class="num nowrap">{{ "%.3f" | format(s.score) }} <span class="{{ 'good' if row.delta >= 0 else 'bad' }}">{{ ("%+.3f" | format(row.delta)) | replace("-", "−") }}</span></td>
+  <td class="nowrap">{{ row.ended }}{% if e.final_year %} <span class="muted">{{ e.final_year }}</span>{% endif %}</td>
+  <td class="flags">{% if not row.flags_known %}<span class="muted" title="This game's replay and seat log have not been read yet">…</span>{% elif row.flags %}{{ row.flags | join("; ") }}{% else %}<span class="muted">none</span>{% endif %}</td>
+  <td class="lied">
+    {%- if row.liars is none -%}
+      <span class="muted" title="{{ 'Gunboat: no press to audit' if e.press is false else 'No press audit of this seat yet. Open the game to ask the agent for one.' }}">{{ "—" if e.press is false else "no audit" }}</span>
+    {%- elif not row.liars -%}
+      <span class="muted">nobody</span>
+    {%- else -%}
+      {%- for liar in row.liars -%}
+      <a class="nowrap" href="{{ row.link }}{{ '&' if '?' in row.link else '?' }}turn={{ liar.turn }}" title="Open at the first one: “{{ liar.quote }}”"><span class="dot" style="background: var(--power-{{ liar.power | lower }})"></span>{{ liar.power }} {{ liar.count }}</a>{{ ", " if not loop.last }}
+      {%- endfor -%}
+    {%- endif -%}
+  </td>
+  <td class="open nowrap"><a href="{{ row.opens_at }}" title="Episode id {{ e.id }}{% if row.point %}. Opens at the autumn of the year our seat went from {{ row.point.text }}.{% endif %}">{% if row.point %}{{ row.point.text }}{% else %}open{% endif %}</a></td>
+</tr>
+{% endmacro %}
 {% block content %}
-<div class="page">
+<div class="page home"{% if summary.pending or indexed < games %} data-reload="4"{% endif %}>
   <h1>webDiplomacy optimizer</h1>
-  <p class="lede">A local workbench for improving a webDiplomacy policy with a coding agent. The agent runs in a
-    terminal in the optimizer root and opened this page; you talk to it in the panel on the right, watch the games it
-    fetched, mark where things went wrong, and read how the policy is doing.</p>
+  <p class="lede">Watch the games the agent fetched, mark where they went wrong, and tell the agent in the panel on the right.</p>
 
-  <dl class="home-sections">
-    <dt><a href="/replays">Replays</a></dt>
-    <dd><span class="num">{{ episodes }}</span> episode{{ "" if episodes == 1 else "s" }} on disk to watch phase by phase.
-      {% if annotations %}<span class="num">{{ annotations }}</span> note{{ "" if annotations == 1 else "s" }} on
-      <span class="num">{{ annotated_episodes }}</span> episode{{ "" if annotated_episodes == 1 else "s" }}.{% else %}No notes yet: click a province where something went wrong, write a note and send it to the agent.{% endif %}</dd>
-    <dt><a href="/dashboard">Dashboard</a></dt>
-    <dd>How the policy scores by power, opponent, version and source, with the number of games behind each figure.</dd>
-    <dt><a href="/reports">Reports</a></dt>
-    <dd>{% if reports %}<span class="num">{{ reports }}</span> write-up{{ "" if reports == 1 else "s" }}: why we win or lose against each opponent, and opponent profiles.{% else %}No write-ups yet. Ask the agent why we lose to an opponent, or for an opponent profile.{% endif %}</dd>
-  </dl>
+  {% if summary.pending or indexed < games %}
+  <p class="home-reading small muted" role="status"><span class="dot warn pulse"></span>Still reading games:
+    {% if summary.pending %}{{ summary.pending }} of {{ summary.pending + summary.games_on_disk }} to go for the numbers{% endif %}{% if summary.pending and indexed < games %}, {% endif %}{% if indexed < games %}{{ games - indexed }} of {{ games }} to go for flags{% endif %}.
+    What is below covers the games read so far; this page fills in by itself.</p>
+  {% endif %}
 
-  <h3>Ask the agent</h3>
-  <p id="home-agent-status" class="prose">Checking for an agent…</p>
-  <p class="about">What you type in the panel on the right is handed to the agent session in the terminal, and its
-    answer comes back there. A question to start with (a click puts it in the message box; nothing is sent until
-    you press Enter):</p>
-  <ul class="home-asks">
-    <li><button type="button" class="plain" data-draft="Which opponent beats us most, and what does it do that we do not handle?">Which opponent beats us most, and what does it do that we do not handle?</button></li>
-    <li><button type="button" class="plain" data-draft="Pick the game we lost worst in the last batch and post it as a replay card at the phase where it went wrong.">Pick the game we lost worst in the last batch and show me where it went wrong.</button></li>
-    <li><button type="button" class="plain" data-draft="Which power are we weakest as, and how sure are we? Post the dashboard view as a card.">Which power are we weakest as, and how sure are we?</button></li>
-  </ul>
-  <p class="muted small prose">Lab: <code>{{ lab }}</code></p>
+  <section class="home-standing" aria-labelledby="home-standing-h">
+    {% if summary.headline %}
+    {% set stat = summary.stat %}
+    <p class="eyebrow" id="home-standing-h">Policy we follow · {{ summary.policy }} · {{ "all variants pooled" if summary.variant == "all" else summary.variant }}</p>
+    <p class="home-lead"><strong class="{{ {'ok': 'good', 'err': 'bad'}.get(summary.headline.tone, '') }}">{{ summary.headline.lead }}</strong>
+      {% if stat.n %}<span class="tag {{ summary.headline.tone }}">{{ stat.verdict }}</span>
+      <span class="muted small">{{ stat.games }} game{{ "" if stat.games == 1 else "s" }}, {{ stat.n }} of our seats</span>{% endif %}</p>
+    {% if summary.headline.reading %}<p class="about">{{ summary.headline.reading }}
+      <a href="{{ summary.link }}">By power, opponent and version on the dashboard</a></p>{% endif %}
+    {% else %}
+    <p class="eyebrow" id="home-standing-h">Policy we follow{% if policy %} · {{ policy }}{% endif %}</p>
+    <p class="empty">{% if summary.pending %}The headline number appears when the games have been read.{% elif games %}No policy with games to score yet. <a href="/dashboard">Open the dashboard</a>{% else %}No games on disk yet. Ask the agent to fetch some: they land in <code>.runtime/artifacts</code>.{% endif %}</p>
+    {% endif %}
+  </section>
 
-  <h3>Newest from the agent</h3>
-  <div class="home-cards" id="home-cards">
-    <p class="empty">No cards yet. Ask the agent for an idea, a replay worth watching, or a write-up.</p>
+  <section aria-labelledby="home-games-h">
+    <h3 id="home-games-h">Games worth opening</h3>
+    <p class="about">The {{ work.worst | length }} lowest and the {{ work.best | length }} highest scores among
+      {% if policy %}{{ policy }}'s{% else %}our{% endif %} last {{ work.considered }} {{ variant }} games
+      (parity is {{ "%.3f" | format(parity) }}, one seventh of the pot).
+      {% if work.tainted %}<a href="/replays?{{ {'policy': policy, 'variant': variant, 'tainted': 'yes'} | urlencode }}">{{ work.tainted }} more crashed or {{ "was" if work.tainted == 1 else "were" }} cut short</a> and {{ "is" if work.tainted == 1 else "are" }} left out.{% endif %}
+      <a href="/replays?{{ {'policy': policy, 'variant': variant, 'sort': 'score'} | urlencode }}">Every game, lowest score first</a></p>
+    <table class="home-games">
+      <thead>
+        <tr>
+          <th title="When the game finished, Pacific Time">Finished</th>
+          <th>We played</th>
+          <th class="num" title="Share of the pot, and its distance from parity">Score ± parity</th>
+          <th>Ended</th>
+          <th title="Reasons to open a game: a crash or dropped orders, an opponent's solo, an early elimination, a swing of three or more centres in a year">Flags</th>
+          <th title="From the press audit: powers whose word we relied on and that did not hold, with how many times. A name opens the game where the first one was said.">Lied to us</th>
+          <th title="Opens the game at the year our seat lost the most centres (gained, for the highest scores)">Open at</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in work.worst %}{{ game_row(row) }}{% else %}
+        <tr><td class="empty" colspan="7">{% if games %}No finished game of this policy to rank yet.{% else %}No games on disk yet.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if work.best %}
+      <tbody class="best">
+        <tr class="group"><th colspan="7" scope="rowgroup">Highest scores</th></tr>
+        {% for row in work.best %}{{ game_row(row) }}{% endfor %}
+      </tbody>
+      {% endif %}
+    </table>
+  </section>
+
+  <div class="home-foot">
+  <section aria-labelledby="home-waiting-h">
+    <h3 id="home-waiting-h">Waiting</h3>
+    <ul class="home-lines">
+      <li>{% if notes.count %}<strong class="num">{{ notes.count }}</strong> of your notes {{ "has" if notes.count == 1 else "have" }} not been sent to the agent, on
+        {% for episode, n in notes.games[:4] %}<a class="mono" href="/replays/{{ episode }}" title="Episode id {{ episode }}: {{ n }} note{{ '' if n == 1 else 's' }} to send">{{ (episode | replace("ereq_", ""))[:8] }}</a>{{ ", " if not loop.last }}{% endfor %}{% if notes.games | length > 4 %} and {{ notes.games | length - 4 }} more <a href="/replays?annotated=yes&policy=">games with notes</a>{% endif %}.
+        {% else %}<span class="muted">No notes waiting to be sent. In a game, click a province, write what went wrong and send it to the agent.</span>{% endif %}</li>
+      <li>{% if reports.new %}<strong class="num">{{ reports.new | length }}</strong> report{{ "" if reports.new | length == 1 else "s" }} written since you were last here ({{ since | when }}):
+        {% for report in reports.new[:3] %}<a href="{{ report.link }}">{{ report.title }}</a>{{ ", " if not loop.last }}{% endfor %}{% if reports.new | length > 3 %} and <a href="/reports">{{ reports.new | length - 3 }} more</a>{% endif %}.
+        {% elif reports.total %}<span class="muted">No new reports{% if since %} since you were last here ({{ since | when }}){% endif %}.</span> <a href="/reports">All {{ reports.total }}</a>
+        {% else %}<span class="muted">No reports yet. Ask the agent why we lose to an opponent, or for an opponent profile.</span>{% endif %}</li>
+      <li id="home-card"><span class="muted">No cards from the agent yet.</span></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="home-ask-h">
+    <h3 id="home-ask-h">Ask the agent</h3>
+    <p class="about"><span id="home-agent-status">Checking for an agent…</span>
+      A click puts a question in the message box; nothing is sent until you press Enter.</p>
+    <ul class="home-asks">
+      <li><button type="button" class="plain" data-draft="Which opponent beats us most, and what does it do that we do not handle?">Which opponent beats us most, and what does it do that we do not handle?</button></li>
+      <li><button type="button" class="plain" data-draft="Pick the game we lost worst in the last batch and post it as a replay card at the phase where it went wrong.">Pick the game we lost worst in the last batch and show me where it went wrong.</button></li>
+      <li><button type="button" class="plain" data-draft="Which power are we weakest as, and how sure are we? Post the dashboard view as a card.">Which power are we weakest as, and how sure are we?</button></li>
+    </ul>
+    <p class="muted small" title="{{ lab }}">{{ games }} game{{ "" if games == 1 else "s" }} on disk in this lab.</p>
+  </section>
   </div>
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
-  // The same data as the agent panel, shown larger: presence text and the five newest cards.
+  // The agent's presence in words, and its newest card as one line (the panel's Cards tab has them all).
   window.ide.onUpdate(function (state) {
     document.getElementById("home-agent-status").textContent = state.presence;
-    var box = document.getElementById("home-cards");
-    var newest = state.cards.slice(-5).reverse();
-    if (!newest.length) return;
-    box.replaceChildren.apply(box, newest.map(window.ide.cardElement));
+    var card = state.cards[state.cards.length - 1];
+    if (!card) return;
+    var line = document.getElementById("home-card");
+    var title = document.createElement(card.link ? "a" : "strong");
+    title.textContent = card.title;
+    if (card.link) title.href = card.link;
+    line.replaceChildren(
+      document.createTextNode("Newest from the agent (" + state.cards.length + " card" + (state.cards.length === 1 ? "" : "s") + "): "),
+      title);
   });
   document.querySelectorAll("[data-draft]").forEach(function (button) {
     button.addEventListener("click", function () { window.ide.draft(button.dataset.draft); });
   });
+  // While games are still being read the page reloads itself, but never under a message being typed.
+  var reload = Number(document.querySelector(".home").dataset.reload);
+  if (reload) setInterval(function () {
+    var box = document.getElementById("agent-input");
+    if (!(box && (box.value || document.activeElement === box))) location.reload();
+  }, reload * 1000);
 </script>
 {% endblock %}

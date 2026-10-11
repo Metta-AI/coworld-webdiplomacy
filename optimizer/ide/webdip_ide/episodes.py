@@ -38,7 +38,9 @@ PACIFIC = ZoneInfo("America/Los_Angeles")
 SWING = 3  # supply centres gained or lost in one year that earn a timeline marker
 PHASE_LABELS = {"Diplomacy": "Movement", "Finished": "Final"}
 PHASE_ORDER = {"Pre-game": 0, "Diplomacy": 1, "Retreats": 2, "Builds": 3, "Finished": 4}
-# Audit categories worth a marker on the timeline, with the words the viewer shows.
+# Audit categories worth a marker on the timeline, with the words the viewer shows. These are
+# `press_audit.FLAGGED`; every other category (there are many, and more are added) is shown on its
+# claim in `press_report.WORDS`' wording and nowhere else.
 AUDIT_MARKERS = {
     "betrayed": "betrayed",
     "deceived": "deceived",
@@ -435,7 +437,7 @@ def _build_view(row: dict, slot: int | None, replay_path: Path | None, log_path:
     problems = []
     replay = None
     if replay_path is None:
-        problems.append("This episode has no replay file.")
+        problems.append("This game has no replay file.")
     else:
         try:
             replay = we.read_json_file(replay_path)
@@ -599,7 +601,8 @@ def _audit(episode: str, slot: int | None, messages: list[dict], phases: list[di
                 settled = _movement_index(phases, _evidence_turn(claim))
                 message["claims"].append({
                     **{k: claim.get(k) for k in ("kind", "quote", "outcome", "category", "relied", "evidence",
-                                                 "window", "condition", "asked")},
+                                                 "window", "condition", "asked", "to", "context", "replaced_by",
+                                                 "our_attacks_on_them")},
                     "settled": settled,
                 })  # fmt: skip
                 if claim.get("category") in AUDIT_MARKERS:

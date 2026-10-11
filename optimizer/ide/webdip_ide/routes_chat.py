@@ -1,10 +1,9 @@
-"""The agent panel's JSON API, and the home page.
+"""The agent panel's JSON API.
 
   GET  /api/chat?after=N     chat messages with seq > N, and the agent's delivery cursor
   POST /api/chat             {text, context?}: a user message for the agent
   GET  /api/cards?after=N    agent cards with seq > N
   GET  /api/agent/status     is an agent attached, is it listening, what is still undelivered
-  GET  /                     home: what this is, agent status, newest cards, counts
 
 The browser polls these every two seconds. Nothing here talks to the agent directly: a
 posted message is appended to the store, and the agent side (listener, hooks, MCP; see
@@ -18,10 +17,10 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from . import hooks, paths, store
-from .server import render, require_local_host
+from . import hooks, store
+from .server import require_local_host
 
-NAV = None  # the panel is on every page; home is the brand link
+NAV = None  # the panel is on every page
 
 MAX_MESSAGE_CHARS = 20_000
 
@@ -74,30 +73,3 @@ def get_cards(after: int = 0):
 @router.get("/api/agent/status")
 def agent_status():
     return hooks.agent_status()
-
-
-def _count_episodes() -> int:
-    """The same episodes the Replays page lists."""
-    from . import episodes  # imported here: it loads the lab's tools
-
-    return len(episodes.episode_dirs())
-
-
-def _count_reports() -> int:
-    root = paths.reports_dir()
-    return sum(1 for _ in root.rglob("*.md")) if root.is_dir() else 0
-
-
-@router.get("/")
-def home(request: Request):
-    notes = store.all_annotations()
-    return render(
-        request,
-        "home.html",
-        episodes=_count_episodes(),
-        annotations=sum(len(rows) for rows in notes.values()),
-        annotated_episodes=sum(1 for rows in notes.values() if rows),
-        reports=_count_reports(),
-        cards=len(store.cards()),
-        status=hooks.agent_status(),
-    )

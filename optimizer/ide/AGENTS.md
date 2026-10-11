@@ -67,5 +67,14 @@ saw in README.md under "What was verified".
   through for now because `tests/test_reports.py` still uses it.
 - The index (`episodes.py`) and the dashboard cache are shared by request threads and a
   background reader: touch their module-level dictionaries only under their lock.
+- The replay viewer has three arrangements (pinned, wide, narrow), chosen in
+  `static/replay.css` section 3 by a container query on `main`, because the room depends on
+  the agent panel as well as the window. `replay.js` reads `--pinned` from the page; do not
+  repeat the breakpoints in script. The rules for the pinned arrangement sit at the end of
+  the stylesheet so they win over the base rules. Sticky offsets inside `main` are measured
+  from inside its padding.
+- In the viewer `current` is the board's phase and `pressAt` the phase whose press is
+  listed. They differ only while a "settled in …" link has moved the board (`peek`); `go()`
+  moves both. Draw press and decisions from `pressAt`, everything else from `current`.
 - `ide/ide start` runs `uv run --project ide` with `PYTHONPATH` set to the IDE directory,
   because the project is not an installable package (`[tool.uv] package = false`).

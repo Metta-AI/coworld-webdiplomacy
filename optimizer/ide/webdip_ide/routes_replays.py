@@ -8,7 +8,9 @@ Pages:
                                 the dashboard (a cookie); `policy=` (empty) follows every seat with a log
   /replays/<episode>?phase=N&seat=S   the viewer; `phase` indexes the last replay frame's
                                 `history.phases`, `seat` is the roster slot whose log, private
-                                press and press audit are shown
+                                press and press audit are shown. `turn=T` in place of `phase`
+                                opens at the movement phase of turn T (0 is Spring 1901): for a
+                                link made without reading the replay, as the home page's are
 
 JSON:
   GET    /api/replays/<episode>?seat=S            the viewer's data (`episodes.load_view`)
@@ -182,7 +184,9 @@ def _seat(row: dict, seat: int | None, remembered: str = "") -> int | None:
 
 
 @router.get("/replays/{episode}")
-def replay_page(request: Request, episode: str, phase: int | None = None, seat: int | None = None):
+def replay_page(
+    request: Request, episode: str, phase: int | None = None, seat: int | None = None, turn: int | None = None
+):
     row = episodes.find(episode)
     if row is None:
         return render(request, "replays_missing.html", episode=episode)
@@ -192,6 +196,7 @@ def replay_page(request: Request, episode: str, phase: int | None = None, seat: 
         episode=row,
         seat=_seat(row, seat, request.cookies.get(POLICY_COOKIE, "")),
         phase=phase,
+        turn=turn,
         source_words=SOURCE_WORDS,
         tags=store.ANNOTATION_TAGS,
         parity=episodes.PARITY,

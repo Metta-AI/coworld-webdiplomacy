@@ -326,14 +326,33 @@ dl.facts dd { margin: 0; }
 .agent-compose .hint { flex: 1; color: var(--ink-3); font-size: var(--text-xs); }
 
 /* --- 6. home --- */
-dl.home-sections { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--s2) var(--s5); margin: var(--s4) 0 var(--s5); padding: var(--s3) 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); max-width: var(--measure); }
-dl.home-sections dt { font: 700 var(--text-md)/1.55 var(--serif); }
-dl.home-sections dd { margin: 0; color: var(--ink-2); }
-dl.home-sections .num { color: var(--ink); font-family: inherit; font-weight: 700; }
-.home-cards { max-width: var(--measure); }
-.home-asks { list-style: none; margin: 0 0 var(--s4); padding: 0; max-width: var(--measure); }
+/* One screen of type: the standing of the policy we follow, the games to open, what is waiting. */
+.home h3 { margin-top: var(--s5); }
+.home h1 { margin-bottom: var(--s1); }
+.home .lede { margin-bottom: var(--s3); font-size: var(--text-md); max-width: none; }
+.home .about { max-width: 118ch; margin-bottom: var(--s2); }
+/* What is waiting and what to ask sit side by side when there is room. */
+.home-foot { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 0 var(--s6); }
+.home section { margin-bottom: 0; }
+.home-reading { margin: 0 0 var(--s2); }
+.home-standing { margin-top: var(--s4); }
+.home-lead { margin: 2px 0 var(--s1); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s3); }
+.home-lead strong { font: 700 1.6rem/1.2 var(--serif); letter-spacing: -0.01em; }
+.home-lead .tag { align-self: center; }
+.home-games { margin-bottom: 0; }
+.home-games td, .home-games th { padding-top: 5px; padding-bottom: 5px; }
+.home-games .nowrap, .home .nowrap { white-space: nowrap; }
+.home-games td.flags { color: var(--terracotta); font-size: var(--text-xs); line-height: 1.4; min-width: 110px; }
+.home-games td.lied { min-width: 110px; }
+.home-games td.lied .dot { margin-right: 4px; }
+.home-games tr.group th { padding-top: var(--s3); border-bottom-color: var(--rule); color: var(--ink-3); }
+.home-games tr.group:hover { background: none; }
+.home-lines { list-style: none; margin: 0; padding: 0; max-width: 100ch; font-size: var(--text-sm); }
+.home-lines li { padding: 5px 0; border-bottom: 1px solid var(--rule-subtle); }
+.home-lines strong { color: var(--ink); }
+.home-asks { list-style: none; margin: 0 0 var(--s2); padding: 0; max-width: var(--measure); }
 .home-asks li { border-bottom: 1px solid var(--rule-subtle); }
-.home-asks button { height: auto; min-height: 30px; padding: var(--s1) var(--s2) var(--s1) 0; white-space: normal; text-align: left; font-weight: 400; font-size: var(--text-md); line-height: 1.4; color: var(--navy); width: 100%; }
+.home-asks button { height: auto; min-height: 28px; padding: 3px var(--s2) 3px 0; white-space: normal; text-align: left; font-weight: 400; font-size: var(--text-sm); line-height: 1.4; color: var(--navy); width: 100%; }
 .home-asks button::after { content: "\2192"; margin-left: auto; color: var(--ink-3); }
 
 /* --- 7. narrow screens and reduced motion (after the base rules they change) --- */

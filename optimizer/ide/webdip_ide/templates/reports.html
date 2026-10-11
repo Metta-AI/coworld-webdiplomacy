@@ -38,7 +38,7 @@
           <td>{% if report.policy %}<span class="mono">{{ report.policy }}</span>{% else %}<span class="muted">-</span>{% endif %}</td>
           <td>{{ report.variant or "-" }}</td>
           <td class="num">{{ report.games or "-" }}</td>
-          <td class="nowrap">{% if report.date %}{{ report.date }}{% else %}<span class="muted" title="No date in the report; this is when the file last changed">file changed {{ report.modified }}</span>{% endif %}</td>
+          <td class="nowrap">{% if report.date %}<span title="{{ report.date }}">{{ report.date | when }}</span>{% else %}<span class="muted" title="No date in the report; this is when the file last changed, Pacific Time">file changed {{ report.modified | when }}</span>{% endif %}</td>
           <td class="actions">
             <button class="small" type="button" data-ask="Refresh the {{ kind.one }} “{{ report.title }}” ({{ report.path }}): run the {{ kind.skill }} skill again on the episodes now on disk, rewrite the file and post a card."
               data-kind="{{ key }}" data-slug="{{ report.slug }}" aria-label="Ask the agent to refresh {{ report.title }}" title="Ask the agent to run the skill again on the episodes now on disk">Ask for a refresh</button>
@@ -63,7 +63,7 @@
     <div class="table-scroll">
     <table class="report-table">
       <thead>
-        <tr><th>Policy</th><th>Versions on disk</th><th class="num">Games on disk</th><th>Latest game (PT)</th>
+        <tr><th>Policy</th><th>Versions on disk</th><th class="num">Games on disk</th><th title="When this policy's newest game on disk finished, Pacific Time">Latest game</th>
           <th><span class="visually-hidden">Actions</span></th></tr>
       </thead>
       <tbody>
@@ -72,7 +72,7 @@
           <td class="mono nowrap">{{ policy.name }}</td>
           <td class="mono muted">{{ policy.versions | map("replace", policy.name ~ ":", "") | join(", ") }}</td>
           <td class="num">{{ policy.games }}</td>
-          <td class="nowrap">{{ policy.latest or "-" }}</td>
+          <td class="nowrap">{{ (policy.latest | when) or "-" }}</td>
           <td class="actions">
             <button class="small" type="button" data-ask="Write an opponent profile of {{ policy.name }} ({{ policy.games }} games on disk; versions {{ policy.versions | join(', ') }}). Use the opponent-profile skill and post a card when the report is written."
               data-kind="opponents" data-slug="{{ policy.slug }}" aria-label="Ask the agent for a profile of {{ policy.name }}" title="Ask the agent to write an opponent profile of {{ policy.name }}">Ask for a profile</button>

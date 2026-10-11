@@ -45,13 +45,13 @@
 <div class="page dash"{% if pending %} data-reload="4"{% endif %}>
   <div class="page-head">
     <h1>Dashboard</h1>
-    <span class="muted small">{{ games_on_disk }} games read from <code>.runtime/artifacts</code>{% if read_at %} · checked {{ read_at }}{% endif %}</span>
+    <span class="muted small">{{ games_on_disk }} games read from <code>.runtime/artifacts</code>{% if read_at %} · <span title="Pacific Time">checked {{ read_at }}</span>{% endif %}</span>
     <span class="spacer"></span>
-    <a class="btn small" href="{{ link(refresh='1') if report else '/dashboard?refresh=1' }}" title="Forget what was read and read every episode again">Read again</a>
+    <a class="btn small" href="{{ link(refresh='1') if report else '/dashboard?refresh=1' }}" title="Forget what was read and read every game again">Read again</a>
   </div>
 
   {% if pending %}
-  <p class="notice">Still reading episodes: {{ pending }} to go. The numbers below cover the {{ games_on_disk }} read so far, and this page reloads itself until the rest are in.</p>
+  <p class="notice">Still reading games: {{ pending }} to go. The numbers below cover the {{ games_on_disk }} read so far, and this page reloads itself until the rest are in.</p>
   {% endif %}
   {% if filters.unknown %}
   <p class="notice err">No policy named <code>{{ filters.unknown }}</code> is in the fetched games{% if filters.policy %}, so this shows <strong>{{ filters.policy }}</strong> instead{% endif %}.</p>
@@ -88,11 +88,23 @@
         {% for key in ("all", "league", "xp", "local") %}{% if key in ("all", "league", "xp") or key in filters.row.sources %}<option value="{{ key }}"{% if key == filters.source %} selected{% endif %}>{{ source_labels[key] }}{% if key != "all" %} · {{ filters.row.sources.get(key, 0) }}{% endif %}</option>{% endif %}{% endfor %}
       </select>
     </label>
+    {% if report.paired_games or filters.alone %}
+    <label>Our seats per game
+      <select name="alone"{% if filters.alone %} class="set"{% endif %}>
+        <option value="">any · {{ report.alone_games + report.paired_games }}</option>
+        <option value="1"{% if filters.alone %} selected{% endif %}>one (alone runs) · {{ report.alone_games }}</option>
+      </select>
+    </label>
+    {% endif %}
     {% if filters.opponent %}<input type="hidden" name="opponent" value="{{ filters.opponent }}">{% endif %}
     <noscript><button type="submit">Show</button></noscript>
   </form>
   {% if filters.opponent %}
   <p class="notice">Only games that also seat <strong>{{ filters.opponent }}</strong>. Par still comes from every clean game in this variant and source. <a href="{{ link(opponent='') }}">Show all games</a></p>
+  {% endif %}
+
+  {% if filters.alone %}
+  <p class="notice">Alone runs only: the {{ report.paired_games }} games that seat two or more seats of <strong>{{ filters.policy }}</strong> are left out, from par too, because a second seat of ours changes the score level. <a href="{{ link(alone='') }}">Show all games</a></p>
   {% endif %}
 
   {# ---------- headline ---------- #}
@@ -188,7 +200,7 @@
                 <dt>Finished ahead</dt><dd>{{ h.ahead }} ahead, {{ h.behind }} behind{% if h.tied %}, {{ h.tied }} tied{% endif %}{% if h.z is not none %} · sign test z {{ signed(h.z, 2) }} · {{ h.verdict }}{% endif %}</dd>
                 <dt>We were eliminated</dt><dd>with them {{ share(p.eliminated_with) }}{% if p.eliminated_without.n %} · without them {{ share(p.eliminated_without) }}{% endif %}</dd>
                 <dt>They ended with more centres</dt><dd>{{ share(p.outgrew_us) }}</dd>
-                <dt>Games together</dt><dd>{{ p.games }}{% if p.first %}, {{ pacific(p.first) }}{% if pacific(p.last) != pacific(p.first) %} to {{ pacific(p.last) }}{% endif %}{% endif %} · versions {% for v, n in p.versions.items() %}{{ v }} ({{ n }}){{ ", " if not loop.last }}{% endfor %}</dd>
+                <dt>Games together</dt><dd>{{ p.games }}{% if p.first %}, {{ p.first | day }}{% if (p.last | day) != (p.first | day) %} to {{ p.last | day }}{% endif %}{% endif %} · versions {% for v, n in p.versions.items() %}{{ v }} ({{ n }}){{ ", " if not loop.last }}{% endfor %}</dd>
               </dl>
               <div>
                 {% set shown = p.pairs | selectattr("vs_par.n", "ge", view.min_cell) | list %}
@@ -274,7 +286,7 @@
           <td class="dash-plot">{{ interval(view.version_scale, v.mark, v.tip) }}</td>
           {{ stat_cells(v.vs_par) }}
           <td class="num">{{ plain(v.score) }}</td>
-          <td class="muted">{% if v.first %}{{ pacific(v.first) }}{% if pacific(v.last) != pacific(v.first) %} to {{ pacific(v.last) }}{% endif %}{% else %}local runs{% endif %}</td>
+          <td class="muted">{% if v.first %}{{ v.first | day }}{% if (v.last | day) != (v.first | day) %} to {{ v.last | day }}{% endif %}{% else %}local runs{% endif %}</td>
         </tr>
         {% else %}
         <tr><td colspan="9" class="empty">No clean games yet.</td></tr>
@@ -366,7 +378,7 @@
     <dl class="facts dash-facts">
       <dt>Dropped for taint</dt>
       <dd>{% if t.games_dropped %}{{ t.games_dropped }} of {{ t.games_dropped + report.games }} games: {% for flag, n in t.flags.items() %}{{ flag.replace("_", " ") }} on {{ n }} seat{{ "s" if n != 1 }}{{ ", " if not loop.last }}{% endfor %}. A crashed or silent seat measures the crash, not the policy, so the whole game leaves every number above.{% else %}None of the {{ report.games }} games. Checked on our {{ t.seats_seen }} seats: rejected orders, exceptions, no decisions, a failing LLM, and cancelled, failed or timed-out games.{% endif %}</dd>
-      {% if t.games_missing_results %}<dt>No results file</dt><dd>{{ t.games_missing_results }} episode{{ "s" if t.games_missing_results != 1 }} on disk in this view (still running, or failed before the game ended)</dd>{% endif %}
+      {% if t.games_missing_results %}<dt>No results file</dt><dd>{{ t.games_missing_results }} game{{ "s" if t.games_missing_results != 1 }} on disk in this view (still running, or failed before the game ended)</dd>{% endif %}
       {% if report.no_par_seats %}<dt>No par</dt><dd>{{ report.no_par_seats }} of our seats played a power that no field seat played in this view</dd>{% endif %}
       {% set c = report.cost %}
       <dt>LLM cost</dt>
@@ -384,7 +396,7 @@
         </tbody>
       </table>
     </details>
-    <p class="muted small">The same numbers in a terminal: <code>python3 games/webdiplomacy/tools/matchups.py games/webdiplomacy/.runtime/artifacts --policy {{ report.policy }}{% if filters.variant != "all" %} --variant {{ filters.variant }}{% endif %}{% if filters.source != "all" %} --source {{ filters.source }}{% endif %}</code></p>
+    <p class="muted small">The same numbers in a terminal: <code>python3 games/webdiplomacy/tools/matchups.py games/webdiplomacy/.runtime/artifacts --policy {{ report.policy }}{% if filters.variant != "all" %} --variant {{ filters.variant }}{% endif %}{% if filters.source != "all" %} --source {{ filters.source }}{% endif %}{% if filters.alone %} --alone{% endif %}</code></p>
   </section>
   {% endif %}
 </div>
