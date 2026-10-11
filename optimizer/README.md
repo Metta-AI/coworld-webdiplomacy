@@ -76,20 +76,30 @@ uv run ruff check optimizer
 
 ## Known gaps
 
-Found by two fresh-install test drives (2026-10-10 gunboat, 2026-10-10/11 press) and not
-yet fixed. Each is a setup gap, not a fact about any field of opponents.
+Found by two fresh-install test drives (2026-10-10 gunboat, 2026-10-10/11 press) and the
+IDE build (2026-10-11), and not yet fixed. Each is a setup gap, not a fact about any field of opponents.
 
-- **Press audit: a promise made to a third power is weighed as if made to us.** A public
-  "we have agreed a DMZ with France" that later breaks is marked `betrayed` when we
-  trusted the speaker. A claim needs to record whom the promise was made to.
-- **Press audit: the annotator is not blind.** The ledger's `phases` hold each order's
-  result beside the starting board the annotator needs. `verify` does not check that a
-  claim's `quote` occurs in the message.
-- **Press audit: a kept narrow promise reads as a missed alliance** (`doubted_wrongly`)
-  even when the same power attacked us elsewhere that turn. `verify` could list the
-  sender's attacks on us in the claim's window.
-- **The press-audit annotation rules added on 2026-10-11 are untested**: no game has
-  been re-annotated with them.
+- **Press audit: "we broke our word" is still about half noise.** Measured 2026-10-11 on
+  nine hosted games with every flag read against a rubric (by sub-agents, not people): flags
+  fell from 279 (80% false) to 51 (27% false) after the verify rules changed; `betrayed` is
+  25 real of 28, `we_broke_our_word` 12 real of 23. What is left is mostly a letter broken
+  with nobody hurt, which code cannot decide.
+- **Press audit: a changed plan is seen only when recorded.** `superseded` needs the
+  annotator's `replaces` or a later claim naming the very order.
+- **Press audit: "missed alliance" is not decided by code.** `doubted_wrongly` is strict
+  and was not raised in the nine games; kept promises we had not relied on are
+  `kept_despite_doubt`, with the attack orders listed.
+- **Press audit: the annotator's file leaks one thing.** `annotate.json` has no orders or
+  results, but the next turn's starting board shows where units ended.
+- **Bots write "this fall" in a spring phase** in about a quarter of such messages and mean
+  the current turn (ours and opponents'). The press-audit skill checks both turns; the
+  policy's prompt is worth its own look.
+- **A node lost under a player pod kills that seat for the rest of the game** and the game
+  still completes (about 2.5% of press seats on 2026-10-11). The loader taints the seat
+  (`pod_deleted`); the cause is on the platform side.
+- **IDE: one agent session per lab, Claude Code only.** Delivery to the running session
+  uses Claude Code hooks, tested on 2.1.296. Other harnesses get the `ide/ide listen`
+  background task or the MCP tools, which were not tested inside a live session.
 - **No hosted game has run** the press player's no-units fix or `run_ab.py --alone`'s
   two-arm fetch.
 - **`child_exit` and `no_decisions` taints have never fired on a hosted game** (about

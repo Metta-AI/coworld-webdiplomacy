@@ -2,6 +2,7 @@
 """Check what was said in a press game against what was done.
 
     python3 games/webdiplomacy/tools/press_audit.py extract EPISODE_DIR --policy NAME:vN --out DIR
+    python3 games/webdiplomacy/tools/press_audit.py check DIR      (the annotator's format test: no verdicts)
     python3 games/webdiplomacy/tools/press_audit.py verify DIR
     python3 games/webdiplomacy/tools/press_audit.py report DIR
 
@@ -11,10 +12,12 @@ says how, and recommends a sub-agent per game).
 1. `extract` writes `DIR/ledger.json` for ONE of our seats: every press message that seat
    could see (private messages it sent or received, and public press), every movement
    phase's adjudicated orders and board in standard notation, and what our policy believed
-   about each power that turn (from its own seat log). It also writes `DIR/claims.json`,
+   about each power that turn (from its own seat log). It also writes `DIR/annotate.json`, the
+   same press with each turn's STARTING board and no orders or results, and `DIR/claims.json`,
    one empty entry per message, for step 2 to fill in.
-2. An agent reads each message and lists its claims in `DIR/claims.json` using the small
-   vocabulary below. It records what was SAID; it does not judge whether it came true.
+2. An agent reads `annotate.json` and lists each message's claims in `DIR/claims.json` using the
+   small vocabulary below. It records what was SAID; it does not judge whether it came true, and
+   it does not see how any turn came out.
 3. `verify` checks every claim against the adjudicated orders and writes `DIR/audit.json`:
    per message, per claim: was the condition met, was the promise kept, the threat carried
    out, the statement true; and whether we relied on it. `report` renders `DIR/audit.html`,
@@ -28,11 +31,19 @@ A claim in `claims.json` (the press-audit skill has the full rules and examples)
                                          # omit for "the turn it was said in"
      "condition": [<predicate>, ...],    # optional: "if you ...". All must hold
      "commitment": [<predicate>, ...],   # what is promised, threatened, asked, asserted or offered
-     "asked": "RUSSIA"}                  # requests in a public message only: who is asked
+     "asked": "RUSSIA",                  # requests in a public message only: who is asked
+     "to": "FRANCE",                     # optional: whom it was promised to, when not the message's
+                                         # recipient ("as agreed with France, I stay out of BUR")
+     "replaces": ["prv-82#1"],           # optional: earlier claims BY THE SAME SENDER that this one takes
+                                         # the place of ("prv-82" = all of that message's claims)
+     "context": "to prv-209: hold VIE"}  # optional: the annotator's own note; `quote` is the message's words
+
+`verify` refuses a `quote` that does not occur in its message ("..." may stand for words left out).
 
 The speaker is always the message's sender, and it is the sender's word that is weighed.
 - promise: the sender will or will not do something, perhaps only if `condition` holds.
-  Kept or broken; released when the condition was not met.
+  Kept or broken; released when the condition was not met; "attempted" when the order was given
+  and failed.
 - threat: the sender will do `commitment` if `condition` happens. Carried out or a bluff;
   not triggered when the condition did not happen.
 - statement: the sender asserts a fact about the board or anyone's orders. True or false.
@@ -67,9 +78,38 @@ Predicates (provinces are three-letter abbreviations, powers are upper-case name
     {"p": "unverifiable", "why": "about intentions"}          cannot be checked against orders
 
 Over a window of several turns a predicate holds if it holds in any movement phase of the
-window, and `not` holds only if it never does. `"success": true` on `order`, `moves_to` or
+window, and `not` holds only if it never does. Several things to be ordered together must be
+ordered in the same turn. A predicate about one unit ("my army in SEV holds") is not checkable
+in a turn where that unit does not exist. `"success": true` on `order`, `moves_to`, `leaves` or
 `attacks` requires that the move worked; `"success": false` that it was ordered and failed
-(a bounce). `when` defaults to "end".
+(a bounce). In a promise, threat, request or proposal an order that was given and failed counts
+as "attempted", not broken: those are about what will be ORDERED. `when` defaults to "end".
+
+Rules `verify` applies after checking the orders (each from a false alarm in real games):
+- A statement about another power's orders in a turn not yet played is a forecast
+  (forecast_right / forecast_wrong), not the speaker's word. A wrong statement about turns
+  already played is "misstated": everyone can read those orders off the board.
+- A claim `replaced` by a later claim ends at the turn before that message. The later claim
+  must be the same sender's, said to the same party, or come from the party the promise was
+  made to (letting it go). A broken promise whose every breaking order the speaker announced to
+  the same party, or the other party asked for, in a later message before the orders went in is
+  "superseded" too.
+- "released_by_them": a pledge of peace ("I will not move on X") broken only after the other
+  party attacked the speaker earlier in its window; or a promise broken only after the other
+  party had, in an earlier turn, not done what the same message asked of it (the other half
+  of the deal).
+- A promise made to another power (`to`) is kept_to_other / broken_to_other, never a betrayal.
+- "changed_plans" / "we_changed_plans": the only thing broken was "this unit will stay put",
+  and the speaker made no move on the party it was said to.
+- "our_attack_announced" / "our_attack_not_made": we told a power we would move on it.
+- "doubted_wrongly" (perhaps a missed alliance) needs: a pledge not to move on us, kept; the
+  speaker could have broken it (a unit able to move into what it protects); the speaker did not
+  move on us in the window or the turn before; we moved on the speaker in the window; and we
+  had not broken our own word to that power in those turns. Otherwise kept_but_attacked_us or
+  kept_despite_doubt. Every claim made to us lists `attacks_on_us` and `our_attacks_on_them`.
+
+Measured 2026-10-11 on nine hosted games, with every flag read by a careful reader: the first
+audits raised 279 flags and 80% were false alarms. The causes are in the press-audit skill.
 
 What "relied on" means: our policy's committed press policy for that turn named the
 sender an ally, gave it trust of 0.5 or more, or expected orders from it. A hostile (or enemy) stance
@@ -84,6 +124,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -190,7 +231,11 @@ RELY_TRUST = 0.5  # trust at or above this counts as relying on a power's word
 # (press/HARNESS.md); "enemy" is kept for policies that use that word.
 DISTRUST_STANCES = ("hostile", "enemy")
 # outcome -> did the words match the deeds (None = says nothing about honesty)
-HONEST = {"kept": True, "carried_out": True, "true": True, "broken": False, "not_carried_out": False, "false": False}
+HONEST = {"kept": True, "carried_out": True, "true": True, "attempted": True,
+          "broken": False, "not_carried_out": False, "false": False}  # fmt: skip
+# The kinds where the words are about what someone will ORDER. For these an order that was given
+# and then bounced, was cut or was dislodged still did what was said: outcome "attempted".
+INTENT_KINDS = ("promise", "threat", "request", "proposal")
 
 
 def province(location: str) -> str:
@@ -270,7 +315,24 @@ def movement_phases(replay: list) -> list[dict]:
     for i, phase in enumerate(phases):
         later = phases[i + 1] if i + 1 < len(phases) else phase
         phase["units_end"], phase["centers_end"] = later["units"], later["centers"]
+        phase["end_known"] = i + 1 < len(phases)  # claims about the board after the last turn are not checked
     return phases
+
+
+def province_borders(replay: list) -> dict[str, dict[str, list[str]]]:
+    """{"A": province -> the provinces an army there can move to, "F": the same for a fleet}
+    (coasts folded into their province)."""
+    territories = replay[-1]["variant"]["territories"]
+    name = {t["id"]: province(ABBREVIATION[t["name"]]) for t in territories}
+    touching: dict[str, dict[str, set[str]]] = {"A": {}, "F": {}}
+    for territory in territories:
+        here = name[territory["id"]]
+        for border in territory.get("borders") or []:
+            for unit, key in (("A", "army"), ("F", "fleet")):
+                if border.get(key) and name[border["id"]] != here:
+                    touching[unit].setdefault(here, set()).add(name[border["id"]])
+    return {unit: {where: sorted(others) for where, others in sorted(reach.items())}
+            for unit, reach in touching.items()}  # fmt: skip
 
 
 def private_press(rows: list[dict]) -> list[dict]:
@@ -357,8 +419,38 @@ def build_ledger(episode_dir: Path, slot: int) -> dict:
         "outcome": seat.outcome,
         # A bot that only ever logs an empty press policy has told us nothing about its stance.
         "belief_logged": any(by_turn.values()),
+        "borders": province_borders(replay),
         "phases": phases,
         "messages": ledger_messages(private_press(rows), public_press(replay), our_power),
+    }
+
+
+def annotator_view(ledger: dict) -> dict:
+    """What the annotating agent reads: the press, and the board at the START of each movement
+    turn (to resolve "my fleet", "your army in Warsaw"). No orders and no results, so the reading
+    of a message cannot be bent by how the turn came out. `verify` reads `ledger.json`, not this.
+
+    One leak remains and is accepted: the next turn's starting board shows where units ended up."""
+    by_turn: dict[int, list[dict]] = {}
+    for message in ledger["messages"]:
+        by_turn.setdefault(message["turn"], []).append(
+            {k: message[k] for k in ("id", "sent_in", "from", "to", "direction", "text")})
+    boards = {p["turn"]: p for p in ledger["phases"]}
+    turns = []
+    for turn in sorted(set(by_turn) | set(boards)):
+        board = boards.get(turn)
+        turns.append({
+            "turn": turn,
+            "label": turn_label(turn),
+            "units_at_start": sorted(f"{u['power']} {u['unit']} {u['at']}" for u in board["units"]) if board else None,
+            "centres_at_start": board["centers"] if board else None,
+            "messages": by_turn.get(turn, []),
+        })  # fmt: skip
+    return {
+        "read_me": "Press seen from our seat, turn by turn, with the board at the start of each turn. "
+                   "A message's claims default to the turn it is listed under. Work through the turns in order.",
+        "our_power": ledger["our_power"],
+        "turns": turns,
     }
 
 
@@ -389,6 +481,12 @@ def owner_of_unit(phase: dict, where: str) -> str | None:
     return next((u["power"] for u in phase["units"] if u["at"] == where), None)
 
 
+def holdings(power: str, phase: dict) -> set[str]:
+    """Where `power` has a unit or owns a centre at the start of the phase."""
+    held = {u["at"] for u in phase["units"] if u["power"] == power}
+    return held | {where for where, owner in phase["centers"].items() if owner == power}
+
+
 def attacked_provinces(pred: dict, phase: dict) -> set[str]:
     """Where a move would count as an attack: the listed provinces, or the target's units and centres."""
     if pred.get("provinces"):
@@ -402,8 +500,22 @@ def attacked_provinces(pred: dict, phase: dict) -> set[str]:
     return hit
 
 
-def matching_orders(pred: dict, phase: dict) -> list[dict]:
-    """The orders in one movement phase that make an order-type predicate true."""
+def unit_named(pred: dict) -> str | None:
+    """The province of the one unit a predicate is about, when it names one."""
+    kind = pred.get("p")
+    if kind in ("holds", "leaves", "dislodged"):
+        return province(pred["province"])
+    if kind == "order":
+        return parse_order(pred["order"])["at"]
+    if kind in ("moves_to", "supports", "attacks") and pred.get("unit"):
+        return province(pred["unit"])
+    return None
+
+
+def matching_orders(pred: dict, phase: dict, intent: bool = False) -> list[dict]:
+    """The orders in one movement phase that make an order-type predicate true.
+
+    `intent`: read `"success": true` as "was ordered" (see INTENT_KINDS)."""
     kind, power = pred["p"], pred.get("power")
     mine = [o for o in phase["orders"] if o["power"] == power]
     if kind == "order":
@@ -447,15 +559,26 @@ def matching_orders(pred: dict, phase: dict) -> list[dict]:
             found = [o for o in found if o["at"] == province(pred["unit"])]
     else:
         raise ValueError(f"unknown predicate {kind!r}")
-    if "success" in pred and kind in ("order", "moves_to", "attacks"):
-        found = [o for o in found if o["success"] == bool(pred["success"])]
+    if "success" in pred and kind in ("order", "moves_to", "attacks", "leaves"):
+        if not (intent and pred["success"]):
+            found = [o for o in found if o["success"] == bool(pred["success"])]
     return found
 
 
-def board_fact(pred: dict, window: list[dict]) -> tuple[bool, list[str]]:
-    """unit_at / owns / centers: a fact about the board at the start or end of the window."""
+def board_fact(pred: dict, window: list[dict], intent: bool = False) -> tuple[bool | None, list[str]]:
+    """unit_at / owns / centers: a fact about the board at the start or end of the window.
+
+    `intent`: "I keep a unit in X" was done as far as orders go when the unit there was ordered
+    to stay and was dislodged (see INTENT_KINDS)."""
     end = pred.get("when", "end") == "end"
     phase = window[-1] if end else window[0]
+    if intent and end and pred["p"] == "unit_at":
+        stayed = [o for o in phase["orders"] if o["power"] == pred["power"] and o["dislodged"]
+                  and o["at"] == province(pred["province"]) and o["type"] != "move"]  # fmt: skip
+        if stayed:
+            return True, [order_line(o, phase) for o in stayed]
+    if end and not phase.get("end_known", True):
+        return None, [f"not checkable: the board after {phase['label']}, the last turn, is not in the record"]
     units = phase["units_end"] if end else phase["units"]
     centers = phase["centers_end"] if end else phase["centers"]
     when = f"{'after' if end else 'at the start of'} {phase['label']}"
@@ -481,32 +604,50 @@ def order_result(order: dict, kind: str) -> str:
     return ", succeeded" if order["success"] else ", failed"
 
 
-def evaluate(pred: dict, window: list[dict]) -> tuple[bool | None, list[str]]:
-    """(holds?, evidence) for one predicate over the window's movement phases. None = cannot be checked."""
+def order_line(order: dict, phase: dict, kind: str = "") -> str:
+    return f"{order['power']} {order['text']} ({phase['label']}{order_result(order, kind)})"
+
+
+def span(window: list[dict]) -> str:
+    return window[0]["label"] if len(window) == 1 else f"{window[0]['label']} to {window[-1]['label']}"
+
+
+def evaluate(pred: dict, window: list[dict], intent: bool = False,
+             used: list | None = None) -> tuple[bool | None, list[str]]:
+    """(holds?, evidence) for one predicate over the window's movement phases. None = cannot be checked.
+
+    `used`, when given, collects the orders that matched, as (turn, power, order text)."""
     if "not" in pred:
-        held, evidence = evaluate(pred["not"], window)
+        held, evidence = evaluate(pred["not"], window, intent, used)
         # "It did not happen" needs no evidence line; "it happened" keeps the orders that show it.
         return (None if held is None else not held), (evidence if held is not False else [])
     if "any" in pred:
-        results = [evaluate(p, window) for p in pred["any"]]
+        results = [evaluate(p, window, intent, used) for p in pred["any"]]
         evidence = [line for _, lines in results for line in lines]
         if any(held for held, _ in results):
             return True, evidence
         return (None if any(held is None for held, _ in results) else False), evidence
     if "all" in pred:
-        return evaluate_all(pred["all"], window)
+        return evaluate_all(pred["all"], window, intent, used)
     kind = pred.get("p")
     if kind == "unverifiable":
         return None, [f"not checkable: {pred.get('why', 'no reason given')}"]
     if kind in ("unit_at", "owns", "centers"):
-        return board_fact(pred, window)
+        return board_fact(pred, window, intent)
+    # A predicate about one unit ("my army in SEV holds") says nothing in a turn where that unit
+    # does not exist (it was dislodged or destroyed the turn before).
+    named = unit_named(pred)
+    present = [p for p in window if named is None or owner_of_unit(p, named) == pred.get("power")]
+    if not present:
+        return None, [f"not checkable: {pred.get('power')} has no unit in {named} ({span(window)})"]
     evidence = []
-    for phase in window:
-        evidence += [f"{o['power']} {o['text']} ({phase['label']}{order_result(o, kind)})"
-                     for o in matching_orders(pred, phase)]  # fmt: skip
+    for phase in present:
+        for order in matching_orders(pred, phase, intent):
+            evidence.append(order_line(order, phase, kind))
+            if used is not None:
+                used.append((phase["turn"], order["power"], order["text"]))
     if not evidence:
-        turns = window[0]["label"] if len(window) == 1 else f"{window[0]['label']} to {window[-1]['label']}"
-        return False, [f"no order matched {describe(pred)} ({turns})"]
+        return False, [f"no order matched {describe(pred)} ({span(present)})"]
     return True, evidence
 
 
@@ -520,13 +661,43 @@ def unique(lines: list[str]) -> list[str]:
     return list(dict.fromkeys(lines))
 
 
-def evaluate_all(preds: list[dict], window: list[dict]) -> tuple[bool | None, list[str]]:
-    """All predicates must hold. False wins over unknown: one broken part breaks the whole."""
-    results = [evaluate(p, window) for p in preds]
+def is_action(pred: dict) -> bool:
+    """Something to be ordered (not a `not`, not a fact about the board, not `unverifiable`)."""
+    return "not" not in pred and pred.get("p") not in ("unit_at", "owns", "centers", "unverifiable")
+
+
+def judge(preds: list[dict], window: list[dict], intent: bool, used: list | None) -> tuple[bool | None, list[str]]:
+    """Every predicate over the same window. False wins over unknown: one broken part breaks the whole."""
+    results = [evaluate(p, window, intent, used) for p in preds]
     evidence = [line for _, lines in results for line in lines]
     if any(held is False for held, _ in results):
         return False, evidence
     return (None if any(held is None for held, _ in results) else True), evidence
+
+
+def evaluate_all(preds: list[dict], window: list[dict], intent: bool = False,
+                 used: list | None = None) -> tuple[bool | None, list[str]]:
+    """All predicates must hold.
+
+    Over several turns, things to be ordered together ("BUD moves to SER with RUM's support")
+    must be ordered in the SAME turn: the move in spring and the support in autumn is not the
+    plan. `not` and board facts are still judged over the whole window."""
+    actions = [p for p in preds if is_action(p)]
+    if len(window) < 2 or len(actions) < 2:
+        return judge(preds, window, intent, used)
+    rest = [p for p in preds if not is_action(p)]
+    by_turn = [judge(actions, [phase], intent, None)[0] for phase in window]
+    if True in by_turn:
+        done, evidence = judge(actions, [window[by_turn.index(True)]], intent, used)
+    else:
+        done = False if all(held is False for held in by_turn) else None
+        each, evidence = judge(actions, window, intent, used)
+        if each and done is False:
+            evidence.append(f"but never all in the same turn ({span(window)})")
+    other, other_evidence = judge(rest, window, intent, used)
+    if done is False or other is False:
+        return False, evidence + other_evidence
+    return (None if done is None or other is None else True), evidence + other_evidence
 
 
 OUTCOMES = {  # kind -> (commitment held, did not hold)
@@ -558,28 +729,188 @@ def sparing(preds: list[dict], power: str) -> list[dict]:
     return out
 
 
+def said_to(claim: dict, message: dict) -> str:
+    """Whom the claim was made to: the claim's `to`, else the message's recipient ("ALL" for public press)."""
+    return claim.get("to") or message["to"]
+
+
+def leaves(preds: list[dict]) -> list[dict]:
+    """The plain predicates inside `not`, `any` and `all`."""
+    out = []
+    for pred in preds:
+        if "not" in pred:
+            out += leaves([pred["not"]])
+        elif "any" in pred or "all" in pred:
+            out += leaves(pred.get("any") or pred.get("all"))
+        else:
+            out.append(pred)
+    return out
+
+
+def statement_scope(claim: dict, message: dict, window: list[dict]) -> str:
+    """What a statement is about, which decides whether it can mislead anyone.
+
+    "record": only turns already played when it was said, or the board as it stood. Every player
+              can read that off the map, so a wrong account of it is a slip, not a deception.
+    "forecast": another power's orders in a turn not yet played. The speaker cannot know them.
+    "own_orders": the speaker's own orders in a turn not yet played. This is the speaker's word."""
+    scope = "record"
+    for pred in leaves(claim["commitment"]):
+        kind = pred.get("p")
+        if kind == "unverifiable":
+            continue
+        board = kind in ("unit_at", "owns", "centers")
+        ahead = window[-1]["turn"] >= message["turn"] and not (board and pred.get("when", "end") == "start")
+        if not ahead:
+            continue
+        if pred.get("power") != message["from"]:
+            return "forecast"
+        scope = "own_orders"
+    return scope
+
+
 def check_claim(claim: dict, message: dict, phases: list[dict]) -> dict:
+    """One claim against the orders. Keys starting with "_" are working notes for `audit`."""
     first, last = claim.get("turns") or [message["turn"], message["turn"]]
     window = [p for p in phases if first <= p["turn"] <= last]
-    result = {"window": [first, last], "condition": "none", "evidence": []}
+    result = {"window": [first, last], "condition": "none", "evidence": [], "_orders": [], "_breaks": None}
     if not window:
         return {**result, "outcome": "not_reached"}  # the game ended before the turns it covers
+    kind = claim["kind"]
     if claim.get("condition"):
         met, evidence = evaluate_all(claim["condition"], window)
         result["condition"] = "unverifiable" if met is None else "met" if met else "unmet"
         result["evidence"] += [f"condition: {line}" for line in evidence]
         if met is False:
-            return {**result, "outcome": UNMET.get(claim["kind"], "not_applicable")}
+            return {**result, "outcome": UNMET.get(kind, "not_applicable")}
     commitment = claim["commitment"]
-    other = message["to"] if message["from"] != message["to"] else None
-    if other in POWER.values():  # a private message: the party it was said to
+    other = said_to(claim, message) if message["from"] != said_to(claim, message) else None
+    if message["to"] in POWER.values() and other in POWER.values():  # a private message: the party it was said to
         commitment = sparing(commitment, other)
-    held, evidence = evaluate_all(commitment, window)
+    used: list = []
+    held, evidence = evaluate_all(commitment, window, used=used)
+    yes, no = OUTCOMES[kind]
+    outcome = yes if held else no
+    if held is False and kind in INTENT_KINDS:
+        tried_orders: list = []
+        tried, tried_evidence = evaluate_all(commitment, window, intent=True, used=tried_orders)
+        if tried:
+            held, evidence, used, outcome = True, tried_evidence, tried_orders, "attempted"
+    if kind == "statement":
+        result["scope"] = statement_scope(claim, message, window)
+        if result["scope"] == "forecast" and held is not None:
+            outcome = "forecast_right" if held else "forecast_wrong"
     result["evidence"] = unique(result["evidence"] + evidence)
-    yes, no = OUTCOMES[claim["kind"]]
-    unknown = held is None or result["condition"] == "unverifiable"
-    result["outcome"] = "unverifiable" if unknown else yes if held else no
-    return result
+    if held is None or result["condition"] == "unverifiable":
+        outcome = "unverifiable"
+    if held is False:
+        result["_breaks"] = breaking_orders(commitment, window)
+    return {**result, "outcome": outcome, "_orders": used if held else []}
+
+
+def breaking_orders(commitment: list[dict], window: list[dict]) -> tuple[int, list | None, bool]:
+    """For a commitment that did not hold: (the turn it first failed in, the orders that broke it,
+    was every failed part a `not`).
+
+    The orders are (turn, power, text). They are None when no particular order broke it: something
+    was promised and no unit was ever ordered to do it."""
+    orders: list | None = []
+    only_nots = True
+    for pred in commitment:
+        used: list = []
+        if evaluate(pred, window, used=used)[0] is not False:
+            continue
+        if "not" in pred and used:
+            orders = None if orders is None else orders + used
+            continue
+        only_nots = False
+        named = unit_named(pred) if "p" in pred else None
+        keeps = [p for p in pred.get("any") or [pred] if p.get("p") == "unit_at" and p.get("when", "end") == "end"]
+        if named is None and keeps:  # "I keep X": the unit that was in X is the one that broke it
+            named, pred = province(keeps[0]["province"]), keeps[0]
+        if named is None or len(window) != 1:
+            orders = None
+            continue
+        # A named unit that was to do one thing and did another: what it did is what broke it.
+        did = [(window[0]["turn"], o["power"], o["text"]) for o in window[0]["orders"]
+               if o["at"] == named and o["power"] == pred.get("power")]
+        orders = None if orders is None or not did else orders + did
+    turn = min(t for t, _, _ in orders) if orders and only_nots else window[-1]["turn"]
+    return turn, orders, only_nots
+
+
+def attacks_by(attacker: str, victim: str, phase: dict) -> list[dict]:
+    """The attacker's orders in one phase that move on, or support or convoy a move on, a unit or
+    centre of the victim's (as they stood at the start of the phase). Helping the victim's own
+    unit into the victim's own province is not an attack."""
+    held = holdings(victim, phase)
+    out = []
+    for order in phase["orders"]:
+        if order["power"] != attacker or order["type"] not in ("move", "support_move", "convoy"):
+            continue
+        if order["to"] not in held:
+            continue
+        if order["type"] != "move" and owner_of_unit(phase, order["src"]) == victim:
+            continue
+        out.append(order)
+    return out
+
+
+def attack_lines(attacker: str, victim: str, phases: list[dict]) -> list[str]:
+    return [order_line(o, phase) for phase in phases for o in attacks_by(attacker, victim, phase)]
+
+
+def could_break(commitment: list[dict], window: list[dict], borders: dict | None) -> bool:
+    """Could the named power have broken this commitment at all?
+
+    Only a commitment made of nothing but "will not move on / attack / support into" is ever
+    judged impossible to break: when the power has no unit that could move into any province it
+    protects, in any turn of the window. (Convoys are not followed: an army that could only
+    arrive by sea counts as out of reach.) Without a border table the answer is "yes"."""
+    if not borders:
+        return True
+    for pred in commitment:
+        inner = pred.get("not")
+        if not inner or inner.get("p") not in ("moves_to", "attacks", "supports") or (
+                inner["p"] == "supports" and not inner.get("province")):
+            return True
+        for phase in window:
+            targets = attacked_provinces(inner, phase) if inner["p"] == "attacks" else {province(inner["province"])}
+            for unit in phase["units"]:
+                if unit["power"] != inner.get("power"):
+                    continue
+                if inner.get("unit") and unit["at"] != province(inner["unit"]):
+                    continue
+                if targets & set(borders.get(unit["unit"], {}).get(unit["at"], [])):
+                    return True
+    return False
+
+
+def pledge_of_peace(commitment: list[dict]) -> bool:
+    """Is every part of the commitment "will not move on / attack / support into"?"""
+    return all("not" in pred and pred["not"].get("p") in ("moves_to", "attacks", "supports") for pred in commitment)
+
+
+def only_holds_failed(commitment: list[dict], window: list[dict]) -> bool:
+    """Did the commitment fail only in parts that say one of the speaker's units will stay put
+    (`holds`, or an exact hold or support-hold order)? "A BUR holds", then A BUR - MAR."""
+    failed = [pred for pred in commitment if evaluate(pred, window)[0] is False]
+    def stays(pred: dict) -> bool:
+        if pred.get("p") == "holds":
+            return True
+        return pred.get("p") == "order" and parse_order(pred["order"])["type"] in ("hold", "support_hold")
+    return bool(failed) and all(stays(pred) for pred in failed)
+
+
+def first_refusal(claim: dict, message: dict, phases: list[dict]) -> int | None:
+    """The first turn in which a request was not complied with; None when it was, or cannot be told."""
+    first, last = claim.get("turns") or [message["turn"], message["turn"]]
+    window = [p for p in phases if first <= p["turn"] <= last]
+    if not window or evaluate_all(claim["commitment"], window, intent=True)[0] is not False:
+        return None
+    if not pledge_of_peace(claim["commitment"]):
+        return window[-1]["turn"]  # something asked for and never done: it ran out with the window
+    return next(p["turn"] for p in window if evaluate_all(claim["commitment"], [p], intent=True)[0] is False)
 
 
 def relied_on(power: str, belief: dict | None, phase: dict | None) -> bool | None:
@@ -605,9 +936,10 @@ def aimed_at_us(preds: list[dict], phase: dict, our_power: str) -> bool:
     """Does this commitment say the named power WILL move on, or support a move on, one of our
     units or centres (as they stood at the start of the window)? "PIC falls this autumn" said to
     the power holding PIC is an announced attack, not a promise we could rely on. Negated
-    predicates ("I will not enter ENG") are never aimed at us."""
-    ours = {u["at"] for u in phase["units"] if u["power"] == our_power}
-    ours |= {where for where, owner in phase["centers"].items() if owner == our_power}
+    predicates ("I will not enter ENG") are never aimed at us.
+
+    `our_power` is the party the words were said to: us, or the power we said them to."""
+    ours = holdings(our_power, phase)
     for pred in preds:
         if "any" in pred or "all" in pred:
             if aimed_at_us(pred.get("any") or pred.get("all"), phase, our_power):
@@ -631,14 +963,38 @@ def aimed_at_us(preds: list[dict], phase: dict, our_power: str) -> bool:
 
 
 def category(kind: str, speaker: str, outcome: str, relied: bool | None, our_power: str,
-             against_us: bool = False) -> str:
+             against_us: bool = False, *, to: str | None = None, scope: str | None = None,
+             attacked_us: bool = False, breakable: bool = True, we_attacked: bool = True,
+             about_us: bool = True, harmless: bool = False) -> str:
     """How we stood towards a claim whose honesty could be checked. `speaker` is who said it.
-    `against_us`: a promise that is itself an attack on us (see `aimed_at_us`)."""
+
+    `against_us`: a promise that is itself an attack on the party it was said to: on us (see
+    `aimed_at_us`), or, when we are the speaker, on the power we said it to.
+    `to`: whom it was said to (None = to us). `scope`: a statement's `statement_scope`.
+    The last three decide whether a kept promise we doubted was a missed alliance:
+    `harmless`: the only thing broken was "this unit will stay put", and the speaker made no move
+    on the party it was said to (see `only_holds_failed`).
+    The last four decide whether a kept promise we doubted was a missed alliance:
+    `attacked_us`: the speaker moved on us in the claim's window or the turn before;
+    `breakable`: the speaker had a unit that could have broken it (`could_break`);
+    `about_us`: it was a pledge not to move on us (`pledge_of_peace`), not a plan against others;
+    `we_attacked`: we moved on the speaker in the window, so the doubt cost something."""
     honest = HONEST.get(outcome)
     if honest is None or kind not in SPEAKERS_WORD:
         return "none"
+    if kind == "statement" and scope == "record" and not honest:
+        # Wrong about orders everyone has already seen: a slip or a taunt, not a deception.
+        return "we_misstated" if speaker == our_power else "misstated"
+    if harmless and not honest:
+        return "we_changed_plans" if speaker == our_power else "changed_plans"
     if speaker == our_power:
+        if against_us and kind == "promise":
+            # We told a power we would move on it. Whether we did is not a matter of our word to it.
+            return "our_attack_announced" if honest else "our_attack_not_made"
         return "we_kept_our_word" if honest else "we_broke_our_word"
+    if to not in (None, our_power, "ALL"):
+        # Said about a deal with someone else. We can watch it break; it was never ours to rely on.
+        return "kept_to_other" if honest else "broken_to_other"
     if against_us and kind == "promise":
         # Not ours to rely on or doubt: it would otherwise read "betrayed" when the attack
         # never came and "doubted wrongly" (a missed alliance) when it did.
@@ -647,7 +1003,46 @@ def category(kind: str, speaker: str, outcome: str, relied: bool | None, our_pow
         return "true_no_stance" if honest else "false_no_stance"
     if relied:
         return "trusted_rightly" if honest else "betrayed" if kind == "promise" else "deceived"
-    return "doubted_wrongly" if honest else "doubted_rightly"
+    if not honest:
+        return "doubted_rightly"
+    if attacked_us:
+        return "kept_but_attacked_us"
+    if kind == "promise" and about_us and breakable and we_attacked:
+        return "doubted_wrongly"
+    return "kept_despite_doubt"
+
+
+def plain(text: str) -> str:
+    """Text for comparing a quote with its message: no markup, one kind of quote mark and dash,
+    single spaces, lower case."""
+    text = re.sub(r"<br\s*/?>", " ", html.unescape(text))
+    for odd, usual in (("\u2019", "'"), ("\u2018", "'"), ("\u201c", '"'), ("\u201d", '"'),
+                       ("\u2014", "-"), ("\u2013", "-"), ("\u2026", "...")):
+        text = text.replace(odd, usual)
+    return " ".join(text.lower().split())
+
+
+def quote_missing(quote: str, text: str) -> str | None:
+    """The first part of `quote` that is not in the message, or None when all of it is.
+
+    "..." may stand for words left out, and a note in [square brackets] is the annotator's own."""
+    parts = [part.strip() for part in plain(re.sub(r"\[[^\]]*\]", " ", quote)).split("...")]
+    parts = [part for part in parts if part]
+    if not parts:
+        return quote or "(empty)"
+    said = plain(text)
+    return next((part for part in parts if part not in said), None)
+
+
+def claim_refs(refs: list[str], messages: dict[str, dict]) -> list[tuple[str, int | None]]:
+    """"prv-82" (every claim of that message) or "prv-82#2" (its second claim) -> (message id, index or None)."""
+    out = []
+    for ref in refs:
+        mid, _, number = str(ref).partition("#")
+        if mid not in messages or (number and not number.isdigit()):
+            raise ValueError(f"'replaces' names {ref!r}, which is not a message id or 'message id#claim number'")
+        out.append((mid, int(number) - 1 if number else None))
+    return out
 
 
 def validate_claim(claim: dict, message: dict, where: str) -> None:
@@ -664,6 +1059,95 @@ def validate_claim(claim: dict, message: dict, where: str) -> None:
         asked = claim.get("asked") or message["to"]
         if asked not in POWER.values():
             raise ValueError(f"{where}: a request in a public message needs 'asked', the power being asked")
+    to = claim.get("to")
+    if to is not None and to != "ALL" and to not in POWER.values():
+        raise ValueError(f"{where}: 'to' must be a power or \"ALL\", not {to!r}")
+    missing = quote_missing(claim.get("quote") or "", message["text"])
+    if missing is not None:
+        raise ValueError(f"{where}: the quote is not in the message: {missing!r} (copy the message's own words; "
+                         "put your own notes in 'context')")
+
+
+def apply_replacements(ledger: dict, claims: dict, results: dict) -> None:
+    """A later claim that `replaces` an earlier one ends it: the earlier claim no longer covers the
+    turn the later message is about, nor any turn after. A plan changed in the open before the
+    orders went in is not a broken word.
+
+    "In the open" means told to the party the earlier claim was made to. A change told only to
+    someone else leaves the earlier claim standing: that party was never given notice.
+
+    The party a promise was made to can also let it go ("no need to support me into BEL after
+    all"): its later claim, said to the promiser, may replace the promiser's claim."""
+    messages = {m["id"]: m for m in ledger["messages"]}
+    order = {m["id"]: i for i, m in enumerate(ledger["messages"])}
+    for message in ledger["messages"]:
+        for index, claim in enumerate(claims[message["id"]]):
+            if not claim.get("replaces"):
+                continue
+            where = f"{message['id']} claim {index + 1}"
+            for mid, number in claim_refs(claim["replaces"], messages):
+                old = messages[mid]
+                if order[mid] >= order[message["id"]] or message["from"] not in (old["from"], old["to"]):
+                    raise ValueError(f"{where}: 'replaces' must name an earlier message from the same sender "
+                                     f"(or one whose promise was made to this sender), not {mid}")
+                targets = range(len(claims[mid])) if number is None else [number]
+                for target in targets:
+                    if target >= len(claims[mid]):
+                        raise ValueError(f"{where}: {mid} has no claim {target + 1}")
+                    made_to = said_to(claims[mid][target], old)
+                    own_change = old["from"] == message["from"] and made_to == said_to(claim, message)
+                    let_go = made_to == message["from"] and said_to(claim, message) == old["from"]
+                    if not (own_change or let_go):
+                        continue
+                    result = results[mid, target]
+                    first, last = result["window"]
+                    cut = message["turn"] - 1
+                    if cut >= last:
+                        continue  # the earlier claim had already run its course
+                    if cut < first:
+                        changed = {"window": [first, last], "condition": "none", "outcome": "superseded",
+                                   "evidence": [], "_orders": [], "_breaks": None}
+                    else:
+                        changed = check_claim({**claims[mid][target], "turns": [first, cut]}, old, ledger["phases"])
+                    changed["evidence"] = changed["evidence"] + [
+                        f"note: replaced by {message['id']} ({message['sent_in']}), before that turn's orders"]
+                    results[mid, target] = {**changed, "replaced_by": message["id"]}
+
+
+def said_beforehand(ledger: dict, claims: dict, results: dict, mid: str, index: int) -> list[str] | None:
+    """The later messages that told the other party, before the orders went in, about every order
+    that broke this claim; None when some breaking order was never mentioned.
+
+    Two things count: the speaker announcing the order to the same party in a later message (a
+    promise or statement that the order then fulfilled), and the other party asking for it (a
+    request the order complied with)."""
+    result = results[mid, index]
+    _, breaking, _ = result["_breaks"]
+    if not breaking:
+        return None
+    position = {m["id"]: i for i, m in enumerate(ledger["messages"])}
+    said = next(m for m in ledger["messages"] if m["id"] == mid)
+    speaker, other = said["from"], said_to(claims[mid][index], said)
+    told = []
+    for turn, power, text in breaking:
+        source = None
+        for later in ledger["messages"][position[mid] + 1:]:
+            if later["turn"] > turn:
+                break
+            for number, claim in enumerate(claims[later["id"]]):
+                found = results[later["id"], number]
+                if (turn, power, text) not in found["_orders"]:
+                    continue
+                announced = (later["from"] == speaker and said_to(claim, later) == other
+                             and claim["kind"] in ("promise", "statement") and HONEST.get(found["outcome"]))
+                asked_for = (later["from"] == other and claim["kind"] == "request"
+                             and (claim.get("asked") or later["to"]) == speaker)
+                if announced or asked_for:
+                    source = later["id"]
+        if source is None:
+            return None
+        told.append(source)
+    return unique(told)
 
 
 def audit(ledger: dict, claims: dict) -> dict:
@@ -674,31 +1158,91 @@ def audit(ledger: dict, claims: dict) -> dict:
             f"claims.json has no entry for {len(missing)} message(s), e.g. {missing[:3]}; "
             "a message with no claim gets an empty list"
         )
-    phases = ledger["phases"]
+    phases, us = ledger["phases"], ledger["our_power"]
     by_turn = {p["turn"]: p for p in phases}
-    messages = []
+    results: dict[tuple[str, int], dict] = {}
     for message in ledger["messages"]:
-        checked = []
         for index, claim in enumerate(claims[message["id"]]):
             where = f"{message['id']} claim {index + 1}"
             validate_claim(claim, message, where)
             try:
-                result = check_claim(claim, message, phases)
+                results[message["id"], index] = check_claim(claim, message, phases)
             except (ValueError, KeyError) as error:
                 raise ValueError(f"{where}: {error}") from error
-            phase = by_turn.get(result["window"][0])
+    apply_replacements(ledger, claims, results)
+    messages = []
+    for message in ledger["messages"]:
+        checked = []
+        for index, claim in enumerate(claims[message["id"]]):
+            result = results[message["id"], index]
+            to = said_to(claim, message)
+            first, last = result["window"]
+            window = [p for p in phases if first <= p["turn"] <= last]
+            if HONEST.get(result["outcome"]) is False and claim["kind"] in SPEAKERS_WORD:
+                told = said_beforehand(ledger, claims, results, message["id"], index)
+                first_break, _, only_nots = result["_breaks"]
+                earlier = [p for p in window if p["turn"] < first_break]
+                struck_first = attack_lines(to, message["from"], earlier) if to in POWER.values() else []
+                # The other half of a deal: what this same message asked of the party it was said to.
+                asked = [(other, first_refusal(other, message, phases)) for other in claims[message["id"]]
+                         if other["kind"] == "request" and (other.get("asked") or message["to"]) == to]  # fmt: skip
+                refused = [other for other, turn in asked if turn is not None and turn < first_break]
+                if told:
+                    result["outcome"] = "superseded"
+                    result["evidence"].append(f"note: said or asked for beforehand in {', '.join(told)}")
+                elif claim["kind"] == "promise" and only_nots and struck_first:
+                    # A pledge of peace does not outlive the other side's attack.
+                    result["outcome"] = "released_by_them"
+                    result["evidence"] += [f"note: {to} struck first: {line}" for line in struck_first]
+                elif claim["kind"] == "promise" and refused:
+                    # Nor does one half of a deal outlive the other half.
+                    result["outcome"] = "released_by_them"
+                    result["evidence"] += [f"note: {to} had already not done its part: “{other.get('quote', '')}”"
+                                           for other in refused]  # fmt: skip
+            phase = by_turn.get(first)
             # The word being weighed is always the sender's: a claim about another power's
             # conduct is still the sender's statement.
             relied = relied_on(message["from"], phase["belief"] if phase else None, phase)
-            against_us = phase is not None and aimed_at_us(claim["commitment"], phase, ledger["our_power"])
-            stood = category(claim["kind"], message["from"], result["outcome"], relied, ledger["our_power"],
-                             against_us)
-            checked.append({**claim, **result, "relied": relied, "category": stood})
+            extra = {}
+            if message["from"] != us and to in (us, "ALL") and window:
+                before = [by_turn[first - 1]] if first - 1 in by_turn else []
+                extra["attacks_on_us"] = attack_lines(message["from"], us, window)
+                extra["attacks_on_us_before"] = attack_lines(message["from"], us, before)
+                extra["our_attacks_on_them"] = attack_lines(us, message["from"], window)
+                extra["could_break"] = could_break(claim["commitment"], window, ledger.get("borders"))
+            target = us if message["from"] != us else to
+            against_us = phase is not None and target in POWER.values() and aimed_at_us(
+                claim["commitment"], phase, target)  # fmt: skip
+            harmless = (HONEST.get(result["outcome"]) is False and to in POWER.values() and bool(window)
+                        and only_holds_failed(claim["commitment"], window)
+                        and not attack_lines(message["from"], to, window))  # fmt: skip
+            stood = category(
+                claim["kind"], message["from"], result["outcome"], relied, us, against_us,
+                to=to, scope=result.get("scope"),
+                attacked_us=bool(extra.get("attacks_on_us") or extra.get("attacks_on_us_before")),
+                breakable=extra.get("could_break", True), we_attacked=bool(extra.get("our_attacks_on_them")),
+                about_us=pledge_of_peace(claim["commitment"]), harmless=harmless,
+            )  # fmt: skip
+            if stood == "kept_but_attacked_us":
+                hits = extra["attacks_on_us"] or extra["attacks_on_us_before"]
+                result["evidence"] += [f"note: but {message['from']} moved on us: {line}" for line in hits]
+            public = {k: v for k, v in result.items() if not k.startswith("_")}
+            checked.append({**claim, **public, "to": to, "relied": relied, "category": stood, **extra})
         messages.append({**message, "claims": checked})
+    our_stabs = [(message["to"], claim["window"]) for message in messages for claim in message["claims"]
+                 if claim["category"] == "we_broke_our_word"]  # fmt: skip
+    for message in messages:
+        for claim in message["claims"]:
+            first, last = claim["window"]
+            if claim["category"] == "doubted_wrongly" and any(
+                    power == message["from"] and low <= last and first <= high for power, (low, high) in our_stabs):
+                # We had given this power our own word for those turns and broke it. That is our
+                # broken word (flagged on our message), not a doubt that turned out wrong.
+                claim["category"] = "kept_despite_doubt"
     kept = ("episode", "slot", "policy", "our_power", "score", "outcome", "belief_logged")
     return {
         **{k: ledger[k] for k in kept},
-        "summary": summarize(messages, ledger["our_power"]),
+        "summary": summarize(messages, us),
         "messages": messages,
         "phases": phases,
     }
@@ -731,8 +1275,8 @@ def summarize(messages: list[dict], our_power: str) -> dict:
         for claim in message["claims"]:
             if claim["kind"] == "request":
                 asked = row(claim.get("asked") or message["to"])
-                asked["asked"] += claim["outcome"] in ("complied", "refused")
-                asked["complied"] += claim["outcome"] == "complied"
+                asked["asked"] += claim["outcome"] in ("complied", "attempted", "refused")
+                asked["complied"] += claim["outcome"] in ("complied", "attempted")
                 continue
             speaker["claims"] += 1
             speaker["unverifiable"] += claim["outcome"] == "unverifiable"
@@ -742,7 +1286,8 @@ def summarize(messages: list[dict], our_power: str) -> dict:
             if claim["category"] != "none":
                 speaker["categories"][claim["category"]] = speaker["categories"].get(claim["category"], 0) + 1
             if claim["category"] in ("betrayed", "deceived"):
-                events.setdefault(message["from"], set()).add(tuple(claim.get("evidence") or [message["id"]]))
+                orders = [line for line in claim.get("evidence") or [] if not line.startswith("note: ")]
+                events.setdefault(message["from"], set()).add(tuple(orders or [message["id"]]))
             if claim["category"] in FLAGGED:
                 speaker["flagged"].append({
                     "message": message["id"], "turn": message["turn"], "category": claim["category"],
@@ -780,6 +1325,7 @@ def cmd_extract(args: argparse.Namespace) -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     (out / "ledger.json").write_text(json.dumps(ledger, indent=1) + "\n")
+    (out / "annotate.json").write_text(json.dumps(annotator_view(ledger), indent=1) + "\n")
     claims_path = out / "claims.json"
     if claims_path.exists() and not args.force:
         print(f"kept the existing {claims_path} (use --force to start it again)", file=sys.stderr)
@@ -789,6 +1335,7 @@ def cmd_extract(args: argparse.Namespace) -> None:
         json.dumps(
             {
                 "ledger": str(out / "ledger.json"),
+                "annotate": str(out / "annotate.json"),
                 "claims": str(claims_path),
                 "our_power": ledger["our_power"],
                 "messages": len(ledger["messages"]),
@@ -816,6 +1363,15 @@ def cmd_verify(args: argparse.Namespace) -> None:
     )
 
 
+def cmd_check(args: argparse.Namespace) -> None:
+    """The annotator's command: is claims.json well formed? It shows no verdict and writes nothing."""
+    out = Path(args.dir)
+    claims = json.loads((out / "claims.json").read_text())
+    audit(json.loads((out / "ledger.json").read_text()), claims)
+    filled = sum(bool(entry) for entry in claims.values())
+    print(f"ok: {len(claims)} messages, {filled} with claims, {sum(len(entry) for entry in claims.values())} claims")
+
+
 def cmd_report(args: argparse.Namespace) -> None:
     out = Path(args.dir)
     page = out / "audit.html"
@@ -826,7 +1382,7 @@ def cmd_report(args: argparse.Namespace) -> None:
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="command", required=True)
-    extract = sub.add_parser("extract", help="write ledger.json and an empty claims.json for one of our seats")
+    extract = sub.add_parser("extract", help="write ledger.json, annotate.json and an empty claims.json for one seat")
     extract.add_argument("episode_dir")
     extract.add_argument("--policy", help="our policy as NAME:vN (or the local seating label)")
     extract.add_argument("--slot", type=int, help="our roster slot, when the policy holds more than one seat")
@@ -836,6 +1392,9 @@ def main(argv=None) -> None:
     verify = sub.add_parser("verify", help="check claims.json against the ledger and write audit.json")
     verify.add_argument("dir")
     verify.set_defaults(run=cmd_verify)
+    check = sub.add_parser("check", help="check that claims.json is well formed; shows no verdicts")
+    check.add_argument("dir")
+    check.set_defaults(run=cmd_check)
     report = sub.add_parser("report", help="render audit.json as audit.html")
     report.add_argument("dir")
     report.set_defaults(run=cmd_report)
