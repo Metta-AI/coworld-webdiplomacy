@@ -18,14 +18,19 @@ Files, under `paths.state_dir()` unless noted:
   agent_seen      the time (seconds since 1970) the agent side last acted: a chat, card or
                   annotation command, `start`, an MCP tool, or a hook while the IDE is in use.
                   Its presence signal.
+  agent_ended     the time the agent's session ended (its SessionEnd hook). Newer than
+                  `agent_seen` means no session is attached.
+  followed_policy the name of the policy the pages follow until the user picks another in
+                  the browser. The agent writes it (`ide/ide follow NAME`).
+  port            the port the server last listened on, so the next `start` uses it again.
   annotations/<episode id>.json   (in `paths.annotations_dir()`, tracked by git)
                   a list of {id, ts, author: "user"|"agent", phase, power, territory, tag,
                   text}. `phase` indexes the replay's last frame `history.phases`; `power`
                   and `territory` are optional names. tag: "blunder" | "missed-alliance" |
                   "bad-trust" | "good" | "suggestion" | "question" | "note".
 
-Each write takes `<file name>.lock` beside the file it changes (`chat.jsonl.lock`,
-`cards.jsonl.lock`, `agent_cursor.lock`, `annotations/<episode id>.json.lock`).
+Each write takes `<file name>.lock` in `paths.state_dir()` (`chat.jsonl.lock`,
+`cards.jsonl.lock`, `agent_cursor.lock`, `<episode id>.json.lock` for an annotation file).
 
 Other modules keep their own files in `paths.state_dir()`: `server.json`, `server.lock`,
 `server.log`, `listeners/<pid>` and `rewake.lock` (`cli.py`, `hooks.py`), and the two saved
@@ -53,8 +58,12 @@ ANNOTATION_TAGS = ("blunder", "missed-alliance", "bad-trust", "good", "suggestio
 
 @contextmanager
 def _locked(path: Path):
-    """Hold an exclusive lock for a read-modify-write on `path`."""
-    with open(path.with_name(path.name + ".lock"), "w") as lock:
+    """Hold an exclusive lock for a read-modify-write on `path`.
+
+    The lock file is kept in the state directory whatever directory `path` is in, so no
+    lock file appears among the tracked annotations.
+    """
+    with open(paths.state_dir() / (path.name + ".lock"), "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         yield
 
@@ -132,6 +141,32 @@ def agent_seen() -> float | None:
         return float((paths.state_dir() / "agent_seen").read_text())
     except (OSError, ValueError):
         return None
+
+
+def mark_agent_ended() -> None:
+    _write_atomic(paths.state_dir() / "agent_ended", str(time.time()))
+
+
+def agent_ended() -> float | None:
+    try:
+        return float((paths.state_dir() / "agent_ended").read_text())
+    except (OSError, ValueError):
+        return None
+
+
+# --- the policy the pages follow ---
+
+
+def set_followed_policy(name: str) -> None:
+    _write_atomic(paths.state_dir() / "followed_policy", name.strip() + "\n")
+
+
+def followed_policy() -> str:
+    """The policy name the agent recorded as ours, or "" when none was recorded."""
+    try:
+        return (paths.state_dir() / "followed_policy").read_text().strip()
+    except OSError:
+        return ""
 
 
 # --- cards ---

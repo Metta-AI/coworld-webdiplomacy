@@ -43,6 +43,8 @@
       <span class="muted small">{{ stat.games }} game{{ "" if stat.games == 1 else "s" }}, {{ stat.n }} of our seats</span>{% endif %}</p>
     {% if summary.headline.reading %}<p class="about">{{ summary.headline.reading }}
       <a href="{{ summary.link }}">By power, opponent and version on the dashboard</a></p>{% endif %}
+    {% if policy_guessed %}<p class="about">Following {{ summary.policy }} is a guess: it is the first policy in the
+      fetched games. Tell the agent which policy is yours, or choose it on the <a href="/dashboard">dashboard</a>.</p>{% endif %}
     {% else %}
     <p class="eyebrow" id="home-standing-h">Policy we follow{% if policy %} · {{ policy }}{% endif %}</p>
     <p class="empty">{% if summary.pending %}The headline number appears when the games have been read.{% elif games %}No policy with games to score yet. <a href="/dashboard">Open the dashboard</a>{% else %}No games on disk yet. Ask the agent to fetch some: they land in <code>.runtime/artifacts</code>.{% endif %}</p>
@@ -102,9 +104,14 @@
     <p class="about"><span id="home-agent-status">Checking for an agent…</span>
       A click puts a question in the message box; nothing is sent until you press Enter.</p>
     <ul class="home-asks">
+      {% if not games %}
+      <li><button type="button" class="plain" data-draft="Fetch my policy's recent league games and experience requests and tell me how it is doing. My policy is ">Fetch my policy's games and tell me how it is doing (you add the policy's name).</button></li>
+      <li><button type="button" class="plain" data-draft="Fetch the last few games of the press league and show me one worth watching.">Fetch the last few league games and show me one worth watching.</button></li>
+      {% else %}
       <li><button type="button" class="plain" data-draft="Which opponent beats us most, and what does it do that we do not handle?">Which opponent beats us most, and what does it do that we do not handle?</button></li>
       <li><button type="button" class="plain" data-draft="Pick the game we lost worst in the last batch and post it as a replay card at the phase where it went wrong.">Pick the game we lost worst in the last batch and show me where it went wrong.</button></li>
       <li><button type="button" class="plain" data-draft="Which power are we weakest as, and how sure are we? Post the dashboard view as a card.">Which power are we weakest as, and how sure are we?</button></li>
+      {% endif %}
     </ul>
     <p class="muted small" title="{{ lab }}">{{ games }} game{{ "" if games == 1 else "s" }} on disk in this lab.</p>
   </section>

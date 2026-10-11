@@ -40,7 +40,7 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
-from . import dates, paths, reader
+from . import dates, paths, reader, store
 from .server import render
 
 router = APIRouter()
@@ -187,14 +187,27 @@ def shipped_policies() -> list[str]:
     return list(dict.fromkeys(reversed(names)))
 
 
+def lab_policy(known: set[str]) -> str:
+    """The policy this lab can name as ours without guessing, among the policies in the fetched
+    games: the one the agent recorded (`ide/ide follow NAME`), else the newest upload. "" when
+    the lab has neither."""
+    recorded = store.followed_policy()
+    if recorded in known:
+        return recorded
+    return next((name for name in shipped_policies() if name in known), "")
+
+
 def _default_policy(policies: list[dict]) -> dict | None:
     """The policy to show before the user has picked one.
 
     A seat log does not mark a policy as ours (a team's lab can read every field bot's log),
-    so prefer what this lab shipped: a press policy first, because the press league is the
-    main one, then the newest upload. Without a version log, the first policy listed.
+    so first the policy the agent recorded as the user's (`ide/ide follow NAME`), then what
+    this lab shipped: a press policy first, because the press league is the main one, then
+    the newest upload. Without either, the first policy listed, which is a guess.
     """
     by_name = {p["name"]: p for p in policies}
+    if store.followed_policy() in by_name:
+        return by_name[store.followed_policy()]
     shipped = [by_name[name] for name in shipped_policies() if name in by_name]
     press = [p for p in shipped if any("press" in variant for variant in p["variants"])]
     return (press or shipped or policies or [None])[0]

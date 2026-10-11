@@ -1,5 +1,6 @@
 """`ide/ide` commands run as the agent runs them (plain python3, a subprocess), and the chat JSON API."""
 
+import io
 import json
 import os
 import subprocess
@@ -7,6 +8,7 @@ import sys
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from test_store import LabCase
 
@@ -117,6 +119,32 @@ class ServerCommandTest(CliCase):
         self.assertEqual(json.loads(self.ide("status", "--json").stdout)["server"], None)
         self.assertEqual(self.ide("url", check=False).returncode, 1)
         self.assertIn("not running", self.ide("stop").stdout)
+
+    def test_follow_records_the_policy_without_its_version(self):
+        self.assertIn("No policy recorded", self.ide("follow").stdout)
+        self.assertIn("follow castlereagh-ide", self.ide("follow", "castlereagh-ide:v2").stdout)
+        self.assertEqual(self.ide("follow").stdout.strip(), "castlereagh-ide")
+        self.assertEqual(store.followed_policy(), "castlereagh-ide")
+
+    def test_port_choice(self):
+        """A named port is used as it is; otherwise the lab's last port, else the default, else the next free one."""
+        import socket
+
+        from webdip_ide import cli, paths
+
+        self.assertEqual(cli._choose_port(4321), 4321)
+        with socket.socket() as taken:
+            taken.bind((cli.HOST, 0))
+            taken.listen()
+            busy = taken.getsockname()[1]
+            with mock.patch.object(cli, "DEFAULT_PORT", busy), mock.patch.object(sys, "stderr", io.StringIO()) as err:
+                chosen = cli._choose_port(None)
+            self.assertGreater(chosen, busy)
+            self.assertLess(chosen, busy + cli.PORTS_TO_TRY)
+            self.assertIn(f"port {busy} is in use", err.getvalue())
+        (paths.state_dir() / "port").write_text(f"{chosen}\n")  # what `serve` leaves behind
+        with mock.patch.object(cli, "_port_free", return_value=True):
+            self.assertEqual(cli._choose_port(None), chosen, "a restart comes back to the lab's last port")
 
     def test_stop_never_signals_a_pid_the_ide_does_not_answer_for(self):
         """A record left by a dead server, whose pid now belongs to another program (here: this test)."""

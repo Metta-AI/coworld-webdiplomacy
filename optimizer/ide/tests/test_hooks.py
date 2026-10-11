@@ -57,6 +57,7 @@ class DeliveryHookTest(HookCase):
         self.assertIn("why did Austria fold?", context["additionalContext"])
         self.assertIn("episode ereq_9, phase 4", context["additionalContext"])
         self.assertIn("ide/ide say", context["additionalContext"])
+        self.assertIn("they will not see", context["additionalContext"])  # the terminal is not the answer
         self.assertIsNone(run_hook("PostToolUse", {"tool_name": "Bash"}), "delivered twice")
         self.assertIsNone(run_hook("UserPromptSubmit"))
 
@@ -198,6 +199,28 @@ class StatusTest(HookCase):
         lock.close()
         self.assertIsNone(hooks.server_info())
 
+    def test_session_end_marks_the_agent_gone_until_it_acts_again(self):
+        self.assertIsNone(run_hook("SessionEnd"))
+        self.assertEqual(hooks.agent_status()["state"], "none", "a session the IDE never saw leaves no mark")
+        store.touch_agent_seen()
+        self.assertEqual(hooks.agent_status()["state"], "working")
+        self.assertIsNone(run_hook("SessionEnd", {"reason": "prompt_input_exit"}))
+        self.assertEqual(hooks.agent_status()["state"], "ended")
+        time.sleep(0.01)
+        store.touch_agent_seen()  # the next session's first action
+        self.assertEqual(hooks.agent_status()["state"], "working")
+
+    def test_waiting_age_is_the_age_of_the_oldest_undelivered_message(self):
+        self.assertIsNone(hooks.agent_status()["waiting_age"])
+        store.post_message("user", "one")
+        time.sleep(0.05)
+        store.post_message("user", "two")
+        age = hooks.agent_status()["waiting_age"]
+        self.assertGreaterEqual(age, 0.05)
+        self.assertLess(age, 5)
+        store.take_unread_for_agent()
+        self.assertIsNone(hooks.agent_status()["waiting_age"])
+
     def test_dead_listener_records_are_cleared(self):
         (paths.state_dir() / "listeners").mkdir()
         (paths.state_dir() / "listeners" / str(2**22 + 12345)).write_text("0")
@@ -208,13 +231,20 @@ class StatusTest(HookCase):
 class SettingsTest(unittest.TestCase):
     def test_hook_settings_shape(self):
         settings = hooks.hook_settings()
-        self.assertEqual(sorted(settings), ["PostToolUse", "SessionStart", "Stop", "UserPromptSubmit"])
+        self.assertEqual(sorted(settings), ["PostToolUse", "SessionEnd", "SessionStart", "Stop", "UserPromptSubmit"])
         commands = [hook for entries in settings.values() for entry in entries for hook in entry["hooks"]]
         self.assertTrue(
             all(hook["command"].startswith('python3 "$CLAUDE_PROJECT_DIR/ide/ide" hook ') for hook in commands)
         )
         waiters = [hook for hook in commands if hook.get("asyncRewake")]
-        self.assertEqual(len(waiters), 2)
+        # Every event but SessionEnd starts the waiter, so one is alive again after it fired
+        # and the user then interrupted the turn (an interrupt runs no Stop hook).
+        with_waiter = [
+            event
+            for event, entries in settings.items()
+            if any(hook.get("asyncRewake") for entry in entries for hook in entry["hooks"])
+        ]
+        self.assertEqual(sorted(with_waiter), ["PostToolUse", "SessionStart", "Stop", "UserPromptSubmit"])
         self.assertTrue(all(hook["command"].endswith("hook Rewake") for hook in waiters))
         self.assertTrue(all(hook["timeout"] <= 20 for hook in commands if not hook.get("asyncRewake")))
 

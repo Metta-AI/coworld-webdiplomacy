@@ -87,6 +87,13 @@ class PresenceTest(LabCase):
         self.assertIsInstance(store.agent_seen(), float)
 
 
+class FollowedPolicyTest(LabCase):
+    def test_recorded_and_read_back(self):
+        self.assertEqual(store.followed_policy(), "")
+        store.set_followed_policy("castlereagh-ide")
+        self.assertEqual(store.followed_policy(), "castlereagh-ide")
+
+
 class CardTest(LabCase):
     def test_post_and_list(self):
         store.post_card("idea", "Try X", "**body**", "/replays/e1?phase=2")
@@ -109,6 +116,11 @@ class AnnotationTest(LabCase):
         self.assertTrue(store.delete_annotation("ereq_1", row["id"]))
         self.assertFalse(store.delete_annotation("ereq_1", row["id"]))
         self.assertEqual(store.annotations("ereq_1"), [])
+
+    def test_no_lock_file_appears_among_the_tracked_notes(self):
+        store.add_annotation("ereq_1", "user", "left SWE open", tag="blunder", phase=3)
+        self.assertEqual([p.name for p in paths.annotations_dir().iterdir()], ["ereq_1.json"])
+        self.assertTrue((paths.state_dir() / "ereq_1.json.lock").exists())
 
     def test_bad_values_are_refused(self):
         with self.assertRaises(ValueError):

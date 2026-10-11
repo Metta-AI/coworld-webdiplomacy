@@ -138,7 +138,9 @@ press audit laid over them, the `matchups.py` dashboard, the reports the two wri
 produce, and a chat panel that reaches **this session**. You start it (`ide/ide start --open`)
 when the user asks or when you have something to show; their messages arrive through this
 session's hooks as text starting `[webDiplomacy IDE]`, and you answer with `ide/ide say` and
-`ide/ide show`. Their replay notes (`annotations/<episode id>.json`, `ide/ide annotations`) are
+`ide/ide show`: the user reads the browser, so the whole answer and any question for them go
+there, not to the terminal. When they say which policy is theirs, record it with
+`ide/ide follow <name>`. Their replay notes (`annotations/<episode id>.json`, `ide/ide annotations`) are
 evidence for the loop: read them before a diagnosis. The [IDE skill](skills/ide/SKILL.md) has
 the commands; `ide/README.md` explains how delivery works.
 

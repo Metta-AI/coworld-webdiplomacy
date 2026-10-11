@@ -260,9 +260,19 @@
     if (!status) return "Checking for an agent…";
     var seen = status.seen_age === null ? "" : "last seen " + ago(status.seen_age);
     if (status.state === "listening") return "Agent is listening" + (seen ? " · " + seen : "") + ". Messages reach it in a few seconds.";
+    if (status.state === "ended") return "The agent session has ended. Start claude again in the optimizer folder: it reads waiting messages when it starts.";
+    if (status.state === "working" && stuck(status)) return "Agent " + seen + " and a message is still waiting. It is in a long step, or its turn was interrupted: if its terminal sits at the prompt, type anything there.";
     if (status.state === "working") return "Agent is working · " + seen + ". It reads new messages at its next step.";
     if (status.state === "idle") return "Agent " + seen + " and not listening. Messages wait until it next runs; type anything in its terminal to wake it.";
     return "No agent attached. Start Claude Code in the optimizer root and say “open the IDE”.";
+  }
+
+  // A busy agent takes a message at its next tool call, seconds away as a rule. An interrupted
+  // turn (Esc in the terminal) runs no hook, so from here it looks busy too: after this long,
+  // stop saying "busy" and say what the user can do.
+  var STUCK_AFTER_SECONDS = 25;
+  function stuck(status) {
+    return status.waiting_age !== null && status.waiting_age !== undefined && status.waiting_age > STUCK_AFTER_SECONDS;
   }
 
   // Under each of the user's messages that the agent has not been handed yet, say why it is waiting.
@@ -281,6 +291,8 @@
       if (seq <= state.delivered) { lastDelivered = node; return; }
       line.classList.add("waiting");
       if (!status || status.state === "listening") line.textContent = "Sending to the agent…";
+      else if (status.state === "ended") line.textContent = "Waiting: the agent session has ended. Start claude again and it reads this.";
+      else if (status.state === "working" && stuck(status)) line.textContent = "Still waiting. If the agent's terminal sits at the prompt, type anything there to wake it.";
       else if (status.state === "working") line.textContent = "Waiting: the agent is busy and will read this at its next step.";
       else if (status.state === "idle") line.textContent = "Waiting: the agent is idle and not listening.";
       else line.textContent = "Waiting: no agent is attached.";
@@ -296,7 +308,7 @@
     state.presence = presenceText(status);
     var presence = $("agent-presence");
     if (presence) {
-      var kind = !status ? "off" : { listening: "ok pulse", working: "ok", idle: "warn", none: "off" }[status.state];
+      var kind = !status ? "off" : { listening: "ok pulse", working: stuck(status) ? "warn" : "ok", idle: "warn", ended: "off", none: "off" }[status.state];
       presence.replaceChildren(el("span", "dot " + kind), document.createTextNode(state.presence));
       $("agent-toggle-dot").className = "dot " + kind;
     }
@@ -386,6 +398,8 @@
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text: text, context: ctx || null }),
+    }).catch(function () {  // the request never reached the server
+      throw new Error("Not sent: the IDE server is not answering.");
     }).then(function (response) {
       if (!response.ok) throw new Error("The message was not sent (" + response.status + ").");
       return response.json();

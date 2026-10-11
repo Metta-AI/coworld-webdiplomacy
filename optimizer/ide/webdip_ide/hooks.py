@@ -5,18 +5,24 @@ it to the running agent session. Several things can, and whichever runs first wi
 because `store.take_unread_for_agent()` advances one cursor under a file lock:
 
   hooks      `ide hook <event>`, wired in `.claude/settings.json` (see `hook_settings()`):
-               Rewake (on Stop and SessionStart, `"asyncRewake": true`)
-                                               a waiter that Claude Code keeps in the background.
+               Rewake (on SessionStart, UserPromptSubmit, PostToolUse and Stop,
+               `"asyncRewake": true`)          a waiter that Claude Code keeps in the background.
                                                It exits with code 2 when a message arrives, and
                                                that wakes the session, idle or busy. This is what
                                                reaches a session sitting at its prompt, and it
                                                needs nothing from the agent. It lives as long as
                                                the session and waits while the server is down.
+                                               Every event starts one and a second one exits at
+                                               once, so a waiter is alive again right after one
+                                               fired, also when the user then interrupts the
+                                               turn (Esc), which runs no Stop hook.
                PostToolUse, UserPromptSubmit   add unread messages to the agent's context,
                                                so a busy agent sees them mid-turn.
                Stop                            hold the turn open when messages are unread, or
                                                when the IDE is open and nothing is waiting.
                SessionStart                    say that the IDE exists and whether it is open.
+               SessionEnd                      record that the session ended, so the page stops
+                                               saying an agent is attached.
   listener   `ide listen`, run by the agent as a background task. It exits when a message
              arrives, and the exit makes Claude Code call the agent again. The fallback for
              an idle session when the Rewake hook is not there (another harness, an older
@@ -49,7 +55,8 @@ try:
 except ZoneInfoNotFoundError:  # a machine with no time zone database: use its local time
     PACIFIC = None
 SEEN_RECENTLY_SECONDS = 180
-HOOK_EVENTS = ("SessionStart", "UserPromptSubmit", "PostToolUse", "Stop")
+HOOK_EVENTS = ("SessionStart", "UserPromptSubmit", "PostToolUse", "Stop", "SessionEnd")
+WAITER_EVENTS = ("SessionStart", "UserPromptSubmit", "PostToolUse", "Stop")
 REWAKE_TIMEOUT_SECONDS = 7 * 24 * 3600  # the waiter lives as long as the session does
 # At Stop the Rewake waiter starts at the same moment as the Stop hook. Give it this long
 # to register before deciding that nothing is waiting.
@@ -153,15 +160,25 @@ def agent_status() -> dict:
     """What the browser shows about the agent. `state` is one of:
 
     listening   a listener is waiting: a message wakes the agent within seconds
+    ended       the agent's session ended (its SessionEnd hook ran) and none has started since
     working     the agent ran something in the last few minutes: hooks deliver at its next step
     idle        an agent was here but is not listening: messages wait until it next runs
     none        no agent has attached to this lab
+
+    `waiting_age` is how long the oldest undelivered user message has waited, in seconds
+    (None when nothing waits). A message that waits long while the state is "working"
+    usually means the turn was interrupted: an interrupt runs no hook, so nothing here
+    can tell it from a long tool call.
     """
     seen = store.agent_seen()
+    ended = store.agent_ended()
     listening = listener_alive()
-    age = None if seen is None else max(0.0, time.time() - seen)
+    now = time.time()
+    age = None if seen is None else max(0.0, now - seen)
     if listening:
         state = "listening"
+    elif ended is not None and (seen is None or ended >= seen):
+        state = "ended"
     elif age is None:
         state = "none"
     elif age <= SEEN_RECENTLY_SECONDS:
@@ -169,7 +186,7 @@ def agent_status() -> dict:
     else:
         state = "idle"
     delivered = delivered_seq()
-    waiting = [m["seq"] for m in store.messages(after=delivered) if m["sender"] == "user"]
+    waiting = [m for m in store.messages(after=delivered) if m["sender"] == "user"]
     return {
         "state": state,
         "listening": listening,
@@ -177,8 +194,9 @@ def agent_status() -> dict:
         "seen_age": age,
         "delivered": delivered,
         "waiting": len(waiting),
+        "waiting_age": max(0.0, now - waiting[0]["ts"]) if waiting else None,
         "server": server_info(),
-        "now": time.time(),
+        "now": now,
     }
 
 
@@ -235,7 +253,8 @@ def format_messages(messages: list[dict]) -> str:
         out.extend(_context_lines(message.get("context") or {}))
     out.append(
         'The user is reading the IDE, not this terminal. Answer there with `ide/ide say "..."` '
-        "(and `ide/ide show ...` for anything worth keeping)."
+        "(and `ide/ide show ...` for anything worth keeping): the whole answer, with any choice "
+        "or question you have for the user. What you write in the terminal they will not see."
     )
     return "\n".join(out)
 
@@ -268,6 +287,10 @@ def _hook_output(event: str, payload: dict) -> dict | None:
         return None  # a sub-agent's tool call: the user's messages are for the main session
     if event == "SessionStart":
         return {"hookSpecificOutput": {"hookEventName": event, "additionalContext": session_start_text()}}
+    if event == "SessionEnd":
+        if store.agent_seen() is not None:  # only a session the IDE knew about leaves a mark
+            store.mark_agent_ended()
+        return None
     if server_info() is None and not store.has_unread_for_agent():
         return None  # the IDE is not in use: stay out of the way and leave no presence signal
     store.touch_agent_seen()
@@ -296,8 +319,8 @@ def rewake() -> int:
 
     Claude Code runs such a hook in the background and wakes the session when it exits
     with code 2, with stderr as the message. So this waits like `ide listen` and exits 2
-    with the user's message; the next Stop starts a new one. It exits 0 at once when
-    another waiter holds the lock, and soon after the session that started it has gone.
+    with the user's message; the session's next hook event starts a new one. It exits 0 at
+    once when another waiter holds the lock, and soon after the session that started it has gone.
 
     It keeps waiting while the IDE server is down: the server may be started or restarted
     later (by the agent, or by the user in another terminal) while this session sits
@@ -382,6 +405,6 @@ def hook_settings(command: str = 'python3 "$CLAUDE_PROJECT_DIR/ide/ide" hook') -
         ]
     }
     settings = {event: [entry(event)] for event in HOOK_EVENTS}
-    settings["Stop"].append(waiter)
-    settings["SessionStart"].append(waiter)
+    for event in WAITER_EVENTS:
+        settings[event].append(waiter)
     return settings
