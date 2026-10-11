@@ -5,8 +5,8 @@ Tooling to improve webDiplomacy policies with
 the **source**. Nobody runs it from here: `install.sh` copies it into a
 standalone optimizer repository owned by the user.
 
-**Status: prototype.** `install.sh` works and `mixin/` is filled. `ide/` and
-`INSTALL.md` are planned and do not exist yet.
+**Status: prototype.** `install.sh` works, `mixin/` is filled and `ide/` is a working
+first version (2026-10-11). `INSTALL.md` is planned and does not exist yet.
 
 ## What is here
 
@@ -15,21 +15,29 @@ standalone optimizer repository owned by the user.
   (`AGENTS.md`), the five required skill bindings (`ab`, `survey`,
   `replay-inspection`, `eval-design`, `diagnosis`), game docs, analysis and
   campaign tools in `tools/` (one-command build-upload-log and A/B runs, request
-  builders, sizing), a `press-audit` skill that checks what was said in a press
-  game against what was ordered, and the reference policy `players/castlereagh/`, built by
+  builders, sizing, `matchups.py` for score by power and opponent, `fetch_league.py`
+  for league matches), a `press-audit` skill that checks what was said in a press
+  game against what was ordered, an `opponent-profile` skill and a `matchup-writeup`
+  skill (how each opponent plays, and why we win or lose against it), the `ide`
+  skill, and the reference policy `players/castlereagh/`, built by
   `tools/build.sh`. The reference policy adapts a prior lab's Castlereagh:
   Kissinger search as the core, plus an LLM press layer
   (`CASTLEREAGH_POLICY=press|search`, default `press`).
 - **`install.sh`** and **`seed.lock`**: the installer and the pinned
   optimizer-seed commit.
-- **`ide/`** (planned): a local web IDE for humans, plus an MCP server for
-  coding agents, as its own uv project. Both front ends would call one shared
-  core: a FastAPI web UI that runs locally, and an `ide mcp` command that
-  speaks stdio, so an agent can start it without a port, including in cloud
-  sessions.
+- **`ide/`**: a local web IDE, as its own uv project ([ide/README.md](ide/README.md)).
+  The coding agent comes first: it starts the IDE (`ide/ide start --open`), and what the
+  user types in the browser reaches that running session through Claude Code hooks. The
+  pages: a home page (where the followed policy stands and which games to open), replays
+  with notes and the press audit laid over them, a dashboard of `matchups.py`, and the
+  reports the write-up skills produce. The agent answers and posts
+  cards with `ide/ide say` and `ide/ide show`, or the same actions as tools on the
+  `ide/ide mcp` stdio server.
 
-The design is
+The design of the mixin and the installer is
 [docs/designs/webdiplomacy-mixin-2026-10-09.html](../docs/designs/webdiplomacy-mixin-2026-10-09.html).
+It was written before the IDE and says nothing about it; the IDE's design record is
+[ide/README.md](ide/README.md).
 
 ## Install
 
@@ -66,28 +74,40 @@ uv run ruff check optimizer
 (cd optimizer/mixin && python3 -m unittest discover -s tools/tests)
 (cd optimizer/mixin && uv run --no-project --python 3.12 --with "pydantic-ai-slim[openai]==2.54.0" \
   python -m unittest discover -s players/castlereagh/tests)
+(cd optimizer/ide && uv run python -m unittest discover -s tests)
 ```
 
 ## Known gaps
 
-Found by two fresh-install test drives (2026-10-10 gunboat, 2026-10-10/11 press) and not
-yet fixed. Each is a setup gap, not a fact about any field of opponents.
+Found by two fresh-install test drives (2026-10-10 gunboat, 2026-10-10/11 press) and the
+IDE build (2026-10-11), and not yet fixed. Each is a setup gap, not a fact about any field of opponents.
 
-- **Press audit: a promise made to a third power is weighed as if made to us.** A public
-  "we have agreed a DMZ with France" that later breaks is marked `betrayed` when we
-  trusted the speaker. A claim needs to record whom the promise was made to.
-- **Press audit: the annotator is not blind.** The ledger's `phases` hold each order's
-  result beside the starting board the annotator needs. `verify` does not check that a
-  claim's `quote` occurs in the message.
-- **Press audit: a kept narrow promise reads as a missed alliance** (`doubted_wrongly`)
-  even when the same power attacked us elsewhere that turn. `verify` could list the
-  sender's attacks on us in the claim's window.
-- **The press-audit annotation rules added on 2026-10-11 are untested**: no game has
-  been re-annotated with them.
+- **Press audit: "we broke our word" is still about half noise.** Measured 2026-10-11 on
+  nine hosted games with every flag read against a rubric (by sub-agents, not people): flags
+  fell from 279 (80% false) to 51 (27% false) after the verify rules changed; `betrayed` is
+  25 real of 28, `we_broke_our_word` 12 real of 23. What is left is mostly a letter broken
+  with nobody hurt, which code cannot decide.
+- **Press audit: a changed plan is seen only when recorded.** `superseded` needs the
+  annotator's `replaces` or a later claim naming the very order.
+- **Press audit: "missed alliance" is not decided by code.** `doubted_wrongly` is strict
+  and was not raised in the nine games; kept promises we had not relied on are
+  `kept_despite_doubt`, with the attack orders listed.
+- **Press audit: the annotator's file leaks one thing.** `annotate.json` has no orders or
+  results, but the next turn's starting board shows where units ended.
+- **Bots write "this fall" in a spring phase** in about a quarter of such messages and mean
+  the current turn (ours and opponents'). The press-audit skill checks both turns; the
+  policy's prompt is worth its own look.
+- **A node lost under a player pod kills that seat for the rest of the game** and the game
+  still completes (about 2.5% of press seats on 2026-10-11). The loader taints the seat
+  (`pod_deleted`); the cause is on the platform side.
+- **IDE: one agent session per lab, Claude Code only.** Delivery to the running session
+  uses Claude Code hooks, tested on 2.1.296. Other harnesses get the `ide/ide listen`
+  background task or the MCP tools, which were not tested inside a live session.
 - **No hosted game has run** the press player's no-units fix or `run_ab.py --alone`'s
   two-arm fetch.
-- **`child_exit` and `no_decisions` taints have never fired on a hosted game** (about
-  890 of our seats in the second drive); they have unit tests only.
+- **Two taint rules have never fired on a hosted game** (about 890 of our seats in the
+  second drive): `no_decisions`, and the launcher's nonzero `child_exit` line, which
+  taints a seat as `exception`. They have unit tests only.
 - **An installed lab has no ruff config.** This repository's `pyproject.toml` sets the
   rules; a user's `ruff check` in their copy uses ruff's defaults and reports other things.
 - **Credits spent cannot be read back.** The lab quotes per-game estimates; nothing shows
@@ -108,7 +128,7 @@ optimizer/
   install.sh     creates a complete optimizer directory
   mixin/         becomes games/webdiplomacy/ in the installed optimizer
   INSTALL.md     (planned) guide for a coding agent: install, login, harness setup
-  ide/           (planned) becomes ide/ in the installed optimizer
+  ide/           becomes ide/ in the installed optimizer
 ```
 
 Installed result, outside this repository (for example `~/coding/webdip-optimizer`):
@@ -117,7 +137,9 @@ Installed result, outside this repository (for example `~/coding/webdip-optimize
 webdip-optimizer/          its own git repository, cloned from seed.lock
   AGENTS.md, skills/, ...  optimizer-seed core
   games/webdiplomacy/      copy of mixin/, with provenance stamped in MIXIN.md
-  .claude/                 seed harness wiring (hooks, skills)
+  ide/                     copy of ide/: the local web IDE (`ide/ide start --open`)
+  .claude/                 seed harness wiring (hooks, skills), plus the IDE's hooks
+  .mcp.json                the IDE's MCP server
 ```
 
 ## Why it is built this way
@@ -144,7 +166,10 @@ webdip-optimizer/          its own git repository, cloned from seed.lock
   and drop the `seed` remote. It replaces the onboarding's "pick a game" beat in
   `docs/getting-started.md`, which would otherwise send the agent to
   `add_game.sh` for a game that is already installed. With the Claude Code
-  harness it adds a SessionStart hook running the lab's `tools/check_clis.py`
-  and records the wiring under "Harness wiring" in `WORKING_CONTEXT.md`.
+  harness it adds a SessionStart hook running the lab's `tools/check_clis.py`,
+  the IDE's hooks and `.mcp.json` entry, and links to the lab's own skills
+  (`press-audit`, `opponent-profile`, `matchup-writeup`, `ide`) in `.claude/skills/`,
+  where Claude Code discovers skills; it records the wiring under "Harness wiring"
+  in `WORKING_CONTEXT.md`.
   Each edit anchors on the pinned seed's text and fails the install if that text
   moves, so bumping `seed.lock` surfaces them.

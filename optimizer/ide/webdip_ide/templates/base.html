@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}IDE{% endblock %} · webDiplomacy optimizer</title>
+  {# Inline, so no page asks the server for /favicon.ico: a navy supply-centre ring on paper. #}
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23fffdf4'/%3E%3Ccircle cx='8' cy='8' r='4.5' fill='none' stroke='%231a3875' stroke-width='2.5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/app.css">
+  {# Apply the saved panel state before first paint so the layout does not jump. #}
+  <script>
+    try {
+      var saved = localStorage.getItem("ide.agentPanel");
+      if (saved === "closed" || (saved === null && window.innerWidth <= 900)) {
+        document.documentElement.classList.add("agent-collapsed");
+      }
+    } catch (e) {}
+    // A page that takes seconds to build shows a moving line under the top bar while it loads.
+    window.addEventListener("beforeunload", function () { document.documentElement.classList.add("leaving"); });
+    window.addEventListener("pageshow", function () { document.documentElement.classList.remove("leaving"); });
+  </script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">webDiplomacy optimizer</a>
+    <nav>{% for label, href in nav %}<a href="{{ href }}"{% if request.url.path.startswith(href) %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</nav>
+    <button type="button" class="panel-toggle small" id="agent-panel-toggle" aria-controls="agent-panel" aria-expanded="true"><span class="dot off" id="agent-toggle-dot"></span><span id="agent-toggle-label">Agent</span></button>
+  </header>
+  <div class="layout">
+    <main>{% block content %}{% endblock %}</main>
+    <aside id="agent-panel" class="agent-panel" aria-label="Agent">{% include "agent_panel.html" %}</aside>
+  </div>
+  <script src="/static/chat.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

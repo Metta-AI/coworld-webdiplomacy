@@ -1,0 +1,24 @@
+{# The agent panel on every page: presence, chat with the running agent, and the agent's cards.
+   Filled and kept current by static/chat.js (it polls the JSON API in routes_chat.py). #}
+<div class="agent-head">
+  <span class="eyebrow">Agent</span>
+  <div class="agent-presence" id="agent-presence" aria-live="polite">Checking for an agent…</div>
+</div>
+<div class="agent-tabs" role="tablist">
+  <button type="button" role="tab" id="agent-tab-chat" aria-controls="agent-chat" aria-selected="true">Chat</button>
+  <button type="button" role="tab" id="agent-tab-cards" aria-controls="agent-cards" aria-selected="false">Cards<span class="count" id="agent-cards-count"></span></button>
+</div>
+<div class="agent-scroll" id="agent-chat" role="tabpanel" aria-labelledby="agent-tab-chat">
+  <p class="empty" id="agent-chat-empty">No messages yet. What you type here goes to the agent session running in the optimizer root.</p>
+</div>
+<div class="agent-scroll" id="agent-cards" role="tabpanel" aria-labelledby="agent-tab-cards" hidden>
+  <p class="empty" id="agent-cards-empty">No cards yet. The agent posts ideas, replays to look at, results and reports here.</p>
+</div>
+<form class="agent-compose" id="agent-compose">
+  <div class="ctx" id="agent-context" title="Your next message carries this, so the agent knows what you are looking at" hidden><span id="agent-context-label"></span><button type="button" id="agent-context-clear" title="Do not attach this page to my messages" aria-label="Remove attached context">✕</button></div>
+  <textarea id="agent-input" rows="2" placeholder="Message the agent" aria-label="Message the agent"></textarea>
+  <div class="row">
+    <span class="hint" id="agent-compose-hint">Enter sends · Shift+Enter for a new line</span>
+    <button type="submit" class="primary small" id="agent-send">Send</button>
+  </div>
+</form>

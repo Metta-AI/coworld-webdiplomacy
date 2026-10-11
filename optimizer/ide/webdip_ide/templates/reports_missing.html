@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Report not found{% endblock %}
+{% block content %}
+<div class="page">
+  <h1>No such report</h1>
+  <p class="prose">There is no {{ kind.one }} named <code>{{ slug }}</code>: the file
+    <code>reports/{{ kind_key }}/{{ slug }}.md</code> is not in the lab. It may have been renamed, or not written
+    yet. Pick one from the <a href="/reports">list of reports</a>, or ask the agent in the panel to write it.</p>
+</div>
+{% endblock %}

@@ -1,0 +1,124 @@
+/* Dashboard page. Tokens and base components come from app.css; only page-specific rules here.
+ *
+ * Colour: navy is "ours" and every measured mark; grey ink is the field; terracotta appears
+ * only as the below-par pole of the heatmap and in verdict tags. Powers get their dot, nothing else.
+ */
+
+.dash .strong { font-weight: 700; color: var(--ink); }
+
+
+/* Headline: one sentence wins the page; the facts sit under it as plain rows. */
+.dash-headline { margin-top: var(--s5); }
+.dash-lead { font: 700 2rem/1.15 var(--serif); margin: var(--s2) 0 var(--s2); color: var(--ink); letter-spacing: -0.01em; }
+.dash-lead.ok { color: var(--sage); }
+.dash-lead.err { color: var(--terracotta); }
+.dash-reading { font-size: 1rem; max-width: var(--measure); margin-bottom: var(--s2); }
+.dash-basis { max-width: var(--measure); }
+.dash-facts { margin-top: var(--s4); max-width: 900px; }
+.dash-facts dd { color: var(--ink); }
+.dash-caveats { margin: var(--s3) 0 0; padding-left: 1.2em; color: var(--ink-3); max-width: var(--measure); }
+.dash-caveats li { margin-bottom: 2px; }
+
+/* Tables that carry an interval column */
+.dash-table td { vertical-align: middle; }
+.dash-table tr:not(.dash-more) > td:first-child { white-space: nowrap; }
+.dash-table th { vertical-align: bottom; }
+.dash-table td.dash-plot, .dash-table th.dash-plot { padding-top: 0; padding-bottom: 0; }
+.dash-table th.dash-plot { padding-bottom: 2px; }
+.dash-table .dash-total td { border-bottom: 1px solid var(--rule-strong); font-weight: 600; }
+.dash-table .dash-group th { padding-top: var(--s4); color: var(--navy); border-bottom-color: var(--rule); }
+.dash-low { color: var(--gold); margin-left: 1px; }
+.dash-versions { display: block; font-size: var(--text-xs); }
+.dash-name { max-width: 200px; }
+.dash-name a { display: block; overflow: hidden; text-overflow: ellipsis; }
+.dash-heat tbody th { max-width: 230px; overflow: hidden; text-overflow: ellipsis; }
+
+/* The interval mark (see the `interval` macro) */
+.dash-iv, .dash-axis { display: block; }
+.dash-axis { margin-top: 3px; }
+.dash-axis text { font: 400 10px var(--mono); fill: var(--ink-3); }
+.dash-iv .grid { stroke: var(--rule-subtle); stroke-width: 1; }
+.dash-iv .par { stroke: var(--rule-strong); stroke-width: 1; }
+.whisker, .cut { stroke: var(--navy); stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.whisker.low, .cut.low { stroke: var(--ink-3); }
+.dot-mark { fill: var(--navy); stroke: var(--paper); stroke-width: 2; }
+.dot-mark.open { fill: var(--paper); stroke: var(--navy); stroke-width: 2; r: 4px; }
+.dot-mark.low { fill: var(--paper); stroke: var(--ink-3); stroke-width: 2; r: 4px; }
+tbody tr:hover .dot-mark.sure { stroke: var(--paper-3); }
+
+.dash-key { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: calc(-1 * var(--s2)); }
+.dash-key svg { margin-left: var(--s3); }
+.dash-key svg:first-child { margin-left: 0; }
+.dash-key-note { margin-left: var(--s4); }
+.dash-swatch { display: inline-block; width: 22px; height: 12px; border-radius: 2px; margin: 0 4px 0 var(--s2); vertical-align: -1px; }
+
+/* Opponents */
+.dash-h2h { white-space: nowrap; }
+.dash-bar { display: inline-flex; gap: 2px; width: 62px; margin-right: var(--s2); vertical-align: middle; }
+.dash-bar i { display: block; height: 8px; }
+.dash-bar .ahead { background: var(--navy); border-radius: 2px 0 0 2px; }
+.dash-bar .behind { background: var(--rule-strong); border-radius: 0 2px 2px 0; }
+.dash-actions { text-align: right; padding-right: 0; }
+.dash-opponents tbody + tbody tr:first-child td { border-top: 0; }
+.dash-more > td { background: var(--paper-2); padding: var(--s4); border-bottom: 1px solid var(--rule); }
+.dash-more:hover { background: none; }
+.dash-more-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: var(--s5); align-items: start; }
+.dash-more-grid dl.facts { align-content: start; }
+.dash-more-actions { display: flex; flex-wrap: wrap; gap: var(--s2); margin: var(--s3) 0 0; }
+.dash-pairs { width: auto; margin: var(--s2) 0; }
+.dash-pairs th, .dash-pairs td { padding-right: var(--s5); }
+
+/* Heatmaps: a diverging scale centred on par, with the count in every cell */
+.dash-heat-pair { display: flex; flex-wrap: wrap; gap: var(--s5) var(--s6); }
+.dash-heat { width: auto; border-collapse: separate; border-spacing: 2px; margin-bottom: var(--s2); }
+.dash-heat th { border: 0; padding: 2px var(--s2) 2px 0; }
+.dash-heat thead th { text-align: center; padding: 0 0 2px; }
+.dash-heat thead th:first-child { text-align: left; color: var(--navy); }
+.dash-heat tbody th { font: 400 var(--text-sm)/1.2 var(--sans); text-transform: none; letter-spacing: 0; color: var(--ink); white-space: nowrap; }
+.dash-heat td { width: 50px; height: 36px; padding: 2px 0; border: 0; border-radius: 2px; text-align: center; vertical-align: middle; line-height: 1.15; }
+.dash-heat td .v { display: block; font: 600 0.72rem var(--mono); }
+.dash-heat td .n { display: block; font: 400 0.64rem var(--mono); opacity: 0.8; }
+.dash-heat td.low { background: linear-gradient(to top, var(--cell) 0 5px, transparent 5px); box-shadow: inset 0 0 0 1px var(--rule); }
+.dash-heat td.blank { background: transparent; box-shadow: inset 0 0 0 1px var(--rule-subtle); color: var(--ink-3); }
+.dash-heat tbody tr:hover { background: none; }
+.dash-heat td:hover { box-shadow: inset 0 0 0 2px var(--ink); }
+
+/* Centre trajectories */
+.dash-traj-row { display: flex; flex-wrap: wrap; gap: var(--s4) var(--s6); }
+.dash-traj { margin: 0; }
+.dash-traj figcaption { margin-bottom: var(--s1); }
+.dash-traj svg { display: block; max-width: 100%; height: auto; }
+.dash-traj .grid { stroke: var(--rule-subtle); }
+.dash-traj .base { stroke: var(--rule-strong); }
+.dash-traj .tick { font: 400 10px var(--mono); fill: var(--ink-3); }
+.dash-traj .band { fill: var(--navy); opacity: 0.1; }
+.dash-traj .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.dash-traj .line.ours, .dash-traj circle.ours { stroke: var(--navy); }
+.dash-traj .line.field, .dash-traj circle.field { stroke: var(--ink-3); }
+.dash-traj .end { stroke: var(--paper); stroke-width: 2; }
+.dash-traj .end.ours, .dash-traj .hit circle.ours { fill: var(--navy); stroke: var(--paper); }
+.dash-traj .end.field, .dash-traj .hit circle.field { fill: var(--ink-3); stroke: var(--paper); }
+.dash-traj .label { font: 400 11px var(--sans); fill: var(--ink); }
+.dash-traj .label.muted { fill: var(--ink-3); }
+.dash-traj .label .strong { font-weight: 700; }
+.dash-traj .hit rect { fill: transparent; }
+.dash-traj .hit line { stroke: var(--rule-strong); }
+.dash-traj .hit line, .dash-traj .hit circle { opacity: 0; stroke-width: 2; }
+.dash-traj .hit:hover line, .dash-traj .hit:hover circle { opacity: 1; }
+
+.dash-data { margin: var(--s2) 0 var(--s3); }
+.dash-data summary { cursor: pointer; color: var(--navy); }
+.dash-years { width: auto; margin-top: var(--s2); }
+.dash-years th, .dash-years td { padding-right: var(--s4); }
+
+/* The hover note. One element, moved by dashboard.js. */
+.dash-tip {
+  position: fixed; z-index: 40; max-width: 340px; pointer-events: none;
+  background: var(--ink); color: var(--paper); font: 400 var(--text-xs)/1.45 var(--sans);
+  padding: 6px 9px; border-radius: var(--radius);
+}
+
+@media (max-width: 900px) {
+  .dash-more-grid { grid-template-columns: minmax(0, 1fr); }
+  .dash-lead { font-size: 1.5rem; }
+}

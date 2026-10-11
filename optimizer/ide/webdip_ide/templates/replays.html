@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Replays{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/replay.css">{% endblock %}
+{# One filter: a label over a select. `words` gives a value its label; `tip` explains the filter on hover. #}
+{% macro select(name, label, values, any="any", words={}, tip="") %}
+<label{% if tip %} title="{{ tip }}"{% endif %}>{{ label }}
+  <select name="{{ name }}" onchange="this.form.requestSubmit()"{% if filters[name] %} class="set"{% endif %}>
+    <option value="">{{ any }}</option>
+    {% for value in values %}<option value="{{ value }}"{% if filters[name] == value %} selected{% endif %}>{{ words.get(value, value) }}</option>{% endfor %}
+  </select>
+</label>
+{% endmacro %}
+{# A column heading that sorts the whole list (every page of it), so it is a link, not a script. #}
+{% macro sort_head(label, first, second, tip) %}
+{% set next = second if sort == first else first %}
+<th class="num"{% if sort in (first, second) %} aria-sort="{{ 'ascending' if sort == 'score' else 'descending' }}"{% endif %} title="{{ tip }}"><a href="{{ request.url.include_query_params(sort=next).remove_query_params('page') }}">{{ label }}</a></th>
+{% endmacro %}
+{% block content %}
+<div class="page replays-page">
+  <div class="page-head">
+    <h1>Replays</h1>
+    <span class="muted small">{{ shown }} seat{{ "" if shown == 1 else "s" }} shown of {{ seats_total }},
+      in {{ episodes_total }} game{{ "" if episodes_total == 1 else "s" }} on disk,
+      {{ {"score": "lowest score first", "-score": "highest score first"}.get(sort, "newest first") }}</span>
+  </div>
+
+  <form method="get" class="filters" id="replay-filters">
+    {{ select("policy", "Policy we follow", options.policy, "every seat with a log", tip="Each row is one seat of this policy. A bare name covers every version. “Every seat with a log” shows the seats whose log is on disk, which are normally ours.") }}
+    {{ select("power", "Playing", options.power) }}
+    {{ select("opponent", "Against", options.opponent) }}
+    {{ select("variant", "Variant", options.variant) }}
+    {{ select("source", "Source", options.source, words=source_words) }}
+    {{ select("batch", "Batch", options.batch, tip="The folder under .runtime/artifacts the game was fetched into") }}
+    {{ select("outcome", "Outcome", options.outcome) }}
+    {{ select("flagged", "Flagged", ["yes", "no"], tip="A reason to open the game: a crash or dropped orders, an opponent's solo, an early elimination, a swing of three or more centres in a year") }}
+    {{ select("tainted", "Tainted", ["yes", "no"], tip="A crashed or silent seat: the result measures the crash, not the policy, so the game is left out of averages") }}
+    {{ select("audit", "Press audit", ["yes", "no"], tip="Whether the agent has checked this game's press against the orders") }}
+    {{ select("annotated", "Notes", ["yes", "no"], tip="Whether the game has notes, yours or the agent's") }}
+    {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    <noscript><button type="submit">Apply</button></noscript>
+    {% set narrowed = filters.items() | rejectattr("0", "equalto", "policy") | map(attribute="1") | select | list %}
+    {% if narrowed or sort or (filters.policy and not remembered) %}<a class="btn plain small" href="/replays">Clear filters</a>{% endif %}
+  </form>
+
+  {% if guessed %}
+  <p class="notice">Every seat in some of these games has a log, so a log does not say which seat is ours. Those rows
+    follow the first seat's policy, which is a guess. Choose a policy under “Policy we follow” to be sure.</p>
+  {% endif %}
+  {% if indexed < episodes_total %}
+  <p class="notice" id="index-progress">Reading replays and seat logs for flags and log taint:
+    {{ indexed }} of {{ episodes_total }} games done. Flags show “…” until a game has been read.
+    <a href="{{ request.url }}">Reload</a></p>
+  {% endif %}
+
+  <p class="small replay-summary">
+    {% if mean is not none %}Mean score of the rows shown, tainted games left out:
+    <span class="num">{{ "%.3f" | format(mean) }}</span> over <span class="num">{{ mean_n }}</span> seats
+    (parity is <span class="num">{{ "%.3f" | format(parity) }}</span>, one seventh of the pot;
+    <span class="num {{ 'good' if mean >= parity else 'bad' }}">{{ "%+.3f" | format(mean - parity) }}</span>).
+    This is a raw mean, not adjusted for which powers were played: use the dashboard for comparisons.
+    {% else %}No untainted seats in this selection.{% endif %}
+  </p>
+
+  <div class="table-scroll">
+  <table class="replay-table">
+    <thead>
+      <tr>
+        <th title="When the game finished, Pacific Time. Click for newest first."{% if not sort %} aria-sort="descending"{% endif %}><a href="{{ request.url.remove_query_params('sort').remove_query_params('page') }}">Finished</a></th>
+        <th title="The first characters of the game's episode id; hover a row's for the whole id">Episode id</th>
+        <th title="Press or gunboat, and where the game came from">Variant</th>
+        <th>Seat</th>
+        <th>{{ "Version" if filters.policy and ":v" not in filters.policy else "Policy" }}</th>
+        {{ sort_head("Score ± parity", "score", "-score", "Share of the pot, and its distance from parity (0.143, one seventh). Click to put the lowest scores first; click again for the highest.") }}
+        <th class="num" title="Supply centres at the end; 18 wins">SC</th>
+        <th>Outcome</th>
+        <th class="opponents">Against</th>
+        <th title="flag_episodes.py's reasons to open a game: a crash or dropped orders, an opponent's solo, an early elimination, a swing of three or more centres in a year">Flags</th>
+        <th title="Press audit (what was said, checked against what was ordered) and the number of notes">Audit</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      {% set e = row.episode %}{% set s = row.seat %}
+      {% set href = "/replays/" ~ e.id ~ ("?seat=" ~ s.slot if s and s.has_log else "") %}
+      <tr>
+        <td class="muted" title="Finished {{ e.time | when }}, Pacific Time">{{ e.time | when }}</td>
+        <td><a class="mono" href="{{ href }}" title="{{ e.id }}">{{ (e.id | replace("ereq_", ""))[:8] }}</a></td>
+        <td title="{{ e.variant }} · {{ source_words.get(e.source, e.source) }}{% if e.batch %} · batch {{ e.batch }}{% endif %}">{{ e.variant | replace("Classic ", "") }}<span class="muted src"> · {{ {"xp": "request", "league": "league", "local": "local"}.get(e.source, e.source) }}</span></td>
+        {% if s %}
+        <td><span class="dot" style="background: var(--power-{{ s.power | lower }})"></span>{{ s.power }}</td>
+        <td class="clip policy" title="{{ s.policy }}{% if row.guessed %} (a guess: every seat has a log, so the first seat's policy is followed){% endif %}{% if not s.has_log %} (no seat log on disk: no private press, decisions or audit){% endif %}">{% if filters.policy and ":v" not in filters.policy %}{{ s.policy[filters.policy | length + 1:] or s.policy }}{% else %}{{ s.policy }}{% endif %}{% if row.guessed %}<span class="muted"> ?</span>{% endif %}{% if not s.has_log %}<span class="muted"> · no log</span>{% endif %}</td>
+        <td class="num">{{ "%.3f" | format(s.score) }}<span class="{{ 'good' if row.delta >= 0 else 'bad' }}">{{ "%+.3f" | format(row.delta) }}</span></td>
+        <td class="num">{{ s.final_centers if s.final_centers is not none else "—" }}</td>
+        {% else %}
+        <td class="muted" colspan="4">no seat followed</td>
+        {% endif %}
+        <td>
+          {% if row.winner %}{{ "we won" if s and row.winner.slot == s.slot else row.winner.power ~ " won" }}{% else %}{{ e.outcome or "—" }}{% endif %}{% if e.final_year %}<span class="muted"> {{ e.final_year }}</span>{% endif %}
+          {% for t in row.taint %}<span class="tag err" title="Tainted: leave out of averages">{{ t | replace("_", " ") }}</span>{% endfor %}
+        </td>
+        <td class="clip opponents muted" title="{{ row.opponents | join(', ') }}">{{ row.opponent_names | join(", ") }}</td>
+        <td class="flags" title="{{ row.flags | join('; ') }}">{% if e.index_error %}<span class="muted" title="The replay or a seat log could not be read ({{ e.index_error }}), so this game has no flags. It is tried again when the IDE next starts.">not read</span>{% elif not row.flags_known and not row.flags %}<span class="muted" title="Not read yet">…</span>{% endif %}{{ row.flags | join("; ") }}</td>
+        <td>{% if e.audit %}<span class="tag ok">audited</span>{% elif e.press and s and s.has_log %}<span class="muted" title="A press game with our log: the agent can audit it on request">no audit</span>{% else %}<span class="muted" title="{{ 'Gunboat: no press to audit' if e.press is false else 'No seat log, so no private press to audit' }}">—</span>{% endif %}{% if e.annotations %} <span class="num" title="Notes on this game">· {{ e.annotations }} note{{ "" if e.annotations == 1 else "s" }}</span>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td class="empty" colspan="11">{% if episodes_total %}No game matches these filters.{% else %}No games on disk yet. Ask the agent to fetch some: they land in <code>.runtime/artifacts</code>.{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if pages > 1 %}
+  <p class="small">Page {{ page }} of {{ pages }}.
+    {% if page > 1 %}<a href="{{ request.url.include_query_params(page=page - 1) }}">Newer</a>{% endif %}
+    {% if page < pages %}<a href="{{ request.url.include_query_params(page=page + 1) }}">Older</a>{% endif %}</p>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  // The viewer's "← Replays" link comes back to this list as it is now: filters, sort and page.
+  try { sessionStorage.setItem("ide.replaysList", location.pathname + location.search); } catch (e) {}
+  // Filters left at "any" stay out of the address, so a link to this list is short. The policy
+  // filter is always sent: empty means "every seat with a log", absent means "the one I chose last".
+  document.getElementById("replay-filters").addEventListener("submit", function () {
+    Array.prototype.forEach.call(this.elements, function (field) {
+      if (field.name && field.name !== "policy" && field.value === "") field.disabled = true;
+    });
+  });
+</script>
+{% if indexed < episodes_total %}
+<script>
+  // Not under a message being typed in the agent panel: a reload would lose it.
+  setInterval(function () {
+    var box = document.getElementById("agent-input");
+    if (!(box && box.value)) location.reload();
+  }, 6000);
+</script>
+{% endif %}
+{% endblock %}

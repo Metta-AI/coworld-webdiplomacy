@@ -58,13 +58,14 @@ each arm:
 
 | Taint | How to detect | Whose fault |
 |---|---|---|
-| Cancelled game | `results.json` `outcome == "cancelled"` (scores are 1/7 each) | Platform |
-| Episode timeout before the year cap | `results.json` `reason == "episode_timeout"` | Usually platform or a slow bot; check timing |
-| Dropped orders | nonzero `rejected` in our seat's `decision` log lines | **Our policy** (a bug to fix, not just filter) |
-| Our seat crashed | any `exception` event, uncaught Python traceback or launcher `child_exit` line with a nonzero code in our seat log, or a seat log with no `decision` line at all (the bot died at startup and the seat held every phase) | **Our policy** |
+| Cancelled game | `results.json` `outcome == "cancelled"` (scores are 1/7 each; taint `cancelled`) | Platform |
+| Failed hosted episode | `episode.json` `status` is `failed`, `error` or `cancelled` (taint `episode_failed`) | Platform |
+| Episode timeout before the year cap | `results.json` `reason == "episode_timeout"` (taint `episode_timeout`) | Usually platform or a slow bot; check timing |
+| Dropped orders | nonzero `rejected` in our seat's `decision` log lines (taint `rejected_orders`) | **Our policy** (a bug to fix, not just filter) |
+| Our seat crashed | any `exception` event, uncaught Python traceback or launcher `child_exit` line with a nonzero code in our seat log (taint `exception`), or a seat log with no `decision` line at all (taint `no_decisions`: the bot died at startup and the seat held every phase) | **Our policy** |
 | Missing artifacts | results, replay or our seat log not downloaded | Fetch problem. Re-run the fetcher; report coverage, **never impute** |
-| Seat log lost by the platform | the seat log is one line, "No logs collected for pod …: the pod was deleted before log collection" (`wd.py metrics` counts it under "without our log") | Platform, seen under heavy load (4 of 112 seat logs with about 140 press games in flight, 2026-10-10). Re-fetching does not help. Not a taint: the score stands. But that seat was never checked for failing LLM calls, rejected orders or a crash, and every log-based count is short by it. Report the number |
-| Failing LLM seat | at least half of the `llm_call`s in our seat log failed, so the seat mostly played its floor in silence | Configuration (model or parameter mismatch). Check per seat, per episode |
+| Our pod was deleted mid-game | the seat log is one line, "No logs collected for pod …: the pod was deleted before log collection" (taint `pod_deleted`) | Platform: about 2.5% of press seats on 2026-10-10 and 2026-10-11, more under heavy load. Re-fetching does not help. **A taint, not only a lost log:** the bot stopped and the seat held from then on (28 of 29 such seats held their last three or more movement phases; 21 of 3,513 other logged seats did). It does not depend on how we were doing, so dropping these games does not bias the mean. Report the number |
+| Failing LLM seat | at least half of the `llm_call`s in our seat log failed (taint `llm_failing`), so the seat mostly played its floor in silence | Configuration (model or parameter mismatch). Check per seat, per episode |
 | Mixed opponent sets | the batch spans a field change | Design error. Never pool across opponent sets |
 
 **A taint that goes with losing biases the mean.** Dropping an episode is safe
@@ -76,7 +77,8 @@ it drops, and report the read with and without them (`paired.py --keep-tainted`)
 
 "Our policy crashed" versus "the platform failed": our exceptions and rejections
 are visible only in our own seat log; platform failures show as `cancelled`,
-`episode_timeout`, or a request with failed child episodes. Rivals' logs are not
+`episode_failed`, `episode_timeout`, `pod_deleted`, or a request with failed
+child episodes. Rivals' logs are not
 readable (403), so a rival's crash looks like a seat that holds every phase.
 
 In a prior lab's hosted press games, 208 of 208 ended normally (`drawn` or `won`

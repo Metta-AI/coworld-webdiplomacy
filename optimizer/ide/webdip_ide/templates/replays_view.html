@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}{{ episode.variant }} · {{ episode.id | replace("ereq_", "") | truncate(9, True, "") }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/replay.css">{% endblock %}
+{% block content %}
+{# The viewer. static/replay.js fills every element with an id from GET /api/replays/<episode>. #}
+<div class="replay" id="replay" data-episode="{{ episode.id }}" data-seat="{{ seat if seat is not none else '' }}"
+     data-phase="{{ phase if phase is not none else '' }}" data-turn="{{ turn if turn is not none else '' }}" data-parity="{{ parity }}">
+  <div class="replay-head">
+    <a class="back small" href="/replays" id="back-link">← Replays</a>
+    <div class="replay-title">
+      <h1>{{ episode.variant }} <span class="mono replay-id" title="Episode id {{ episode.id }}: it is in the address bar and in every message sent to the agent from this page">{{ episode.id | replace("ereq_", "") | truncate(8, True, "") }}</span></h1>
+      <div class="seat-pick small" title="The seat whose private press, decisions and press audit are shown. Only seats with a log on disk can be followed.">
+        <label for="seat-select">Seat we follow</label>
+        <select id="seat-select">
+          {% if not episode.seats | selectattr("has_log") | list %}<option value="">none: no seat log on disk</option>{% endif %}
+          {% for s in episode.seats %}{% if s.has_log %}
+          <option value="{{ s.slot }}"{% if s.slot == seat %} selected{% endif %}>{{ s.power }} · {{ s.policy }} · score {{ "%.3f" | format(s.score) }}</option>
+          {% endif %}{% endfor %}
+        </select>
+      </div>
+    </div>
+    <p class="small muted replay-meta">
+      <span title="Pacific Time">Finished {{ episode.time | when }}</span> · {{ source_words.get(episode.source, episode.source) }}{% if episode.batch %} · batch {{ episode.batch }}{% endif %}
+      {% set winner = episode.seats | selectattr("solo") | first %}
+      · {% if winner %}{{ winner.power }} won alone{% else %}{{ episode.outcome or "no result" }}{% endif %}{% if episode.final_year %}, last year played {{ episode.final_year }}{% endif %}{% if episode.reason and episode.reason not in ("end_year", episode.outcome) %} ({{ episode.reason | replace("_", " ") }}){% endif %}
+      {% for t in episode.taint %}<span class="tag err" title="Tainted: leave this game out of averages">{{ t | replace("_", " ") }}</span>{% endfor %}
+    </p>
+  </div>
+
+  <div id="problems"></div>
+  {# With a press audit: who lied to the followed seat, each name a jump to the first time. Filled by replay.js. #}
+  <p class="small audit-brief" id="audit-brief" hidden></p>
+
+  {# Two wrappers, three arrangements (static/replay.css, section 3):
+     pinned    .pin-col stays in view (board, timeline, note form) while .side-col scrolls beside it;
+     wide      a window too short to pin: board beside orders, timeline across, press beside notes;
+     narrow    one column, in the order written here. #}
+  <div class="replay-body">
+    <div class="pin-col">
+      <section class="map-col" aria-label="Board">
+        <div class="phase-bar">
+          <button type="button" class="small" id="prev" title="Previous phase (←)">←</button>
+          <button type="button" class="small" id="play" title="Play or pause (space)">Play</button>
+          <button type="button" class="small" id="next" title="Next phase (→)">→</button>
+          <select id="speed" class="speed" aria-label="Playback speed" title="Playback speed"><option value="1400">slow</option><option value="800" selected>normal</option><option value="350">fast</option></select>
+          <h2 id="phase-title" aria-live="polite">Loading the replay…</h2>
+          <span class="muted small num" id="phase-count"></span>
+        </div>
+        {# Shown while the board is on another phase than the press being read ("settled in …"). Filled by replay.js. #}
+        <p class="small peek-note" id="peek-note" role="status" hidden></p>
+        <svg id="map" viewBox="0 0 612 398" role="img" aria-label="Board at the start of the phase, with the orders that were adjudicated">
+          <defs id="map-defs"></defs>
+          <image class="base" href="/static/replay-map.png" width="612" height="398"/>
+          <rect class="frame" x="0.5" y="0.5" width="611" height="397" rx="2"/>
+          <g id="layer-owners"></g>
+          <g id="layer-orders"></g>
+          <g id="layer-units"></g>
+          <g id="layer-marks"></g>
+          <g id="layer-focus"></g>
+          <g id="layer-hits"></g>
+          <g id="layer-pins"></g>
+        </svg>
+        <p class="small muted map-key">
+          <span class="key"><svg width="30" height="10"><line x1="1" y1="5" x2="24" y2="5" class="k-move"/><path d="M22 1 L29 5 L22 9 Z" class="k-head"/></svg> move</span>
+          <span class="key"><svg width="30" height="10"><line x1="1" y1="5" x2="24" y2="5" class="k-fail"/><path d="M22 1 L29 5 L22 9 Z" class="k-head-fail"/></svg> failed</span>
+          <span class="key"><svg width="30" height="10"><line x1="1" y1="5" x2="25" y2="5" class="k-support"/><circle cx="27" cy="5" r="2.2" class="k-dot"/></svg> support</span>
+          <span class="key"><svg width="30" height="10"><line x1="1" y1="5" x2="25" y2="5" class="k-convoy"/><rect x="24.5" y="2.5" width="5" height="5" class="k-dot"/></svg> convoy</span>
+          <span class="key"><svg width="14" height="12"><circle cx="7" cy="6" r="5" class="k-dislodged"/></svg> dislodged</span>
+          <span class="key" title="A supply centre is ringed in its owner's colour; a dashed ring is a neutral centre"><svg width="14" height="12"><circle cx="7" cy="6" r="4.5" class="k-centre"/></svg> supply centre</span>
+          <span class="key" title="A note pinned to this province in this phase"><svg width="14" height="12"><circle cx="7" cy="6" r="4" class="k-pin"/></svg> note</span>
+        </p>
+        <p class="small muted map-note" id="map-note"></p>
+      </section>
+
+      <section class="timeline" aria-label="Timeline">
+        <div class="timeline-head">
+          <h3 title="Click or drag the chart to move through the game. Left and right arrows step one phase; with Shift they jump to the next movement phase. Space plays. Click a mark to go to its phase.">Supply centres by phase</h3>
+          <span class="small muted timeline-hint">Click or drag · <kbd>←</kbd> <kbd>→</kbd> step · <kbd>Shift</kbd> + arrow: next movement phase · <kbd>space</kbd> plays</span>
+          <button type="button" class="small plain key-toggle" id="key-toggle" aria-controls="timeline-key" aria-expanded="false">Key</button>
+        </div>
+        <div id="timeline"></div>
+        <p class="small muted timeline-key" id="timeline-key"></p>
+      </section>
+
+      {# Notes are written here, beside the board they are about; the list is in the other column. #}
+      <form id="note-form" class="note-form">
+        <div class="note-form-row">
+          <label class="note-form-head small" for="note-text">Note on <strong id="note-phase">this phase</strong></label>
+          <select id="note-tag" aria-label="Kind of note">
+            {% for tag in tags %}<option value="{{ tag }}"{% if tag == "blunder" %} selected{% endif %}>{{ tag | replace("-", " ") }}</option>{% endfor %}
+          </select>
+          <select id="note-power" aria-label="Power (optional)"><option value="">any power</option></select>
+          <input type="text" id="note-territory" list="territory-list" placeholder="province" aria-label="Province (optional)" size="9">
+          <datalist id="territory-list"></datalist>
+        </div>
+        <div class="note-form-row">
+          <textarea id="note-text" rows="1" placeholder="What went wrong here? Click the board to pin the note to a province." aria-label="Note text"></textarea>
+          <button type="submit" class="primary">Add note</button>
+        </div>
+        <div class="note-form-row note-form-foot">
+          <span class="small muted" id="note-hint" role="status"></span>
+          <button type="button" class="small" id="send-notes" hidden></button>
+        </div>
+      </form>
+    </div>
+
+    <div class="side-col">
+      {# Only when the board is pinned: this column is long, and these jump within it. #}
+      <nav class="side-nav small" id="side-nav" aria-label="In this column">
+        <a href="#orders-section">Orders</a>
+        <a href="#press-section">Press</a>
+        <a href="#notes-section">Notes<span class="num" id="side-notes-count"></span></a>
+        <a href="#trust-section" id="side-trust" hidden>Whose word held</a>
+      </nav>
+
+      <section class="orders-col" id="orders-section" aria-label="Orders">
+        <h3>Orders <span class="muted" id="orders-phase"></span></h3>
+        <div id="orders" class="orders"></div>
+      </section>
+
+      <div class="press-col">
+        <section id="decision-section" hidden>
+          <details id="decision">
+            <summary>What our policy decided <span class="muted" id="decision-brief"></span></summary>
+            <div id="decision-body"></div>
+          </details>
+        </section>
+
+        <section id="press-section" aria-label="Press">
+          <div class="section-head">
+            <h3>Press <span class="muted" id="press-phase"></span></h3>
+            <span class="press-filter small" id="press-filter" role="group" aria-label="Which press to show">
+              <button type="button" class="small" data-show="all" aria-pressed="true">All</button>
+              <button type="button" class="small" data-show="private" aria-pressed="false">Private</button>
+              <button type="button" class="small" data-show="public" aria-pressed="false">Public</button>
+              <button type="button" class="small" data-show="claims" aria-pressed="false">With claims</button>
+            </span>
+          </div>
+          <div id="audit-state" class="small"></div>
+          <div id="press"></div>
+        </section>
+      </div>
+
+      <div class="notes-col">
+        <section id="notes-section" aria-label="Notes">
+          <div class="section-head">
+            <h3>Notes on this game <span class="muted num" id="notes-count"></span></h3>
+            <button type="button" class="small" id="send-all" hidden>Send all to agent</button>
+          </div>
+          <div id="notes"></div>
+        </section>
+
+        <section id="trust-section" aria-label="Whose word held" hidden>
+          <h3>Whose word held</h3>
+          <div id="trust"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/replay.js"></script>{% endblock %}

@@ -52,7 +52,8 @@ likely to recur in new policies.
 failure mode.
 
 1. **Rule out the plumbing.** Apply the ab binding's taint checks: rejected
-   orders, exceptions, failing LLM calls, artifact coverage, cancelled or
+   orders, exceptions, seats that never played, pods the platform deleted
+   mid-game, failing LLM calls, artifact coverage, cancelled, failed or
    timed-out games. A plumbing failure looks like a strategy failure in the
    score.
 2. **Locate the loss against par.** Which powers, which years, which phase

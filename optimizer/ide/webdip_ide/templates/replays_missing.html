@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Replay not found{% endblock %}
+{% block content %}
+<div class="page">
+  <h1>No such game</h1>
+  <p class="prose">No game with the episode id <code>{{ episode }}</code> is under <code>{{ lab }}/.runtime/artifacts</code>.
+    It may not have been fetched yet: ask the agent to fetch it, or pick one from the <a href="/replays">list of
+    games on disk</a>.</p>
+</div>
+{% endblock %}

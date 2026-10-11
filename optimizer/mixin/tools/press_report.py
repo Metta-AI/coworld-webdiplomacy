@@ -42,11 +42,31 @@ CHIP = {  # outcome or category -> chip class
     "not_applicable": "muted",
     "unverifiable": "muted",
     "not_reached": "muted",
+    "attempted": "ok",
+    "released_by_them": "muted",
+    "our_attack_announced": "muted",
+    "our_attack_not_made": "muted",
+    "changed_plans": "muted",
+    "we_changed_plans": "muted",
+    "superseded": "muted",
+    "forecast_right": "muted",
+    "forecast_wrong": "muted",
+    "misstated": "muted",
+    "we_misstated": "muted",
+    "kept_to_other": "muted",
+    "broken_to_other": "gold",
+    "kept_but_attacked_us": "muted",
+    "kept_despite_doubt": "muted",
 }
 WORDS = {
     "kept": "kept",
     "broken": "broken",
     "released": "released: condition not met",
+    "released_by_them": "released: the other side broke the deal first",
+    "our_attack_announced": "our attack on them, announced and made",
+    "our_attack_not_made": "our attack on them, announced and not made",
+    "changed_plans": "a unit did not stay put; no move on us",
+    "we_changed_plans": "our unit did not stay put; no move on them",
     "true": "true",
     "false": "false",
     "carried_out": "carried out",
@@ -70,6 +90,16 @@ WORDS = {
     "false_no_stance": "did not hold; we took no stance",
     "attack_announced": "an attack on us, announced and made",
     "attack_not_made": "an attack on us, announced and not made",
+    "attempted": "ordered, but it failed",
+    "superseded": "changed in the open before the orders",
+    "forecast_right": "a forecast, right",
+    "forecast_wrong": "a forecast, wrong",
+    "misstated": "wrong about orders already public",
+    "we_misstated": "we were wrong about orders already public",
+    "kept_to_other": "held; said to another power",
+    "broken_to_other": "did not hold; said to another power",
+    "kept_but_attacked_us": "held, but they moved on us",
+    "kept_despite_doubt": "held; we had not relied on it",
 }
 STYLE = """
 :root{--bg:#fffdf4;--surface:#fffaf0;--fg:#111827;--sub:#555;--muted:#6b6560;--navy:#1a3875;--sage:#5d6d41;
@@ -116,7 +146,11 @@ def render_claim(claim: dict) -> str:
     if claim["condition"] in ("met", "unverifiable"):  # an unmet condition is already the outcome
         chips += chip(f"condition {claim['condition']}", "muted")
     evidence = "".join(f'<div class="ev">{html.escape(line)}</div>' for line in claim["evidence"])
-    return f'<div class="claim">{chips}<div class="quote">{html.escape(claim.get("quote") or "")}</div>{evidence}</div>'
+    context = f' <span class="ev">[{html.escape(claim["context"])}]</span>' if claim.get("context") else ""
+    return (
+        f'<div class="claim">{chips}<div class="quote">{html.escape(claim.get("quote") or "")}{context}</div>'
+        f"{evidence}</div>"
+    )
 
 
 def render_message(message: dict) -> str:
