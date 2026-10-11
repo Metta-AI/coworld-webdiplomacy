@@ -35,7 +35,7 @@ shuffled per episode anyway.
 
 | Question | Roster |
 |---|---|
-| **A/B (default: paired)** | Candidate + baseline + **five** field seats, all in the same request. Analyze with `paired.py` |
+| **A/B (default: paired)** | Candidate + baseline + **five** field seats in the same games, **each version in each of the two seat positions for half the games** (`tools/make_request.py paired --balanced` writes the 14 bodies). Analyze with `paired.py`. A paired **win** is a screen result only: confirm it with separate arms before promotion (measured 2026-10-10: a z = 3.1 paired win vanished alone) |
 | A/B (separate arms) | Per arm: one candidate seat + **six** field seats, identical field in both arms, both arms in the same window. Analyze with `compare.py` |
 | Field eval | One candidate seat + six field seats |
 | Health check | One `classic-press-short` episode with the candidate (and any new model or prompt). Then confirm every `llm_call` in our seat logs succeeded and `rejected` is 0 |
@@ -72,20 +72,42 @@ placeholder with an explicit version reference:
 }
 ```
 
-Dry-run it first: `eval_request.py create body.json --dry-run`. Set
+You rarely write this by hand. `tools/make_request.py` builds bodies from a
+named opponent set in `field_sets.json`, and `tools/run_ab.py` runs the whole
+A/B from an experiment record:
+
+```sh
+# 14 bodies: every power and both seat orders for each version, 2 games each = 28 games.
+# A press set gets an LLM budget by default; a zero budget silences every LLM seat.
+python3 games/webdiplomacy/tools/make_request.py paired --a mybot:v4 --b mybot:v3 \
+    --field-set <paired set> -n 2 --balanced --no-maps --out games/webdiplomacy/.runtime/requests/v4.json
+# the candidate-alone check for a paired win: 7 bodies per arm against a six-seat set
+python3 games/webdiplomacy/tools/make_request.py field --a mybot:v4 \
+    --field-set <field set> -n 4 --balanced --no-maps --out games/webdiplomacy/.runtime/requests/v4-alone.json
+```
+
+Dry-run it first: `skills/run-eval/scripts/eval_request.py create body.json --dry-run`
+(it checks the body's shape, not that each version exists; a stale id fails at
+create time). Set
 `episode_player_llm_spend_limit_usd` to 0 when no seat uses an LLM.
 
 ## Episode-count floors
 
 From 2026-10 measurements; recompute from your first batch:
 
-- Per-seat score SD is about 0.12 to 0.18.
+- **Press:** per-seat score SD is about 0.12 to 0.18 (prior lab). The SD of a
+  paired difference has **not been measured in press**; `tools/sizing.py`
+  uses an estimate of 0.23 until you measure it in your first paired batch.
+- **Gunboat** (hosted, 2026-10-10, one opponent set; re-measure): 0.22 per
+  seat for the search, and 0.30 to 0.36 for a paired difference. Use
+  `tools/sizing.py --league gunboat`.
 - **Smoke / health: 1 episode.** Answers "does it run".
 - **Directional: about 16 per arm.** SE about 0.02 to 0.03; only effects of
   about 0.08 or more show up. Most of the prior lab's results stopped here and
   none reached a verdict.
-- **Verdict: about 150 per arm** to resolve a 0.04 difference with separate
-  arms. Paired seating needs 2 to 3 times fewer games.
+- **Verdict: size it with `tools/sizing.py`** (press by default). The prior
+  lab's press figure was about 150 per arm for a 0.04 difference with separate
+  arms; in gunboat the same difference needs about 290 paired games.
 - **|z| < 2 is no result**, whatever the episode count.
 
 The calculation: the SE of a two-arm difference is about SD × √(2/n). The prior
@@ -101,10 +123,9 @@ effect lands at z ≈ 1.9 to 2.9. At 16 per arm the difference SE is 0.04 to
 - **Pin powers with `countries`** (webDiplomacy Coworld 0.7.9 and later): `countries[slot]`
   is that slot's upstream country ID (a permutation of 1 to 7). Set it through
   `game_config_overrides.countries` with **fixed integer slots** in the roster.
-  Seeds still vary, so episodes still differ. The setting is not yet tried in a
-  hosted eval; confirm it in the hosted `config_schema`
-  (`coworld show <coworld-id> --json`) and check `results.countries` in the
-  first episode. One request holds one assignment, so a full rotation of powers
+  Seeds still vary, so episodes still differ. Verified in hosted evals on
+  2026-10-10 (`results.countries` matched in every game checked). Pinning makes
+  raw means honest but did not reduce the standard error. One request holds one assignment, so a full rotation of powers
   takes **one request per permutation**.
 - Alternative (not tried): `game_config_overrides.seed` fixes
   every episode in a request to that seed, and therefore to that seed's power
@@ -117,7 +138,7 @@ effect lands at z ≈ 1.9 to 2.9. At 16 per arm the difference SE is 0.04 to
 
 - A full hosted `classic-press` game takes **60 to 100 minutes** (re-measure).
   Sixteen episodes in one request ran in parallel, about an hour of wall clock.
-  Gunboat games are much shorter.
+  Gunboat games take a few minutes, but they test only the search core.
 - Cost: about **15 XP credits per full press game** with five LLM seats; our
   own LLM seat cost about $0.10 per game on glm-5.3-flash.
 - **Stream artifacts while games run** (`fetch_artifacts.py XREQ --watch`).

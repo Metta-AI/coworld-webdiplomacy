@@ -98,6 +98,6 @@ Run from the optimizer root. **Exact flags live in each tool's docstring**.
   center trajectory by year.
 - `python3 games/webdiplomacy/tools/wd.py slim DIR...`: strip map PNGs from
   replays to save disk.
-- **Later:** a local HTML game viewer with press shown as chat next to each
-  phase's orders (the prior lab's `game_viewer.py`, which needs the
-  `diplomacy==1.1.2` package). Until then, use the hosted viewer and the loader.
+- **Not included:** a local HTML game viewer (the prior lab had one,
+  `game_viewer.py`, which needs the `diplomacy==1.1.2` package; it is not in
+  this mixin). Use the hosted viewer and the loader.

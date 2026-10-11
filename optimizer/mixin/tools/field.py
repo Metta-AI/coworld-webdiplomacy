@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Who is in a league's field: every policy seen in its recent rounds.
+
+    python3 games/webdiplomacy/tools/field.py press|gunboat|league_<id> [--rounds N] [--json]
+
+The league's filler roster is not readable with player credentials (the
+`/v2/leagues/{id}/filler-policies` route returns 403), so this reads it off the
+league's own games: `coworld rounds` -> `coworld episodes -r` -> `coworld
+episodes <ereq>` (only the single-episode call carries participant names).
+
+Output: one row per policy version with its version id (paste into a roster as
+`policy_ref`), filler or entrant, owner, rounds seen, and mean league score.
+A league round is ONE game, so these means rest on a handful of games; they
+say who is present, not who is strong. Standard library only; needs the
+`coworld` CLI on PATH and an authenticated session.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+
+LEAGUES = {
+    "press": "league_1bccc63d-cd0a-47d7-92d7-e762797b5f1c",
+    "gunboat": "league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17",
+}
+
+
+def coworld(*args: str):
+    out = subprocess.run(["coworld", *args, "--json"], capture_output=True, text=True)
+    if out.returncode != 0:
+        sys.exit(f"coworld {' '.join(args)} failed: {out.stderr.strip()[:300]}")
+    data = json.loads(out.stdout)
+    return data["entries"] if isinstance(data, dict) and "entries" in data else data
+
+
+def add_episode(field: dict[str, dict], round_number: int, episode: dict) -> None:
+    """Fold one league episode's seats into `field` (label -> entry)."""
+    # `participant_scores` is by position; `scores` collapses a policy seated twice.
+    score_at = {s["position"]: s["score"] for s in episode.get("participant_scores") or []}
+    for seat in episode.get("participants") or []:
+        entry = field.setdefault(seat["label"], {
+            "label": seat["label"],
+            "policy_version_id": seat["policy_version_id"],
+            "filler": seat["is_filler"],
+            "player": seat.get("player_name"),
+            "rounds": [],
+            "scores": [],
+        })
+        entry["rounds"].append(round_number)
+        if seat["position"] in score_at:
+            entry["scores"].append(score_at[seat["position"]])
+
+
+def summarize(field: dict[str, dict]) -> list[dict]:
+    """Rows sorted fillers first, each with its seat count and mean league score."""
+    rows = sorted(field.values(), key=lambda r: (not r["filler"], r["label"]))
+    for row in rows:
+        row["seats"] = len(row["scores"])
+        row["mean_score"] = round(sum(row["scores"]) / len(row["scores"]), 3) if row["scores"] else None
+    return rows
+
+
+def collect(league_id: str, rounds: int) -> dict[str, dict]:
+    field: dict[str, dict] = {}
+    for rnd in coworld("rounds", "-l", league_id, "--limit", str(rounds)):
+        for row in coworld("episodes", "-r", rnd["id"]):
+            add_episode(field, rnd["round_number"], coworld("episodes", row["id"]))
+    return field
+
+
+def main(argv=None) -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("league", help="press, gunboat, or a league_<id>")
+    ap.add_argument("--rounds", type=int, default=10, help="most recent rounds to read (default 10)")
+    ap.add_argument("--json", action="store_true")
+    args = ap.parse_args(argv)
+
+    rows = summarize(collect(LEAGUES.get(args.league, args.league), args.rounds))
+    if args.json:
+        print(json.dumps(rows, indent=1))
+        return
+    print("| policy | version id | kind | owner | seats | mean score (league games) | rounds |")
+    print("|---|---|---|---|---|---|---|")
+    for row in rows:
+        kind = "filler" if row["filler"] else "entrant"
+        print(f"| {row['label']} | `{row['policy_version_id']}` | {kind} | {row['player']} | "
+              f"{row['seats']} | {row['mean_score']} | {sorted(set(row['rounds']))} |")
+
+
+if __name__ == "__main__":
+    main()

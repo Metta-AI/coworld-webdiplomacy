@@ -88,10 +88,12 @@ class TaintFlags(unittest.TestCase):
     def test_synthetic_taints(self):
         failing = [{"event": "llm_call", "status": 400, "error": "temperature unsupported"}] * 3
         failing += [{"event": "llm_call", "status": 200, "usage": {"cost": 0.002}}]
+        failing += [{"event": "decision", "rejected": 0}]  # a failing-LLM seat still plays its floor
         logs = {
             0: [{"event": "decision", "rejected": 2}],
             1: failing,
             2: [{"event": "decision", "rejected": 0}, {"event": "llm_call", "status": 200, "cost_usd": 0.001}],
+            3: [{"event": "start"}],  # a log with no decision: the bot never played
         }
         with tempfile.TemporaryDirectory() as tmp:
             ep = write_episode(Path(tmp) / "g", [1 / 7] * 7, list(range(1, 8)), [3] * 7, logs=logs)
@@ -101,6 +103,25 @@ class TaintFlags(unittest.TestCase):
         self.assertEqual(seat(seats, 1).log["llm_cost_usd"], 0.002)  # usage.cost form
         self.assertEqual(seat(seats, 2).taint, [])
         self.assertEqual(seat(seats, 2).log["llm_cost_usd"], 0.001)  # cost_usd form
+        self.assertEqual(seat(seats, 3).taint, ["no_decisions"])
+
+    def test_uncaught_traceback_counts_as_exception(self):
+        # A crash outside the bot's own handler prints a plain traceback, not an `exception` event.
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "seat.log"
+            log.write_text('{"event": "start"}\nTraceback (most recent call last):\n  File "bot.py", line 1\n'
+                           "AttributeError: module has no attribute 'SEARCH_MIN_GAIN'\n")
+            summary = we.summarize_log(we.read_log(log))
+        self.assertEqual(summary["exceptions"], 1)
+        self.assertEqual(we.log_taint(summary), ["exception", "no_decisions"])
+
+    def test_launcher_child_exit_counts_as_exception_only_when_nonzero(self):
+        # A bot killed mid-game prints nothing itself; the launcher's `child_exit` line is the only sign.
+        decision = {"event": "decision", "rejected": 0}
+        killed = we.summarize_log([decision, {"event": "child_exit", "code": -9}])
+        clean = we.summarize_log([decision, {"event": "child_exit", "code": 0}])
+        self.assertEqual(we.log_taint(killed), ["exception"])
+        self.assertEqual(we.log_taint(clean), [])
 
     def test_cancelled_and_failed_episodes(self):
         with tempfile.TemporaryDirectory() as tmp:

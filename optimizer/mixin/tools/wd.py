@@ -112,7 +112,7 @@ from webdip_episodes import (  # noqa: E402
 )
 
 CLASSIC_PRESS_MOVEMENT_PHASES = 16  # Spring and Autumn of 1901-1908
-# Default arena field: copies of the reference policy in its default (search) mode.
+# Default arena field: copies of the reference policy in its search mode (no LLM needed).
 DEFAULT_FIELD_ENV = {"CASTLEREAGH_POLICY": "search"}
 COUNTRY_IDS = {name.lower(): cid for cid, name in POWERS.items()}
 
@@ -120,6 +120,17 @@ COUNTRY_IDS = {name.lower(): cid for cid, name in POWERS.items()}
 def _mean(xs):
     xs = list(xs)
     return round(statistics.mean(xs), 4) if xs else None
+
+
+def _se(xs):
+    """Standard error of the mean; None below two observations."""
+    xs = list(xs)
+    return round(statistics.stdev(xs) / len(xs) ** 0.5, 4) if len(xs) > 1 else None
+
+
+# Below this many seats a per-power cell is directional only (the survey binding's floor).
+# A 17-seat Austria cell once read 0.033 where 60 pinned games gave 0.091.
+DIRECTIONAL_BELOW = 16
 
 
 # --- metrics / seats ------------------------------------------------------------------
@@ -135,6 +146,7 @@ def per_power(seats):
         out[power] = {
             "n": len(g),
             "score": _mean(s.score for s in g),
+            "score_se": _se(s.score for s in g),
             "final_centers": _mean(s.final_centers for s in g if s.final_centers is not None),
             "survival": _mean(float(s.survived) for s in g if s.survived is not None),
             "solo": _mean(float(s.solo) for s in g),
@@ -183,6 +195,7 @@ def metrics_report(seats, statuses, policy=None, slot=None, keep_tainted=False):
             "n": len(target),
             "score": _mean(s.score for s in target),
             "score_minus_field_par": _mean(rel),
+            "score_minus_field_par_se": _se(rel),
             "final_centers": _mean(s.final_centers for s in target if s.final_centers is not None),
             "survival": _mean(float(s.survived) for s in target if s.survived is not None),
             "solo": _mean(float(s.solo) for s in target),
@@ -207,25 +220,32 @@ def metrics_report(seats, statuses, policy=None, slot=None, keep_tainted=False):
 
 def render_metrics(r):
     o, c, t, tel = r["overall"], r["coverage"], r["taint"], r["telemetry"]
-    rel = o["score_minus_field_par"]
+    rel, rel_se = o["score_minus_field_par"], o.get("score_minus_field_par_se")
+    vs_par = ""
+    if rel is not None:
+        vs_par = f" (vs field par {rel:+.4f}" + (f" ± {rel_se} SE" if rel_se is not None else "") + ")"
     lines = [
         f"# {r['policy']}: {r['episodes']} episodes (webdiplomacy {', '.join(r['coworld_versions']) or 'local'})",
         f"coverage: missing results {len(c['missing_results'])}, missing replay {len(c['missing_replay'])}; "
         f"target seats {c['target_seats']}, without our log {c['target_seats_without_log']}",
         f"taint: {t['target_seat_flags'] or 'none'}; episodes dropped {t['episodes_dropped']}"
         + (" (kept: --keep-tainted)" if t["kept_tainted"] else ""),
-        f"overall n={o['n']}: score {o['score']}"
-        + (f" (vs field par {rel:+.4f})" if rel is not None else "")
+        f"overall n={o['n']}: score {o['score']}" + vs_par
         + f" | final SCs {o['final_centers']} | survival {o['survival']} | solo {o['solo']}",
         f"failed-order rate {o['failed_order_rate']} | outcomes {o['outcomes']}",
         "",
-        "| power | n | score | par score | final SCs | par SCs | survival |",
-        "|---|---|---|---|---|---|---|",
+        "| power | n | score | ± SE | par score | final SCs | par SCs | survival |",
+        "|---|---|---|---|---|---|---|---|",
     ]
+    thin = False
     for power, v in r["per_power"].items():
         p = r["field_par_per_power"].get(power, {})
-        lines.append(f"| {power} | {v['n']} | {v['score']} | {p.get('score')} | {v['final_centers']} "
-                     f"| {p.get('final_centers')} | {v['survival']} |")
+        mark = "*" if 0 < v["n"] < DIRECTIONAL_BELOW else ""
+        thin = thin or bool(mark)
+        lines.append(f"| {power} | {v['n']}{mark} | {v['score']} | {v.get('score_se')} | {p.get('score')} "
+                     f"| {v['final_centers']} | {p.get('final_centers')} | {v['survival']} |")
+    if thin:
+        lines.append(f"\\* fewer than {DIRECTIONAL_BELOW} seats: directional only; do not diagnose from this cell.")
     lines += ["", f"telemetry ({tel['seats_with_log']} seat logs): rejected {tel['rejected_orders']}, "
                   f"exceptions {tel['exceptions']}, http errors {tel['http_errors']}, llm calls {tel['llm_calls']} "
                   f"({tel['llm_failed_calls']} failed, ${tel['llm_cost_usd']}), max compute {tel['max_compute_ms']} ms",
@@ -631,7 +651,7 @@ def cmd_arena(args):
 
 
 def add_run_options(p):
-    p.add_argument("--variant", default="classic-gunboat", help="manifest variant id (default classic-gunboat)")
+    p.add_argument("--variant", default="classic-press", help="manifest variant id (default classic-press)")
     p.add_argument("--episodes", type=int, default=1)
     p.add_argument("--parallel", type=int, default=2, help="episodes run at once (each is 8 containers)")
     p.add_argument("--out", required=True, help="output directory; one ep-<id>/ per episode")

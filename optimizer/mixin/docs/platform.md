@@ -29,7 +29,11 @@ marked otherwise. The platform changes; re-check anything a decision depends on.
   HOME=$H coworld xp-request create body.json
   ```
 
-  Docker needs `DOCKER_CONFIG=~/.docker` when `HOME` is overridden.
+  Docker needs `DOCKER_CONFIG=~/.docker` when `HOME` is overridden (without it a
+  build fails with "content digest … not found").
+
+  `source games/webdiplomacy/tools/session_env.sh <player id>` does all of this
+  in one step and prints the identity commands will act as.
 
 ## Uploading
 
@@ -39,13 +43,15 @@ marked otherwise. The platform changes; re-check anything a decision depends on.
   fixed per uploaded version.** Treat model × prompt ("soul") as one unit under
   test; a model change is a new version with its own version-log row.
 - The reference policy's mode is chosen by `CASTLEREAGH_POLICY` in the image
-  (`tools/build.sh --policy`). One image tag per experiment: rebuilding a tag
+  (`tools/build.sh --policy`, default `press`). `tools/ship.py` uploads a press
+  build with `--use-llm` and a default model. `--tag` is required: one image tag per experiment, rebuilding a tag
   while games are running silently switches later games to the new code.
 
 ## XP requests
 
 A request names a league and variant, a roster of seven seats, and an episode
-count. Body shape used by the lab (built by its `make_request.py`):
+count. Body shape (`tools/make_request.py` writes these from a named opponent
+set; see the eval-design binding):
 
 ```json
 {
@@ -65,6 +71,13 @@ count. Body shape used by the lab (built by its `make_request.py`):
 
 - `slot: -1` lets the platform choose the slot. Powers are shuffled by seed
   anyway.
+- **Identity.** A request belongs to the identity that created it, and a
+  private request is visible only to that identity. The CLI acts as the active
+  player (`coworld player use`); the optimizer's scripts do too since
+  2026-10-10 and print `[auth] acting as …`. A batch that "vanished" from
+  `coworld xp-request list --mine` was probably created as the other identity.
+- In an episode row, `participant_scores` is by seat position. `scores` is
+  keyed by policy version and merges a policy seated twice; do not use it.
 - `policy_ref` takes a version reference. The lab used policy-version UUIDs for
   field seats; `name:vN` works for your own uploads.
 - **Never use `random` seats here.** `random` samples the league's champion
@@ -73,8 +86,9 @@ count. Body shape used by the lab (built by its `make_request.py`):
   split evenly over the seven seats. Zero disables LLM access for all seats.
   The lab used 14.
 - `game_config_overrides` sets episode config fields (for example `seed`).
-  Pinning powers with `countries` works from webDiplomacy Coworld 0.7.9; see the
-  eval-design binding.
+  Pinning powers with `countries` works from webDiplomacy Coworld 0.7.9
+  (verified hosted 2026-10-10); see the eval-design binding and
+  `tools/make_request.py --balanced`.
 - The optimizer's `docs/platform.md` lists the allowed body keys as verified on
   2026-07-15; that list lacks `private` and `episode_player_llm_spend_limit_usd`,
   which the lab used successfully in 2026-10. **Dry-run every body**
@@ -103,8 +117,11 @@ count. Body shape used by the lab (built by its `make_request.py`):
   lab's loader `tools/webdip_episodes.py` decodes them.
 - **A parent request shows `failed` as soon as one child episode fails.** Wait
   for every child to finish before reading the request's status as final.
-- Replays carry embedded map PNGs and are large. `wd.py slim` strips them from
-  local replays when the disk fills.
+- Replays are large: about 10 MB of **uncompressed** JSON per gunboat game even
+  with `game_config_overrides.render_maps: false`, because every frame repeats
+  the cumulative history and the map (measured 2026-10-10). `wd.py slim`
+  strips map PNGs; `tools/gzip_replays.py` compresses in place about 20x
+  and the loader reads the result.
 - Rivals' policy logs and artifacts return 403. Decode rivals from replays and
   public press.
 
@@ -134,7 +151,8 @@ every LLM call in our seat logs succeeded (`llm_call` events).
 - League rounds were one per day in 2026-10 (lab observation). League episodes
   are slow evidence; hosted XP requests are the instrument.
 - Empty league seats are filled from a **filler roster** that the league owner
-  curates (`/v2/leagues/{id}/filler-policies`). Whether a non-owner can read it
-  is not verified; recent league episodes' participants show who is playing.
-- The field as of 2026-10-09 is in [strategy.md](strategy.md#part-2-the-measured-field-2026-10);
-  the live picture belongs in `META.md`.
+  curates (`/v2/leagues/{id}/filler-policies`). That route returns 403 for
+  player credentials (verified 2026-10-10); read the field off recent league
+  games with `tools/field.py`.
+- This lab ships no picture of the current field. Build it into `META.md` with
+  the recipe in [strategy.md](strategy.md#rebuilding-the-field-picture).

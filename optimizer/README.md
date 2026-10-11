@@ -1,15 +1,16 @@
 # webDiplomacy optimizer (prototype)
 
 **Status: prototype.** `install.sh` works, and `mixin/` is filled: the lab
-manual (`mixin/AGENTS.md`), game docs, the five skill bindings, analysis tools
-(`mixin/tools/`), and the reference policy `mixin/players/castlereagh/`, built by
+manual (`mixin/AGENTS.md`), game docs, the five skill bindings, analysis and
+campaign tools (`mixin/tools/`: one-command build-upload-log and A/B runs, request
+builders, sizing), and the reference policy `mixin/players/castlereagh/`, built by
 `mixin/tools/build.sh`. `ide/` and `INSTALL.md` do not exist yet.
 
 The design is
 [docs/designs/webdiplomacy-mixin-2026-10-09.html](../docs/designs/webdiplomacy-mixin-2026-10-09.html).
 The reference policy adapts the personal_labs webdiplomacy_lab's Castlereagh:
-Kissinger search as the core, plus an optional press layer
-(`CASTLEREAGH_POLICY=search|press`, default `search`).
+Kissinger search as the core, plus an LLM press layer
+(`CASTLEREAGH_POLICY=press|search`, default `press`).
 
 Checks for the mixin (also run in CI):
 

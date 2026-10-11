@@ -13,7 +13,11 @@ always 0, and network errors only skip the comparison.
 Standard-library Python 3.12+.
 """
 
+from __future__ import annotations
+
 import json
+import os
+import pwd
 import re
 import subprocess
 import urllib.request
@@ -25,8 +29,13 @@ PYPI_URL = "https://pypi.org/pypi/{package}/json"
 
 def installed_versions() -> dict[str, str] | None:
     """Map uv tool name to installed version, or None when uv is unavailable."""
+    # uv finds its tools through HOME. This lab tells sessions to use a private HOME for
+    # Softmax credentials, which would make every tool look "not installed", so ask uv with
+    # the account's real home directory.
+    env = dict(os.environ, HOME=pwd.getpwuid(os.getuid()).pw_dir)
     try:
-        listing = subprocess.run(["uv", "tool", "list"], capture_output=True, text=True, check=True, timeout=10).stdout
+        listing = subprocess.run(["uv", "tool", "list"], capture_output=True, text=True, check=True,
+                                 timeout=10, env=env).stdout
     except (OSError, subprocess.SubprocessError):
         return None
     return parse_tool_list(listing)

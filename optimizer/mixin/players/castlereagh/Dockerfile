@@ -10,8 +10,11 @@ COPY castlereagh /opt/castlereagh
 WORKDIR /opt
 # Fail the build if either mode cannot import in the actual runtime.
 RUN /opt/.venv/bin/python -c "import castlereagh.bot, castlereagh.press.player, pydantic_ai, httpx2"
-ARG POLICY=search
+ARG POLICY=press
+# Config overrides for one-knob experiments (tools/build.sh --overrides); empty = defaults.
+ARG OVERRIDES=""
 ENV CASTLEREAGH_POLICY=${POLICY} \
+    CASTLEREAGH_OVERRIDES=${OVERRIDES} \
     PYDANTIC_AI_NO_BANNER=1 \
     PYTHONDONTWRITEBYTECODE=1
 CMD ["/opt/.venv/bin/python", "-m", "castlereagh"]

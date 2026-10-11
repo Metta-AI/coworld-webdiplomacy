@@ -33,7 +33,7 @@ For LLM policies also report LLM calls and failures per seat-phase and cost
 ## Decompositions
 
 - **By power, always.** Powers are shuffled per episode and differ hugely in
-  strength (par from 0.290 France to 0.090 England in the 2026-10 field). Report
+  strength (par from 0.290 France to 0.090 England in one 2026-10 field; yours will differ). Report
   score vs par per power, then pooled across powers. A pooled raw mean mostly
   measures which powers each arm drew.
 - **By game year** for "where is the loss": the center trajectory by year (from
@@ -53,7 +53,7 @@ each arm:
 | Cancelled game | `results.json` `outcome == "cancelled"` (scores are 1/7 each) | Platform |
 | Episode timeout before the year cap | `reason == "episode_timeout"` | Usually platform or a slow bot; check timing |
 | Dropped orders | nonzero `rejected` in our seat's `decision` log lines | **Our policy** (a bug to fix, not just filter) |
-| Our seat crashed | any `exception` event in our seat log | **Our policy** |
+| Our seat crashed | any `exception` event, uncaught Python traceback or launcher `child_exit` line with a nonzero code in our seat log, or a seat log with no `decision` line at all (the bot died at startup and the seat held every phase) | **Our policy** |
 | Missing artifacts | results, replay or our seat log not downloaded | Fetch problem. Re-run the fetcher; report coverage, **never impute** |
 | Failing LLM seat | every `llm_call` in our seat log failed, so the seat silently played its floor | Configuration (model or parameter mismatch). Check per seat, per episode |
 | Mixed opponent sets | the batch spans a field change | Design error. Never pool across opponent sets |
@@ -87,16 +87,47 @@ checked every time.
     policy, 0.08 to 0.18 for field seats).
   - At 16 episodes per arm, SE is about 0.02 to 0.03, so only effects of about
     0.08 or more can show up.
-  - Resolving a 0.04 difference takes about **150 episodes per arm** (separate
-    arms). Paired seating needs fewer.
+  - Game counts: use `tools/sizing.py` (press by default; `--league gunboat`
+    for the other league). The press paired SD in it is an estimate (0.23):
+    replace it with your own after the first paired batch. In hosted gunboat
+    (2026-10-10: 0.22 per seat, about 0.34 for a paired difference) a 0.04
+    difference needs about 290 paired games for an even chance of reaching
+    z = 2, about 240 per arm with separate arms, so pairing saved about 1.7x
+    in games there, not 2 to 3x.
 - **Do not peek and stop.** Fix the episode count when you write the decision
   rule.
 
-Caution (inference, not measured): with paired seating both of our policies sit
-in the same game, so they also play against each other. If the change alters
-how our policy treats a same-family opponent, the paired result may not transfer
-to the league. Confirm a paired win with a candidate-only batch against the
-field before submitting.
+**Run a same-code check first, and swap the two seats.** Measured 2026-10-10 in a test-drive lab: two uploads of identical code,
+seated in fixed roster seats 0 and 1 under a cyclic power rotation, read +0.113
+for seat 0 (z 2.6, n=84). `paired.py` prints `a_in_lower_slot` and warns when
+the seat order is one-sided. Our two seats are board neighbours in that design and
+their other neighbours differ. A paired A/B must give
+each version both seat positions equally (`tools/make_request.py
+--balanced` writes both orders), and a new design or field set should first be
+run with identical code to confirm it reads zero.
+
+**A paired win is not a result until the candidate has also played alone.**
+With paired seating both of our policies sit in the same game, so they also
+play against each other, and the league never seats two of our entries
+together. Measured 2026-10-10 in a test-drive lab:
+a change won its paired run by +0.079 (z 3.08, 168 games, powers and seat order
+balanced, same-code check passed) and then scored exactly level with the
+baseline when each played alone against the field (0.235 vs 0.243, 84 games
+per arm). The paired gain was taken from the twin. So:
+
+1. Use paired seating to **screen**. It costs about 1.7 times fewer games,
+   and a paired null is usually a safe reason not to promote (it would hide a
+   real gain only if the change lost to its own twin exactly what it won
+   from the field). It is not proof of "no effect": one null checked alone
+   read −0.049, z −1.7.
+2. Any paired win must pass a **candidate-alone check** before it changes the
+   baseline or is submitted: two separate arms, each with one of our seats and
+   the same six field seats, powers balanced
+   (`tools/make_request.py field --balanced`), read with `compare.py`.
+   Pre-register its pass mark next to the paired rule.
+   `tools/run_ab.py --alone` runs it in one command.
+3. For a verdict that must stand on its own, use separate arms from the start
+   and size them with `tools/sizing.py --separate`.
 
 ## Tooling
 
@@ -114,4 +145,4 @@ episode directories from the optimizer's `fetch_artifacts.py` or from a local
 
 All of them load episodes through `webdip_episodes.py`, which handles
 slot-to-power mapping and bytes-literal seat logs. Analysis beyond these goes
-into `../../instruments/` as a persistent instrument.
+into `../../instruments/` (your own space; the mixin's tools are in `../../tools/`).

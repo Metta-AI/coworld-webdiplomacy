@@ -6,23 +6,22 @@ One image, two modes, selected by `CASTLEREAGH_POLICY` (baked at build time with
 
 | Mode | What it plays |
 | --- | --- |
-| `search` (default) | The **Default search** (the lab's "Kissinger"): DumbBot seeds, single/pair/convoy alternatives, coordinate ascent against 16 sampled opponent plans, level-1 opponents and the "competent opponent" belief. No press. |
-| `press` | The same search core plus an optional LLM press layer that negotiates and steers the search through a *policy*. In NoPress games, and without `COWORLD_LLM_ENDPOINT`, it plays exactly like `search`. |
+| `press` (default) | The search core plus an LLM press layer that negotiates and steers the search through a *policy*. In NoPress games, and without `COWORLD_LLM_ENDPOINT`, it plays exactly like `search`. |
+| `search` | The **Default search** (the lab's "Kissinger"): DumbBot seeds, single/pair/convoy alternatives, coordinate ascent against 16 sampled opponent plans, level-1 opponents and the "competent opponent" belief. No press. |
 
 Any other value is an error. DumbBot is internal to the search (seeds, retreats, builds,
 opponent samples); it is not a selectable mode. Local arenas use copies of `search` as the field.
 
-**What the evidence says.** Castlereagh's measured strength is the search. In about 100
-hosted press games the lab's press bot scored 0.124–0.126 per seat while silent Kissinger
-(the same search, no LLM) scored 0.172–0.176 in the same field (parity 1/7 = 0.143). No
-press change has a verdict yet. Treat the press layer as a **well-instrumented framework
-for experiments, not a proven gain**: the first A/B to run is `press` vs `search`.
+**Where to take it.** The search is the tested core. The press layer is a
+**well-instrumented starting framework**: no change to it has reached a verdict yet, so its
+strength is yours to establish and improve. Negotiation is the open problem in this game.
 
 ## Build, run, test
 
 ```sh
-tools/build.sh --policy search            # prints webdip-castlereagh-search:latest
-tools/build.sh --policy press --tag webdip-castlereagh-press:exp1
+tools/build.sh --tag webdip-castlereagh:exp1                          # press mode; --tag is required; prints the tag
+tools/build.sh --policy search --tag webdip-castlereagh-search:exp1   # the search core alone
+tools/build.sh --tag webdip-castlereagh:exp2 --overrides "SEARCH_RISK=0.5"   # a one-setting experiment
 python3 -m unittest discover -s players/castlereagh/tests      # from the lab root; ~1 min (golden)
 GOLDEN_EVERY=20 python3 -m unittest discover -s players/castlereagh/tests   # quick
 uv run --no-project --python 3.12 --with "pydantic-ai-slim[openai]==2.54.0" \
@@ -38,10 +37,10 @@ its hold-bot command on six certification seats.
 
 ```sh
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode dist/coworld_manifest.json \
-  webdip-castlereagh-search:latest --variant classic-gunboat \
+  webdip-castlereagh:exp1 --variant classic-press \
   --run /opt/.venv/bin/python --run=-m --run players.launcher \
   --run /opt/.venv/bin/python --run=-m --run castlereagh \
-  --output-dir tmp/castlereagh-search --timeout-seconds 1800
+  --output-dir tmp/castlereagh --timeout-seconds 6000
 ```
 
 Runtime environment: `WEBDIP_*` from the launcher (`WEBDIP_END_YEAR` and `WEBDIP_SCORING`

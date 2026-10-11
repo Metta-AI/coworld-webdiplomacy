@@ -31,7 +31,7 @@ Statistics (ab_stats): Welch t for means, Fisher exact for rates, Benjamini-Yeku
 across every reported test. A verdict needs adjusted p < 0.05, |z| >= 2 and at least
 30 seats per side; anything else is "no result", which is not evidence of equality.
 Priors: per-seat SD is about 0.12-0.18, so 16 games per arm only detects effects of
-about 0.08 or more, and about 150 per arm resolves 0.04.
+about 0.08 or more. Size a verdict run with tools/sizing.py --separate.
 
 Example:
     python3 games/webdiplomacy/tools/compare.py .runtime/artifacts/xreq_base .runtime/artifacts/xreq_cand \\
@@ -120,6 +120,13 @@ def compare(base_dir: Path, cand_dir: Path, baseline: str, candidate: str, keep_
     base_recs, base_field, base_eps = load_batch(base_dir, baseline, keep_tainted)
     cand_recs, cand_field, cand_eps = load_batch(cand_dir, candidate, keep_tainted)
     par = shared_par(base_field, cand_field)
+    no_par = sorted({r.power for r in base_recs + cand_recs} - set(par))
+    if no_par:
+        # Happens when our seat is pinned to a power: no field seat ever plays it, so there is
+        # no par and every score_vs_par row would silently vanish from the report.
+        print(f"note: no field seat played {', '.join(no_par)}, so score_vs_par is undefined there and is "
+              "left out. With a pinned power both arms face the same field at the same power: read score_mean.",
+              file=sys.stderr)
     base, cand = by_group(base_recs), by_group(cand_recs)
     base["episodes"], cand["episodes"] = base_eps, cand_eps
 

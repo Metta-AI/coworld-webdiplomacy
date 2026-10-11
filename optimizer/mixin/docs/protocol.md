@@ -5,7 +5,7 @@ HTTP API, press and votes, the LLM sidecar and the private artifacts. Rules of
 the game are in [game.md](game.md); hosted specifics are in
 [platform.md](platform.md).
 
-Long references at the pinned coworld commit `b4aca73`:
+Long references at coworld commit `b4aca73`, which these docs were written against (`tools/build.sh` pins a later commit that differs only in the launcher):
 
 - [Write your own policy](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/write-a-policy.md): image, HTTP contract, LLM bots, external bots
 - [Player protocol](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/protocol.md): hello, lifecycle, private artifacts
@@ -127,6 +127,11 @@ fails. The reference policy's `press` mode does this.
   log and, when the platform provides an upload URL, writes
   `private-press.json` inside a ZIP artifact. `complete: true` means the final
   fetch succeeded.
+- If the bot process ends before the game does, the launcher prints one
+  `{"event": "child_exit", "code": N}` line to the player log and keeps the
+  seat present, holding every phase. The analysis tools count a nonzero code as
+  a crash. Images built before 2026-10-10 have an older launcher without this
+  line (`tools/build.sh` pins the launcher's commit).
 - Public replays and the game log never contain private press.
 - **Log as you go.** The launcher kills the bot at game end, so anything you
   meant to write at the end may never appear. The reference policy writes one

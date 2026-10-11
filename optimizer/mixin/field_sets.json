@@ -1,0 +1,61 @@
+{
+ "_note": "Named opponent sets for tools/make_request.py and tools/run_ab.py. This file ships with the FORMAT only: the two sets below are placeholders. List the current field with `python3 games/webdiplomacy/tools/field.py press|gunboat`, then replace them with your own named sets (five seats for a paired A/B, six for a field eval or a candidate-alone check). Keep one set per campaign, and date it: version ids go stale when the league's field changes.",
+ "example-paired-5": {
+  "league": "press",
+  "variant": "classic-press",
+  "defined": "<date, and how the seats were chosen>",
+  "seats": [
+   {
+    "label": "<policy name>:v<N> (1)",
+    "policy_ref": "<policy version id from tools/field.py>"
+   },
+   {
+    "label": "<policy name>:v<N> (2)",
+    "policy_ref": "<policy version id from tools/field.py>"
+   },
+   {
+    "label": "<policy name>:v<N> (3)",
+    "policy_ref": "<policy version id from tools/field.py>"
+   },
+   {
+    "label": "<policy name>:v<N> (4)",
+    "policy_ref": "<policy version id from tools/field.py>"
+   },
+   {
+    "label": "<policy name>:v<N> (5)",
+    "policy_ref": "<policy version id from tools/field.py>"
+   }
+  ]
+ },
+ "example-field-6": {
+  "league": "press",
+  "variant": "classic-press",
+  "defined": "<date, and how the seats were chosen>",
+  "seats": [
+   {
+    "label": "<policy name>:v<N> (1)",
+    "policy_ref": "<policy version id from tools/field.py>"
+   },
+   {
+    "label": "<policy name>:v<N> (2)",
+    "policy_ref": "<policy version id from tools/field.py>"
+   },
+   {
+    "label": "<policy name>:v<N> (3)",
+    "policy_ref": "<policy version id from tools/field.py>"
+   },
+   {
+    "label": "<policy name>:v<N> (4)",
+    "policy_ref": "<policy version id from tools/field.py>"
+   },
+   {
+    "label": "<policy name>:v<N> (5)",
+    "policy_ref": "<policy version id from tools/field.py>"
+   },
+   {
+    "label": "<policy name>:v<N> (6)",
+    "policy_ref": "<policy version id from tools/field.py>"
+   }
+  ]
+ }
+}

@@ -44,7 +44,7 @@ announce gaps and proceed on their generic method with the human warned.
 
 | Binding | Path | What it provides | Use when |
 |---|---|---|---|
-| `ab` | `skills/ab/` | Score vs same-batch field par **per power** as the headline metric; paired seating as the default design; \|z\| < 2 = no result; measured sizing priors (SD 0.12–0.18, about 150/arm for 0.04); the taint list (cancelled, rejected orders, exceptions, missing artifacts, failing LLM seats, mixed opponent sets); `wd.py metrics`, `paired.py`, `compare.py` | Any comparison between versions or policies (core: `ab-compare`) |
+| `ab` | `skills/ab/` | Score vs same-batch field par **per power** as the headline metric; paired seating as the default design; \|z\| < 2 = no result; measured sizing priors (press SD 0.12–0.18; gunboat paired SD about 0.34; sizes from `tools/sizing.py`); the taint list (cancelled, rejected orders, exceptions, missing artifacts, failing LLM seats, mixed opponent sets); `wd.py metrics`, `paired.py`, `compare.py` | Any comparison between versions or policies (core: `ab-compare`) |
 | `survey` | `skills/survey/` | The per-power overview table with outcome, reason and health lines; which episodes are worth opening (crashes, failing LLM seats, opponent solos, early elimination, big swings, best and worst per power); `wd.py metrics` and `seats` | Reading any batch of episodes (core: `survey`) |
 | `replay-inspection` | `skills/replay-inspection/` | The replay frame format (gzip JSON of public upstream files), our own artifacts (`decision` lines, `llm_call` events, private press), the `(turn, phase)` clock, what to look at; the episode loader. A local game viewer comes later | Extracting truth from episodes (core: `replay-inspection`) |
 | `eval-design` | `skills/eval-design/` | Opponents from the current field, fixed within a campaign, explicit `policy_ref`s; paired and separate-arm rosters with a request example; no self-play verdicts; health check on `classic-press-short`; floors; country pinning (webDiplomacy Coworld 0.7.9+); cost and duration; local-run tools | Designing any hosted eval (core: `run-eval`) |
@@ -54,9 +54,10 @@ announce gaps and proceed on their generic method with the human warned.
 
 | Provides | Path | Notes |
 |---|---|---|
-| Strategy doc | `docs/strategy.md` | A general Diplomacy primer (not yet verified against this field) and measured field facts from 2026-10: power par, the strongest seats, league rosters |
+| Strategy doc | `docs/strategy.md` | A general Diplomacy primer, dated lessons from a measured field (power par, what worked in press), and the recipe for rebuilding the field picture. It names no current opponents |
 | Game reference | `docs/game.md` | Rules, scoring, `results.json`, variants, leagues, timing |
 | Platform notes | `docs/platform.md` | XP requests, costs, artifacts, LLM sidecar quirks, credentials |
+| Field roster | `tools/field.py`, `field_sets.json`, `META.md` | Who is seated in a league's recent rounds, with version ids; named opponent sets; the dated field picture (ships empty) |
 | Field decode | `skills/replay-inspection/`, `skills/survey/` | Replays carry every power's adjudicated orders and public press; `wd.py seats` gives every seat's center trajectory. Rivals' logs are not readable |
 
 ### Additional skills
@@ -73,7 +74,11 @@ required set. List them all: an unlisted skill is an undiscoverable one.)*
 | Element | Path | Notes |
 |---|---|---|
 | Lab manual | `AGENTS.md` | How to use this lab, the knowledge map, the loop table and the gotchas |
-| Game docs | `docs/` | `game.md` (rules, scoring, results, variants, leagues), `protocol.md` (the bot contract), `platform.md` (hosted specifics), `strategy.md` (primer and measured field facts) |
-| Reference policy | `players/castlereagh/` | Python package `castlereagh`. Kissinger search as the core, plus an optional LLM press layer. Mode set by `CASTLEREAGH_POLICY`: `search` (default; press off), `press` (search plus press; plays its search floor without `COWORLD_LLM_ENDPOINT`). Logs one `decision` line per phase. The starting point `seed-a-policy` improves on |
-| Build tooling | `tools/build.sh` | `tools/build.sh [--ref <game-ref>] [--tag <image-tag>] [--policy search\|press]`. Builds the coworld player base image from a pinned coworld-webdiplomacy commit on GitHub, then the reference policy, for linux/amd64; prints the tag (default `webdip-castlereagh-<policy>:latest`). Needs Docker |
-| Instruments | `tools/` | Standard-library Python: `webdip_episodes.py` (loader), `wd.py` (`metrics`, `seats`, `costs`, `local`, `arena`, `slim`), `paired.py`, `compare.py`, `llm_sidecar_local.py`. See `AGENTS.md` |
+| Game docs | `docs/` | `game.md` (rules, scoring, results, variants, leagues), `protocol.md` (the bot contract), `platform.md` (hosted specifics), `strategy.md` (primer, dated lessons, field-recon recipe) |
+| Reference policy | `players/castlereagh/` | Python package `castlereagh`. Kissinger search as the core, plus an LLM press layer. Mode set by `CASTLEREAGH_POLICY`: `press` (default: search plus press; plays its search floor in a no-press game or without `COWORLD_LLM_ENDPOINT`), `search` (press off). Logs one `decision` line per phase. The starting point `seed-a-policy` improves on |
+| Build tooling | `tools/build.sh` | `tools/build.sh --tag <image-tag> [--ref <game-ref>] [--policy press\|search] [--overrides "KEY=VAL,…"]`. Builds the coworld player base image from a pinned coworld-webdiplomacy commit on GitHub, then the reference policy, for linux/amd64; prints the tag. `--tag` is required (one tag per experiment); `--overrides` bakes config overrides into the image. Needs Docker |
+| Analysis tools | `tools/` | Standard-library Python: `webdip_episodes.py` (loader), `wd.py` (`metrics`, `seats`, `costs`, `local`, `arena`, `slim`), `paired.py`, `compare.py`, `llm_sidecar_local.py`. See `AGENTS.md` |
+| Campaign tools | `tools/` | `run_ab.py` (one paired A/B from an experiment record; `--alone` for the candidate-alone check), `make_request.py` + `field_sets.json` (named opponent sets; balanced power rotation with both seat orders), `ship.py` (build, upload, VERSION_LOG row), `field.py` (league field from its rounds), `sizing.py`, `seat_bias.py`, `flag_episodes.py`, `year_deltas.py`, `mine_variance.py`, `gzip_replays.py`. See `AGENTS.md` |
+| Session setup | `tools/session_env.sh` | `source` it: private credentials directory, Docker config and active player; prints the acting identity |
+| Opponent sets | `field_sets.json` | Named opponent sets for `tools/make_request.py`. Ships with the format only (placeholder seats): fill it from `tools/field.py` and date each set |
+| Your instruments | `instruments/` | Empty. Your own analysis code goes here; everything the mixin ships is in `tools/` |

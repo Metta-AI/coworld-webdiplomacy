@@ -1,6 +1,7 @@
 # optimizer-seed pin, sourced by install.sh.
-# 7171673 is main as of 2026-10-10: 7ebea87 (2026-08-04) plus the Stop-hook fix
-# that stops treating any mention of upload-policy as an upload (optimizer-seed#5).
+# e168402 is main as of 2026-10-10. It includes the fixes from the first test drive
+# (optimizer-seed#5 and #6): scripts act as the active player, runnable seed scripts,
+# hook fixes, and the instrument-check doctrine.
 # Main is used instead of tag v0.1.0 (5783022) because later commits fix onboarding and hooks.
 SEED_URL=https://github.com/Metta-AI/optimizer-seed
-SEED_COMMIT=71716731173049fad3c22e4eb257ccf7ac0f90a6
+SEED_COMMIT=e168402dd8db09a4d2a821033673df608fe46b6d

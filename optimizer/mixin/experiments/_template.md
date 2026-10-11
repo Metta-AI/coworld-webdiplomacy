@@ -14,6 +14,8 @@ evals: []               # batch ids, filled as they run
 
 # <Experiment title>
 
+Artifacts: `<directory the batches were fetched into, e.g. .runtime/artifacts/<slug>>`
+
 ## Context
 
 What was observed that motivated this, with links (META.md entries, survey
