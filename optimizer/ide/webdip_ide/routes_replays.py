@@ -2,7 +2,10 @@
 
 Pages:
   /replays                      every fetched episode, one row per followed seat, with filters
-                                as query parameters (so a card can link to a filtered list)
+                                as query parameters (so a card can link to a filtered list);
+                                `sort=score` puts the lowest scores first, `sort=-score` the highest.
+                                Without `policy` the list follows the policy last chosen here or on
+                                the dashboard (a cookie); `policy=` (empty) follows every seat with a log
   /replays/<episode>?phase=N&seat=S   the viewer; `phase` indexes the last replay frame's
                                 `history.phases`, `seat` is the roster slot whose log, private
                                 press and press audit are shown
@@ -27,6 +30,9 @@ router = APIRouter()
 NAV = ("Replays", "/replays")
 
 PAGE_SIZE = 200
+POLICY_COOKIE = "dashboard_policy"  # the policy we follow: the dashboard reads and writes the same cookie
+SOURCE_WORDS = {"xp": "experience request", "league": "league match", "local": "local run"}
+SORTS = ("", "score", "-score")
 POWERS = ("England", "France", "Italy", "Germany", "Austria", "Turkey", "Russia")
 YES_NO = ("", "yes", "no")
 
@@ -83,7 +89,7 @@ def _keep(row: dict, f: dict) -> bool:
 @router.get("/replays")
 def replays_page(
     request: Request,
-    policy: str = "",
+    policy: str | None = None,
     source: str = "",
     variant: str = "",
     batch: str = "",
@@ -94,8 +100,15 @@ def replays_page(
     audit: str = "",
     annotated: str = "",
     flagged: str = "",
+    sort: str = "",
     page: int = 1,
 ):
+    names = sorted({s["policy"] for e in episodes.index() for s in e["seats"]})
+    known = {episodes.policy_name(n) for n in names}
+    remembered = policy is None and request.cookies.get(POLICY_COOKIE, "") in known
+    if policy is None:
+        policy = request.cookies.get(POLICY_COOKIE, "") if remembered else ""
+    sort = sort if sort in SORTS else ""
     filters = {
         "policy": policy, "source": source, "variant": variant, "batch": batch, "power": power,
         "opponent": opponent, "outcome": outcome, "tainted": tainted, "audit": audit, "annotated": annotated,
@@ -105,22 +118,25 @@ def replays_page(
     every, guessed = _episode_rows(policy)
     rows = [row for row in every if _keep(row, filters)]
 
+    if sort:  # seats first, by score; a row with no followed seat has no score and goes last
+        sign = -1 if sort == "-score" else 1
+        rows.sort(key=lambda row: (row["seat"] is None, sign * (row["seat"] or {}).get("score", 0.0)))
+
     all_episodes = [row["episode"] for row in every]
-    names = sorted({s["policy"] for e in episodes.index() for s in e["seats"]})
     options = {
-        "policy": sorted({episodes.policy_name(n) for n in names}) + names,
+        "policy": sorted(known) + names,
         "source": sorted({e["source"] for e in all_episodes}),
         "variant": sorted({e["variant_id"] for e in all_episodes}),  # ids, as on the dashboard
         "batch": sorted({e["batch"] for e in all_episodes if e["batch"]}),
         "power": POWERS,
-        "opponent": sorted({episodes.policy_name(n) for n in names}) + names,
+        "opponent": sorted(known) + names,
         "outcome": sorted({e["outcome"] for e in all_episodes if e["outcome"]}),
     }
     scored = [row for row in rows if row["seat"] and not row["taint"]]
     mean = sum(row["seat"]["score"] for row in scored) / len(scored) if scored else None
     pages = max(1, -(-len(rows) // PAGE_SIZE))
     page = min(max(page, 1), pages)
-    return render(
+    response = render(
         request,
         "replays.html",
         rows=rows[(page - 1) * PAGE_SIZE : page * PAGE_SIZE],
@@ -137,7 +153,13 @@ def replays_page(
         page=page,
         pages=pages,
         yes_no=YES_NO,
+        sort=sort,
+        remembered=remembered,
+        source_words=SOURCE_WORDS,
     )
+    if policy and not remembered and episodes.policy_name(policy) in known:
+        response.set_cookie(POLICY_COOKIE, episodes.policy_name(policy), max_age=365 * 24 * 3600, samesite="lax")
+    return response
 
 
 def _episode_or_404(episode: str) -> dict:
@@ -147,9 +169,15 @@ def _episode_or_404(episode: str) -> dict:
     return row
 
 
-def _seat(row: dict, seat: int | None) -> int | None:
+def _seat(row: dict, seat: int | None, remembered: str = "") -> int | None:
+    """The seat to follow: the one the link names; else the audited seat (`default_seat`); else, in a
+    game with no audit, a logged seat of the policy last followed in the browser or on the dashboard."""
     if seat is not None and any(s["slot"] == seat for s in row["seats"]):
         return seat
+    if remembered and not episodes.audit_path(row["id"]).exists():
+        ours = [s for s in row["seats"] if s["has_log"] and episodes.policy_name(s["policy"]) == remembered]
+        if ours:
+            return ours[0]["slot"]
     return episodes.default_seat(row)
 
 
@@ -162,8 +190,9 @@ def replay_page(request: Request, episode: str, phase: int | None = None, seat: 
         request,
         "replays_view.html",
         episode=row,
-        seat=_seat(row, seat),
+        seat=_seat(row, seat, request.cookies.get(POLICY_COOKIE, "")),
         phase=phase,
+        source_words=SOURCE_WORDS,
         tags=store.ANNOTATION_TAGS,
         parity=episodes.PARITY,
     )

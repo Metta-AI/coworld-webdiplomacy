@@ -11,6 +11,7 @@
 //   window.ide.cardElement(card)           DOM node for one agent card
 //   window.ide.onUpdate(fn)                fn({status, presence, messages, cards}) after every poll
 //   window.ide.openPanel()
+//   window.ide.draft(text)                 put text in the message box for the user to edit and send
 //
 // No dependencies, no build step. The page polls the JSON API every two seconds.
 (function () {
@@ -19,6 +20,7 @@
   var POLL_MS = 2000;
   var state = { status: null, presence: "Checking for an agent…", messages: [], cards: [], delivered: 0 };
   var context = null;
+  var contextDismissed = false;  // the user removed the chip: pages stop re-attaching until the next page load
   var listeners = [];
   var seenCards = 0;
   var $ = function (id) { return document.getElementById(id); };
@@ -173,8 +175,10 @@
   function contextHref(ctx) {
     if (ctx && ctx.link && safeHref(ctx.link)) return safeHref(ctx.link);
     if (ctx && ctx.episode) {
-      var href = "/replays/" + encodeURIComponent(ctx.episode);
-      return ctx.phase !== undefined && ctx.phase !== null ? href + "?phase=" + encodeURIComponent(ctx.phase) : href;
+      var query = [];
+      if (ctx.phase !== undefined && ctx.phase !== null) query.push("phase=" + encodeURIComponent(ctx.phase));
+      if (ctx.seat !== undefined && ctx.seat !== null) query.push("seat=" + encodeURIComponent(ctx.seat));
+      return "/replays/" + encodeURIComponent(ctx.episode) + (query.length ? "?" + query.join("&") : "");
     }
     return null;
   }
@@ -216,20 +220,39 @@
     meta.appendChild(el("span", "tag " + ({ result: "ok", idea: "info", replay: "warn" }[card.kind] || ""), card.kind));
     meta.appendChild(el("time", "", when(card.ts)));
     node.appendChild(meta);
-    node.appendChild(el("h4", "", card.title));
+    var href = safeHref(card.link);
+    var heading = el("h4", "", href ? undefined : card.title);
+    if (href) {  // the title is the link as well: a larger thing to click than the line under the card
+      var titleLink = el("a", "", card.title);
+      titleLink.href = href;
+      if (href.charAt(0) !== "/") { titleLink.target = "_blank"; titleLink.rel = "noopener"; }
+      heading.appendChild(titleLink);
+    }
+    node.appendChild(heading);
     if (card.body) {
       var body = el("div", "md");
       body.innerHTML = renderMarkdown(card.body);
       node.appendChild(body);
     }
-    var href = safeHref(card.link);
     if (href) {
-      var open = el("a", "open", href.charAt(0) === "/" ? "Open " + href.split("?")[0] + " →" : "Open link →");
+      var open = el("a", "open", linkLabel(href));
       open.href = href;
       if (href.charAt(0) !== "/") { open.target = "_blank"; open.rel = "noopener"; }
       node.appendChild(open);
     }
     return node;
+  }
+
+  // Where a card's link goes, in words rather than as a path.
+  function linkLabel(href) {
+    if (href.charAt(0) !== "/") return "Open the link →";
+    var phase = /[?&]phase=(\d+)/.exec(href);
+    if (/^\/replays\/[^/?]+/.test(href)) return "Open the replay" + (phase ? " at phase " + phase[1] : "") + " →";
+    if (/^\/replays/.test(href)) return "Open these games in Replays →";
+    if (/^\/dashboard/.test(href)) return "Open the dashboard →";
+    if (/^\/reports\/[^/?]+\/[^/?]+/.test(href)) return "Read the report →";
+    if (/^\/reports/.test(href)) return "Open Reports →";
+    return "Open " + href.split("?")[0] + " →";
   }
 
   function presenceText(status) {
@@ -245,6 +268,9 @@
   function updateDeliveryStates() {
     var status = state.status;
     var nodes = document.querySelectorAll("#agent-chat .msg.user");
+    var box = $("agent-chat");
+    // A status line that appears under the last message must not push it out of view.
+    var pinned = box && box.scrollHeight - box.scrollTop - box.clientHeight < 60;
     var lastDelivered = null;
     nodes.forEach(function (node) {
       var line = node.querySelector(".state");
@@ -262,6 +288,7 @@
     if (lastDelivered && lastDelivered === last && !last.nextElementSibling) {
       last.querySelector(".state").textContent = "Delivered to the agent.";
     }
+    if (pinned) box.scrollTop = box.scrollHeight;
   }
 
   function render(status) {
@@ -402,7 +429,7 @@
     $("agent-panel-toggle").addEventListener("click", function () { setPanel(!panelOpen()); });
     $("agent-tab-chat").addEventListener("click", function () { showTab("chat"); });
     $("agent-tab-cards").addEventListener("click", function () { showTab("cards"); });
-    $("agent-context-clear").addEventListener("click", function () { setContext(null); });
+    $("agent-context-clear").addEventListener("click", function () { contextDismissed = true; setContext(null); });
     setContext(context);
 
     var input = $("agent-input");
@@ -430,9 +457,21 @@
     document.addEventListener("visibilitychange", function () { if (!document.hidden) poll(); });
   }
 
+  function draft(text) {
+    var input = $("agent-input");
+    if (!input) return;
+    openPanel();
+    showTab("chat");
+    input.value = text;
+    input.focus();
+    input.setSelectionRange(text.length, text.length);
+    $("agent-compose-hint").textContent = "Change it if you like, then press Enter to send";
+  }
+
   window.ide = {
     sendToAgent: sendToAgent,
-    setContext: setContext,
+    setContext: function (ctx) { if (!contextDismissed) setContext(ctx); },
+    draft: draft,
     getContext: function () { return context; },
     renderMarkdown: renderMarkdown,
     cardElement: cardElement,

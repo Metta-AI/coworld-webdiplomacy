@@ -168,7 +168,16 @@ and gets the agent panel. From any page:
 window.ide.sendToAgent("Audit the press in this game", {episode, phase})   // posts now; opens the panel
 window.ide.setContext({episode, phase, annotations: [ids], label: "optional chip text"})  // attached to what the user types next
 window.ide.renderMarkdown(text)   // safe HTML for a small Markdown subset
+window.ide.draft(text)            // put text in the message box for the user to edit and send
 ```
+
+Shared pieces live in `static/app.css`, so pages built by different people look like one
+tool: a page's sections are `<section>` with an `<h2>` (a serif heading over one hairline);
+a filter bar is `<form class="filters">` with a `<label>` around each `<select>` (add
+class `set` to a select that narrows the page); a sortable column heading is a link or a
+`th[data-sort]` and shows its direction with `aria-sort`; `.about` is the grey line that
+explains a section. The policy the user follows is one cookie, `dashboard_policy`, read
+and written by both the dashboard and the replay browser.
 
 Write routes with `dependencies=[Depends(routes_chat.require_same_origin)]` so another
 web site open in the same browser cannot post to the IDE.

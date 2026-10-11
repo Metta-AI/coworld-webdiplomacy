@@ -64,14 +64,14 @@
   </div>
   {% else %}
 
-  <form class="controls dash-filters" method="get" action="/dashboard" id="dash-filters">
+  <form class="filters" method="get" action="/dashboard" id="dash-filters">
     <label>Policy
       <select name="policy">
         {% for p in policies %}<option value="{{ p.name }}"{% if p.name == filters.policy %} selected{% endif %}>{{ p.name }} · {{ p.games }} games{% if not p.seats_with_log %} · no logs{% endif %}</option>{% endfor %}
       </select>
     </label>
     <label>Version
-      <select name="version">
+      <select name="version"{% if filters.version %} class="set"{% endif %}>
         <option value="">all versions</option>
         {% for v in filters.row.versions %}{% set short = v[filters.policy|length + 1:] %}<option value="{{ short }}"{% if short == filters.version %} selected{% endif %}>{{ short }}</option>{% endfor %}
       </select>
@@ -84,7 +84,7 @@
       </select>
     </label>
     <label>Source
-      <select name="source">
+      <select name="source"{% if filters.source != "all" %} class="set"{% endif %}>
         {% for key in ("all", "league", "xp", "local") %}{% if key in ("all", "league", "xp") or key in filters.row.sources %}<option value="{{ key }}"{% if key == filters.source %} selected{% endif %}>{{ source_labels[key] }}{% if key != "all" %} · {{ filters.row.sources.get(key, 0) }}{% endif %}</option>{% endif %}{% endfor %}
       </select>
     </label>
@@ -157,7 +157,7 @@
           <th class="num" data-sort="games">Games</th>
           <th data-sort="ahead" title="Games where our score was higher than theirs, against games where it was lower">Finished ahead</th>
           <th class="dash-plot" data-sort="paired">Ours minus theirs, vs par{{ axis(view.paired_scale) }}</th>
-          <th class="num" data-sort="paired">Diff.</th>
+          <th class="num" data-sort="paired" aria-sort="ascending" title="Ours minus theirs, each against par at its own power, in the games we shared">Diff.</th>
           <th class="num" data-sort="z">z</th>
           <th class="num" data-sort="theirs" title="Their own score against par at their power, in the games they shared with us">Their vs par</th>
           <th class="num" data-sort="with" title="Our score vs par in games with them, minus our score vs par in games without them">With − without</th>
@@ -178,7 +178,7 @@
           <td class="num">{{ signed(p.paired.z, 2) }}</td>
           <td class="num" data-tip="{{ p.opponent }} against par at their own power, {{ p.their_vs_par.n }} seats: {{ signed(p.their_vs_par.mean) }}{% if p.their_vs_par.z is not none %}, z {{ signed(p.their_vs_par.z, 2) }}{% endif %} · raw score {{ plain(p.their_score) }}">{{ signed(p.their_vs_par.mean) }}</td>
           <td class="num"{% if p.difference.diff is not none %} data-tip="With them {{ signed(p.with.mean) }} ({{ p.with.n }} seats), without them {{ signed(p.without.mean) }} ({{ p.without.n }} seats){% if p.difference.z is not none %} · z {{ signed(p.difference.z, 2) }}{% endif %} · {{ p.difference.verdict }}"{% else %} data-tip="They were in every one of our games in this view, so there is nothing to compare with"{% endif %}>{% if p.difference.diff is not none %}{{ signed(p.difference.diff) }}{% else %}<span class="muted">in every game</span>{% endif %}</td>
-          <td class="dash-actions"><button type="button" class="plain small" data-more aria-expanded="false">More</button></td>
+          <td class="dash-actions"><button type="button" class="plain small" data-more aria-expanded="false" title="Power pairings, links to these games, and a write-up request">Details</button></td>
         </tr>
         <tr class="dash-more" hidden>
           <td colspan="9">
@@ -221,7 +221,7 @@
       {% endfor %}
     </table>
     </div>
-    {% if view.opponents %}<p class="small muted">* fewer than {{ view.low_n }} games together: directional only. Click a column heading to sort.</p>{% endif %}
+    {% if view.opponents %}<p class="small muted">Sorted with the opponents that finish furthest ahead of us first; click a column heading to sort another way. An opponent's name opens the games we shared in Replays; “Details” has the power pairings and a write-up request.{% if view.opponents | selectattr("with.low_n") | list %} * fewer than {{ view.low_n }} games together: directional only.{% endif %}</p>{% endif %}
   </section>
 
   {# ---------- power by opponent ---------- #}

@@ -4,8 +4,9 @@
  * own file (static/replay.css, static/dashboard.css, ...). Hierarchy comes from type,
  * weight and whitespace; boxes are for things that behave as one unit.
  *
- * Contents: 1 tokens · 2 base type · 3 shell (top bar, two columns) · 4 components
- *           (buttons, forms, tags, tables, notices, prose) · 5 agent panel · 6 home · 7 narrow screens
+ * Contents: 1 tokens · 2 base type · 3 shell (top bar, two columns, page sections) · 4 components
+ *           (buttons, forms, filter bars, tags, tables, notices, prose) · 5 agent panel · 6 home ·
+ *           7 narrow screens and reduced motion
  */
 
 /* --- 1. tokens --- */
@@ -60,7 +61,7 @@
   --radius: 3px;
   --radius-panel: 6px;
   --topbar-h: 46px;
-  --panel-w: 380px;
+  --panel-w: clamp(320px, 24vw, 360px);   /* the agent panel: a column for reading, not half the screen */
   --measure: 72ch;           /* longest comfortable line of prose */
 }
 
@@ -89,6 +90,7 @@ a:hover { text-decoration-color: var(--navy); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 code, kbd, pre, .mono { font-family: var(--mono); font-size: 0.92em; }
 code { background: var(--paper-3); padding: 1px 4px; border-radius: var(--radius); }
+kbd { background: var(--paper-3); border: 1px solid var(--rule); border-radius: var(--radius); padding: 0 4px; font-size: 0.85em; }
 pre { background: var(--paper-3); padding: var(--s3); border-radius: var(--radius); overflow-x: auto; margin: 0 0 var(--s3); }
 pre code { background: none; padding: 0; }
 hr { border: 0; border-top: 1px solid var(--rule); margin: var(--s5) 0; }
@@ -139,6 +141,23 @@ small, .small { font-size: var(--text-sm); }
 .page-head { display: flex; align-items: baseline; gap: var(--s4); flex-wrap: wrap; margin-bottom: var(--s4); }
 .page-head h1 { margin: 0; }
 .page-head .spacer { flex: 1; }
+/* A page's sections: a serif heading over one hairline. The same on every page. */
+.page h2 { margin: var(--s6) 0 var(--s3); padding-top: var(--s4); border-top: 1px solid var(--rule); }
+.page section > h2:first-child { margin-top: 0; }
+.page-head + section > h2:first-child { border-top: 0; padding-top: var(--s2); }  /* the page title is rule enough */
+.page section { margin-bottom: var(--s6); }
+/* The line of small grey text that explains a section, under its heading. */
+.about { color: var(--ink-3); font-size: var(--text-sm); max-width: var(--measure); }
+
+/* A slow page (the first read of several hundred episodes takes seconds) says that it is coming:
+   base.html adds .leaving to <html> when a link or a filter starts loading another page. */
+.topbar::after {
+  content: ""; position: absolute; left: 0; bottom: -2px; height: 2px; width: 100%;
+  background: var(--navy); transform: scaleX(0); transform-origin: left; opacity: 0;
+}
+.leaving .topbar::after { opacity: 1; animation: leaving 8s cubic-bezier(0.1, 0.6, 0.2, 1) 0.25s forwards; }
+.leaving .layout > main { cursor: progress; }
+@keyframes leaving { to { transform: scaleX(0.92); } }
 
 /* --- 4. components --- */
 
@@ -176,6 +195,14 @@ label { font: 600 var(--text-sm)/1.3 var(--sans); color: var(--ink-2); }
 .field { display: flex; flex-direction: column; gap: var(--s1); margin-bottom: var(--s3); }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); margin-bottom: var(--s4); }
 
+/* Filter bars (replay browser, dashboard): a small label over each select. A select that narrows
+   the page is tinted, so the filters in force can be seen without reading every one. */
+.filters { display: flex; flex-wrap: wrap; align-items: end; gap: var(--s2) var(--s3); margin-bottom: var(--s4); }
+.filters label { display: flex; flex-direction: column; gap: 2px; font-size: var(--text-xs); color: var(--ink-2); }
+.filters select { height: 28px; padding: 2px var(--s1); font-size: var(--text-sm); max-width: 230px; }
+.filters select.set { background: var(--accent-soft); border-color: var(--accent); color: var(--navy); }
+.filters .btn { align-self: end; }
+
 /* Tags: a short status or category word. Colour is meaning, never decoration. */
 .tag {
   display: inline-flex; align-items: center; height: 20px; padding: 0 7px;
@@ -206,6 +233,15 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 td.num { font-family: var(--mono); }
 tbody tr:hover { background: var(--hover); }
 tr.clickable { cursor: pointer; }
+/* A column heading that sorts: a link (server-side sort) or a th[data-sort] (in the page). */
+th a { color: inherit; text-decoration: none; }
+th a:hover, th[data-sort]:hover { color: var(--navy); }
+th[data-sort] { cursor: pointer; }
+th[aria-sort] { color: var(--navy); }
+th[aria-sort]::after { content: " \2193"; }
+th[aria-sort="ascending"]::after { content: " \2191"; }
+/* A long name in a narrow cell: cut with an ellipsis; the cell's title carries the whole name. */
+td.clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 td.empty { padding: var(--s4) 0; }
 .table-scroll { overflow-x: auto; }
 
@@ -229,6 +265,10 @@ dl.facts dd { margin: 0; }
 .md li { margin-bottom: 2px; }
 .md blockquote { margin: 0 0 var(--s3); padding-left: var(--s3); border-left: 2px solid var(--rule-strong); color: var(--ink-2); }
 .md table { width: auto; }
+/* In the narrow agent panel a table scrolls sideways inside its message instead of widening the panel. */
+.agent-panel .md { overflow-wrap: anywhere; }
+.agent-panel .md table { display: block; max-width: 100%; overflow-x: auto; overflow-wrap: normal; }
+.agent-panel .md th, .agent-panel .md td { min-width: 5em; white-space: normal; }
 .md th, .md td { padding-right: var(--s4); }
 
 /* --- 5. agent panel --- */
@@ -267,7 +307,7 @@ dl.facts dd { margin: 0; }
   font: 400 var(--text-xs)/1.3 var(--mono); color: var(--ink-2);
   background: var(--paper-3); border: 1px solid var(--rule); border-radius: var(--radius); padding: 2px 6px; margin-top: 3px;
 }
-.ctx a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx a, .ctx > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ctx button { height: 16px; padding: 0 3px; border: 0; background: none; color: var(--ink-3); font-size: var(--text-xs); }
 .ctx button:hover { color: var(--terracotta); background: none; }
 
@@ -275,7 +315,9 @@ dl.facts dd { margin: 0; }
 .agent-card:first-child { padding-top: 0; }
 .agent-card:last-child { border-bottom: 0; }
 .agent-card .meta { display: flex; align-items: center; gap: var(--s2); margin-bottom: 3px; color: var(--ink-3); font-size: var(--text-xs); }
-.agent-card h4 { font: 700 var(--text-md)/1.3 var(--serif); margin: 0 0 var(--s1); }
+.agent-card h4 { font: 700 var(--text-md)/1.3 var(--serif); margin: 0 0 var(--s1); overflow-wrap: anywhere; }
+.agent-card h4 a { color: var(--ink); text-decoration-color: transparent; }
+.agent-card h4 a:hover { color: var(--navy); text-decoration-color: var(--navy); }
 .agent-card .open { display: inline-block; margin-top: var(--s1); font-weight: 600; }
 
 .agent-compose { border-top: 1px solid var(--rule); padding: var(--s3) var(--s4); background: var(--paper-2); }
@@ -289,8 +331,12 @@ dl.home-sections dt { font: 700 var(--text-md)/1.55 var(--serif); }
 dl.home-sections dd { margin: 0; color: var(--ink-2); }
 dl.home-sections .num { color: var(--ink); font-family: inherit; font-weight: 700; }
 .home-cards { max-width: var(--measure); }
+.home-asks { list-style: none; margin: 0 0 var(--s4); padding: 0; max-width: var(--measure); }
+.home-asks li { border-bottom: 1px solid var(--rule-subtle); }
+.home-asks button { height: auto; min-height: 30px; padding: var(--s1) var(--s2) var(--s1) 0; white-space: normal; text-align: left; font-weight: 400; font-size: var(--text-md); line-height: 1.4; color: var(--navy); width: 100%; }
+.home-asks button::after { content: "\2192"; margin-left: auto; color: var(--ink-3); }
 
-/* --- 7. narrow screens (after the base rules they change) --- */
+/* --- 7. narrow screens and reduced motion (after the base rules they change) --- */
 @media (max-width: 900px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
   .layout > main { padding: var(--s4); }
@@ -299,4 +345,8 @@ dl.home-sections .num { color: var(--ink); font-family: inherit; font-weight: 70
     box-shadow: -8px 0 24px rgba(27, 26, 23, 0.12);
   }
   .topbar { padding: 0 var(--s3); gap: var(--s3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot.pulse { animation: none; }
+  .leaving .topbar::after { animation: none; transform: scaleX(0.5); }
 }

@@ -7,35 +7,41 @@
 
 /* --- 1. browser --- */
 .replays-page { max-width: none; }
-.replay-filters { gap: var(--s2) var(--s3); align-items: end; }
-.replay-filters .filter { display: flex; flex-direction: column; gap: 2px; font-size: var(--text-xs); }
-.replay-filters select { height: 26px; padding: 2px var(--s1); font-size: var(--text-sm); max-width: 190px; }
 .replay-summary { color: var(--ink-2); max-width: 110ch; }
-.replay-table th, .replay-table td { white-space: nowrap; padding-right: 10px; }
+.replay-table th, .replay-table td { white-space: nowrap; padding-right: var(--s2); }
 .replay-table th { letter-spacing: 0.05em; }
 .replay-table td { padding-top: 5px; padding-bottom: 5px; }
-.replay-table td.clip { overflow: hidden; text-overflow: ellipsis; }
-.replay-table td.policy { max-width: 172px; }
-.replay-table td.opponents { max-width: 124px; font-size: var(--text-xs); }
-.replay-table td.flags { max-width: 150px; font-size: var(--text-xs); color: var(--terracotta); }
+/* A long policy name or list of opponents is cut to fit and the title has the whole text. "Against"
+   takes the width that is left (width 100% with max-width 0: the one column allowed to shrink and
+   grow). A flag is the reason to open the game, so it is never cut: it wraps onto a second line. */
+.replay-table td.policy { max-width: 200px; }
+.replay-table td.opponents { width: 100%; min-width: 96px; max-width: 0; font-size: var(--text-xs); }
+.replay-table td.flags { white-space: normal; min-width: 96px; max-width: 168px; font-size: var(--text-xs); line-height: 1.35; color: var(--terracotta); }
 .replay-table .tag { margin-left: 4px; }
 .replay-table td.num span { margin-left: 6px; }
 
 /* --- 2. viewer head --- */
 .replay [hidden] { display: none !important; }
 .replay .empty { font-size: var(--text-sm); }
-.replay { max-width: 1240px; }
+.replay { max-width: 1360px; }
 .replay-head .back { text-decoration: none; }
-.replay-head h1 { margin: var(--s1) 0 2px; }
-.replay-id { font-size: var(--text-sm); font-weight: 400; color: var(--ink-3); margin-left: var(--s2); }
-.replay-meta { margin-bottom: var(--s2); }
+.replay-title { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--s1) var(--s4); margin-top: var(--s1); }
+.replay-title h1 { margin: 0; min-width: 0; }
+.replay-id { font-size: var(--text-sm); font-weight: 400; color: var(--ink-3); margin-left: var(--s2); overflow-wrap: anywhere; }
+.replay-meta { margin: 2px 0 var(--s3); }
 .replay-meta .tag { margin-left: var(--s1); }
-.seat-pick { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; margin-bottom: var(--s3); }
-.seat-pick select { height: 26px; padding: 2px var(--s1); font-size: var(--text-sm); }
+.seat-pick { display: flex; align-items: center; gap: var(--s2); }
+.seat-pick select { height: 28px; padding: 2px var(--s1); font-size: var(--text-sm); max-width: 320px; }
+/* Who lied to the followed seat, as one line above the board. Colour is on the dots and the counts. */
+.audit-brief { margin: 0 0 var(--s3); color: var(--ink-2); }
+.audit-brief .eyebrow { margin-right: var(--s2); }
+.audit-brief a { white-space: nowrap; }
+.audit-brief .sep { margin: 0 var(--s2); color: var(--ink-3); }
 .replay h3 { margin-top: 0; }
 .replay h3 .muted { font-family: var(--sans); font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--ink-3); }
 
-.replay-grid { display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(300px, 1fr); gap: var(--s5); align-items: start; }
+/* The board is the main object: it gets two thirds of the width, the orders the rest. */
+.replay-grid { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(290px, 1fr); gap: var(--s5); align-items: start; }
 
 /* --- 3. map --- */
 .phase-bar { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s2); }
@@ -76,8 +82,16 @@
 #map .hit:hover { fill: rgba(26, 56, 117, 0.1); stroke: var(--accent); stroke-width: 1; }
 #map #layer-orders.dim .order { opacity: 0.18; }
 #map #layer-orders.dim .order.lit { opacity: 1; }
-.map-note { margin: var(--s2) 0 2px; min-height: 1.4em; }
-.map-key { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--s3); margin: 0; }
+#map .pin { stroke: var(--paper); stroke-width: 1.2; fill: var(--ink-2); cursor: pointer; }
+#map .pin.bad { fill: var(--terracotta); }
+#map .pin.warn { fill: var(--gold); }
+#map .pin.ok { fill: var(--sage); }
+#map .pin.agent { fill: var(--navy); }
+#map .pin.draft { fill: var(--paper); stroke: var(--navy-deep); stroke-width: 1.8; }
+.map-note { margin: 2px 0 0; }
+.map-note:empty { display: none; }
+.map-key { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--s3); margin: var(--s2) 0 0; }
+.k-pin { fill: var(--ink-2); stroke: var(--paper); }
 .map-key .key { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .map-key svg { flex: none; }
 .k-move, .k-fail { stroke: var(--ink-2); stroke-width: 2.2; }
@@ -95,7 +109,9 @@
 .power-head { display: flex; align-items: baseline; font-weight: 700; font-size: var(--text-sm); border-bottom: 1px solid var(--rule); padding-bottom: 1px; }
 .power-head .power-sc { margin-left: auto; font-weight: 400; font-size: var(--text-xs); color: var(--ink-2); }
 .power-block.us .power-head { border-bottom-color: var(--ink); }
-.power-policy { font-size: 0.66rem; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.power-policy { display: flex; gap: var(--s2); font-size: 0.66rem; line-height: 1.5; white-space: nowrap; }
+.power-policy .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.power-policy .final { flex: none; font-variant-numeric: tabular-nums; }
 .order-list { list-style: none; margin: 1px 0 0; padding: 0; font-size: 0.74rem; line-height: 1.5; }
 .order-list li { display: flex; gap: 6px; align-items: baseline; padding: 0 2px; border-radius: 2px; cursor: default; }
 .order-list li:hover { background: var(--hover); }
@@ -105,7 +121,16 @@
 .order-list .none { font-style: italic; }
 
 /* --- 5. timeline --- */
-.timeline { margin: var(--s4) 0 var(--s5); padding-top: var(--s3); border-top: 1px solid var(--rule); }
+.timeline { margin: var(--s5) 0 var(--s5); padding-top: var(--s3); border-top: 1px solid var(--rule); }
+.timeline-key { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--s4); margin: 2px 0 0; padding-left: 46px; }
+.timeline-key .key { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.timeline-key svg { flex: none; overflow: visible; }
+.timeline-key .line { stroke: var(--ink-2); stroke-width: 3.2; }
+.timeline-key .marker { fill: var(--ink-2); stroke: var(--paper); stroke-width: 1; }
+.timeline-key .marker.bad { fill: var(--terracotta); }
+.timeline-key .marker.warn { fill: var(--gold); }
+.timeline-key .marker.hollow { fill: var(--paper); stroke: var(--terracotta); stroke-width: 1.4; }
+.timeline-key .marker.cross { fill: none; stroke: var(--ink-2); stroke-width: 2; }
 .timeline-head { display: flex; align-items: baseline; gap: var(--s3); flex-wrap: wrap; margin-bottom: var(--s1); }
 .timeline-head h3 { margin: 0; }
 .timeline-head .speed { margin-left: auto; display: inline-flex; align-items: center; gap: var(--s1); }
@@ -176,16 +201,34 @@
 .note-text { font-size: var(--text-sm); margin: 3px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .note.by-agent .note-text { color: var(--navy); }
 .note-actions { display: flex; gap: var(--s1); margin-left: calc(-1 * var(--s2)); }
+/* The note form sits under the board: where, what kind, the text, one button. */
 .note-form { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--rule); }
-.note-form-head { margin-bottom: var(--s1); color: var(--ink-2); }
-.note-form-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin: var(--s1) 0; }
-.note-form select, .note-form input[type="text"] { height: 26px; padding: 2px var(--s1); font-size: var(--text-sm); }
-.note-form input[type="text"] { width: 9ch; text-transform: uppercase; }
+.note-form-head { color: var(--ink-2); font-weight: 400; margin-right: auto; }
+.note-form-head strong { color: var(--ink); }
+.note-form-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin: 0 0 var(--s2); }
+.note-form-row:last-child { margin-bottom: 0; }
+.note-form select, .note-form input[type="text"] { height: 28px; padding: 2px var(--s1); font-size: var(--text-sm); }
+.note-form input[type="text"] { width: 10ch; text-transform: uppercase; }
 .note-form input[type="text"]::placeholder { text-transform: none; }
-.note-form textarea { font-size: var(--text-sm); }
+/* One line until there is more to say: replay.js grows the box with its text. It must not change
+   size on focus or blur, or the buttons under it move away from a click that is already on its way. */
+.note-form textarea { flex: 1; width: auto; min-width: 0; min-height: 30px; height: 30px; max-height: 140px; font-size: var(--text-sm); line-height: 1.4; resize: none; }
+.note-form-row:has(textarea) { align-items: flex-start; flex-wrap: nowrap; }
+.note-form-foot { justify-content: space-between; min-height: 24px; }
+.note-form-foot .bad { color: var(--terracotta); }
 
 /* --- 8. narrow screens --- */
-@media (max-width: 1100px) {
+/* Beside the agent panel there is no room for the list of opponents, and in a 1280-wide window
+   none for the source word either. The "Against" and "Source" filters still narrow by them, the
+   Game cell's title names the source, and hiding the panel brings both back. */
+@media (max-width: 1520px) {
+  html:not(.agent-collapsed) .replay-table .opponents { display: none; }
+}
+@media (max-width: 1340px) {
+  html:not(.agent-collapsed) .replay-table .src { display: none; }
+  html:not(.agent-collapsed) .replay-table td.policy { max-width: 168px; }
+}
+@media (max-width: 1180px) {
   .replay-grid, .replay-lower { grid-template-columns: minmax(0, 1fr); }
   .orders { columns: 3; }
 }

@@ -15,6 +15,9 @@
         document.documentElement.classList.add("agent-collapsed");
       }
     } catch (e) {}
+    // A page that takes seconds to build shows a moving line under the top bar while it loads.
+    window.addEventListener("beforeunload", function () { document.documentElement.classList.add("leaving"); });
+    window.addEventListener("pageshow", function () { document.documentElement.classList.remove("leaving"); });
   </script>
   {% block head %}{% endblock %}
 </head>

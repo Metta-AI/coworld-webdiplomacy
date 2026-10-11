@@ -190,7 +190,7 @@ class ChatApiTest(LabCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn('id="agent-panel"', page.text)
         self.assertIn('id="agent-input"', page.text)
-        self.assertIn('<span class="num">1</span> annotation on', page.text)
+        self.assertIn('<span class="num">1</span> note on', page.text)
 
 
 if __name__ == "__main__":

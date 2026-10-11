@@ -258,12 +258,43 @@
     });
   }
 
+  // Notes pinned to a province in this phase, and the province the note being written is pinned to.
+  function drawPins() {
+    var layer = clear($("layer-pins"));
+    if (!view || !hasMap()) return;
+    var byAbbr = {};
+    Object.keys(view.territories).forEach(function (id) { if (point(id)) byAbbr[terr(id).abbr.toUpperCase()] = id; });
+    var stacked = {};
+    function place(abbr) {
+      var id = byAbbr[String(abbr || "").trim().toUpperCase()];
+      if (!id) return null;
+      var at = point(id), n = (stacked[id] = (stacked[id] || 0) + 1) - 1;
+      return { x: at.x + 9 + n * 6, y: at.y - 9 };
+    }
+    view.annotations.forEach(function (note) {
+      if (note.phase !== current || !note.territory) return;
+      var at = place(note.territory);
+      if (!at) return;
+      var label = "[" + note.tag.replace("-", " ") + "] " + note.text;
+      var pin = note.author === "agent"
+        ? svg("rect", { x: at.x - 3.6, y: at.y - 3.6, width: 7.2, height: 7.2, class: "pin agent" }, label)
+        : svg("circle", { cx: at.x, cy: at.y, r: 4.2, class: "pin " + (NOTE_MARKS[note.tag] || "") }, label);
+      pin.addEventListener("click", function () {
+        var node = $("note-" + note.id);
+        if (node) { node.scrollIntoView({ block: "center", behavior: "smooth" }); flash(node); }
+      });
+      layer.appendChild(pin);
+    });
+    var draft = place($("note-territory").value);
+    if (draft) layer.appendChild(svg("circle", { cx: draft.x, cy: draft.y, r: 4.2, class: "pin draft" }, "The note you are writing is pinned here"));
+  }
+
   function mapNote() {
     var ph = phase(), note = "";
     if (ph.stale_board) {
       note = "The record of the last phase shows who owned what before the final autumn. The centre counts in the chart and the table are the final ones.";
     } else if (ph.phase === "Diplomacy") {
-      note = "Units where they stood before this phase's orders were carried out.";
+      note = "";  // the plain case: units stand where they started, with this phase's orders drawn from them
     } else if (ph.phase === "Retreats") {
       note = "After the moves: dislodged units stand to one side and retreat or disband.";
     } else if (ph.phase === "Builds") {
@@ -301,8 +332,12 @@
       block.appendChild(head);
       var s = seats[country];
       if (s) {
-        block.appendChild(el("div", "power-policy muted", s.policy + (isUs(name) ? " · followed" : "") +
-          " · final " + fmt(s.score)));
+        // The name may be cut short; the final score never is.
+        var line = el("div", "power-policy muted");
+        line.title = s.policy + (isUs(name) ? " (the seat we follow)" : "") + " · final score " + fmt(s.score);
+        line.appendChild(el("span", "name", s.policy));
+        line.appendChild(el("span", "final", (isUs(name) ? "followed · " : "") + "final " + fmt(s.score)));
+        block.appendChild(line);
       }
       var list = el("ul", "order-list");
       (byCountry[country] || []).forEach(function (pair) {
@@ -453,7 +488,39 @@
 
     clear(box).appendChild(chart);
     box.dataset.width = width;
+    drawTimelineKey();
     moveCursor();
+  }
+
+  // What the lines and marks mean. Only the rows this game has anything in are explained.
+  function drawTimelineKey() {
+    var box = clear($("timeline-key"));
+    var rows = markersByRow();
+    function key(shape, tone, text) {
+      var item = el("span", "key");
+      var icon = svg("svg", { width: 14, height: 12, "aria-hidden": "true" });
+      var mark;
+      if (shape === "line") mark = svg("line", { x1: 0, x2: 14, y1: 6, y2: 6, class: "line" });
+      else if (shape === "cross") mark = cross({ x: 7, y: 6 }, 3.5, "marker cross");
+      else if (shape === "bar") mark = svg("rect", { x: 5, y: 1.5, width: 4, height: 9, class: "marker" });
+      else if (shape === "diamond") mark = svg("path", { d: "M7 1 l4.5 5 l-4.5 5 l-4.5 -5 Z", class: "marker" });
+      else if (shape === "square") mark = svg("rect", { x: 3.5, y: 2.5, width: 7, height: 7, class: "marker agent" });
+      else mark = svg("circle", { cx: 7, cy: 6, r: 4, class: "marker" });
+      if (tone) mark.classList.add(tone);
+      icon.appendChild(mark);
+      item.appendChild(icon);
+      item.appendChild(document.createTextNode(text));
+      box.appendChild(item);
+    }
+    if (view.our_power) key("line", "", "the seat we follow");
+    if (rows.Board.some(function (m) { return m.shape === "bar"; })) key("bar", "", "gained or lost 3 or more centres in a year");
+    if (rows.Board.some(function (m) { return m.shape === "cross"; })) key("cross", "", "eliminated");
+    if (rows.Press.some(function (m) { return m.tone === "bad"; })) key("diamond", "bad", "lied to us");
+    if (rows.Press.some(function (m) { return m.tone === "warn"; })) key("diamond", "warn", "we doubted a word that was kept");
+    if (rows.Press.some(function (m) { return m.tone === "hollow"; })) key("diamond", "hollow", "we broke our word");
+    if (rows.Notes.some(function (m) { return m.shape === "circle"; })) key("circle", "", "your note");
+    if (rows.Notes.some(function (m) { return m.shape === "square"; })) key("square", "", "the agent's note");
+    if (box.childNodes.length > 1) box.appendChild(el("span", "", "Click a mark to go to its phase."));
   }
 
   function moveCursor() {
@@ -487,14 +554,25 @@
         (claim.window[1] !== claim.window[0] ? " to " + turnLabel(claim.window[1]) : "")));
     }
     if (claim.settled !== null && claim.settled !== undefined && claim.settled !== current) {
-      var jump = el("a", "small", "see " + view.phases[claim.settled].label);
-      jump.href = "#";
-      jump.addEventListener("click", function (event) { event.preventDefault(); go(claim.settled); });
-      verdict.appendChild(jump);
+      verdict.appendChild(el("span", "muted small", "settled in"));
+      verdict.appendChild(boardLink(claim.settled, view.phases[claim.settled].label));
     }
     node.appendChild(verdict);
     (claim.evidence || []).forEach(function (line) { node.appendChild(el("div", "claim-evidence mono", line)); });
     return node;
+  }
+
+  // A link to another phase's board: goes there and brings the board back into view.
+  function boardLink(index, label) {
+    var jump = el("a", "small", label);
+    jump.href = "#";
+    jump.title = "Show the board and the orders of this phase";
+    jump.addEventListener("click", function (event) {
+      event.preventDefault();
+      go(index);
+      root.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+    return jump;
   }
 
   function turnLabel(turn) { return (turn % 2 === 0 ? "Spring " : "Autumn ") + (1901 + Math.floor(turn / 2)); }
@@ -519,6 +597,7 @@
   function drawPress() {
     var ph = phase(), box = clear($("press"));
     var movement = ph.phase === "Diplomacy";
+    $("press-filter").hidden = !view.messages.length;  // nothing to filter in a gunboat game
     $("press-phase").textContent = movement ? "about " + turnLabel(ph.turn) : "";
     var here = view.messages.filter(function (m) { return m.pi === current; });
     var shown = here.filter(function (m) {
@@ -585,6 +664,58 @@
     }
   }
 
+  // Go to the message a flagged claim was made in, and show it.
+  function jumpToFlag(item) {
+    setPressShow("all");
+    var message = view.messages.find(function (m) { return m.id === item.message; });
+    go(message && message.pi !== null ? message.pi : item.pi);
+    var node = $("msg-" + item.message);
+    if (node) { node.scrollIntoView({ block: "center", behavior: "smooth" }); flash(node); }
+  }
+
+  // One line above the board: who lied to the followed seat, each name a jump to the first time.
+  function drawAuditBrief() {
+    var box = clear($("audit-brief"));
+    var audit = view.audit;
+    box.hidden = !(audit && audit.joined && audit.powers && Object.keys(audit.powers).length);
+    if (box.hidden) return;
+    box.appendChild(el("span", "eyebrow", "Press audit"));
+    var liars = [], doubted = 0, broke = 0;
+    Object.keys(audit.powers).forEach(function (power) {
+      var entry = audit.powers[power], cats = entry.categories || {};
+      doubted += power === audit.our_power ? 0 : (cats.doubted_wrongly || 0);
+      if (power === audit.our_power) { broke = cats.we_broke_our_word || 0; return; }
+      var lies = (entry.flagged || []).filter(function (f) { return f.category === "betrayed" || f.category === "deceived"; });
+      if (lies.length) liars.push({ power: power, lies: lies.sort(function (a, b) { return (a.pi || 0) - (b.pi || 0); }) });
+    });
+    liars.sort(function (a, b) { return b.lies.length - a.lies.length; });
+    if (!liars.length) {
+      box.appendChild(document.createTextNode("Nobody broke a word we relied on."));
+    } else {
+      box.appendChild(document.createTextNode("Lied to us: "));
+      liars.forEach(function (liar, index) {
+        if (index) box.appendChild(document.createTextNode(", "));
+        box.appendChild(dot(title(liar.power)));
+        var jump = el("a", "", title(liar.power) + " " + liar.lies.length + (liar.lies.length === 1 ? " time" : " times"));
+        jump.href = "#";
+        jump.title = "Go to the first one: “" + liar.lies[0].quote + "”";
+        jump.addEventListener("click", function (event) { event.preventDefault(); jumpToFlag(liar.lies[0]); });
+        box.appendChild(jump);
+      });
+    }
+    box.appendChild(el("span", "sep", "·"));
+    box.appendChild(document.createTextNode("we doubted " + doubted + " kept word" + (doubted === 1 ? "" : "s") +
+      " and broke our own " + broke + " time" + (broke === 1 ? "" : "s")));
+    box.appendChild(el("span", "sep", "·"));
+    var all = el("a", "", "every flagged claim");
+    all.href = "#trust-section";
+    all.addEventListener("click", function (event) {
+      event.preventDefault();
+      $("trust-section").scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+    box.appendChild(all);
+  }
+
   function drawTrust() {
     var box = clear($("trust"));
     if (!view.audit || !view.audit.powers) return;
@@ -641,22 +772,24 @@
       if (!items.length) { box.appendChild(el("p", "empty small", "None.")); return; }
       var list = el("ul", "flagged");
       items.forEach(function (f) {
+        // The link names the phase it goes to: where this was said. Where the orders settled it
+        // is a second link, to the board of that phase.
         var li = el("li");
-        var link = el("a", "", f.item.pi !== null && view.phases[f.item.pi] ? view.phases[f.item.pi].label : turnLabel(f.item.turn));
+        var message = view.messages.find(function (m) { return m.id === f.item.message; });
+        var said = message && message.pi !== null && view.phases[message.pi] ? message.pi : f.item.pi;
+        var link = el("a", "", said !== null && view.phases[said] ? view.phases[said].label : turnLabel(f.item.turn));
         link.href = "#";
-        link.addEventListener("click", function (event) {
-          event.preventDefault();
-          setPressShow("all");
-          var message = view.messages.find(function (m) { return m.id === f.item.message; });
-          go(message && message.pi !== null ? message.pi : f.item.pi);
-          var node = $("msg-" + f.item.message);
-          if (node) { node.scrollIntoView({ block: "center", behavior: "smooth" }); flash(node); }
-        });
+        link.title = "Go to the message this was said in";
+        link.addEventListener("click", function (event) { event.preventDefault(); jumpToFlag(f.item); });
         li.appendChild(link);
         li.appendChild(document.createTextNode(" "));
         li.appendChild(dot(title(f.power)));
         li.appendChild(document.createTextNode(title(f.power) + ": "));
         li.appendChild(el("q", "", f.item.quote));
+        if (f.item.pi !== null && f.item.pi !== said && view.phases[f.item.pi]) {
+          li.appendChild(el("span", "muted", " · settled in "));
+          li.appendChild(boardLink(f.item.pi, view.phases[f.item.pi].label));
+        }
         list.appendChild(li);
       });
       box.appendChild(list);
@@ -733,21 +866,15 @@
 
   // ---------- notes ----------
 
-  function noteLine(note) {
-    var where = [];
-    if (note.phase !== null && view.phases[note.phase]) where.push(view.phases[note.phase].label + " (phase " + note.phase + ")");
-    if (note.power) where.push(note.power);
-    if (note.territory) where.push(note.territory);
-    return "[" + note.tag + "] " + where.join(", ") + ": " + note.text;
-  }
-
   function drawNotes() {
     var box = clear($("notes"));
     var notes = view.annotations.slice().sort(function (a, b) { return (a.phase === null ? -1 : a.phase) - (b.phase === null ? -1 : b.phase); });
     $("notes-count").textContent = notes.length ? "· " + notes.length : "";
     $("send-all").hidden = notes.length < 2;
+    $("send-notes").hidden = !notes.length;
+    $("send-notes").textContent = sendLabel(notes.length);
     if (!notes.length) {
-      box.appendChild(el("p", "empty", "No notes yet. Step to the phase where something went wrong and add one below; then send it to the agent."));
+      box.appendChild(el("p", "empty", "No notes yet. Step to the phase where something went wrong, click the province on the board and write the note under it; then send your notes to the agent."));
       return;
     }
     notes.forEach(function (note) {
@@ -791,10 +918,26 @@
 
   function flashNote(id) { var node = $("note-" + id); if (node) flash(node); }
 
+  function sendLabel(count) { return count === 1 ? "Send the note to the agent" : "Send " + count + " notes to the agent"; }
+
+  function hint(text, bad) {
+    $("note-hint").textContent = text;
+    $("note-hint").classList.toggle("bad", Boolean(bad));
+  }
+
+  // The note box is one line tall until its text needs more.
+  function fitNoteText() {
+    var box = $("note-text");
+    box.style.height = "auto";
+    box.style.height = Math.min(140, Math.max(30, box.scrollHeight + 2)) + "px";
+  }
+
   function pinNote(territory, power) {
     $("note-territory").value = territory.abbr;
-    if (power) $("note-power").value = power;
-    $("note-hint").textContent = "Pinned to " + territory.name + (power ? " (" + power + ")" : "") + ".";
+    $("note-power").value = power || "";
+    hint("Pinned to " + territory.name + (power ? " (" + power + ")" : "") + ". Write the note and press Enter.");
+    drawPins();
+    $("note-form").scrollIntoView({ block: "nearest", behavior: "smooth" });
     $("note-text").focus({ preventScroll: true });
   }
 
@@ -812,20 +955,22 @@
   function addNote(event) {
     event.preventDefault();
     var text = $("note-text").value.trim();
-    if (!text) { $("note-hint").textContent = "Write the note first."; $("note-text").focus(); return; }
+    if (!text) { hint("Write the note first.", true); $("note-text").focus(); return; }
     request("POST", "/api/replays/" + encodeURIComponent(EPISODE) + "/annotations", {
       text: text, tag: $("note-tag").value, phase: current,
       power: $("note-power").value || null, territory: $("note-territory").value.trim().toUpperCase() || null,
     }).then(function (note) {
       view.annotations.push(note);
       $("note-text").value = "";
+      fitNoteText();
       $("note-territory").value = "";
       $("note-power").value = "";
-      $("note-hint").textContent = "Added. Send it to the agent from the list above, or keep going.";
+      hint("Added" + (note.territory ? " and pinned on the board" : "") + ". Add another, or send your notes to the agent.");
       drawNotes();
       drawTimeline();
+      drawPins();
       flashNote(note.id);
-    }).catch(function (error) { $("note-hint").textContent = "Could not save the note: " + error.message; });
+    }).catch(function (error) { hint("Could not save the note: " + error.message, true); });
   }
 
   function deleteNote(note) {
@@ -833,7 +978,8 @@
       view.annotations = view.annotations.filter(function (other) { return other.id !== note.id; });
       drawNotes();
       drawTimeline();
-    }).catch(function (error) { $("note-hint").textContent = "Could not delete the note: " + error.message; });
+      drawPins();
+    }).catch(function (error) { hint("Could not delete the note: " + error.message, true); });
   }
 
   // ---------- talking to the agent ----------
@@ -853,18 +999,28 @@
     return request("POST", "/api/chat", { text: text, context: context });
   }
 
+  // The message is Markdown: the chat panel shows each note as a line with a link to its phase,
+  // and the agent reads the same text with the paths in it.
   function sendNotes(notes, button) {
     var one = notes.length === 1;
-    var text = (one ? "A note on " : notes.length + " notes on ") + gameLine() + ":\n" +
-      notes.map(function (note) { return "- " + noteLine(note) + " " + link(note.phase === null ? current : note.phase); }).join("\n") +
-      "\nPlease look at " + (one ? "this" : "these") + " in the replay and say what the policy should change.";
+    notes = notes.slice().sort(function (a, b) { return (a.phase === null ? -1 : a.phase) - (b.phase === null ? -1 : b.phase); });
+    var text = (one ? "A note on " : notes.length + " notes on ") + gameLine() + ":\n\n" +
+      notes.map(function (note) {
+        var at = note.phase !== null && view.phases[note.phase];
+        var where = at ? "[" + at.label + "](" + link(note.phase) + ")" : "whole game";
+        return "- **" + note.tag.replace("-", " ") + "** · " + where + (note.power ? " · " + note.power : "") +
+          (note.territory ? " · " + note.territory : "") + ": " + note.text.replace(/\s*\n\s*/g, " ");
+      }).join("\n") +
+      "\n\nPlease look at " + (one ? "this" : "these") + " in the replay and say what the policy should change.";
     var first = notes[0].phase === null ? current : notes[0].phase;
+    var label = button ? button.textContent : "";
     toAgent(text, {
       episode: EPISODE, phase: one ? first : current, seat: view.seat, annotations: notes.map(function (n) { return n.id; }),
       label: (one ? "note" : notes.length + " notes") + " · " + shortId(),
     }).then(function () {
-      if (button) { button.textContent = "Sent"; setTimeout(function () { button.textContent = one ? "Send to agent" : "Send all to agent"; }, 2500); }
-    }).catch(function (error) { $("note-hint").textContent = "Could not send: " + error.message; });
+      hint((one ? "Sent the note" : "Sent " + notes.length + " notes") + " to the agent. The panel on the right shows when it is delivered.");
+      if (button) { button.textContent = "Sent"; setTimeout(function () { button.textContent = label; }, 2500); }
+    }).catch(function (error) { hint("Could not send: " + error.message, true); });
   }
 
   function askForAudit() {
@@ -902,6 +1058,7 @@
     $("phase-count").textContent = "phase " + current + " of " + (view.phases.length - 1);
     $("note-phase").textContent = ph.label;
     drawMap();
+    drawPins();
     mapNote();
     drawOrders();
     drawPress();
@@ -913,6 +1070,7 @@
     url.searchParams.set("phase", current);
     if (view.seat !== null) url.searchParams.set("seat", view.seat);
     history.replaceState(null, "", url);
+    document.title = ph.label + " · " + view.episode.variant + " " + shortId() + " · webDiplomacy optimizer";
     setContext();
   }
 
@@ -983,6 +1141,7 @@
     });
 
     drawAuditState();
+    drawAuditBrief();
     drawTrust();
     drawNotes();
     if (!view.phases.length) {
@@ -1026,6 +1185,19 @@
   $("speed").addEventListener("change", function () { if (playing) { stop(); play(); } });
   $("note-form").addEventListener("submit", addNote);
   $("send-all").addEventListener("click", function () { sendNotes(view.annotations, $("send-all")); });
+  $("send-notes").addEventListener("click", function () { sendNotes(view.annotations, $("send-notes")); });
+  $("note-territory").addEventListener("input", drawPins);
+  $("note-text").addEventListener("input", fitNoteText);
+  // Enter adds the note, as in the chat box; Shift+Enter starts a new line.
+  $("note-text").addEventListener("keydown", function (event) {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); $("note-form").requestSubmit(); }
+    if (event.key === "Escape") this.blur();  // back to the arrow keys moving through the game
+  });
+  // "← Replays" goes back to the list as it was left: its filters, sort and page.
+  try {
+    var list = sessionStorage.getItem("ide.replaysList");
+    if (list && list.indexOf("/replays") === 0) $("back-link").href = list;
+  } catch (e) { /* private mode */ }
   $("seat-select").addEventListener("change", function () {
     var url = new URL(location.href);
     if (this.value === "") url.searchParams.delete("seat"); else url.searchParams.set("seat", this.value);

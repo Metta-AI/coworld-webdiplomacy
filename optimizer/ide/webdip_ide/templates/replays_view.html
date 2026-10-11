@@ -6,26 +6,30 @@
 <div class="replay" id="replay" data-episode="{{ episode.id }}" data-seat="{{ seat if seat is not none else '' }}"
      data-phase="{{ phase if phase is not none else '' }}" data-parity="{{ parity }}">
   <div class="replay-head">
-    <a class="back small" href="/replays">← Replays</a>
-    <h1>{{ episode.variant }} <span class="mono replay-id" title="Episode id">{{ episode.id }}</span></h1>
+    <a class="back small" href="/replays" id="back-link">← Replays</a>
+    <div class="replay-title">
+      <h1>{{ episode.variant }} <span class="mono replay-id" title="Episode {{ episode.id }}: the whole id is in the address bar and in every message sent to the agent from this page">{{ episode.id | replace("ereq_", "") | truncate(8, True, "") }}</span></h1>
+      <div class="seat-pick small" title="The seat whose private press, decisions and press audit are shown. Only seats with a log on disk can be followed.">
+        <label for="seat-select">Seat we follow</label>
+        <select id="seat-select">
+          {% if not episode.seats | selectattr("has_log") | list %}<option value="">none: no seat log on disk</option>{% endif %}
+          {% for s in episode.seats %}{% if s.has_log %}
+          <option value="{{ s.slot }}"{% if s.slot == seat %} selected{% endif %}>{{ s.power }} · {{ s.policy }} · score {{ "%.3f" | format(s.score) }}</option>
+          {% endif %}{% endfor %}
+        </select>
+      </div>
+    </div>
     <p class="small muted replay-meta">
-      Finished {{ episode.date }} PT · {{ {"xp": "experience request", "league": "league match", "local": "local run"}[episode.source] | default(episode.source) }}{% if episode.batch %} · batch {{ episode.batch }}{% endif %}
-      · {{ episode.outcome or "no result" }}{% if episode.final_year %}, last year played {{ episode.final_year }}{% endif %}{% if episode.reason and episode.reason != "end_year" %} ({{ episode.reason | replace("_", " ") }}){% endif %}
+      Finished {{ episode.date }} PT · {{ source_words.get(episode.source, episode.source) }}{% if episode.batch %} · batch {{ episode.batch }}{% endif %}
+      {% set winner = episode.seats | selectattr("solo") | first %}
+      · {% if winner %}{{ winner.power }} won alone{% else %}{{ episode.outcome or "no result" }}{% endif %}{% if episode.final_year %}, last year played {{ episode.final_year }}{% endif %}{% if episode.reason and episode.reason not in ("end_year", episode.outcome) %} ({{ episode.reason | replace("_", " ") }}){% endif %}
       {% for t in episode.taint %}<span class="tag err" title="Tainted: leave this game out of averages">{{ t | replace("_", " ") }}</span>{% endfor %}
     </p>
-    <div class="seat-pick small">
-      <label for="seat-select">Seat we follow</label>
-      <select id="seat-select">
-        {% if not episode.seats | selectattr("has_log") | list %}<option value="">none: no seat log on disk</option>{% endif %}
-        {% for s in episode.seats %}{% if s.has_log %}
-        <option value="{{ s.slot }}"{% if s.slot == seat %} selected{% endif %}>{{ s.power }} · {{ s.policy }} · score {{ "%.3f" | format(s.score) }}</option>
-        {% endif %}{% endfor %}
-      </select>
-      <span class="muted" id="seat-note" title="Only seats with a log on disk can be followed: the log holds the private press and the policy's decisions.">its private press, decisions and press audit are shown</span>
-    </div>
   </div>
 
   <div id="problems"></div>
+  {# With a press audit: who lied to the followed seat, each name a jump to the first time. Filled by replay.js. #}
+  <p class="small audit-brief" id="audit-brief" hidden></p>
 
   <div class="replay-grid">
     <section class="map-col" aria-label="Board">
@@ -34,7 +38,7 @@
         <button type="button" class="small" id="play" title="Play or pause (space)">Play</button>
         <button type="button" class="small" id="next" title="Next phase (→)">→</button>
         <select id="speed" class="speed" aria-label="Playback speed" title="Playback speed"><option value="1400">slow</option><option value="800" selected>normal</option><option value="350">fast</option></select>
-        <h2 id="phase-title">Loading the replay…</h2>
+        <h2 id="phase-title" aria-live="polite">Loading the replay…</h2>
         <span class="muted small num" id="phase-count"></span>
       </div>
       <svg id="map" viewBox="0 0 612 398" role="img" aria-label="Board at the start of the phase, with the orders that were adjudicated">
@@ -45,8 +49,8 @@
         <g id="layer-units"></g>
         <g id="layer-marks"></g>
         <g id="layer-hits"></g>
+        <g id="layer-pins"></g>
       </svg>
-      <p class="small muted map-note" id="map-note"></p>
       <p class="small muted map-key">
         <span class="key"><svg width="30" height="10"><line x1="1" y1="5" x2="24" y2="5" class="k-move"/><path d="M22 1 L29 5 L22 9 Z" class="k-head"/></svg> move</span>
         <span class="key"><svg width="30" height="10"><line x1="1" y1="5" x2="24" y2="5" class="k-fail"/><path d="M22 1 L29 5 L22 9 Z" class="k-head-fail"/></svg> failed</span>
@@ -54,8 +58,30 @@
         <span class="key"><svg width="30" height="10"><line x1="1" y1="5" x2="25" y2="5" class="k-convoy"/><rect x="24.5" y="2.5" width="5" height="5" class="k-dot"/></svg> convoy</span>
         <span class="key"><svg width="14" height="12"><circle cx="7" cy="6" r="5" class="k-dislodged"/></svg> dislodged</span>
         <span class="key"><svg width="14" height="12"><circle cx="7" cy="6" r="4.5" class="k-centre"/></svg> supply centre, in its owner's colour</span>
-        · click a province to pin a note to it
+        <span class="key"><svg width="14" height="12"><circle cx="7" cy="6" r="4" class="k-pin"/></svg> a note pinned here</span>
       </p>
+      <p class="small muted map-note" id="map-note"></p>
+
+      {# Notes are written here, beside the board they are about; the list is further down the page. #}
+      <form id="note-form" class="note-form">
+        <div class="note-form-row">
+          <label class="note-form-head small" for="note-text">Note on <strong id="note-phase">this phase</strong></label>
+          <select id="note-tag" aria-label="Kind of note">
+            {% for tag in tags %}<option value="{{ tag }}"{% if tag == "blunder" %} selected{% endif %}>{{ tag | replace("-", " ") }}</option>{% endfor %}
+          </select>
+          <select id="note-power" aria-label="Power (optional)"><option value="">any power</option></select>
+          <input type="text" id="note-territory" list="territory-list" placeholder="province" aria-label="Province (optional)" size="9">
+          <datalist id="territory-list"></datalist>
+        </div>
+        <div class="note-form-row">
+          <textarea id="note-text" rows="1" placeholder="What went wrong here, or what should the policy have done?" aria-label="Note text"></textarea>
+          <button type="submit" class="primary">Add note</button>
+        </div>
+        <div class="note-form-row note-form-foot">
+          <span class="small muted" id="note-hint" role="status">Click a province or a unit on the board to pin the note to it. Enter adds the note.</span>
+          <button type="button" class="small" id="send-notes" hidden></button>
+        </div>
+      </form>
     </section>
 
     <section class="orders-col" aria-label="Orders">
@@ -67,9 +93,10 @@
   <section class="timeline" aria-label="Timeline">
     <div class="timeline-head">
       <h3>Supply centres by phase</h3>
-      <span class="small muted">Click or drag to move through the game · ← → step · Shift+← → previous or next movement phase · space plays · the thick line is the followed seat</span>
+      <span class="small muted">Click or drag to move through the game · <kbd>←</kbd> <kbd>→</kbd> step · <kbd>Shift</kbd> with an arrow jumps to the next movement phase · <kbd>space</kbd> plays</span>
     </div>
     <div id="timeline"></div>
+    <p class="small muted timeline-key" id="timeline-key"></p>
   </section>
 
   <div class="replay-lower">
@@ -103,22 +130,6 @@
           <button type="button" class="small" id="send-all" hidden>Send all to agent</button>
         </div>
         <div id="notes"></div>
-        <form id="note-form" class="note-form">
-          <div class="note-form-head small">Add a note at <strong id="note-phase">this phase</strong></div>
-          <div class="note-form-row">
-            <select id="note-tag" aria-label="Kind of note">
-              {% for tag in tags %}<option value="{{ tag }}"{% if tag == "blunder" %} selected{% endif %}>{{ tag | replace("-", " ") }}</option>{% endfor %}
-            </select>
-            <select id="note-power" aria-label="Power (optional)"><option value="">any power</option></select>
-            <input type="text" id="note-territory" list="territory-list" placeholder="province" aria-label="Province (optional)" size="9">
-            <datalist id="territory-list"></datalist>
-          </div>
-          <textarea id="note-text" rows="2" placeholder="What went wrong here, or what should the policy have done?" aria-label="Note text"></textarea>
-          <div class="note-form-row">
-            <button type="submit" class="primary small">Add note</button>
-            <span class="small muted" id="note-hint">Click a province or unit on the map to fill in where.</span>
-          </div>
-        </form>
       </section>
 
       <section id="trust-section" aria-label="Whose word held" hidden>

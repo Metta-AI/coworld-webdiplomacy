@@ -30,8 +30,8 @@ lab skill `games/webdiplomacy/skills/ide/SKILL.md` (source: `optimizer/mixin/ski
   (client) or escape it (Jinja autoescape is on).
 - **No CDN, no build step.** Plain scripts and CSS; the IDE works offline.
 - **Design:** Softmax Ink & Print. Use the tokens and components in `static/app.css`
-  (`--paper`, `--ink`, `--navy`, `.tag`, `.btn`, `table`, `.eyebrow`, …); add only
-  page-specific rules in your own stylesheet. No pure black or white, no decorative
+  (`--paper`, `--ink`, `--navy`, `.tag`, `.btn`, `table`, `.eyebrow`, `.filters`,
+  `.page section > h2`, `.about`, …); add only page-specific rules in your own stylesheet. No pure black or white, no decorative
   cards, no stat tiles, every number with its n.
 - Seat tokens are credentials: never display or log them. Private press may be shown
   in the IDE but is never written to tracked files.

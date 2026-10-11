@@ -55,7 +55,7 @@
       var details = more.closest("tbody").querySelector(".dash-more");
       details.hidden = !details.hidden;
       more.setAttribute("aria-expanded", String(!details.hidden));
-      more.textContent = details.hidden ? "More" : "Less";
+      more.textContent = details.hidden ? "Details" : "Hide details";
       return;
     }
     var writeup = event.target.closest("[data-writeup]");

@@ -10,19 +10,25 @@
   <dl class="home-sections">
     <dt><a href="/replays">Replays</a></dt>
     <dd><span class="num">{{ episodes }}</span> episode{{ "" if episodes == 1 else "s" }} on disk to watch phase by phase.
-      {% if annotations %}<span class="num">{{ annotations }}</span> annotation{{ "" if annotations == 1 else "s" }} on
-      <span class="num">{{ annotated_episodes }}</span> episode{{ "" if annotated_episodes == 1 else "s" }}.{% else %}No annotations yet: mark a phase while watching and send it to the agent.{% endif %}</dd>
+      {% if annotations %}<span class="num">{{ annotations }}</span> note{{ "" if annotations == 1 else "s" }} on
+      <span class="num">{{ annotated_episodes }}</span> episode{{ "" if annotated_episodes == 1 else "s" }}.{% else %}No notes yet: click a province where something went wrong, write a note and send it to the agent.{% endif %}</dd>
     <dt><a href="/dashboard">Dashboard</a></dt>
     <dd>How the policy scores by power, opponent, version and source, with the number of games behind each figure.</dd>
     <dt><a href="/reports">Reports</a></dt>
     <dd>{% if reports %}<span class="num">{{ reports }}</span> write-up{{ "" if reports == 1 else "s" }}: why we win or lose against each opponent, and opponent profiles.{% else %}No write-ups yet. Ask the agent why we lose to an opponent, or for an opponent profile.{% endif %}</dd>
   </dl>
 
-  <h3>Agent</h3>
+  <h3>Ask the agent</h3>
   <p id="home-agent-status" class="prose">Checking for an agent…</p>
-  <p class="muted small prose">Lab: <code>{{ lab }}</code>. The agent started this server with <code>ide/ide start</code>;
-    what you type in the panel is handed to that session. If no agent is attached, start Claude Code in the
-    optimizer root and say “open the IDE”.</p>
+  <p class="about">What you type in the panel on the right is handed to the agent session in the terminal, and its
+    answer comes back there. A question to start with (a click puts it in the message box; nothing is sent until
+    you press Enter):</p>
+  <ul class="home-asks">
+    <li><button type="button" class="plain" data-draft="Which opponent beats us most, and what does it do that we do not handle?">Which opponent beats us most, and what does it do that we do not handle?</button></li>
+    <li><button type="button" class="plain" data-draft="Pick the game we lost worst in the last batch and post it as a replay card at the phase where it went wrong.">Pick the game we lost worst in the last batch and show me where it went wrong.</button></li>
+    <li><button type="button" class="plain" data-draft="Which power are we weakest as, and how sure are we? Post the dashboard view as a card.">Which power are we weakest as, and how sure are we?</button></li>
+  </ul>
+  <p class="muted small prose">Lab: <code>{{ lab }}</code></p>
 
   <h3>Newest from the agent</h3>
   <div class="home-cards" id="home-cards">
@@ -39,6 +45,9 @@
     var newest = state.cards.slice(-5).reverse();
     if (!newest.length) return;
     box.replaceChildren.apply(box, newest.map(window.ide.cardElement));
+  });
+  document.querySelectorAll("[data-draft]").forEach(function (button) {
+    button.addEventListener("click", function () { window.ide.draft(button.dataset.draft); });
   });
 </script>
 {% endblock %}

@@ -4,14 +4,8 @@
  * only as the below-par pole of the heatmap and in verdict tags. Powers get their dot, nothing else.
  */
 
-.dash section { margin-bottom: var(--s6); }
-.dash h2 { margin-top: var(--s6); padding-top: var(--s4); border-top: 1px solid var(--rule); }
 .dash .strong { font-weight: 700; color: var(--ink); }
 
-/* Filters */
-.dash-filters { gap: var(--s2) var(--s4); padding-bottom: var(--s3); border-bottom: 1px solid var(--rule); }
-.dash-filters label { display: inline-flex; align-items: center; gap: var(--s2); }
-.dash-filters select { max-width: 230px; }
 
 /* Headline: one sentence wins the page; the facts sit under it as plain rows. */
 .dash-headline { margin-top: var(--s5); }
@@ -33,10 +27,6 @@
 .dash-table th.dash-plot { padding-bottom: 2px; }
 .dash-table .dash-total td { border-bottom: 1px solid var(--rule-strong); font-weight: 600; }
 .dash-table .dash-group th { padding-top: var(--s4); color: var(--navy); border-bottom-color: var(--rule); }
-.dash-table th[data-sort] { cursor: pointer; }
-.dash-table th[data-sort]:hover { color: var(--navy); }
-.dash-table th[aria-sort]::after { content: " ↓"; color: var(--navy); }
-.dash-table th[aria-sort="ascending"]::after { content: " ↑"; }
 .dash-low { color: var(--gold); margin-left: 1px; }
 .dash-versions { display: block; font-size: var(--text-xs); }
 .dash-name { max-width: 200px; }
@@ -72,7 +62,8 @@ tbody tr:hover .dot-mark.sure { stroke: var(--paper-3); }
 .dash-opponents tbody + tbody tr:first-child td { border-top: 0; }
 .dash-more > td { background: var(--paper-2); padding: var(--s4); border-bottom: 1px solid var(--rule); }
 .dash-more:hover { background: none; }
-.dash-more-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: var(--s5); }
+.dash-more-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: var(--s5); align-items: start; }
+.dash-more-grid dl.facts { align-content: start; }
 .dash-more-actions { display: flex; flex-wrap: wrap; gap: var(--s2); margin: var(--s3) 0 0; }
 .dash-pairs { width: auto; margin: var(--s2) 0; }
 .dash-pairs th, .dash-pairs td { padding-right: var(--s5); }

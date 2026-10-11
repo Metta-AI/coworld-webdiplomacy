@@ -463,6 +463,8 @@ def _view(report: dict, filters: dict) -> dict:
             "replays": "/replays?" + urlencode({"policy": report["policy"], "opponent": o["opponent"], **scope}),
             "focus": _link(filters, opponent=o["opponent"]),
         })
+    # The opponent that finishes furthest ahead of us comes first: the page's question is "who beats us".
+    opponents.sort(key=lambda o: (o["paired"]["mean"] is None, o["paired"]["mean"] or 0.0))
 
     return {
         "headline": _headline(report), "power_scale": power_scale, "powers": powers,
