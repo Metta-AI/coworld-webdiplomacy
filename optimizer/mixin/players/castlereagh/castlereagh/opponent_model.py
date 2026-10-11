@@ -31,26 +31,7 @@ class OpponentModel:
                       if ph["turn"] == pending["turn"] and ph["phase"] == "Diplomacy"), None)
         if entry is None:
             return
-        self.update_hostility(pending, entry)
         self.update_type_beliefs(pending, entry)
-
-    def update_hostility(self, pending, entry):
-        """Decay hostility, then tally moves/supports into our previous provinces."""
-        bot = self.bot
-        # Hostility toward us: decayed count of each power's moves into our provinces and
-        # supports of such moves (implicit diplomacy in no-press play).
-        ours = set(pending.get("our_provinces", []))
-        hostility = bot.memory.setdefault("hostility", {})
-        for c in list(hostility):
-            hostility[c] *= config.DIPLO_DECAY
-        parent = {t: bot.b.province(t) for t in bot.b.terr}
-        for o in entry.get("orders") or []:
-            c = str(o["countryID"])
-            if int(c) == bot.country or not o.get("toTerrID"):
-                continue
-            target = parent.get(o["toTerrID"], o["toTerrID"])
-            if (o["type"] == "Move" or o["type"] == "Support move") and target in ours:
-                hostility[c] = hostility.get(c, 0.0) + 1.0
 
     def update_type_beliefs(self, pending, entry):
         """Accumulate competent/random log-odds from the previous movement orders."""
@@ -190,11 +171,8 @@ class OpponentModel:
                     chosen = self.apply_press(c, theirs[c], chosen)
                 raw.extend(zip(theirs[c], chosen))
             raw_samples.append(raw)
-        ours = {b.province(u["terrID"]) for u in b.units if int(u["countryID"]) == bot.country}
-        ours |= {t for t, o in b.owner.items() if o == bot.country}
         bot.memory["pending"] = {
             "turn": bot.turn,
-            "our_provinces": sorted(ours),
             "units": {
                 str(u["terrID"]): {
                     "n_legal": len(legal[u["id"]]),
@@ -230,5 +208,5 @@ OPPONENT_MODELS = {"adaptive": OpponentModel, "dumbbot": OpponentModel}
 
 
 def opponent_model(bot):
-    # Other strings historically selected full DumbBot share, not an error.
+    # Any OPP_MODEL value other than "adaptive" gives a full DumbBot share (see dumb_share).
     return OPPONENT_MODELS.get(config.OPP_MODEL, OpponentModel)(bot)

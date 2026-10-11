@@ -1,4 +1,4 @@
-"""The golden behaviour contract: 334 recorded lab decisions, reproduced bit for bit.
+"""The golden behaviour contract: 334 recorded decisions, reproduced bit for bit.
 
 Takes about a minute. Set GOLDEN_EVERY=N to check every Nth case while iterating."""
 
@@ -10,7 +10,7 @@ from castlereagh import golden
 
 
 class GoldenTest(unittest.TestCase):
-    def test_search_reproduces_the_lab_corpus(self):
+    def test_search_reproduces_the_recorded_corpus(self):
         every = int(os.environ.get("GOLDEN_EVERY", "1"))
         checked, mismatches = golden.check(str(_support.GOLDEN), lambda i: i % every == 0)
         self.assertGreater(checked, 0)

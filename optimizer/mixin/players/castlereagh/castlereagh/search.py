@@ -1,4 +1,4 @@
-"""SearchBot (the lab's Kissinger): decision state, phase dispatch and movement setup.
+"""SearchBot (the Default search): decision state, phase dispatch and movement setup.
 
 Movement uses opponent_model, search_moves and evaluation. Retreats and builds use DumbBot.
 """

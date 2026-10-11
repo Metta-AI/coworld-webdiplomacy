@@ -88,37 +88,9 @@ class PressPlayerTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             player.commit({"risk": 0.0})
 
-    def test_a_commit_that_pins_too_many_units_is_refused_and_keeps_the_saved_orders(self):
-        api, *_ = make_api(self.clock)
-        outcome = {}
-
-        def run_wake(agent, prompt, seconds, limit):
-            player = outcome["player"]
-            notation = player.service.notation
-            pins = [notation.render(o) for o in player.orders]  # the floor's own orders, all four units
-            before = len(api.calls)
-            with mock.patch.object(config, "PRESS_MAX_PINNED_SHARE", 0.5):
-                try:
-                    player.commit({"require_orders": pins})
-                except ValueError as error:
-                    outcome["refusal"] = str(error)
-                outcome["unchanged"] = len(api.calls) == before and player.policy is None
-                outcome["two"] = player.commit({"require_orders": pins[:2]})
-            outcome["all"] = player.commit({"require_orders": pins})  # the default (1.0) has no limit
-            return "ok", "ok"
-
-        outcome["player"] = self.player(api, agent=object(), run_wake=run_wake)
-        self.play(outcome["player"], api)
-        self.assertIn("pins 4 of your 4 units; at most 2", outcome["refusal"])
-        self.assertTrue(outcome["unchanged"])
-        self.assertEqual(len(outcome["two"]["orders"]), 4)
-        self.assertEqual(len(outcome["all"]["orders"]), 4)
-        decision = next(e for e in self.events if e.get("event") == "decision")
-        self.assertEqual(decision["trace"]["press_pin_refused"], 1)
-
     def test_a_movement_phase_with_no_units_does_not_reach_the_search(self):
-        # Hosted 2026-10-10: a seat reduced to zero units crashed in the floor search
-        # ("'SearchBot' object has no attribute 'mine_units'") and the episode was dropped as tainted.
+        # A seat reduced to zero units has no `mine_units` for the floor search to read; the
+        # plain handler must take the phase instead.
         api, *_ = make_api(self.clock)
         api.slots = []
         woken = []

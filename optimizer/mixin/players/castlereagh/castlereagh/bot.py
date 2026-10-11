@@ -1,9 +1,9 @@
-"""Castlereagh: the launcher's child process (`python -m castlereagh`).
+"""The starter policy's entry point: the launcher's child process (`python -m castlereagh`).
 
 Mode, from env CASTLEREAGH_POLICY (baked at build time by `--build-arg POLICY=...`):
 - `press` (default): the search core plus the press layer (press/player.py). In a no-press
   game, or without an LLM endpoint, it plays exactly what `search` plays.
-- `search`: the Default search (the lab's Kissinger), no press. Every phase:
+- `search`: the Default search, no press. Every phase:
   read context and public files, choose, save with Ready, diff the saved orders against
   the request (upstream silently drops invalid ones), and print one `decision` line.
 Any other value is an error.
@@ -101,8 +101,7 @@ def play_phase(api, context, seed, policy, cls, state, log):
     # Snapshot every phase: the launcher kills the bot at game end, so nothing is written later.
     memory = state.get("search", {})
     log(event="workspace", turn=int(game["turn"]), phase=game["phase"],
-        beliefs={k: round(v, 2) for k, v in memory.get("logodds", {}).items()},
-        hostility={k: round(v, 2) for k, v in memory.get("hostility", {}).items()})
+        beliefs={k: round(v, 2) for k, v in memory.get("logodds", {}).items()})
     return True
 
 

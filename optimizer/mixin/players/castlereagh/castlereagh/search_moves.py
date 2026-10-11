@@ -10,8 +10,7 @@ from castlereagh.search_orders import _same
 def choose_movement(bot, slots, mine, started):
     seeds = seed_plans(bot, slots)
 
-    # Coordinate ascent over each unit's legal orders, from the best seed. (The lab's
-    # restarts from several seeds lost to one: more search over the same evaluation hurts.)
+    # Coordinate ascent over each unit's legal orders, from the best seed only.
     bot.joints = joint_alternatives(bot, mine)
     bot.improved_any = 0
     best_score, best = ascend(bot, seeds[0][1], seeds[0][0], started)

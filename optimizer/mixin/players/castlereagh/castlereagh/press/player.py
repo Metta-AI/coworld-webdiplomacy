@@ -28,11 +28,11 @@ from castlereagh.press.tools import Toolbox
 from castlereagh.search import SearchBot
 
 TASKS = {
-    "phase_start": ("A new movement phase has begun. Check the referee facts for what last phase's orders show, "
-                    "decide your aims, send the press that serves them, test ideas with search/assess_deal, and "
-                    "commit_orders with your best policy. Keep notes current."),
-    "press": ("New press has arrived (marked NEW below). Read it, reply where it helps you, and re-commit if your "
-              "policy changed. Note anything you will want to remember later."),
+    "phase_start": ("A new movement phase has begun. The referee facts show what last phase's orders did. "
+                    "Decide what you want this phase, send the press that serves it, test ideas with "
+                    "search/assess_deal, and commit_orders with the policy you choose. Update your notes."),
+    "press": ("New press has arrived (marked NEW below). Read it, reply if you choose to, and re-commit if your "
+              "policy changed. Note anything you will want at a later wake."),
 }
 
 
@@ -125,14 +125,6 @@ class PressPlayer:
     def commit(self, policy):
         if self.locked:
             raise ValueError("orders are locked for this phase; nothing was changed")
-        pinned = len((policy or {}).get("require_orders") or [])
-        allowed = max(1, int(config.PRESS_MAX_PINNED_SHARE * len(self.service.slots)))
-        if pinned > allowed:
-            self.trace["press_pin_refused"] = self.trace.get("press_pin_refused", 0) + 1
-            raise ValueError(f"require_orders pins {pinned} of your {len(self.service.slots)} units; at most {allowed} "
-                             "may be pinned. Nothing was changed. Pin only the orders you promised another power "
-                             "and let the search choose the rest (stances, expected_orders, forbid_moves_into and "
-                             "center_values steer it).")
         orders, report, _ = self.service.search(policy)
         difference = save_orders(self.api, self.context, orders, ready="No")
         self.policy, self.orders = policy, orders

@@ -8,11 +8,10 @@ must re-record the corpus and say so in VERSION_LOG.md.
     python -m castlereagh.golden check tests/golden.json        # from players/castlereagh
     python -m castlereagh.golden record REPLAY_ROOT tests/golden.json   # (re)create
 
-`REPLAY_ROOT/*/*/replay` are local `coworld run-episode` replays. The corpus (recorded in
-the lab at commit 1c2d81fa) covers movement phases (several turns, powers, unit counts),
-three opponent-belief states (empty prior, all-competent, all-random) and winter builds,
-for two configurations: "kissinger" (the default config) and "machiavelli" (level-0
-opponents). 167 cases x 2 = 334 decisions.
+`REPLAY_ROOT/*/*/replay` are local `coworld run-episode` replays. The corpus covers
+movement phases (several turns, powers, unit counts), three opponent-belief states (empty
+prior, all-competent, all-random) and winter builds, for two configurations: "kissinger"
+(the default config) and "machiavelli" (level-0 opponents). 167 cases x 2 = 334 decisions.
 """
 
 import glob
@@ -20,7 +19,8 @@ import json
 import random
 import sys
 
-# Golden policy name -> config overrides on top of the defaults (names kept from the lab corpus).
+# Configuration name -> config overrides on top of the defaults. The names are only keys in
+# the recorded corpus (tests/golden.json); they select nothing at runtime.
 POLICIES = {"kissinger": {}, "machiavelli": {"OPP_MODEL_LEVEL": 0}}
 BELIEFS = {
     "prior": None,
