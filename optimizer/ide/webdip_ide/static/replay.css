@@ -225,6 +225,15 @@ main:has(> .replay) { container: viewer / inline-size; }
 .claim-kind { font: 700 0.64rem/1.4 var(--sans); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); flex: none; }
 .claim-quote { font-style: italic; color: var(--ink); }
 .claim-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s2); margin: 3px 0 2px; }
+/* Only a verdict that cost us, or our own broken word, is loud: a filled tag and a bold note. */
+.claim .tag[title], .audit-legend .tag { cursor: help; }
+.claim .tag.err, .audit-legend .tag.err { background: var(--terracotta); color: var(--paper); }
+.claim-stood.err { color: var(--terracotta); font-weight: 700; }
+.audit-legend { margin: var(--s2) 0 var(--s3); }
+.audit-legend summary { cursor: pointer; color: var(--navy); }
+.audit-legend ul { list-style: none; padding: 0; margin: var(--s2) 0 0; }
+.audit-legend li { padding: 4px 0; border-bottom: 1px solid var(--rule-subtle); color: var(--ink-2); }
+.audit-legend .tag { cursor: default; margin-right: var(--s1); }
 .claim-evidence { font-size: 0.7rem; color: var(--ink-2); line-height: 1.45; }
 /* A line that explains a rule which changed the verdict, and what the auditor understood the words to mean. */
 .claim-evidence.rule, .claim-context { font: italic 400 var(--text-xs)/1.45 var(--sans); color: var(--ink-3); }

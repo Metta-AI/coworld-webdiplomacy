@@ -78,7 +78,8 @@ one read (`--episodes`; its `--opponent` takes the name without a version).
 The profile's "Versus" section describes behaviour and does not judge the
 score. From its "By
 opponent" row quote the head-to-head count and the paired gap with their z:
-|z| < 2 is "no result" and fewer than 16 games is "too few games". `matchups.py`
+|z| < 2 is "no result" and fewer than 16 games is "too few games" (a row
+there may carry a `lean`: a lead to play more games for, never a result). `matchups.py`
 drops the games where one of our seats is tainted and the profile keeps them,
 so its game count can be lower: give its game count beside its numbers. The
 two tools will not agree exactly on "vs par" (par is

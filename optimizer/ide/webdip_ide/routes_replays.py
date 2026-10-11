@@ -55,9 +55,14 @@ def _episode_rows(policy: str) -> tuple[list[dict], bool]:
             flags = episodes.flags(episode, seat) if seat else []
             taint = sorted(set(episode["taint"]) | set(seat["taint"] if seat else []))
             winner = next((s for s in episode["seats"] if s["solo"]), None)
+            # An audit is one seat's view of the game: this row has it, or another seat does.
+            audited = episode["audit"] and (seat is None or episode["audit_slot"] in (None, seat["slot"]))
+            other = None if audited else next((s for s in episode["seats"] if s["slot"] == episode["audit_slot"]), None)
             out.append({
                 "episode": episode,
                 "seat": seat,
+                "audited": audited,
+                "audit_of": other["power"] if other else None,
                 "guessed": guessed,
                 "delta": seat["score"] - episodes.PARITY if seat else None,
                 "opponents": opponents,
@@ -84,7 +89,7 @@ def _keep(row: dict, f: dict) -> bool:
         and (not f["opponent"] or any(episodes.matches_policy(p, f["opponent"]) for p in row["opponents"]))
         and (not f["outcome"] or episode["outcome"] == f["outcome"])
         and yes_no(f["tainted"], bool(row["taint"]))
-        and yes_no(f["audit"], episode["audit"])
+        and yes_no(f["audit"], row["audited"])
         and yes_no(f["annotated"], episode["annotations"] > 0)
         and yes_no(f["flagged"], bool(row["flags"]))
     )

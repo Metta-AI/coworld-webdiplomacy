@@ -107,6 +107,43 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual((alone["filters"]["alone"], alone["report"]["filters"]["alone"]), ("1", True))
         self.assertIn("alone=1", self.client.get("/dashboard", params={"policy": "mine", "alone": 1}).text)
 
+    def test_the_headline_says_what_it_covers_and_puts_the_alone_runs_beside_it(self):
+        from webdip_ide import routes_dashboard
+
+        self.lab_with_two_variants()
+        self.assertEqual(routes_dashboard.summary()["cover"]["text"], "3 games")
+        self.assertIsNone(routes_dashboard.summary()["cover"]["alone"])
+        self.assertNotIn("Alone runs only", self.client.get("/").text)
+        # A paired run: a second seat of ours in the game.
+        self.game("xreq_ab", 0.1, field=["mine:v2", *FIELD[1:]], logs={0: [{"event": "decision"}]})
+        cover = routes_dashboard.summary()["cover"]
+        self.assertEqual(cover["text"], "4 games, 1 of them a paired run")
+        self.assertEqual((cover["alone"]["stat"]["games"], cover["alone"]["mean"]), (3, "+0.200"))
+        self.assertIn("alone=1", cover["alone"]["link"])
+        home = self.client.get("/").text
+        self.assertIn("4 games, 1 of them a paired run, 5 of our seats", home)
+        self.assertIn("Alone runs only:", home)
+        self.assertIn('<strong class="num">+0.200</strong> per game against par over 3 games', home)
+        page = self.client.get("/dashboard", params={"policy": "mine"}).text
+        self.assertIn("4 games, 1 of them a paired run", page)
+        self.assertIn('<span class="num">+0.200</span> over 3 games</a>, too few games (3 of 16)', page)
+        # The alone view is the other number; it says what it left out and offers no third figure.
+        alone = self.client.get("/dashboard", params={"policy": "mine", "alone": 1}).text
+        self.assertIn("3 games, alone runs only (1 paired run left out)", alone)
+        self.assertNotIn("alone runs only: <a", alone)
+
+    def test_a_row_below_the_floor_says_how_far_below_and_which_way_it_leans(self):
+        played = [{"event": "decision"}]
+        for score in (0.4, 0.3, 0.5, 0.4, 0.4):
+            self.game("xreq_press", score, logs={0: played})
+        self.game("xreq_press", 0.2, ours="rival-d:v1")  # England's par: 0.2
+        stat = self.api(policy="mine")["report"]["by_power"][0]["vs_par"]
+        self.assertEqual((stat["verdict"], stat["lean"], stat["games"]), ("too few games", "above par", 5))
+        page = self.client.get("/dashboard", params={"policy": "mine"}).text
+        self.assertIn('<span class="muted num">5 of 16</span><span class="dash-lean">leaning above par</span>', page)
+        self.assertIn("the lab calls nothing a result on fewer than 16", page)
+        self.assertIn("a lead to play more games for, not a result", page)
+
     def test_page_renders_every_section_with_links(self):
         self.lab_with_two_variants()
         response = self.client.get("/dashboard", params={"policy": "mine", "variant": "classic-press"})

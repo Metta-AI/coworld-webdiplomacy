@@ -4,7 +4,7 @@
 {% macro game_row(row) %}
 {% set e = row.episode %}{% set s = row.seat %}
 <tr>
-  <td class="muted nowrap" title="Finished {{ e.time | when }}, Pacific Time">{{ e.time | when }}</td>
+  <td class="muted nowrap" title="Finished {{ e.time | when(zone=true) }}">{{ e.time | when }}</td>
   <td class="nowrap"><span class="dot" style="background: var(--power-{{ s.power | lower }})"></span>{{ s.power }}</td>
   <td class="num nowrap">{{ "%.3f" | format(s.score) }} <span class="{{ 'good' if row.delta >= 0 else 'bad' }}">{{ ("%+.3f" | format(row.delta)) | replace("-", "−") }}</span></td>
   <td class="nowrap">{{ row.ended }}{% if e.final_year %} <span class="muted">{{ e.final_year }}</span>{% endif %}</td>
@@ -36,11 +36,17 @@
 
   <section class="home-standing" aria-labelledby="home-standing-h">
     {% if summary.headline %}
-    {% set stat = summary.stat %}
+    {% set stat = summary.stat %}{% set cover = summary.cover %}
     <p class="eyebrow" id="home-standing-h">Policy we follow · {{ summary.policy }} · {{ "all variants pooled" if summary.variant == "all" else summary.variant }}</p>
     <p class="home-lead"><strong class="{{ {'ok': 'good', 'err': 'bad'}.get(summary.headline.tone, '') }}">{{ summary.headline.lead }}</strong>
       {% if stat.n %}<span class="tag {{ summary.headline.tone }}">{{ stat.verdict }}</span>
-      <span class="muted small">{{ stat.games }} game{{ "" if stat.games == 1 else "s" }}, {{ stat.n }} of our seats</span>{% endif %}</p>
+      <span class="muted small"{% if cover.paired %} title="{{ cover.tip }}"{% endif %}>{{ cover.text }}, {{ stat.n }} of our seats</span>{% endif %}</p>
+    {% if cover.alone %}
+    <p class="home-alone" title="{{ cover.tip }} This is the figure to quote for one seat, and the one the agent quotes.">Alone runs only:
+      <a href="{{ cover.alone.link }}"><strong class="num">{{ cover.alone.mean }}</strong> per game against par over {{ cover.alone.stat.games }} games</a>
+      <span class="tag {{ cover.alone.tone }}">{{ cover.alone.stat.verdict }}</span>
+      <span class="muted small">raw score {{ cover.alone.score }}; an average seat scores {{ "%.3f" | format(parity) }}</span></p>
+    {% endif %}
     {% if summary.headline.reading %}<p class="about">{{ summary.headline.reading }}
       <a href="{{ summary.link }}">By power, opponent and version on the dashboard</a></p>{% endif %}
     {% if policy_guessed %}<p class="about">Following {{ summary.policy }} is a guess: it is the first policy in the

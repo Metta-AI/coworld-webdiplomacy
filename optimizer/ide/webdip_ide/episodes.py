@@ -40,15 +40,10 @@ PACIFIC = ZoneInfo("America/Los_Angeles")
 SWING = 3  # supply centres gained or lost in one year that earn a timeline marker
 PHASE_LABELS = {"Diplomacy": "Movement", "Finished": "Final"}
 PHASE_ORDER = {"Pre-game": 0, "Diplomacy": 1, "Retreats": 2, "Builds": 3, "Finished": 4}
-# Audit categories worth a marker on the timeline, with the words the viewer shows. These are
-# `press_audit.FLAGGED`; every other category (there are many, and more are added) is shown on its
-# claim in `press_report.WORDS`' wording and nowhere else.
-AUDIT_MARKERS = {
-    "betrayed": "betrayed",
-    "deceived": "deceived",
-    "doubted_wrongly": "doubted wrongly",
-    "we_broke_our_word": "we broke our word",
-}
+# Audit categories worth a marker on the timeline. These are `press_audit.FLAGGED`; every other
+# category (there are many, and more are added) is shown on its claim and nowhere else. The words
+# for all of them are the lab's: `press_report.WORDS` and `press_report.verdict`.
+AUDIT_MARKERS = ("betrayed", "deceived", "doubted_wrongly", "we_broke_our_word")
 # flag_episodes.py's per-game flags, with the short names the table shows.
 FLAG_WORDS = {
     "crash or dropped orders": "crash or dropped orders",
@@ -79,6 +74,7 @@ def phase_label(turn: int, phase: str) -> str:
 # below that is shared is touched only under `_lock`.
 _lock = threading.Lock()
 _basic: dict[str, tuple[tuple, dict]] = {}  # episode dir -> (file stamp, row)
+_audit_slots: dict[str, tuple[float, int | None]] = {}  # episode id -> (audit.json mtime, its slot); under `_lock`
 _deep: dict[str, dict] = {}  # episode dir -> {"stamp": [...], "seats": [...]}, or {"stamp", "seats": [], "error"}
 _deep_loaded_from: Path | None = None
 _worker: threading.Thread | None = None
@@ -300,6 +296,8 @@ def index() -> list[dict]:
         if deep and deep.get("seats"):
             row["seats"] = _merge_deep(row["seats"], deep["seats"])
         row["audit"] = (press_dir / ep.name / "audit.json").exists()
+        # An audit is one seat's: in a game with two of our seats only that seat's row is "audited".
+        row["audit_slot"] = audit_slot(ep.name) if row["audit"] else None
         row["annotations"] = notes.get(ep.name, 0)
         rows.append(row)
     rows.sort(key=lambda r: r["time"], reverse=True)
@@ -388,14 +386,30 @@ def audit_stamp(episode: str) -> float:
     return _mtime(audit_path(episode))
 
 
+def audit_slot(episode: str) -> int | None:
+    """The seat a game's press audit is for (`audit.json` records one `slot`). None without an
+    audit, or with one that cannot be read. Read once per version of the file."""
+    stamp = audit_stamp(episode)
+    if not stamp:
+        return None
+    with _lock:
+        cached = _audit_slots.get(episode)
+    if cached and cached[0] == stamp:
+        return cached[1]
+    try:
+        slot = int(json.loads(audit_path(episode).read_text())["slot"])
+    except (ValueError, KeyError, TypeError, OSError):
+        slot = None  # half-written or damaged: the viewer says so when the game is opened
+    with _lock:
+        _audit_slots[episode] = (stamp, slot)
+    return slot
+
+
 def default_seat(row: dict) -> int | None:
     """The seat the viewer follows when the link names none: the audit's, else a followed seat."""
-    path = audit_path(row["id"])
-    if path.exists():
-        try:
-            return int(json.loads(path.read_text())["slot"])
-        except (ValueError, KeyError, TypeError):
-            pass
+    audited = audit_slot(row["id"])
+    if audited is not None:
+        return audited
     seats, _ = followed_seats(row)
     logged = [s for s in seats if s["has_log"]]
     return logged[0]["slot"] if logged else None
@@ -423,7 +437,7 @@ def load_view(row: dict, slot: int | None) -> dict:
 
 
 def _build_view(row: dict, slot: int | None, replay_path: Path | None, log_path: Path | None) -> dict:
-    we, pa, report = tool("webdip_episodes"), tool("press_audit"), tool("press_report")
+    we, pa = tool("webdip_episodes"), tool("press_audit")
     problems = []
     replay, last, territories, phases, public = None, {}, {}, [], []
     if replay_path is None:
@@ -476,8 +490,6 @@ def _build_view(row: dict, slot: int | None, replay_path: Path | None, log_path:
         "messages": messages,
         "decisions": _decisions(rows, phases),
         "audit": audit,
-        # The audit page's own wording for outcomes and categories, so both read the same.
-        "verdicts": {"words": report.WORDS, "chips": report.CHIP},
         "events": _events(phases, row) + (audit or {}).get("markers", []),
         "problems": problems,
     }  # fmt: skip
@@ -586,6 +598,7 @@ def _audit(episode: str, slot: int | None, messages: list[dict], phases: list[di
     except ValueError:
         return {"error": "audit.json could not be read", "slot": None, "joined": False, "markers": [], "powers": {}}
     joined = data.get("slot") == slot
+    report = tool("press_report")
     markers = []
     index_of = {m["id"]: m for m in messages}
     if joined:
@@ -600,12 +613,13 @@ def _audit(episode: str, slot: int | None, messages: list[dict], phases: list[di
                                                  "window", "condition", "asked", "to", "context", "replaced_by",
                                                  "our_attacks_on_them")},
                     "settled": settled,
+                    "verdict": report.verdict(claim, audited, data["our_power"]),
                 })  # fmt: skip
                 if claim.get("category") in AUDIT_MARKERS:
                     markers.append({
                         "pi": settled, "kind": claim["category"], "power": audited["from"].title(),
                         "message": audited["id"],
-                        "text": f"{AUDIT_MARKERS[claim['category']]}: {audited['from'].title()} "
+                        "text": f"{report.WORDS[claim['category']]}: {audited['from'].title()} "
                                 f"“{claim.get('quote', '')}”",
                     })  # fmt: skip
     # An audit is one seat's view: what it relied on, who lied to it. Seen from another seat,
@@ -630,6 +644,8 @@ def _audit(episode: str, slot: int | None, messages: list[dict], phases: list[di
         "messages_with_claims": summary.get("messages_with_claims"),
         "powers": powers,
         "markers": markers,
+        # The audit page's own explanation of its labels, so both read the same.
+        "legend": {"lead": report.LEGEND_LEAD, "rows": report.legend(data.get("messages") or [])} if joined else None,
     }
 
 

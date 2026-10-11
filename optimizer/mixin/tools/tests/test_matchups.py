@@ -63,6 +63,26 @@ class Statistics(unittest.TestCase):
         self.assertGreater(s["z"], 2)
         self.assertTrue(s["low_n"])
         self.assertEqual(s["verdict"], "too few games")
+        # It is still said which way the row leans, as a lead and beside its count.
+        self.assertEqual(s["lean"], "above par")
+        self.assertEqual(matchups.reading(s), "too few games (4 of 16), leaning above par")
+
+    def test_a_lean_is_only_for_a_row_below_the_floor_whose_interval_excludes_par(self):
+        below = matchups.stat([(f"g{i}", -0.06 + 0.02 * (i % 3)) for i in range(14)])
+        self.assertEqual((below["verdict"], below["lean"]), ("too few games", "below par"))
+        self.assertEqual(matchups.reading(below), "too few games (14 of 16), leaning below par")
+        # Two games can give a large z, but their t interval is far too wide to lean on.
+        two = matchups.stat([("a", 0.30), ("b", 0.36)])
+        self.assertGreater(two["z"], 2)
+        self.assertIsNone(two["lean"])
+        self.assertEqual(matchups.reading(two), "too few games (2 of 16)")
+        noise = matchups.stat([(f"g{i}", 0.3 * (-1) ** i + 0.01) for i in range(10)])
+        self.assertIsNone(noise["lean"])
+        # At the floor the verdict speaks; there is nothing to lean.
+        enough = matchups.stat([(f"g{i}", 0.1 + 0.01 * (i % 3)) for i in range(16)])
+        self.assertEqual((enough["verdict"], enough["lean"]), ("above par", None))
+        self.assertEqual(matchups.reading(enough), "above par")
+        self.assertIsNone(matchups.stat([])["lean"])
 
     def test_a_local_batch_takes_its_variant_from_run_json(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -183,7 +203,7 @@ class Report(unittest.TestCase):
         row = next(line for line in text.splitlines() if line.startswith("| rival-a "))
         # Every opponent sat in every game (no "without"), and three games are too few for a verdict.
         self.assertEqual(row, "| rival-a | 3* | -0.160 | -6.05 | - (n=0) | - | - | no comparison | +0.007 | 1-2 "
-                              "| -0.58 | too few games | -0.167 | -5.40 | too few games |")
+                              "| -0.58 | too few games | -0.167 | -5.40 | too few games (3 of 16), leaning below par |")
         self.assertNotIn("None", text)
 
     def test_sources_and_variants_are_kept_apart(self):

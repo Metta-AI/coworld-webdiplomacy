@@ -30,6 +30,7 @@
   {%- if not stat.n %}<span class="muted">–</span>
   {%- elif stat.verdict in ("above par", "better with them", "we finish ahead") %}<span class="tag ok">{{ stat.verdict }}</span>
   {%- elif stat.verdict in ("below par", "worse with them", "they finish ahead") %}<span class="tag err">{{ stat.verdict }}</span>
+  {%- elif stat.verdict == "too few games" %}<span class="dash-few" title="{{ few_tip(stat) }}"><span class="tag">too few games</span> <span class="muted num">{{ stat.games }} of {{ view.low_n }}</span>{% if stat.lean %}<span class="dash-lean">leaning {{ stat.lean }}</span>{% endif %}</span>
   {%- else %}<span class="tag">{{ stat.verdict }}</span>{% endif %}
 {% endmacro %}
 
@@ -45,7 +46,7 @@
 <div class="page dash"{% if pending %} data-reload="4"{% endif %}>
   <div class="page-head">
     <h1>Dashboard</h1>
-    <span class="muted small">{{ games_on_disk }} games read from <code>.runtime/artifacts</code>{% if read_at %} · <span title="Pacific Time">checked {{ read_at }}</span>{% endif %}</span>
+    <span class="muted small">{{ games_on_disk }} games read from <code>.runtime/artifacts</code>{% if read_at %} · checked {{ read_at }}{% endif %}</span>
     <span class="spacer"></span>
     <a class="btn small" href="{{ link(refresh='1') if report else '/dashboard?refresh=1' }}" title="Forget what was read and read every game again">Read again</a>
   </div>
@@ -112,9 +113,10 @@
   <section class="dash-headline" aria-labelledby="dash-h">
     <p class="eyebrow" id="dash-h">{{ filters.policy }}{% if filters.version %}:{{ filters.version }}{% else %}, all versions{% endif %} · {{ "all variants pooled" if filters.variant == "all" else filters.variant }} · {{ source_labels[filters.source] }}</p>
     <p class="dash-lead {{ view.headline.tone }}">{{ view.headline.lead }}</p>
+    {% if o.vs_par.n %}<p class="dash-cover"><span{% if cover.paired %} title="{{ cover.tip }}"{% endif %}>{{ cover.text }}</span>{% if cover.alone %} <span class="sep">·</span> alone runs only: <a href="{{ cover.alone.link }}" title="Show the dashboard for the alone runs: the figure to quote for one seat"><span class="num">{{ cover.alone.mean }}</span> over {{ cover.alone.stat.games }} games</a>, {{ cover.alone.reading }}{% endif %}</p>{% endif %}
     {% if view.headline.reading %}<p class="dash-reading">{{ view.headline.reading }}</p>{% endif %}
     {% if o.vs_par.n %}
-    <p class="muted small dash-basis">{{ o.vs_par.n }} of our seats in {{ report.games }} games · SE {{ plain(o.vs_par.se) }}{% if o.vs_par.ci %} · 95% interval {{ signed(o.vs_par.ci[0]) }} to {{ signed(o.vs_par.ci[1]) }}{% endif %}. Par is the field's mean score at the same power in the same variant, so a lucky draw of strong powers does not read as a better policy.</p>
+    <p class="muted small dash-basis">{{ o.vs_par.n }} of our seats · SE {{ plain(o.vs_par.se) }}{% if o.vs_par.ci %} · 95% interval {{ signed(o.vs_par.ci[0]) }} to {{ signed(o.vs_par.ci[1]) }}{% endif %}. Par is the field's mean score at the same power in the same variant, so a lucky draw of strong powers does not read as a better policy.</p>
     <dl class="facts dash-facts">
       <dt>Raw score</dt><dd><span class="num">{{ plain(o.score) }}</span> per game; an average seat scores {{ plain(parity) }}{% if o.raw_including_tainted.n != report.seats %} · <span class="num">{{ plain(o.raw_including_tainted.score) }}</span> with the {{ o.raw_including_tainted.n - report.seats }} tainted seats put back{% endif %}</dd>
       <dt>Final centres</dt><dd><span class="num">{{ plain(o.final_centers, 1) }}</span> on average, of 34 on the board</dd>

@@ -1,14 +1,17 @@
 """press_audit.py: reading orders, checking claims against them, and building the ledger."""
 
 import contextlib
+import inspect
 import io
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
 import _path  # noqa: F401  (puts the tools folder on sys.path)
 import press_audit as pa
+import press_report
 from helpers import write_episode
 
 
@@ -423,7 +426,7 @@ class Audit(unittest.TestCase):
         page = pa.render_report(pa.audit(ledger, self.CLAIMS))
         self.assertNotIn("<script>x", page)
         self.assertIn("&lt;script&gt;", page)
-        self.assertIn("we relied on it: betrayed", page)
+        self.assertIn('broke their word</span><span class="stood err">we relied on it</span>', page)
 
 
 def audited(us, phases, said, borders=None):
@@ -875,6 +878,12 @@ class Quotes(unittest.TestCase):
         self.assertEqual(pa.quote_missing("I will hold VIE", self.TEXT), "i will hold vie")
         self.assertEqual(pa.quote_missing("Agreed ... leave TRI alone", self.TEXT), "leave tri alone")
         self.assertIsNotNone(pa.quote_missing("", self.TEXT))
+
+    def test_a_line_break_in_the_press_is_a_new_line_and_quotes_still_match(self):
+        raw = {"id": 7, "turn": 0, "phase": "Diplomacy", "fromCountryID": 4, "toCountryID": 5, "message": self.TEXT}
+        text = pa.ledger_messages([raw], [], "AUSTRIA")[0]["text"]
+        self.assertEqual(text, "Agreed \u2014 I\u2019ll hold VIE,\nand stay out of TRI. Good luck.")
+        self.assertIsNone(pa.quote_missing("I'll hold VIE, and stay out of TRI", text))
         self.assertIsNotNone(pa.quote_missing("[terms of prv-187]", self.TEXT))  # a note is not a quote
 
 
@@ -1164,6 +1173,103 @@ class Ledger(unittest.TestCase):
         exec(dipmap.read_text().split("class DipMap")[0], scope)  # the tables only, no imports needed
         self.assertEqual(pa.ABBREVIATION, scope["ABBREVIATION"])
         self.assertEqual(pa.POWER, scope["POWER"])
+
+
+class WordsForAVerdict(unittest.TestCase):
+    """What a reader sees in place of the audit's outcome and category codes (press_report.py)."""
+
+    OUTCOMES = ({word for pair in pa.OUTCOMES.values() for word in pair} | set(pa.UNMET.values())
+                | {"not_applicable", "not_reached", "attempted", "superseded", "released_by_them", "unverifiable",
+                   "forecast_right", "forecast_wrong"})  # fmt: skip
+    # Every category `press_audit.category` can return, read from its source so that a new one fails here.
+    CATEGORIES = set(re.findall(r'"([a-z_]+)"', inspect.getsource(pa.category).split('"""')[2])) - {
+        "none", "statement", "record", "promise"}  # fmt: skip
+
+    @staticmethod
+    def said(kind, outcome, category="none", speaker="GERMANY", to="TURKEY", **more):
+        claim = {"kind": kind, "outcome": outcome, "category": category, "to": to, **more}
+        return press_report.verdict(claim, {"from": speaker, "to": to}, "TURKEY")
+
+    def test_every_code_the_audit_writes_has_plain_words(self):
+        self.assertGreaterEqual(len(self.CATEGORIES), 21)
+        self.assertLessEqual(set(pa.FLAGGED), self.CATEGORIES)
+        for code in sorted(self.OUTCOMES | self.CATEGORIES):
+            self.assertIn(code, press_report.WORDS)
+            words = press_report.WORDS[code]
+            self.assertNotIn("_", words)
+            self.assertNotIn("stance", words, "tool vocabulary: say whether we relied on it")
+        self.assertLessEqual(set(press_report.TONE) | set(press_report.LEGEND), set(press_report.WORDS))
+        # Every category has its one line: none of them is plain from the label alone.
+        self.assertLessEqual(self.CATEGORIES, set(press_report.LEGEND))
+
+    def test_only_what_cost_us_or_was_our_own_doing_is_loud(self):
+        loud = {code for code, tone in press_report.TONE.items() if tone == "err"}
+        self.assertEqual(loud, {"betrayed", "deceived", "we_broke_our_word"})
+        self.assertLessEqual(loud, set(pa.FLAGGED))
+        for kind, (held, not_held) in pa.OUTCOMES.items():
+            for outcome in (held, not_held):
+                self.assertEqual(self.said(kind, outcome)["tone"], "quiet", "an outcome alone is nobody's alarm")
+        self.assertEqual(self.said("promise", "broken", "doubted_rightly")["tone"], "quiet")
+        self.assertEqual(self.said("promise", "kept", "trusted_rightly")["tone"], "ok")
+
+    def test_a_claim_reads_as_what_happened_and_how_we_stood(self):
+        def read(*args, **more):
+            said = self.said(*args, **more)
+            return said["label"], said["note"]
+
+        self.assertEqual(read("promise", "broken", "betrayed"), ("broke their word", "we relied on it"))
+        self.assertEqual(read("promise", "kept", "true_no_stance"), ("kept their word", ""))
+        self.assertIn("logged no trust", self.said("promise", "kept", "true_no_stance")["tip"])
+        self.assertEqual(read("promise", "attempted", "trusted_rightly"),
+                         ("tried, but the move failed", "we relied on it"))  # fmt: skip
+        self.assertEqual(read("promise", "superseded"), ("plan changed openly", ""))
+        self.assertEqual(read("statement", "false", "deceived"), ("not true", "we relied on it"))
+        self.assertEqual(read("statement", "false", "misstated"), ("wrong about past orders", "a slip, not a lie"))
+        self.assertEqual(read("promise", "kept", "kept_to_other", to="RUSSIA"),
+                         ("kept their word", "promise was to Russia, not us"))  # fmt: skip
+        self.assertEqual(read("promise", "broken", "changed_plans"),
+                         ("a unit moved that was to stay put", "no attack on us"))  # fmt: skip
+        self.assertEqual(read("promise", "kept", "attack_announced"), ("said they would attack us, and did", ""))
+        # Our own words are said of us.
+        ours = {"speaker": "TURKEY", "to": "GERMANY"}
+        self.assertEqual(read("promise", "broken", "we_broke_our_word", **ours), ("we broke our word", ""))
+        self.assertEqual(read("promise", "attempted", "we_kept_our_word", **ours),
+                         ("we tried, but the move failed", ""))  # fmt: skip
+        self.assertEqual(read("statement", "true", "we_kept_our_word", scope="record", **ours), ("true", ""))
+        self.assertEqual(read("statement", "false", "we_broke_our_word", scope="own_orders", **ours),
+                         ("we broke our word", ""))  # fmt: skip
+        self.assertEqual(read("promise", "broken", "we_changed_plans", **ours),
+                         ("our unit moved that was to stay put", "no attack on Germany"))  # fmt: skip
+        # A request is counted for the power that was asked, so the label names it.
+        self.assertEqual(read("request", "refused", **ours)[0], "Germany did not do as asked")
+        self.assertEqual(read("request", "complied")[0], "we did as asked")
+        self.assertEqual(read("request", "complied", to="ALL", asked="RUSSIA")[0], "Russia did as asked")
+
+    def test_the_page_shows_the_words_and_never_a_code(self):
+        claim = {"kind": "promise", "quote": "PRU stays empty", "outcome": "broken", "category": "betrayed",
+                 "to": "TURKEY", "condition": "met", "evidence": []}  # fmt: skip
+        message = {"id": "prv-1", "from": "GERMANY", "to": "TURKEY", "turn": 0, "direction": "in",
+                   "sent_in": "Spring 1901 Diplomacy", "text": "PRU stays empty<br />Germany",
+                   "claims": [claim]}  # fmt: skip
+        row = {"messages": 1, "claims": 1, "held": 0, "did_not_hold": 1, "held_share": 0.0, "unverifiable": 0,
+               "asked": 0, "complied": 0, "categories": {"betrayed": 1, "false_no_stance": 2}}  # fmt: skip
+        page = press_report.render_report({
+            "episode": "e", "score": 0.1, "our_power": "TURKEY", "policy": "ours:v1", "belief_logged": True,
+            "messages": [message], "phases": [],
+            "summary": {"messages": 1, "messages_with_claims": 1, "our_power": "TURKEY", "powers": {"GERMANY": row}},
+        })  # fmt: skip
+        self.assertIn('<span class="chip err"', page)
+        self.assertIn("broke their word</span>", page)
+        self.assertIn('<span class="stood err">we relied on it</span>', page)
+        self.assertIn("its condition was met", page)
+        self.assertIn("What the labels mean", page)
+        self.assertEqual(press_report.legend([message])[0]["words"], "broke a promise we relied on")
+        # Two codes with the same words are one line of the legend.
+        both = [dict(claim, outcome=o, category="none") for o in ("released", "not_applicable")]
+        self.assertEqual(len(press_report.legend([dict(message, claims=both)])), 1)
+        self.assertNotIn("false_no_stance", page)
+        self.assertNotIn("no stance", page)
+        self.assertIn("PRU stays empty\nGermany", page)  # an older audit's line break, shown as one
 
 
 if __name__ == "__main__":

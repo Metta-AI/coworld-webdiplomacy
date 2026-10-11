@@ -7,6 +7,7 @@ machine. Standard library only.
 from __future__ import annotations
 
 import html
+import re
 
 POWER_ORDER = ("ENGLAND", "FRANCE", "ITALY", "GERMANY", "AUSTRIA", "TURKEY", "RUSSIA")
 
@@ -15,92 +16,192 @@ def turn_label(turn: int) -> str:
     return f"{'Spring' if turn % 2 == 0 else 'Autumn'} {1901 + turn // 2}"
 
 
-CHIP = {  # outcome or category -> chip class
-    "kept": "ok",
-    "true": "ok",
-    "carried_out": "ok",
-    "complied": "ok",
-    "trusted_rightly": "ok",
-    "we_kept_our_word": "ok",
-    "doubted_rightly": "ok",
-    "true_no_stance": "ok",
-    "attack_announced": "muted",
-    "attack_not_made": "muted",
-    "broken": "err",
-    "false": "err",
-    "not_carried_out": "err",
+# --- the words for a verdict ----------------------------------------------------------
+#
+# `press_audit.py` writes an `outcome` and a `category` on every claim (the press-audit skill lists
+# them). Those values are for code. A reader sees the words below: `verdict()` for a claim, `WORDS`
+# where a category stands alone (the summary's "How we stood" column, the IDE's timeline).
+# Tones: "err" only for what cost us or was our own broken word, "warn" for what is worth a look,
+# "ok" for a word that held, "quiet" for everything that is nobody's honesty.
+
+TONE = {  # category -> tone; a claim without a category is "quiet"
     "betrayed": "err",
     "deceived": "err",
     "we_broke_our_word": "err",
-    "false_no_stance": "err",
-    "followed": "ok",
-    "not_followed": "gold",
-    "refused": "gold",
-    "doubted_wrongly": "gold",
-    "released": "muted",
-    "not_triggered": "muted",
-    "not_applicable": "muted",
-    "unverifiable": "muted",
-    "not_reached": "muted",
-    "attempted": "ok",
-    "released_by_them": "muted",
-    "our_attack_announced": "muted",
-    "our_attack_not_made": "muted",
-    "changed_plans": "muted",
-    "we_changed_plans": "muted",
-    "superseded": "muted",
-    "forecast_right": "muted",
-    "forecast_wrong": "muted",
-    "misstated": "muted",
-    "we_misstated": "muted",
-    "kept_to_other": "muted",
-    "broken_to_other": "gold",
-    "kept_but_attacked_us": "muted",
-    "kept_despite_doubt": "muted",
+    "doubted_wrongly": "warn",
+    "false_no_stance": "warn",
+    "trusted_rightly": "ok",
+    "we_kept_our_word": "ok",
+    "true_no_stance": "ok",
+    "kept_despite_doubt": "ok",
 }
-WORDS = {
-    "kept": "kept",
-    "broken": "broken",
-    "released": "released: condition not met",
-    "released_by_them": "released: the other side broke the deal first",
-    "our_attack_announced": "our attack on them, announced and made",
-    "our_attack_not_made": "our attack on them, announced and not made",
-    "changed_plans": "a unit did not stay put; no move on us",
-    "we_changed_plans": "our unit did not stay put; no move on them",
+WORDS = {  # every outcome and category, as it reads standing alone
+    # outcomes
+    "kept": "kept their word",
+    "broken": "broke their word",
+    "attempted": "tried, but the move failed",
+    "superseded": "plan changed openly",
+    "released": "did not apply: its condition was not met",
+    "released_by_them": "let off: the other side broke the deal first",
+    "carried_out": "carried out the threat",
+    "not_carried_out": "did not carry out the threat",
+    "not_triggered": "nothing to carry out: its condition was not met",
     "true": "true",
-    "false": "false",
-    "carried_out": "carried out",
-    "not_carried_out": "bluff",
-    "not_triggered": "not triggered",
-    "complied": "complied with",
-    "followed": "they did their part",
-    "not_followed": "they did not do their part",
-    "refused": "refused",
-    "unverifiable": "not checkable",
-    "not_reached": "game ended first",
-    "not_applicable": "condition not met",
-    "trusted_rightly": "we relied on it, rightly",
-    "betrayed": "we relied on it: betrayed",
-    "deceived": "we relied on it: deceived",
-    "doubted_wrongly": "we doubted it, wrongly",
-    "doubted_rightly": "we doubted it, rightly",
+    "false": "not true",
+    "forecast_right": "guess about another power: right",
+    "forecast_wrong": "guess about another power: wrong",
+    "complied": "did as asked",
+    "refused": "did not do as asked",
+    "followed": "did their side of the offer",
+    "not_followed": "did not do their side of the offer",
+    "not_applicable": "did not apply: its condition was not met",
+    "unverifiable": "cannot be checked",
+    "not_reached": "the game ended first",
+    # categories
+    "trusted_rightly": "held, and we relied on it",
+    "betrayed": "broke a promise we relied on",
+    "deceived": "misled us, and we relied on it",
+    "doubted_rightly": "did not hold; we had not relied on it",
+    "doubted_wrongly": "kept, but we doubted it and attacked them",
+    "kept_despite_doubt": "held; we had not relied on it",
+    "kept_but_attacked_us": "held, but they attacked us",
+    "true_no_stance": "kept or true",
+    "false_no_stance": "broken or not true",
     "we_kept_our_word": "we kept our word",
     "we_broke_our_word": "we broke our word",
-    "true_no_stance": "held; we took no stance",
-    "false_no_stance": "did not hold; we took no stance",
-    "attack_announced": "an attack on us, announced and made",
-    "attack_not_made": "an attack on us, announced and not made",
-    "attempted": "ordered, but it failed",
-    "superseded": "changed in the open before the orders",
-    "forecast_right": "a forecast, right",
-    "forecast_wrong": "a forecast, wrong",
-    "misstated": "wrong about orders already public",
-    "we_misstated": "we were wrong about orders already public",
-    "kept_to_other": "held; said to another power",
-    "broken_to_other": "did not hold; said to another power",
-    "kept_but_attacked_us": "held, but they moved on us",
-    "kept_despite_doubt": "held; we had not relied on it",
+    "kept_to_other": "held; it was to another power, not us",
+    "broken_to_other": "did not hold; it was to another power, not us",
+    "attack_announced": "said they would attack us, and did",
+    "attack_not_made": "said they would attack us, and did not",
+    "our_attack_announced": "we said we would attack them, and did",
+    "our_attack_not_made": "we said we would attack them, and did not",
+    "changed_plans": "moved a unit that was to stay put; attacked nobody",
+    "we_changed_plans": "we moved a unit that was to stay put; attacked nobody",
+    "misstated": "wrong about past orders: a slip, not a lie",
+    "we_misstated": "we were wrong about past orders: a slip",
 }
+LEGEND = {  # the one line behind a label, where the label alone could mislead
+    "attempted": "The order was given as promised, then bounced, was cut, or the unit was dislodged. "
+                 "Counted as keeping the word.",
+    "superseded": "A later message to the same power changed this plan before the orders went in. "
+                  "Not a broken word.",
+    "released": "A promise with an \"if\". The condition did not happen, so the promise never applied.",
+    "released_by_them": "The other side attacked first, or had not done its half of the deal, "
+                        "which freed the speaker.",
+    "not_triggered": "A threat with an \"if\". The condition did not happen, so there was nothing to carry out.",
+    "not_applicable": "It came with an \"if\" that did not happen.",
+    "unverifiable": "No order or board position settles it: feelings, vague regions, retreats and builds.",
+    "not_reached": "The game ended before the turns this covers.",
+    "forecast_right": "Said about another power's orders before they were in: a guess, nobody's honesty.",
+    "forecast_wrong": "Said about another power's orders before they were in: a guess, nobody's honesty.",
+    "complied": "A request counts for the power that was asked, not for the one asking.",
+    "refused": "A request counts for the power that was asked, not for the one asking. "
+               "It may never have agreed to it.",
+    "followed": "An offer not yet agreed. This is whether the sender did its own side; "
+                "it counts for or against nobody's honesty.",
+    "not_followed": "An offer not yet agreed. This is whether the sender did its own side; "
+                    "it counts for or against nobody's honesty.",
+    "trusted_rightly": "Our policy counted on this power that turn (an ally, or trust of 0.5 or more), "
+                       "and the word held.",
+    "betrayed": "A promise to us that our policy counted on, broken with no notice beforehand. "
+                "These cost centres: look at what we committed because of it.",
+    "deceived": "A statement of their coming orders, or a threat, that our policy counted on and that did not hold.",
+    "doubted_rightly": "It did not hold, and our policy had not counted on it (a hostile stance, or trust below 0.5).",
+    "doubted_wrongly": "Perhaps a missed alliance: a pledge not to move on us, which they could have broken and "
+                       "kept, while we had not counted on it and moved on them. The least certain flag.",
+    "kept_despite_doubt": "It held, and our policy had not counted on it. Nothing shows we lost by that.",
+    "kept_but_attacked_us": "Kept in the letter while the speaker moved on our units or centres that turn or "
+                            "the turn before. The orders are listed with the claim.",
+    "true_no_stance": "Nothing stands beside this label: our policy logged no trust or distrust of this power "
+                      "that turn, so the audit cannot say whether we relied on it.",
+    "false_no_stance": "Nothing stands beside this label: our policy logged no trust or distrust of this power "
+                       "that turn, so the audit cannot say whether we relied on it. Still a count of who lied.",
+    "we_kept_our_word": "Our own promise, or what we said we would order, matched our orders.",
+    "we_broke_our_word": "Our policy said one thing and ordered another.",
+    "kept_to_other": "A word given to another power, which we only watched. Never a betrayal of us.",
+    "broken_to_other": "A word given to another power, which we only watched. Never a betrayal of us.",
+    "attack_announced": "They told us they would move on our unit or centre. Nothing we could rely on, "
+                        "so never counted as a betrayal.",
+    "attack_not_made": "They told us they would move on our unit or centre. Nothing we could rely on, "
+                       "so never counted as a betrayal.",
+    "our_attack_announced": "We told a power we would move on it. Whether we did is not a matter of our word.",
+    "our_attack_not_made": "We told a power we would move on it. Whether we did is not a matter of our word.",
+    "changed_plans": "All that was broken is \"this unit will stay put\", and the speaker made no move on the "
+                     "power it said it to. A changed plan nobody was told about, not a stab.",
+    "we_changed_plans": "All that was broken is \"this unit will stay put\", and we made no move on the power "
+                        "we said it to. A changed plan nobody was told about, not a stab.",
+    "misstated": "A wrong statement about orders already played. Everyone can read those off the board, "
+                 "so nobody was deceived.",
+    "we_misstated": "A wrong statement about orders already played. Everyone can read those off the board, "
+                    "so nobody was deceived.",
+}
+OUR_WORDS = {  # an outcome when the speaker is our own seat
+    "kept": "we kept our word",
+    "broken": "we broke our word",
+    "attempted": "we tried, but the move failed",
+    "carried_out": "we carried out our threat",
+    "not_carried_out": "we did not carry out our threat",
+    "followed": "we did our side of the offer",
+    "not_followed": "we did not do our side of the offer",
+}
+REQUEST_WORDS = {  # a request's outcome, said of the power that was asked
+    "complied": "did as asked",
+    "refused": "did not do as asked",
+    "attempted": "tried, but the move failed",
+}
+ANNOUNCED = {  # category -> the note when an announced attack was ordered and failed
+    "attack_announced": "the attack on us they had announced",
+    "our_attack_announced": "the attack on them we had announced",
+}
+RELIED = {  # category -> how we stood, written beside the label
+    "trusted_rightly": "we relied on it",
+    "betrayed": "we relied on it",
+    "deceived": "we relied on it",
+    "doubted_rightly": "we had not relied on it",
+    "kept_despite_doubt": "we had not relied on it",
+    "doubted_wrongly": "we had not relied on it, and attacked them",
+    "kept_but_attacked_us": "but they attacked us that turn or the turn before",
+}
+
+
+def _name(power: str, our_power: str) -> str:
+    return "us" if power == our_power else power.title()
+
+
+def verdict(claim: dict, message: dict, our_power: str) -> dict:
+    """The words for one audited claim: `{label, note, tone, tip}`.
+
+    `label` is what happened to the words, `note` (may be empty) how that stood for us or whom it
+    concerned, `tone` one of err, warn, ok, quiet, and `tip` the one-line explanation ("" when the
+    label needs none). `message` is the message the claim was made in (`from`, `to`).
+    """
+    outcome, category, kind = claim["outcome"], claim.get("category") or "none", claim["kind"]
+    ours = message["from"] == our_power
+    to = claim.get("to") or message["to"]
+    label = (OUR_WORDS if ours else WORDS).get(outcome) or WORDS.get(outcome) or outcome.replace("_", " ")
+    note = RELIED.get(category, "")
+    if kind == "request" and outcome in REQUEST_WORDS:
+        asked = claim.get("asked") or message["to"]
+        label = f"{'we' if asked == our_power else asked.title()} {REQUEST_WORDS[outcome]}"
+    if kind == "statement" and outcome in ("true", "false") and ours and claim.get("scope") == "own_orders":
+        label = OUR_WORDS["kept" if outcome == "true" else "broken"]  # what we said we would order is our word
+    if category in ANNOUNCED and outcome == "attempted":
+        note = ANNOUNCED[category]
+    elif category in ("attack_announced", "attack_not_made", "our_attack_announced", "our_attack_not_made"):
+        label = WORDS[category]
+    elif category in ("changed_plans", "we_changed_plans"):
+        label = f"{'our' if ours else 'a'} unit moved that was to stay put"
+        note = f"no attack on {_name(to, our_power)}"
+    elif category in ("misstated", "we_misstated"):
+        label = f"{'we were ' if ours else ''}wrong about past orders"
+        note = "a slip, not a lie"
+    elif category in ("kept_to_other", "broken_to_other"):
+        what = {"promise": "promise was to", "threat": "threat was to"}.get(kind, "said of a deal with")
+        note = f"{what} {to.title()}, not us"
+    return {"label": label, "note": note, "tone": TONE.get(category, "quiet"),
+            "tip": LEGEND.get(category) or LEGEND.get(outcome) or ""}  # fmt: skip
+
+
 STYLE = """
 :root{--bg:#fffdf4;--surface:#fffaf0;--fg:#111827;--sub:#555;--muted:#6b6560;--navy:#1a3875;--sage:#5d6d41;
 --terra:#945637;--gold:#80601f;--border:#e4dac8;--strong:#d4c9b5;--soft:#f0ebe1}
@@ -125,26 +226,42 @@ border-bottom:1px solid var(--border)}
 .claim{margin:0 0 8px 14px;padding-left:12px;border-left:1px solid var(--strong);font-size:14px}
 .quote{font-style:italic}.ev{color:var(--muted);font-size:13px;margin:2px 0 0}
 .chip{display:inline-block;height:20px;line-height:20px;padding:0 8px;border-radius:3px;font-size:10px;font-weight:700;
-text-transform:uppercase;letter-spacing:.04em;margin-right:4px}
-.ok{background:rgba(110,128,80,.16);color:var(--sage)}.err{background:rgba(179,110,78,.16);color:var(--terra)}
-.gold{background:rgba(128,96,31,.14);color:var(--gold)}.muted{background:var(--soft);color:var(--muted)}
-.kind{background:#eef2f7;color:var(--navy)}
+text-transform:uppercase;letter-spacing:.04em;margin-right:4px}.chip[title]{cursor:help}
+.chip.ok{background:rgba(110,128,80,.12);color:var(--sage)}.chip.err{background:var(--terra);color:var(--bg)}
+.chip.warn{background:rgba(128,96,31,.14);color:var(--gold)}.chip.quiet{background:var(--soft);color:var(--muted)}
+.chip.kind{background:none;color:var(--sub);padding-left:0}
+.count{display:inline-block;white-space:nowrap;margin:0 8px 3px 0}.count .chip{margin-right:2px}
+.stood{color:var(--muted);font-size:13px;margin-right:6px}.stood.err{color:var(--terra);font-weight:700}
+details{margin:10px 0 0;font-size:13px}summary{cursor:pointer;color:var(--navy)}
+.legend{margin:8px 0 0;padding:0;list-style:none}
+.legend li{padding:5px 0;border-bottom:1px solid var(--soft);color:var(--sub)}
 .orders{font:13px/1.55 ui-monospace,Menlo,monospace;color:var(--sub)}.orders b{color:var(--fg);font-family:inherit}
 .fail{color:var(--terra)}.empty{color:var(--muted);font-style:italic}
 @media(max-width:760px){.turn{grid-template-columns:minmax(0,1fr)}}
 """
 
 
-def chip(value: str, cls: str | None = None) -> str:
-    return f'<span class="chip {cls or CHIP.get(value, "muted")}">{html.escape(WORDS.get(value, value))}</span>'
+def chip(words: str, tone: str = "quiet", tip: str = "") -> str:
+    title = f' title="{html.escape(tip)}"' if tip else ""
+    return f'<span class="chip {tone}"{title}>{html.escape(words)}</span>'
 
 
-def render_claim(claim: dict) -> str:
-    chips = chip(claim["kind"], "kind") + chip(claim["outcome"])
-    if claim["category"] != "none":
-        chips += chip(claim["category"])
-    if claim["condition"] in ("met", "unverifiable"):  # an unmet condition is already the outcome
-        chips += chip(f"condition {claim['condition']}", "muted")
+def category_chip(category: str) -> str:
+    """A category standing alone, as in the summary table."""
+    words = WORDS.get(category, category.replace("_", " "))
+    return chip(words, TONE.get(category, "quiet"), LEGEND.get(category, ""))
+
+
+CONDITION_WORDS = {"met": "its condition was met", "unverifiable": "its condition cannot be checked"}
+
+
+def render_claim(claim: dict, message: dict, our_power: str) -> str:
+    said = verdict(claim, message, our_power)
+    chips = chip(claim["kind"], "kind") + chip(said["label"], said["tone"], said["tip"])
+    if said["note"]:
+        chips += f'<span class="stood {said["tone"]}">{html.escape(said["note"])}</span>'
+    if claim["condition"] in CONDITION_WORDS:  # an unmet condition is already the outcome
+        chips += f'<span class="stood">{CONDITION_WORDS[claim["condition"]]}</span>'
     evidence = "".join(f'<div class="ev">{html.escape(line)}</div>' for line in claim["evidence"])
     context = f' <span class="ev">[{html.escape(claim["context"])}]</span>' if claim.get("context") else ""
     return (
@@ -153,13 +270,43 @@ def render_claim(claim: dict) -> str:
     )
 
 
-def render_message(message: dict) -> str:
+def render_message(message: dict, our_power: str) -> str:
     to = "everyone" if message["to"] == "ALL" else message["to"].title()
-    claims = "".join(render_claim(c) for c in message["claims"])
+    claims = "".join(render_claim(c, message, our_power) for c in message["claims"])
     return (
         f'<div class="msg {message["direction"]}"><div class="who">{html.escape(message["from"].title())} to '
         f"{html.escape(to)} · {html.escape(message['sent_in'])}</div>"
-        f'<div class="text">{html.escape(message["text"])}</div>{claims}</div>'
+        # An audit made before `extract` turned upstream's "<br />" into a new line still has the tag.
+        f'<div class="text">{html.escape(re.sub(r"<br\s*/?>", chr(10), message["text"]))}</div>{claims}</div>'
+    )
+
+
+def legend(messages: list[dict]) -> list[dict]:
+    """What the labels in these messages mean: `{words, tone, tip}` for each kind of verdict that
+    occurs and needs a line, the flagged ones first."""
+    present = set()
+    for message in messages:
+        for claim in message["claims"]:
+            present.add(claim["category"] if claim["category"] in LEGEND else claim["outcome"])
+    order = {"err": 0, "warn": 1, "ok": 2}
+    codes = sorted((c for c in present if c in LEGEND), key=lambda c: (order.get(TONE.get(c), 3), WORDS[c]))
+    rows = {WORDS[c]: {"words": WORDS[c], "tone": TONE.get(c, "quiet"), "tip": LEGEND[c]} for c in reversed(codes)}
+    return list(reversed(rows.values()))  # two codes with the same words are one row
+
+
+LEGEND_LEAD = (
+    "Red is kept for three things: a promise to us that we relied on and that was broken, a statement or "
+    "threat we relied on that did not hold, and our own broken word. Pointing at a label shows its line."
+)
+
+
+def render_legend(messages: list[dict]) -> str:
+    rows = "".join(f"<li>{chip(row['words'], row['tone'])} {html.escape(row['tip'])}</li>" for row in legend(messages))
+    if not rows:
+        return ""
+    return (
+        f'<details><summary>What the labels mean</summary><p class="note">{LEGEND_LEAD}</p>'
+        f'<ul class="legend">{rows}</ul></details>'
     )
 
 
@@ -183,7 +330,8 @@ def render_summary(summary: dict) -> str:
     for power, row in sorted(summary["powers"].items()):
         share = "—" if row["held_share"] is None else f"{row['held_share']:.0%}"
         asked = "—" if not row["asked"] else f"{row['complied']} of {row['asked']}"
-        cats = " ".join(f"{chip(name)}×{count}" for name, count in sorted(row["categories"].items()))
+        cats = " ".join(f'<span class="count">{category_chip(name)}×{count}</span>'
+                        for name, count in sorted(row["categories"].items()))
         rows.append(
             f"<tr><td>{power.title()}{' (us)' if power == summary['our_power'] else ''}</td>"
             f'<td class="n">{row["messages"]}</td><td class="n">{row["claims"]}</td>'
@@ -210,15 +358,16 @@ def render_report(data: dict) -> str:
     phases = {p["turn"]: p for p in data["phases"]}
     turns = []
     for turn in sorted(set(by_turn) | set(phases)):
-        said = "".join(render_message(m) for m in by_turn.get(turn, [])) or '<p class="empty">No press this turn.</p>'
+        said = "".join(render_message(m, data["our_power"]) for m in by_turn.get(turn, []))
+        said = said or '<p class="empty">No press this turn.</p>'
         done = render_orders(phases[turn]) if turn in phases else '<p class="empty">Not played: the game had ended.</p>'
         turns.append(f'<section class="turn"><h3>{turn_label(turn)}</h3><div>{said}</div><div>{done}</div></section>')
     summary = data["summary"]
     belief = (
         ""
         if data["belief_logged"]
-        else '<p class="note">This policy logs no press policy, so "relied on" could not be worked out: '
-        "claims are marked as held or not, with no stance.</p>"
+        else '<p class="note">This policy does not log whom it trusts, so "relied on" could not be worked out: '
+        "claims are marked only as held or not.</p>"
     )
     title = f"Press audit: {data['our_power'].title()}, {data['policy']}"
     return (
@@ -229,6 +378,6 @@ def render_report(data: dict) -> str:
         f"{summary['messages']} messages seen, {summary['messages_with_claims']} with a claim</p>"
         '<p class="note">Private press: keep this page on your machine. Claims were extracted by an agent; '
         "every verdict was checked by code against the adjudicated orders shown beside it.</p>"
-        f"{belief}<h2>Whose word held</h2>{render_summary(summary)}"
+        f"{belief}<h2>Whose word held</h2>{render_summary(summary)}{render_legend(data['messages'])}"
         "<h2>Turn by turn: what was said, what was ordered</h2>" + "".join(turns) + "</main></html>"
     )

@@ -34,7 +34,7 @@
     {{ select("outcome", "Outcome", options.outcome) }}
     {{ select("flagged", "Flagged", ["yes", "no"], tip="A reason to open the game: a crash or dropped orders, an opponent's solo, an early elimination, a swing of three or more centres in a year") }}
     {{ select("tainted", "Tainted", ["yes", "no"], tip="A crashed or silent seat: the result measures the crash, not the policy, so the game is left out of averages") }}
-    {{ select("audit", "Press audit", ["yes", "no"], tip="Whether the agent has checked this game's press against the orders") }}
+    {{ select("audit", "Press audit", ["yes", "no"], tip="Whether the agent has checked this seat's press against the orders") }}
     {{ select("annotated", "Notes", ["yes", "no"], tip="Whether the game has notes, yours or the agent's") }}
     {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
     <noscript><button type="submit">Apply</button></noscript>
@@ -84,7 +84,7 @@
       {% set e = row.episode %}{% set s = row.seat %}
       {% set href = "/replays/" ~ e.id ~ ("?seat=" ~ s.slot if s and s.has_log else "") %}
       <tr>
-        <td class="muted" title="Finished {{ e.time | when }}, Pacific Time">{{ e.time | when }}</td>
+        <td class="muted" title="Finished {{ e.time | when(zone=true) }}">{{ e.time | when }}</td>
         <td><a class="mono" href="{{ href }}" title="{{ e.id }}">{{ (e.id | replace("ereq_", ""))[:8] }}</a></td>
         <td title="{{ e.variant }} · {{ source_words.get(e.source, e.source) }}{% if e.batch %} · batch {{ e.batch }}{% endif %}">{{ e.variant | replace("Classic ", "") }}<span class="muted src"> · {{ {"xp": "request", "league": "league", "local": "local"}.get(e.source, e.source) }}</span></td>
         {% if s %}
@@ -101,7 +101,7 @@
         </td>
         <td class="clip opponents muted" title="{{ row.opponents | join(', ') }}">{{ row.opponent_names | join(", ") }}</td>
         <td class="flags" title="{{ row.flags | join('; ') }}">{% if e.index_error %}<span class="muted" title="The replay or a seat log could not be read ({{ e.index_error }}), so this game has no flags. It is tried again when the IDE next starts.">not read</span>{% elif not row.flags_known and not row.flags %}<span class="muted" title="Not read yet">…</span>{% endif %}{{ row.flags | join("; ") }}</td>
-        <td>{% if e.audit %}<span class="tag ok">audited</span>{% elif e.press and s and s.has_log %}<span class="muted" title="A press game with our log: the agent can audit it on request">no audit</span>{% else %}<span class="muted" title="{{ 'Gunboat: no press to audit' if e.press is false else 'No seat log, so no private press to audit' }}">—</span>{% endif %}{% if e.annotations %} <span class="num" title="Notes on this game">· {{ e.annotations }} note{{ "" if e.annotations == 1 else "s" }}</span>{% endif %}</td>
+        <td>{% if row.audited %}<span class="tag ok">audited</span>{% elif row.audit_of %}<span class="muted" title="A press audit is one seat's view of a game. This game's is for our {{ row.audit_of }} seat; open that row to see it.">audit is for {{ row.audit_of }}</span>{% elif e.press and s and s.has_log %}<span class="muted" title="A press game with our log: the agent can audit it on request">no audit</span>{% else %}<span class="muted" title="{{ 'Gunboat: no press to audit' if e.press is false else 'No seat log, so no private press to audit' }}">—</span>{% endif %}{% if e.annotations %} <span class="num" title="Notes on this game">· {{ e.annotations }} note{{ "" if e.annotations == 1 else "s" }}</span>{% endif %}</td>
       </tr>
       {% else %}
       <tr><td class="empty" colspan="11">{% if episodes_total %}No game matches these filters.{% else %}No games on disk yet. Ask the agent to fetch some: they land in <code>.runtime/artifacts</code>.{% endif %}</td></tr>

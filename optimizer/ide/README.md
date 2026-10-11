@@ -5,7 +5,8 @@ the coding agent that is already running in the optimizer root.
 
 - **Agent panel** (every page): chat with the running agent session, and the cards it
   posts (ideas, replays to look at, results, reports).
-- **Home**: where the policy you follow stands (the dashboard's headline number), the
+- **Home**: where the policy you follow stands (the dashboard's headline number, with what
+  it covers and the alone-runs figure beside it when some games seat two of our seats), the
   games worth opening (its lowest and highest recent scores, with flags and who lied to
   us), your notes not yet sent to the agent, and reports written since you were last here.
 - **Replays**: watch any fetched game phase by phase, annotate where it went wrong, send
@@ -126,8 +127,8 @@ sent after Esc in the terminal waited until the user typed there, and that the p
 | `ide/ide start` with another lab's IDE on 8642 | "note: port 8642 is in use … uses 8643"; `stop` then `start` came back on 8643 |
 
 Not covered by that fix: Esc before the turn's first tool call, when the waiter fired during
-this same turn. No hook runs between the two, so no waiter exists; the page then says the
-message is still waiting and to type in the terminal (after 25 s), and "not listening" after
+this same turn. No hook runs between the two, so no waiter exists; after 25 s the page says
+the message is not delivered yet and what to do (see "Limits"), and "not listening" after
 three minutes.
 
 Not tried in a live session: `ide/ide listen` and the MCP tools under a harness other than
@@ -136,11 +137,19 @@ Claude Code.
 The panel shows the truth about each message as far as it can know it: "Delivered to the
 agent", or why it is still waiting (agent busy, agent idle and not listening, session ended,
 no agent attached). An interrupt runs no hook, so an interrupted session looks busy; a
-message that has waited more than 25 s under "busy" is shown as "Still waiting", with what
-to do.
+message that has waited more than 25 s under "busy" is shown as "Not delivered yet", with
+the one thing to do.
 
 ### Limits
 
+- **Esc before the turn's first tool call can leave no waiter.** The message then waits. What
+  works: click into the agent's terminal, type any word and press Enter. That prompt runs the
+  `UserPromptSubmit` hook, which hands over the waiting messages with it and starts a new
+  waiter (seen in the cold-start drive: "go on" delivered a message that had waited three
+  minutes). Enter on an empty prompt does not help: it submits nothing, and the only hooks
+  are on `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop` and `SessionEnd`
+  (`hooks.py: HOOK_EVENTS`), so none runs. The page says this after 25 s. (That an empty
+  Enter runs no hook is read from the hook list, not tried in a live session.)
 - **A long tool call delays a busy agent.** Hooks run between tool calls; the Rewake
   message is also injected between them. A 20-minute command means a 20-minute wait.
 - **Delivered is not the same as read.** The cursor moves when the text is handed to
@@ -260,6 +269,7 @@ window.ide.setContext({episode, phase, annotations: [ids], label: "optional chip
 window.ide.renderMarkdown(text)   // safe HTML for a small Markdown subset
 window.ide.safeHref(link)         // the link if it is an IDE path or an http(s) address, else null; use it before setting any href from data
 window.ide.draft(text)            // put text in the message box for the user to edit and send
+window.ide.when(seconds)          // "4:46 AM PDT" (with "Oct 10, " when not today): Pacific, whatever zone the browser is in
 ```
 
 Shared pieces live in `static/app.css`, so pages built by different people look like one
@@ -278,6 +288,10 @@ follows every seat that has a log.
 
 Write every date with the `when` filter (`{{ row.time | when }}` gives `Oct 11, 2:42 AM`,
 Pacific, with the year only when it is not this year) or `day`; in Python, `dates.when()`.
+Name the zone in one way only: the abbreviation that is right for the date, `PDT` or `PST`
+(`when(zone=true)`, `window.ide.when`), never "PT". A column of times carries no label on
+each row (its heading's tooltip says Pacific Time, a row's tooltip has the abbreviation); a
+time that stands alone in a sentence carries it.
 Keep sortable values (epoch seconds, ISO strings) in the data and format them in the
 template. In page text a **game** is what the user watches; say **episode id** only where
 the id itself is shown (Episode stays the platform's word for the object, in code and docs).
@@ -313,6 +327,10 @@ links may only go to IDE paths or `http(s)` addresses. Static files are served w
 
 A press audit is one seat's view of a game. The viewer joins it to the press only while
 that seat is followed; from any other seat it shows whose audit it is and nothing else.
+The replay list marks only that seat's row "audited"; our other seat in the same game
+reads "audit is for Russia". The words for each verdict (label, note, tone, tooltip and the
+"What the labels mean" list) come from the lab's `tools/press_report.py`, so the viewer and
+the standalone `audit.html` read the same.
 The audit folder is per episode (`.runtime/press/<episode id>/`), so when two of our
 seats sit in one game, auditing the second replaces the first.
 

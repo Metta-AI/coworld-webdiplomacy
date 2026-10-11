@@ -14,6 +14,13 @@
 .dash-lead.err { color: var(--terracotta); }
 .dash-reading { font-size: 1rem; max-width: var(--measure); margin-bottom: var(--s2); }
 .dash-basis { max-width: var(--measure); }
+/* What the headline covers, and the alone-runs figure beside it. */
+.dash-cover { font-size: var(--text-md); color: var(--ink-2); margin: 0 0 var(--s2); }
+.dash-cover .sep { color: var(--ink-3); margin: 0 var(--s1); }
+/* A row below the floor: no verdict, but its count and which way it leans. */
+.dash-few { white-space: nowrap; cursor: help; }
+.dash-few .num { font-size: var(--text-xs); }
+.dash-lean { display: block; font-size: var(--text-sm); color: var(--ink); margin-top: 1px; }  /* its own line: the table keeps its width */
 .dash-facts { margin-top: var(--s4); max-width: 900px; }
 .dash-facts dd { color: var(--ink); }
 .dash-caveats { margin: var(--s3) 0 0; padding-left: 1.2em; color: var(--ink-3); max-width: var(--measure); }

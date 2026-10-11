@@ -12,7 +12,7 @@
     {% if report.policy %}<dt>{{ "Seen from" if report.kind == "opponents" else "Our policy" }}</dt><dd class="mono">{{ report.policy }}</dd>{% endif %}
     <dt>Games</dt><dd>{{ report.games or "not stated" }}{% if report.variant %} <span class="muted">({{ report.variant }})</span>{% endif %}</dd>
     <dt>Dated</dt><dd>{% if report.date %}<span title="{{ report.date }}">{{ report.date | when }}</span>{% else %}not stated{% endif %}
-      <span class="muted" title="Pacific Time">(file last changed {{ report.modified | when }})</span></dd>
+      <span class="muted">(file last changed {{ report.modified | when(zone=true) }})</span></dd>
     {% if report.sources %}<dt>From</dt><dd class="mono">{{ report.sources }}</dd>{% endif %}
     <dt>File</dt><dd class="mono">{{ report.path }}</dd>
   </dl>

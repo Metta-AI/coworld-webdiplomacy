@@ -38,7 +38,7 @@
           <td>{% if report.policy %}<span class="mono">{{ report.policy }}</span>{% else %}<span class="muted">-</span>{% endif %}</td>
           <td>{{ report.variant or "-" }}</td>
           <td class="num">{{ report.games or "-" }}</td>
-          <td class="nowrap">{% if report.date %}<span title="{{ report.date }}">{{ report.date | when }}</span>{% else %}<span class="muted" title="No date in the report; this is when the file last changed, Pacific Time">file changed {{ report.modified | when }}</span>{% endif %}</td>
+          <td class="nowrap">{% if report.date %}<span title="{{ report.date }}">{{ report.date | when }}</span>{% else %}<span class="muted" title="No date in the report; the file last changed {{ report.modified | when(zone=true) }}">file changed {{ report.modified | when }}</span>{% endif %}</td>
           <td class="actions">
             <button class="small" type="button" data-ask="Refresh the {{ kind.one }} “{{ report.title }}” ({{ report.path }}): run the {{ kind.skill }} skill again on the episodes now on disk, rewrite the file and post a card."
               data-kind="{{ key }}" data-slug="{{ report.slug }}" aria-label="Ask the agent to refresh {{ report.title }}" title="Ask the agent to run the skill again on the episodes now on disk">Ask for a refresh</button>

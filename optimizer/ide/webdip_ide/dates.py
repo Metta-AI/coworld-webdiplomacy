@@ -6,6 +6,12 @@ called from a route module, so a time reads the same on the home page, the repla
 the dashboard and the reports. The agent panel's script (`static/chat.js`) writes the same
 format, and leaves the day out for a message sent today.
 
+The zone is named in one way only: the abbreviation that is right for that date, `PDT` in
+summer and `PST` in winter (`when(value, zone=True)` gives `Oct 11, 2:42 AM PDT`), never a bare
+"PT". A column of times has no label on each row: its heading's tooltip says "Pacific Time" and
+a row's tooltip gives the time with its abbreviation. A time that stands alone in a sentence
+carries the abbreviation. `chat.js` (`window.ide.when`) and `hooks.clock` follow the same rule.
+
 A value may be seconds since 1970, a `datetime`, or an ISO string as found in `episode.json`
 and in a report's front matter. A string that is only a date (`2026-10-11`) has no time to
 show and is written as a day. A string that cannot be read is shown as it was written.
@@ -53,8 +59,10 @@ def day(value, now: datetime | None = None) -> str:
     return str(value) if moment is None else _day(moment, now)
 
 
-def when(value, now: datetime | None = None) -> str:
-    """`Oct 11, 2:42 AM`, or `Oct 11, 2025, 2:42 AM` in another year. Empty for nothing."""
+def when(value, now: datetime | None = None, zone: bool = False) -> str:
+    """`Oct 11, 2:42 AM`, or `Oct 11, 2025, 2:42 AM` in another year. Empty for nothing.
+
+    With `zone`, the abbreviation for that date follows: `Oct 11, 2:42 AM PDT`, `Jan 5, 1:42 AM PST`."""
     if value is None or value == "":
         return ""
     moment = _read(value)
@@ -62,4 +70,4 @@ def when(value, now: datetime | None = None) -> str:
         return str(value)
     if not isinstance(moment, datetime):
         return _day(moment, now)
-    return f"{_day(moment, now)}, {moment.hour % 12 or 12}:{moment:%M %p}"
+    return f"{_day(moment, now)}, {moment.hour % 12 or 12}:{moment:%M %p}" + (f" {moment:%Z}" if zone else "")
