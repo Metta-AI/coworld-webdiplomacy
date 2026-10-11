@@ -39,7 +39,7 @@ shuffled powers is for a quick field look, a health check or a crash test.
 | **A/B (default: paired)** | Candidate + baseline + **five** field seats in the same games, **each version in each of the two seat positions for half the games** (`tools/make_request.py paired --balanced` writes the 14 bodies). Analyze with `paired.py`. A paired **win** is a screen result only: confirm it with separate arms before promotion (measured 2026-10-10: a z = 3.1 paired win vanished alone) |
 | A/B (separate arms) | Per arm: one candidate seat + **six** field seats, identical field in both arms, both arms in the same window. Analyze with `compare.py` |
 | Field eval | One candidate seat + six field seats |
-| Health check | One `classic-press-short` episode with the candidate (and any new model or prompt). Build it with `tools/make_request.py field … -n 1 --variant classic-press-short`. Then confirm every `llm_call` in our seat logs succeeded and `rejected` is 0 |
+| Health check | One `classic-press-short` episode with the candidate (and any new model or prompt). Build it with `tools/make_request.py field … -n 1 --variant classic-press-short`. Then confirm every `llm_call` in our seat logs succeeded and `rejected` is 0: the `telemetry` line of `wd.py metrics DIR --policy NAME:vN` (`llm calls N (0 failed…)`, `rejected 0`, `exceptions 0`) and `press_sent` in the trace. Logs are readable only after the game ends |
 | Crash test | One short episode, any field. Look only at connect, play every phase, exit |
 
 **Variant:** judge on the league's full variant: `classic-press` for the press
@@ -99,8 +99,9 @@ create time). Set
 From 2026-10 measurements; recompute from your first batch:
 
 - **Press:** per-seat score SD is about 0.12 to 0.18 (prior lab). The SD of a
-  paired difference has **not been measured in press**; `tools/sizing.py`
-  uses an estimate of 0.23 until you measure it in your first paired batch.
+  paired difference measured 0.19 (27 games) and 0.21 (55 games) on 2026-10-10,
+  one opponent set; `tools/sizing.py` uses 0.20. Re-measure in your first
+  paired batch (`paired.py` prints `sd`).
 - **Gunboat** (hosted, 2026-10-10, one opponent set; re-measure): 0.22 per
   seat for the search, and 0.30 to 0.36 for a paired difference. Use
   `tools/sizing.py --league gunboat`.
@@ -110,7 +111,7 @@ From 2026-10 measurements; recompute from your first batch:
   show up. Most of the prior lab's results stopped here and
   none reached a verdict.
 - **Verdict: size it with `tools/sizing.py`** (press by default). For a 0.04
-  difference in press it gives about 135 paired games, or about 115 per arm
+  difference in press it gives about 100 paired games, or about 113 per arm
   with separate arms, for an even chance of reaching z = 2 (about double for an
   80% chance). In gunboat the same difference needs about 290 paired games.
 - **|z| < 2 is no result**, whatever the episode count.
@@ -146,6 +147,8 @@ effect lands at z ≈ 1.9 to 2.9. At 16 per arm the difference SE is 0.04 to
 
 - A full hosted `classic-press` game takes **60 to 100 minutes** (re-measure).
   Sixteen episodes in one request ran in parallel, about an hour of wall clock.
+  On 2026-10-10 fourteen requests of two (28 games) launched together were all
+  finished 67 minutes later, and a `classic-press-short` health game took 25.
   Gunboat games take a few minutes, but they test only the search core.
 - Cost: about **15 XP credits per full press game** with five LLM seats; our
   own LLM seat cost about $0.10 per game on glm-5.3-flash.

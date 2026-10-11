@@ -145,10 +145,15 @@ def run_alone(args: argparse.Namespace, record: Path) -> None:
     ids = launch_alone(args, record)
     base = LAB / ".runtime" / "artifacts"
     out = {arm: base / f"{args.record}-alone-{arm}" for arm in ("a", "b")}
-    # One fetch per arm, one after the other: both sets of games play at the same time on
-    # the platform, and each arm needs its own directory for compare.py.
+    # One fetch per arm (each arm needs its own directory for compare.py), both at once:
+    # the two arms play at the same time, and fetching them one after the other left arm B
+    # unread until arm A's last game ended (2026-10-10: 21 finished games sat unfetched).
+    watches = [subprocess.Popen([str(c) for c in (FETCH, *ids[arm], "--watch", "--out", out[arm])], stdout=sys.stderr)
+               for arm in ("a", "b")]
+    failed = [watch.args[-1] for watch in watches if watch.wait() != 0]
+    if failed:
+        sys.exit(f"failed: the fetch into {', '.join(failed)}; re-run fetch_artifacts.py for that arm by hand")
     for arm in ("a", "b"):
-        run([FETCH, *ids[arm], "--watch", "--out", out[arm]], capture=False)
         run([sys.executable, LAB / "tools" / "gzip_replays.py", out[arm]])
     label_a, label_b = args.a_label or args.a, args.b_label or args.b
     print(run([sys.executable, LAB / "tools" / "compare.py", out["b"], out["a"],

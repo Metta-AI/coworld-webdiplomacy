@@ -96,10 +96,10 @@ docstring**; they may shift slightly from what is shown here.
 | `wd.py local` | Local episodes, one image in all seats (needs Docker and `coworld`) | `wd.py local ...` |
 | `wd.py arena` | Local: one candidate against a local field (needs Docker and `coworld`) | `wd.py arena ...` |
 | `wd.py slim` | Strip map PNGs from replays to save disk | `wd.py slim DIR...` |
-| `paired.py` | Paired difference and z for two policies in the same games | `paired.py ...` |
+| `paired.py` | Paired difference, its SD and z for two policies in the same games; `vs_par_by_power` compares the two at the same power | `paired.py ...` |
 | `compare.py` | A/B by power for separate arms | `compare.py BASE_DIR CAND_DIR --baseline NAME:vN --candidate NAME:vM` |
-| `session_env.sh` | Private credentials directory, Docker config and active player for this shell, in one step | `source games/webdiplomacy/tools/session_env.sh <player id>` |
-| `check_clis.py` | Warns when the `coworld` or `softmax` uv tool is missing or older than PyPI's latest. With the Claude Code harness a SessionStart hook runs it; on other runtimes run it yourself at session start | `check_clis.py` |
+| `session_env.sh` | Private credentials directory, Docker config and active player for this shell, in one step; `git` and `gh` keep using the real home. In an agent harness pin `WEBDIP_SESSION_HOME` and source it on every command line ([docs/platform.md](docs/platform.md#setup)) | `source games/webdiplomacy/tools/session_env.sh <player id>` |
+| `check_clis.py` | Warns when the `coworld` or `softmax` uv tool is missing or older than PyPI's latest. With the Claude Code harness a SessionStart hook runs it; on other runtimes run it yourself at session start (`-v` also reports when both are current) | `check_clis.py [-v]` |
 | `llm_sidecar_local.py` | Local stand-in for the hosted LLM sidecar (needs `OPENROUTER_API_KEY`) | `llm_sidecar_local.py ...` |
 | `ab_stats.py` | The statistics behind `compare.py` (Welch t, Fisher exact, multiple-test correction) | library |
 
@@ -113,17 +113,17 @@ Also in `tools/`, run the same way; flags are in each docstring.
 
 | Tool | For |
 |---|---|
-| `field.py press\|gunboat` | Who is in a league's field (from its rounds), with version ids for rosters |
+| `field.py press\|gunboat` | Who is in a league's field (from its rounds), with version ids for rosters, and the seating of each round |
 | `make_request.py` + `../field_sets.json` | Request bodies from a named opponent set; `--balanced` (powers pinned and rotated; a paired A/B gets both seat orders, 14 bodies), `--pin-a POWER` (our seat fixed to one power), `--no-maps`. `field_sets.json` ships with the format only: list the field with `field.py`, then write your own named, dated sets (a stale id fails at create time with "Policy version … was not found") |
 | `seat_bias.py` | Whether one roster seat outscores another whoever sits there (reads `wd.py seats` on stdin); for same-code checks |
 | `mine_variance.py` | Which measured behaviours go with a policy's own good and bad games (correlations: hypothesis fuel only) |
-| `run_ab.py` | One paired A/B end to end from an experiment record: bodies, dry run, launch, ids into the record, fetch, compress, read. `--alone` runs the candidate-alone check (each version alone against a six-seat field), which every paired win needs before promotion |
+| `run_ab.py` | One paired A/B end to end from an experiment record: bodies, dry run, launch, ids into the record, fetch, compress, read. `--alone` runs the candidate-alone check (each version alone against a six-seat field), which every paired win needs before promotion; it fetches both arms at once |
 | `sizing.py` | Games needed for an effect size, from the measured variance |
 | `ship.py` | Build, upload, look up the version id and append the VERSION_LOG row in one step |
 | `flag_episodes.py` | Episodes worth opening (reads `wd.py seats` on stdin) |
 | `year_deltas.py` | Centre change per game year by policy (reads `wd.py seats` on stdin) |
 | `gzip_replays.py` | Compress fetched replays in place, about 20x; the loader reads them |
-| `press_audit.py extract\|verify\|report` | One press game from our seat: every message we saw, its claims (an agent lists them), each checked by code against the orders, and a local HTML page. See the press-audit skill |
+| `press_audit.py extract\|verify\|report` | One press game from our seat: every message we saw, its claims (an agent lists them), each checked by code against the orders, and a local HTML page. Read the flagged claims' evidence before quoting its counts. See the press-audit skill |
 
 ## How the loop runs here
 
@@ -160,7 +160,9 @@ python3 $L/tools/paired.py $L/.runtime/artifacts/<slug> --a <policy>:vNEW --b <p
 Everything from the third command on is one step with
 `python3 $L/tools/run_ab.py --record <record id> --a <policy>:vNEW --b <policy>:vBASE --field-set <paired set> -n 2`
 (it refuses a record that still has template text, and `--resume` picks up an
-interrupted run).
+interrupted run). `ship.py` writes every row to `players/castlereagh/VERSION_LOG.md`,
+whatever `--name` you upload under: the log follows the source directory, not the
+uploaded policy name.
 
 - `ship.py` builds the press mode and uploads it with an LLM model by default.
   For a press set, `make_request.py` gives each game an LLM budget (a cap of
@@ -171,22 +173,38 @@ interrupted run).
 
   | `-n` | Games | Credits (about 15 per press game) | Smallest effect at z = 2 |
   |---|---|---|---|
-  | 1 | 14 | about 210 | 0.12 |
-  | 2 | 28 | about 420 | 0.09 |
-  | 6 | 84 | about 1,260 | 0.05 |
+  | 1 | 14 | about 210 | 0.11 |
+  | 2 | 28 | about 420 | 0.08 |
+  | 6 | 84 | about 1,260 | 0.04 |
 
   The effect sizes come from `python3 $L/tools/sizing.py --games N`, and they
-  rest on an **estimated** paired SD for press (0.23). Work out the real SD from
-  your first batch (`paired.py` prints the standard error; SD = SE × √games)
-  and re-size with `--sd`.
+  rest on a paired SD for press of 0.20 (measured 0.19 and 0.21 on 2026-10-10,
+  27 and 55 games, one opponent set). Check it against your first batch
+  (`paired.py` prints `sd`) and re-size with `--sd`.
 - **A press game takes 60 to 100 minutes.** Batches run in parallel (a prior
-  lab ran 16 games at once in about an hour); how long 84 take together is not
-  measured. Launch, record the ids, and read the result later: `--resume`
+  lab ran 16 games at once in about an hour). On 2026-10-10, 28 games launched
+  together finished in 67 minutes; 56 launched while 28 were running, with 56
+  more added 40 minutes later (140 in flight), took 127 minutes. Past about 30
+  games at once, expect the wall clock to stretch; how long 84 take together is
+  still not measured. Launch, record the ids, and read the result later: `--resume`
   fetches and reads when the games are done.
 - After every press upload or model change, run one health game on
   `classic-press-short` and confirm every `llm_call` in our seat logs succeeded
   (`make_request.py field … -n 1 --variant classic-press-short` builds it; see
-  the eval-design binding). A failing LLM seat looks healthy.
+  the eval-design binding). A failing LLM seat looks healthy. The pass line is
+  the `telemetry` line of `wd.py metrics DIR --policy NAME:vN`: `rejected 0`,
+  `exceptions 0`, `llm calls N (0 failed, …)`, and `press_sent` above zero in
+  the trace. A seat's log cannot be read until its game ends (about 25 minutes
+  for the short variant, measured 2026-10-10), so in a short session launch the
+  health game and the first batch together and discard the batch if the health
+  game fails. Write that choice into the experiment record.
+- **A paired run gives a fair difference, not a fair level.** With two of our
+  seats in one game the score level is not what one seat gets alone, and the
+  gap can go either way: the same search scored 0.155 raw beside its twin and
+  0.220 alone (hosted gunboat, 168 and 84 games), while the press build scored
+  0.16 to 0.18 beside its twin and about 0.13 alone against the league's six
+  (46 games), all on 2026-10-10. Read "how good is this version" from an alone
+  run (`run_ab.py --alone`, or a field eval), never from a paired one.
 - Put the batch ids and the artifact directory in the experiment record as
   soon as they exist.
 

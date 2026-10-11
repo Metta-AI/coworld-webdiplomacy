@@ -14,8 +14,13 @@ all the given directories, falling back to every seat at that power when no othe
 seat played it. Games where A's or B's seat is tainted, or the game was cancelled or
 failed, are dropped and counted (`--keep-tainted` keeps them).
 
-Output: n, mean d (A minus B), its standard error, z = mean / SE, the A-minus-B mean
-per power that A played, and a verdict. |z| < 2 is reported as "no result": three
+Output: n, mean d (A minus B), its standard error, the paired SD (`sd`, the number
+`sizing.py --sd` wants), z = mean / SE, and a verdict. Two per-power tables:
+`vs_par_by_power` compares A and B at the SAME power (each one's mean score vs par
+there; unpaired SE; the table to judge "is the candidate worse as Austria" from), and
+`pair_diff_when_a_plays` is the mean of d over the games where A held that power. The
+second is NOT a per-power effect: B holds a different power in each of those games, so
+identical code can read -0.25 at one power and +0.25 at the next. |z| < 2 is reported as "no result": three
 +0.08 leads at z of about 1.4 vanished on replication in the lab. Pairing removes most
 of the game-to-game variance, so it needs fewer games than separate arms (about 1.7x fewer in hosted gunboat).
 
@@ -74,6 +79,39 @@ def paired_differences(seats: list[Seat], a: str, b: str, keep_tainted: bool = F
     return diffs, dropped
 
 
+def vs_par_by_power(seats: list[Seat], a: str, b: str, keep_tainted: bool = False) -> dict[str, dict]:
+    """Per power: A's mean score vs par AT THAT POWER, B's AT THE SAME POWER, and the difference.
+
+    This is the per-power read of an A/B. The two means come from different games (in one game
+    A and B hold different powers), so the SE is the unpaired one and each cell needs many games."""
+    par = power_par(seats, a, b)
+    games: dict[str, dict[str, Seat]] = defaultdict(dict)
+    for s in sorted(seats, key=lambda s: (s.episode_id, s.slot)):
+        if s.policy in (a, b):
+            games[s.episode_id].setdefault(s.policy, s)
+    cells: dict[str, dict[str, list[float]]] = defaultdict(lambda: {"a": [], "b": []})
+    for by in games.values():
+        if a not in by or b not in by or (not keep_tainted and (by[a].taint or by[b].taint)):
+            continue
+        cells[by[a].power]["a"].append(by[a].score - par[by[a].power])
+        cells[by[b].power]["b"].append(by[b].score - par[by[b].power])
+    out = {}
+    for power, cell in sorted(cells.items()):
+        if not cell["a"] or not cell["b"]:
+            continue
+        diff = statistics.mean(cell["a"]) - statistics.mean(cell["b"])
+        se = None
+        if len(cell["a"]) > 1 and len(cell["b"]) > 1:
+            se = math.sqrt(statistics.variance(cell["a"]) / len(cell["a"])
+                           + statistics.variance(cell["b"]) / len(cell["b"]))
+        out[power] = {"n_a": len(cell["a"]), "n_b": len(cell["b"]),
+                      "a_vs_par": round(statistics.mean(cell["a"]), 4),
+                      "b_vs_par": round(statistics.mean(cell["b"]), 4),
+                      "diff": round(diff, 4), "se": round(se, 4) if se else None,
+                      "z": round(diff / se, 2) if se else None}
+    return out
+
+
 def verdict(n: int, z: float | None, a: str, b: str) -> str:
     if n < 2 or z is None:
         return "no result (n < 2)"
@@ -99,9 +137,14 @@ def paired_report(seats: list[Seat], a: str, b: str, keep_tainted: bool = False)
         "z": round(z, 2) if z is not None else None,
         "verdict": verdict(n, z, a, b),
         "a_in_lower_slot": f"{a_first}/{n}",
-        "diff_by_a_power": {p: {"n": len(v), "diff": round(statistics.mean(v), 4),
-                                "se": round(statistics.stdev(v) / math.sqrt(len(v)), 4) if len(v) > 1 else None}
-                            for p, v in sorted(by_power.items())},
+        "sd": round(statistics.stdev(values), 4) if n > 1 else None,
+        "vs_par_by_power": vs_par_by_power(seats, a, b, keep_tainted),
+        # Not a per-power effect: in each game B holds a DIFFERENT power, so a cell is "A vs par
+        # at this power, minus B vs par at whatever B held". Two uploads of identical code read
+        # -0.25 and +0.25 here (|z| 4, hosted 2026-10-10). Use `vs_par_by_power` to judge a power.
+        "pair_diff_when_a_plays": {p: {"n": len(v), "diff": round(statistics.mean(v), 4),
+                                       "se": round(statistics.stdev(v) / math.sqrt(len(v)), 4) if len(v) > 1 else None}
+                                   for p, v in sorted(by_power.items())},
     }
     if n >= SEAT_ORDER_MIN_GAMES and not SEAT_ORDER_LOW <= a_first / n <= SEAT_ORDER_HIGH:
         # Measured 2026-10-10 with identical code: under pinned, rotated powers a fixed seat

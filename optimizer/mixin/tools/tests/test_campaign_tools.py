@@ -161,6 +161,13 @@ class Field(unittest.TestCase):
         self.assertEqual(rows[1]["rounds"], [5, 6])
         self.assertEqual(rows[1]["seats"], 1)  # the round with no scores adds a sighting, not a score
 
+    def test_seatings_count_each_policys_seats_per_round_newest_first(self):
+        seen: dict = {}
+        field.add_episode(seen, 5, self.episode())
+        field.add_episode(seen, 6, {"participants": self.episode()["participants"][2:], "participant_scores": []})
+        self.assertEqual(field.seatings(field.summarize(seen)), {6: {"b:v2": 1}, 5: {"a:v1": 2, "b:v2": 1}})
+        self.assertEqual(list(field.seatings(field.summarize(seen))), [6, 5])
+
     def test_policy_with_no_scores(self):
         seen: dict = {}
         field.add_episode(seen, 1, {"participants": self.episode()["participants"][:1]})

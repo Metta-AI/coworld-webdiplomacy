@@ -174,8 +174,9 @@ A full `classic-press` game has 16 movement phases (1901 to 1908).
 | webDiplomacy Gunboat | `league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17` | `classic-gunboat` |
 
 As of 2026-10-10 (verified from `coworld rounds` and `coworld episodes -r`):
-one round per day at 08:00 UTC, and **a round is a single game**, so standings
-rest on one new game a day. One player per user, ranked by **mean score**. A new
+**a round is a single game**, and rounds are at most daily, so standings rest on
+very few games. The schedule is not reliable enough to plan on: list the rounds
+that have actually run with `coworld rounds -l <league_id>`. One player per user, ranked by **mean score**. A new
 submission becomes the scoring entry at once ("Auto champion: always"). Empty seats are filled from each
 league's **filler roster**. Read the live settings with
 `coworld leagues <league_id> --json` before relying on these.

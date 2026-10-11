@@ -42,7 +42,33 @@ class PairedDifference(unittest.TestCase):
         self.assertAlmostEqual(report["diff"], round(mean, 4))
         self.assertAlmostEqual(report["se"], round(se, 4))
         self.assertAlmostEqual(report["z"], round(mean / se, 2))
-        self.assertEqual(report["diff_by_a_power"]["England"]["n"], 2)
+        self.assertEqual(report["pair_diff_when_a_plays"]["England"]["n"], 2)
+        self.assertAlmostEqual(report["sd"], round(statistics.stdev(diffs), 4))
+
+    def test_vs_par_by_power_compares_the_two_policies_at_the_same_power(self):
+        # Identical play: both score 0.30 as England and 0.10 as France, whoever sits there.
+        field = ["f"] * 5
+        rest = [0.12] * 5
+        games = [(["A", "B", *field], [0.30, 0.10, *rest]), (["B", "A", *field], [0.30, 0.10, *rest])] * 2
+        with tempfile.TemporaryDirectory() as tmp:
+            seats = self.build(tmp, games)
+        report = paired.paired_report(seats, "A", "B")
+        by_power = report["vs_par_by_power"]
+        self.assertEqual((by_power["England"]["n_a"], by_power["England"]["n_b"]), (2, 2))
+        self.assertAlmostEqual(by_power["England"]["diff"], 0.0)
+        self.assertAlmostEqual(by_power["France"]["diff"], 0.0)
+
+    def test_vs_par_by_power_shows_a_gain_at_one_power_only(self):
+        field = ["f"] * 5
+        rest = [0.12] * 5
+        games = [(["A", "B", *field], [0.40, 0.10, *rest]), (["B", "A", *field], [0.30, 0.10, *rest]),
+                 (["A", "B", *field], [0.42, 0.10, *rest]), (["B", "A", *field], [0.28, 0.10, *rest])]
+        with tempfile.TemporaryDirectory() as tmp:
+            seats = self.build(tmp, games)
+        by_power = paired.paired_report(seats, "A", "B")["vs_par_by_power"]
+        self.assertAlmostEqual(by_power["England"]["diff"], 0.12)
+        self.assertAlmostEqual(by_power["France"]["diff"], 0.0)
+        self.assertGreater(by_power["England"]["z"], 2)
 
     def test_tainted_games_are_dropped(self):
         games = [(["A", "B", *["f"] * 5], [0.2, 0.1, 0.14, 0.14, 0.14, 0.14, 0.14])] * 3

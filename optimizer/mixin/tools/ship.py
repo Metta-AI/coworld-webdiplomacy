@@ -74,6 +74,7 @@ def main(argv=None) -> None:
     build = [str(LAB / "tools" / "build.sh"), "--policy", args.policy, "--tag", tag]
     if args.overrides:
         build += ["--overrides", args.overrides]
+    print(f"building {tag} (the first build on a machine also builds the player base image)", file=sys.stderr)
     run(build, env=env)
 
     upload = ["coworld", "upload-policy", tag, "--name", args.name, "--tag", f"purpose={args.slug}",

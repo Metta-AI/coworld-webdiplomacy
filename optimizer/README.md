@@ -57,7 +57,9 @@ git push --force origin main     # the template is generated output
 
 ## Checks
 
-These also run in CI, which then runs `install.sh` and checks the result:
+These also run in CI, which also checks that `mixin/field_sets.json` ships placeholders
+only (the lab's own tests must keep passing once a user fills that file, so the check is
+in the workflow), then runs `install.sh` and checks the result:
 
 ```sh
 uv run ruff check optimizer
