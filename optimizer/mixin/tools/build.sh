@@ -12,9 +12,11 @@
 # config.py value) needs no source edit. The bot logs the overrides in its `start` line.
 # Only the final image tag goes to stdout; build output goes to stderr.
 #
-# PINNED_GAME_REF rationale: coworld-webdiplomacy b4aca731 (main after PR #9) is the first
-# commit whose launcher passes WEBDIP_END_YEAR and WEBDIP_SCORING to bots, which the press
-# layer's briefing reads. Its players/api.py and players/legal_orders.py are the versions
+# PINNED_GAME_REF rationale: coworld-webdiplomacy 7e16afa1 (main after PR #16) has the launcher
+# that logs `child_exit` when the bot process ends before the game, which the analysis tools
+# count as a crash. It needs at least b4aca731 (PR #9), the first commit whose launcher passes
+# WEBDIP_END_YEAR and WEBDIP_SCORING to bots, which the press layer's briefing reads. Its
+# players/api.py and players/legal_orders.py are the versions
 # vendored into castlereagh/ (identical since c2f691a1). Bump it deliberately: re-sync
 # those two files if they changed, rerun the golden test, and log the bump in VERSION_LOG.md.
 #
@@ -22,7 +24,7 @@
 # but fail to start in hosted episodes.
 set -euo pipefail
 
-PINNED_GAME_REF="b4aca7310d1de95fe3fc6f61606bfe7ac05335ab"
+PINNED_GAME_REF="7e16afa1aa7e56388c885a694ae3443a6ed1d77e"
 GAME_REPO="https://github.com/Metta-AI/coworld-webdiplomacy.git"
 GAME_REF="$PINNED_GAME_REF"
 POLICY="search"
