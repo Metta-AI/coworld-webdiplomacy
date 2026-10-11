@@ -77,7 +77,7 @@ par depends on who is playing, so compute it from your own batches
   not settled.
 - Trending positive but unproven: giving the LLM the map connectivity list, and
   stronger models for the same prompt.
-- **Our press bot re-trusted powers that betrayed it.** After a first breach or
+- **The prior lab's press bot re-trusted powers that betrayed it.** After a first breach or
   attack while trusted, it went back to trusting the same power 94 times in 46
   relationships over 100 games.
 - A blunt fix, permanently marking a betrayer, scored 0.078 against 0.158 for

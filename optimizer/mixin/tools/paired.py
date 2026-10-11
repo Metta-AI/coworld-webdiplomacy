@@ -17,7 +17,7 @@ failed, are dropped and counted (`--keep-tainted` keeps them).
 Output: n, mean d (A minus B), its standard error, z = mean / SE, the A-minus-B mean
 per power that A played, and a verdict. |z| < 2 is reported as "no result": three
 +0.08 leads at z of about 1.4 vanished on replication in the lab. Pairing removes most
-of the game-to-game variance, so it needs 2-3x fewer games than separate arms.
+of the game-to-game variance, so it needs fewer games than separate arms (about 1.7x fewer in hosted gunboat).
 
 Example:
     python3 games/webdiplomacy/tools/paired.py .runtime/artifacts/xreq_abc \\
@@ -105,7 +105,7 @@ def paired_report(seats: list[Seat], a: str, b: str, keep_tainted: bool = False)
     }
     if n >= SEAT_ORDER_MIN_GAMES and not SEAT_ORDER_LOW <= a_first / n <= SEAT_ORDER_HIGH:
         # Measured 2026-10-10 with identical code: under pinned, rotated powers a fixed seat
-        # order alone was worth about +0.09 to the lower slot (test-drive lab, 84 games, z 2.6).
+        # order alone read +0.11 for the lower slot (84 games, z 2.6).
         report["warning"] = (f"seat order is one-sided: {a} sat in the lower roster slot in {a_first} of {n} games. "
                              "If powers were pinned, the result includes a seat-position effect of up to about 0.1; "
                              "re-run with both seat orders (make_request.py --balanced).")

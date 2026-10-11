@@ -1,7 +1,7 @@
 """Synchronous webDiplomacy API client and order helpers.
 
-Vendored verbatim from coworld-webdiplomacy `players/api.py` at commit b4aca731 (the
-build's PINNED_GAME_REF), so this package runs and tests without the coworld checkout:
+Vendored verbatim from coworld-webdiplomacy `players/api.py` at commit b4aca731 (unchanged
+at the build's PINNED_GAME_REF), so this package runs and tests without the coworld checkout:
 the lab that holds this policy lives outside that repository, and its own `players/`
 directory would shadow the coworld `players` package on import. Re-sync when the pin moves.
 """

@@ -6,7 +6,7 @@
 
 Use this for separate arms (each batch seats one copy of its policy against the same
 pinned opponents, fired in the same time window). When both policies sit in the same
-games, use `paired.py` instead: it is 2-3x more sensitive. BASE_DIR and CAND_DIR may be
+games, use `paired.py` instead: it needs fewer games for the same precision. BASE_DIR and CAND_DIR may be
 the same directory; seats are picked by policy.
 
 Inputs: episode directories (see `webdip_episodes.py`). One observation = one target

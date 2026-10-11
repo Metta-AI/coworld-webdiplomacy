@@ -14,8 +14,8 @@ webDiplomacy lab campaign (2026-10-06 to 2026-10-09) and carries its evidence.
 - `[mixin]` **Treat |z| < 2 as no result.** *(Evidence: three leads of about
   +0.08 at z ≈ 1.4 shrank to zero when re-run.)*
 - `[mixin]` **Seat both policies in the same games (paired seating).** Separate
-  arms needed 2 to 3 times more games for the same precision. *(Measured in
-  gunboat.)*
+  arms needed about 1.7 times more games for the same precision in hosted
+  gunboat games (2026-10-10); a prior lab saw 2 to 3 times in local games.
 - `[mixin]` **Stratify every result by power, against the same-batch field
   par.** Powers are shuffled per episode and par ranged from 0.290 (France) to
   0.090 (England) over 1,238 field seats. Pooled scores mostly measure which
@@ -35,12 +35,12 @@ webDiplomacy lab campaign (2026-10-06 to 2026-10-09) and carries its evidence.
 - `[mixin]` **Floor first.** Save legal orders from the search before any LLM
   call, so the LLM can never leave the seat without legal orders. Timeouts,
   429s and failing models then cost nothing worse than the floor.
-  *(Evidence: no missed deadlines and no rejected orders in the lab's hosted
+  *(Evidence: no missed deadlines and no rejected orders in a prior lab's hosted
   press games with the floor design.)*
 - `[mixin]` **Give the LLM the map.** Hand it the province connectivity list,
   labeled as possible moves. Without it, about 66 wrong adjacency claims per
-  game; with it, about 21. *(Score effect trending positive, v7 0.163, no
-  verdict at n = 16.)*
+  game; with it, about 21. *(Score effect trending positive, no verdict at
+  n = 16.)*
 - `[mixin]` **Model opponents one step smarter than a heuristic, no more.**
   The level-1 opponent model (each competent opponent plays its heuristic plan
   improved by one best-response pass) beat level 0 by 0.135 (paired, z 2.4).

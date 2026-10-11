@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Flag the episodes worth opening, per the survey binding's "interesting" table.
+"""Flag the episodes worth opening: a first cut of the survey binding's table.
 
     python3 games/webdiplomacy/tools/wd.py seats DIR... | \\
         python3 games/webdiplomacy/tools/flag_episodes.py --policy NAME:vN [--top 3]
@@ -7,7 +7,9 @@
 Reads `wd.py seats` JSON lines on stdin and prints, for the named policy:
 crashes or dropped orders, opponent solos (and who soloed), our early
 eliminations (zero centres before the last two years), swings of three or more
-centres within one year, and our best and worst game by score. Each line carries
+centres within one year, and our best and worst games by raw score (not per
+power, and not against par: use `wd.py metrics` for that). It does not flag a
+failing LLM seat; `wd.py metrics` reports those as taint. Each line carries
 the episode id to pass to `coworld replay-open <id> --hosted`. Standard library only.
 """
 

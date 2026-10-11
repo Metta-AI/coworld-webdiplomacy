@@ -4,7 +4,8 @@ The checks follow upstream board/orders/{diplomacy,retreats,builds}.php. An orde
 can be legal and still bounce, lose support, or have its convoy disrupted.
 
 Vendored verbatim (imports aside) from coworld-webdiplomacy `players/legal_orders.py` at
-commit b4aca731; see webdip_api.py for why. The search's behaviour depends on this exact
+commit b4aca731 (unchanged at the build's PINNED_GAME_REF); see webdip_api.py
+for why. The search's behaviour depends on this exact
 generator (the golden test pins it), so re-sync deliberately and re-run the golden test.
 """
 

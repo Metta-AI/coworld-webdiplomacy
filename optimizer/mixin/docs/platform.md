@@ -14,7 +14,7 @@ marked otherwise. The platform changes; re-check anything a decision depends on.
 - Install the CLIs as uv tools, not into a project:
   `uv tool install coworld` and `uv tool install softmax-cli`. Then
   `softmax login` and `softmax status`. `python3 games/webdiplomacy/tools/check_clis.py`
-  (also a SessionStart hook) reports a missing or outdated tool with the fix;
+  (a SessionStart hook under the Claude Code harness) reports a missing or outdated tool with the fix;
   `uv tool install --force <package>` updates one, including a stale install
   from a local checkout.
 - **Use a private `HOME` per session.** The CLI keeps credentials and the active
@@ -44,8 +44,10 @@ marked otherwise. The platform changes; re-check anything a decision depends on.
   test; a model change is a new version with its own version-log row.
 - The reference policy's mode is chosen by `CASTLEREAGH_POLICY` in the image
   (`tools/build.sh --policy`, default `press`). `tools/ship.py` uploads a press
-  build with `--use-llm` and a default model. `--tag` is required: one image tag per experiment, rebuilding a tag
-  while games are running silently switches later games to the new code.
+  build with `--use-llm` and a default model.
+- `tools/build.sh --tag` is required (`ship.py` derives the tag from `--slug`).
+  Use one image tag per experiment: rebuilding a tag while games are running
+  silently switches later games to the new code.
 
 ## XP requests
 
@@ -69,8 +71,9 @@ set; see the eval-design binding):
 
 (The roster has seven entries; see the eval-design binding for full rosters.)
 
-- `slot: -1` lets the platform choose the slot. Powers are shuffled by seed
-  anyway.
+- `slot: -1` lets the platform choose the slot, and powers are then shuffled
+  by seed. An A/B uses fixed slots with pinned, rotated powers instead
+  (`tools/make_request.py --balanced`).
 - **Identity.** A request belongs to the identity that created it, and a
   private request is visible only to that identity. The CLI acts as the active
   player (`coworld player use`); the optimizer's scripts do too since
@@ -78,20 +81,19 @@ set; see the eval-design binding):
   `coworld xp-request list --mine` was probably created as the other identity.
 - In an episode row, `participant_scores` is by seat position. `scores` is
   keyed by policy version and merges a policy seated twice; do not use it.
-- `policy_ref` takes a version reference. The lab used policy-version UUIDs for
+- `policy_ref` takes a version reference. Use policy-version UUIDs for
   field seats; `name:vN` works for your own uploads.
 - **Never use `random` seats here.** `random` samples the league's champion
-  pool, which can be only you, which makes the game self-play.
+  pool. When you are most of that pool, the game becomes self-play.
 - `episode_player_llm_spend_limit_usd` is the LLM budget **per episode**,
   split evenly over the seven seats. Zero disables LLM access for all seats.
-  The lab used 14.
+  A prior lab used 14, which is `make_request.py`'s default for a press set.
 - `game_config_overrides` sets episode config fields (for example `seed`).
   Pinning powers with `countries` works from webDiplomacy Coworld 0.7.9
   (verified hosted 2026-10-10); see the eval-design binding and
   `tools/make_request.py --balanced`.
-- The optimizer's `docs/platform.md` lists the allowed body keys as verified on
-  2026-07-15; that list lacks `private` and `episode_player_llm_spend_limit_usd`,
-  which the lab used successfully in 2026-10. **Dry-run every body**
+- The allowed body keys are in the optimizer's `docs/platform.md`; `private`
+  and `episode_player_llm_spend_limit_usd` are accepted. **Dry-run every body**
   (`eval_request.py create body.json --dry-run`) before creating it.
 
 ## Cost and duration
@@ -148,8 +150,8 @@ every LLM call in our seat logs succeeded (`llm_call` events).
 ## Leagues and the field
 
 - Two leagues; IDs and variants are in [game.md](game.md#leagues).
-- League rounds were one per day in 2026-10 (lab observation). League episodes
-  are slow evidence; hosted XP requests are the instrument.
+- A league round is one game a day ([game.md](game.md#leagues)), so league
+  episodes are slow evidence; hosted XP requests are the instrument.
 - Empty league seats are filled from a **filler roster** that the league owner
   curates (`/v2/leagues/{id}/filler-policies`). That route returns 403 for
   player credentials (verified 2026-10-10); read the field off recent league

@@ -20,7 +20,7 @@ Output: one `Seat` per slot. The seat's `policy` is `name:vN` for hosted episode
 "local". Always stratify by `power`: countries are a seeded shuffle per episode and
 the powers differ a lot in strength.
 
-Format facts (webdiplomacy 0.7.7-0.7.8, verified on hosted and local artifacts):
+Format facts (webdiplomacy 0.7.7-0.7.9, verified on hosted and local artifacts):
 - results.json `scores` and `countries` are in slot order; `members[].countryID` and
   `members[].supplyCenterNo` are strings; `outcome` is drawn | won | cancelled.
 - Final supply centres come from results.json `members[].supplyCenterNo`. The replay's
@@ -38,6 +38,7 @@ dropped), `exception`, `http_error`, `llm_call` (`status`, cost in `cost_usd` or
 Taint flags on a seat (drop or flag before computing means):
   cancelled         the game was cancelled (every seat scores 1/7)
   episode_failed    the hosted episode row is failed / error / cancelled
+  episode_timeout   the game hit the episode time limit before its year cap
   rejected_orders   our decision log shows upstream dropped at least one order
   exception         our seat log has an `exception` event or an uncaught Python traceback
   no_decisions      our seat log has no `decision` line at all (the bot never played)
@@ -64,6 +65,7 @@ POWERS = {1: "England", 2: "France", 3: "Italy", 4: "Germany", 5: "Austria", 6: 
 SOLO_CENTERS = 18
 LLM_FAILING_SHARE = 0.5  # a seat with at least this share of failed llm_calls is tainted
 FAILED_EPISODE_STATUSES = {"failed", "error", "cancelled"}
+EPISODE_TAINTS = {"cancelled", "episode_failed", "episode_timeout"}  # taints of the whole game, not one seat
 
 RESULTS_NAMES = ("results.json", "results.bin", "results")
 REPLAY_NAMES = ("replay.json", "replay.json.gz", "replay.gz", "replay.bin", "replay")
@@ -263,6 +265,8 @@ def load_episode(ep: Path) -> tuple[list[Seat], dict]:
         episode_taint.append("cancelled")
     if status["episode_status"] in FAILED_EPISODE_STATUSES:
         episode_taint.append("episode_failed")
+    if results.get("reason") == "episode_timeout":
+        episode_taint.append("episode_timeout")
     centers_by_year, order_stats = replay_tables(replay)
     scores = results.get("scores") or []
 
@@ -336,5 +340,5 @@ def field_par(seats: list[Seat], is_target) -> dict[str, float]:
 
 def drop_tainted_episodes(seats: list[Seat], is_target) -> tuple[list[Seat], set[str]]:
     """Remove every seat of an episode whose target seat (or the episode) is tainted."""
-    bad = {s.episode_id for s in seats if s.taint and (is_target(s) or set(s.taint) & {"cancelled", "episode_failed"})}
+    bad = {s.episode_id for s in seats if s.taint and (is_target(s) or set(s.taint) & EPISODE_TAINTS)}
     return [s for s in seats if s.episode_id not in bad], bad

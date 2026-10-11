@@ -98,8 +98,9 @@ docstring**; they may shift slightly from what is shown here.
 | `paired.py` | Paired difference and z for two policies in the same games | `paired.py ...` |
 | `compare.py` | A/B by power for separate arms | `compare.py BASE_DIR CAND_DIR --baseline NAME:vN --candidate NAME:vM` |
 | `session_env.sh` | Private credentials directory, Docker config and active player for this shell, in one step | `source games/webdiplomacy/tools/session_env.sh <player id>` |
-| `check_clis.py` | Warns when the `coworld` or `softmax` uv tool is missing or older than PyPI's latest. The SessionStart hook runs it | `check_clis.py` |
+| `check_clis.py` | Warns when the `coworld` or `softmax` uv tool is missing or older than PyPI's latest. With the Claude Code harness a SessionStart hook runs it; on other runtimes run it yourself at session start | `check_clis.py` |
 | `llm_sidecar_local.py` | Local stand-in for the hosted LLM sidecar (needs `OPENROUTER_API_KEY`) | `llm_sidecar_local.py ...` |
+| `ab_stats.py` | The statistics behind `compare.py` (Welch t, Fisher exact, multiple-test correction) | library |
 
 **Where code lives.** Everything this mixin ships is in `tools/` (linted and unit-tested
 upstream). `instruments/` starts empty and is yours: analysis you write and will run more
@@ -182,9 +183,10 @@ interrupted run).
   fetches and reads when the games are done.
 - After every press upload or model change, run one health game on
   `classic-press-short` and confirm every `llm_call` in our seat logs succeeded
-  (the eval-design binding). A failing LLM seat looks healthy.
+  (`make_request.py field … -n 1 --variant classic-press-short` builds it; see
+  the eval-design binding). A failing LLM seat looks healthy.
 - Put the batch ids and the artifact directory in the experiment record as
-  soon as they exist. Use a bash loop, not zsh (zsh does not split `$ids`).
+  soon as they exist.
 
 **The Gunboat league** (`classic-gunboat`, no press) runs the same recipe with a
 gunboat field set. Games take about 2.4 minutes and half a credit
@@ -229,8 +231,9 @@ Each of these cost a previous session real time or a wrong conclusion.
 - **One image tag per experiment.** Rebuilding a tag while games run switches
   later games to the new code.
 - **Install the CLIs as uv tools:** `uv tool install coworld` and
-  `uv tool install softmax-cli`. Keep them current: the SessionStart hook runs
-  `tools/check_clis.py` and prints a fix when either is stale. Act on it first.
+  `uv tool install softmax-cli`. Keep them current: `tools/check_clis.py`
+  prints a fix when either is stale (a SessionStart hook runs it under the
+  Claude Code harness). Act on it first.
 - **A failing LLM seat looks healthy.** It plays its search floor with no error.
   Check `llm_call` statuses per seat after any model or prompt change.
 - **Never use `random` roster seats.** They can seat you against yourself.

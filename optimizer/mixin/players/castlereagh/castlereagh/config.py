@@ -72,7 +72,7 @@ DIPLO_GRUDGE = 0.5     # extra centre-value for taking a hostile power's centre
 DIPLO_PEACE = 0.6      # centre-value discount for taking a peaceful power's centre
 DIPLO_STAB_YEAR = 1905 # peace discount applies before this year
 
-# --- Press layer (press/): see press/README section in ../README.md ---
+# --- Press layer (press/): see "Press layer" in ../README.md ---
 # Limits start generous ("set all limits high, then tighten" once logs show what is used).
 PRESS_SOUL = "castlereagh"          # press/souls/<name>/SOUL.md
 PRESS_MODEL = "z-ai/glm-5.3-flash"  # local default; hosted uses COWORLD_LLM_MODEL (fixed per upload)
@@ -93,8 +93,8 @@ PRESS_MAX_MESSAGE_CHARS = 800
 PRESS_NOTE_CHARS = 4000             # per note key
 PRESS_STATE_DIR = "/tmp/castlereagh"  # per-game notes, kept across bot restarts within a game
 
-# Per-model sidecar quirks, verified hosted in the lab (docs: webdiplomacy-gameplay.md, "LLM
-# players"). The sidecar forces provider.require_parameters=true, so an unsupported parameter
+# Per-model sidecar quirks, verified hosted in a prior lab (see the lab's docs/platform.md, "LLM
+# sidecar model quirks"). The sidecar forces provider.require_parameters=true, so an unsupported parameter
 # fails EVERY call and the seat silently plays its floor. Matched by substring of the model
 # name; the first match wins and overrides the PRESS_* defaults above.
 MODEL_QUIRKS = [

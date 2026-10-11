@@ -21,7 +21,7 @@ strength is yours to establish and improve. Negotiation is the open problem in t
 ```sh
 tools/build.sh --tag webdip-castlereagh:exp1                          # press mode; --tag is required; prints the tag
 tools/build.sh --policy search --tag webdip-castlereagh-search:exp1   # the search core alone
-tools/build.sh --tag webdip-castlereagh:exp2 --overrides "SEARCH_RISK=0.5"   # a one-setting experiment
+tools/build.sh --tag webdip-castlereagh:exp2 --overrides "SEARCH_SEEDS=4"   # a one-setting experiment
 python3 -m unittest discover -s players/castlereagh/tests      # from the lab root; ~1 min (golden)
 GOLDEN_EVERY=20 python3 -m unittest discover -s players/castlereagh/tests   # quick
 uv run --no-project --python 3.12 --with "pydantic-ai-slim[openai]==2.54.0" \
@@ -46,7 +46,8 @@ DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode dist/coworld_mani
 Runtime environment: `WEBDIP_*` from the launcher (`WEBDIP_END_YEAR` and `WEBDIP_SCORING`
 feed the press briefing; nothing is guessed when they are absent), `WEBDIP_SEARCH_BUDGET_S`
 (search seconds per movement decision, default 20), `CASTLEREAGH_OVERRIDES="KEY=VAL,..."`
-(any `config.py` knob, for local experiments), `COWORLD_LLM_ENDPOINT` / `COWORLD_LLM_MODEL`
+(any `config.py` knob; `tools/build.sh --overrides` bakes it into an image for a hosted
+one-setting experiment), `COWORLD_LLM_ENDPOINT` / `COWORLD_LLM_MODEL`
 (press only).
 
 ## Module map (`castlereagh/`)
@@ -90,18 +91,18 @@ after any model change, run one health episode and check every `llm_call` status
 
 ## Seat log schema (keep stable: the lab's tools parse it)
 
-One JSON object per stdout line, each with `policy` (`castlereagh-search|press`), `event`
-and `t`. Events: `start`; `decision` (one per phase: `turn`, `phase`, `country`, `units`,
+One JSON object per stdout line, each with `policy` (`castlereagh-search|press`; plain
+`castlereagh` on a fatal startup `exception`), `event` and `t`. Events: `start`; `decision` (one per phase: `turn`, `phase`, `country`, `units`,
 `centers`, `compute_ms`, `trace`, `rejected`, `difference`; press adds `press_policy`,
 `llm_cost_usd`, `drive`); `workspace` (snapshot every phase: beliefs, and in press notes and
 LLM totals); `exception`, `http_error`, `finished`. Press adds `press_start`
 (`system_prompt`, `config`, `model_settings`), `press_disabled`, `wake_start`, `wake`
 (`status`, `calls`, `cost_usd`), `wake_error`, `llm_request`, `llm_call` (`status`, token
 counts, `cost_usd` from `usage.cost`, `error`), `tool_call`, `press_in`, `press_out`,
-`press_commit`, `aggression`, `press_summary`.
+`press_commit`, `aggression`, `facts_error`, `press_summary`.
 
 Taint checks: a nonzero `rejected`, any `exception`, and a press seat whose `llm_call`
-statuses are not 200 (it silently played the floor).
+statuses are mostly not 200 (it silently played the floor; the tools flag it at half).
 
 ## Tuning notes from the lab
 

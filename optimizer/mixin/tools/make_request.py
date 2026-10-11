@@ -2,9 +2,9 @@
 """Write a hosted eval request body from a named field set.
 
     python3 games/webdiplomacy/tools/make_request.py paired --a NAME:vN --b NAME:vM \\
-        --field-set <paired set> -n 80 --note "experiment id" --out .runtime/requests/x.json
+        --field-set <paired set> -n 16 --note "experiment id" --out .runtime/requests/x.json
     python3 games/webdiplomacy/tools/make_request.py field --a NAME:vN \\
-        --field-set <field set> -n 40 --out .runtime/requests/y.json
+        --field-set <field set> -n 16 --out .runtime/requests/y.json
 
 `paired` seats A and B in the same games plus five field seats (the lab's
 default A/B design; analyze with tools/paired.py). `field` seats A alone plus
@@ -155,6 +155,8 @@ def main(argv=None) -> None:
                     help="pinned, rotated powers: 7 bodies (field) or 14 mirrored bodies (paired); -n is per body")
     ap.add_argument("--pin-a", choices=POWERS, help="field kind: A always plays this power; six bodies")
     ap.add_argument("--no-maps", action="store_true", help="game_config_overrides.render_maps = false")
+    ap.add_argument("--variant", help="use this variant instead of the field set's, e.g. classic-press-short "
+                                      "for a one-game health check")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
 
@@ -162,6 +164,8 @@ def main(argv=None) -> None:
     if args.field_set not in sets:
         sys.exit(f"unknown field set {args.field_set!r}; known: {sorted(sets)}")
     field = sets[args.field_set]
+    if args.variant:
+        field = {**field, "variant": args.variant}
     try:
         bodies = build_bodies(args.kind, args.a, args.b, field, args.field_set, args.episodes, args.note,
                               default_llm_budget(field) if args.llm_budget_usd is None else args.llm_budget_usd,

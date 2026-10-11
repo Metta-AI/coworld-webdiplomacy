@@ -12,13 +12,14 @@ The core `replay-inspection` skill carries the method: the replay is ground
 truth, the policy's artifacts are its point of view, and diagnosis lives in the
 gap between them. This binding supplies the formats and the clock.
 
-This binding is a first version. A better local game viewer is planned (see
-Tooling).
+This binding is a first version.
 
 ## Replays
 
-- **Format:** a JSON array of public frames, oldest first. The platform stores
-  it gzip-compressed; check the first bytes rather than the file name. Each
+- **Format:** a JSON array of public frames, oldest first. A fetched replay
+  may be gzip-compressed or plain JSON, whatever its file name; check the first
+  bytes (the loader does). Plain replays are about 10 MB a game;
+  `tools/gzip_replays.py` compresses them in place. Each
   frame holds upstream's public files verbatim plus a few fields:
 
   | Field | Contents |
@@ -97,7 +98,8 @@ Run from the optimizer root. **Exact flags live in each tool's docstring**.
 - `python3 games/webdiplomacy/tools/wd.py seats DIR...`: per-seat rows with the
   center trajectory by year.
 - `python3 games/webdiplomacy/tools/wd.py slim DIR...`: strip map PNGs from
-  replays to save disk.
+  replays to save disk. `python3 games/webdiplomacy/tools/gzip_replays.py DIR...`
+  compresses fetched replays in place (about 20x).
 - **Not included:** a local HTML game viewer (the prior lab had one,
   `game_viewer.py`, which needs the `diplomacy==1.1.2` package; it is not in
   this mixin). Use the hosted viewer and the loader.

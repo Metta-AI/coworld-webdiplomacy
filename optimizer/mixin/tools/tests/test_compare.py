@@ -11,7 +11,7 @@ from helpers import FIXTURES, write_episode
 class CompareGrouping(unittest.TestCase):
     def test_groups_are_all_plus_each_power(self):
         base, cand, deltas = compare.compare(FIXTURES / "local", FIXTURES / "local",
-                                             "kissinger", "kissinger:SEARCH_OBJECTIVE=share")
+                                             "field-search", "field-search:SEARCH_OBJECTIVE=share")
         self.assertEqual(compare.GROUPS,
                          ["all", "England", "France", "Italy", "Germany", "Austria", "Turkey", "Russia"])
         self.assertEqual(len(base["all"]), 3)

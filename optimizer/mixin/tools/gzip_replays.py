@@ -11,9 +11,9 @@ tools read the compressed file under the same name. Only episodes with a
 files that are already gzip are skipped. Standard library only.
 """
 
+import argparse
 import gzip
 import json
-import sys
 from pathlib import Path
 
 REPLAY_NAMES = ("replay.json", "replay.bin", "replay")
@@ -39,8 +39,11 @@ def compress_replays(roots: list[Path]) -> tuple[int, int]:
     return files, saved
 
 
-def main() -> None:
-    files, saved = compress_replays([Path(root) for root in sys.argv[1:]])
+def main(argv=None) -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("dirs", nargs="+", metavar="DIR", help="artifact directories to search for fetched episodes")
+    args = ap.parse_args(argv)
+    files, saved = compress_replays([Path(root) for root in args.dirs])
     print(json.dumps({"replays_compressed": files, "mb_saved": round(saved / 2**20, 1)}))
 
 

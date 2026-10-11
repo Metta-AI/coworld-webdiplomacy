@@ -12,7 +12,7 @@ Each upload is one mode (`--policy search|press`); log both modes' uploads as se
 
 | Version | Policy version id | Uploaded (UTC) | The one change (and its mechanism) | Runtime config | Validation | Notes |
 |---|---|---|---|---|---|---|
-| v0 | (not uploaded) | — | Adapted from webdiplomacy_lab Castlereagh at lab commit `1c2d81fa`. See "v0 details" below. | `CASTLEREAGH_POLICY=press` (default since 2026-10-10) or `search`; base coworld-webdiplomacy `7e16afa1` (was `b4aca731` until 2026-10-10; the bump only adds the launcher's `child_exit` log line) | unvalidated (golden 334/334 bit-identical to the lab's Kissinger/level-0 search; local episodes only) | Press layer is a starting framework: no press change has reached a verdict yet. |
+| v0 | (not uploaded) | — | Adapted from webdiplomacy_lab Castlereagh at lab commit `1c2d81fa`. See "v0 details" below. | `CASTLEREAGH_POLICY=press` (default since 2026-10-10) or `search`; base coworld-webdiplomacy `7e16afa1` (was `b4aca731` until 2026-10-10; the bump only adds the launcher's `child_exit` log line) | unvalidated (golden 334/334 bit-identical to the lab's Kissinger and level-0 search configurations; local episodes only) | Press layer is a starting framework: no press change has reached a verdict yet. |
 
 ## v0 details
 

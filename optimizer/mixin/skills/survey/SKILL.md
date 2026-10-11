@@ -53,7 +53,7 @@ Flag cheaply from results and seat rows, rarer flags first:
 | Flag | How to detect |
 |---|---|
 | Our seat crashed or dropped orders | `exception` events or nonzero `rejected` in our seat log |
-| Failing LLM seat | every `llm_call` failed in our seat log |
+| Failing LLM seat | at least half of the `llm_call`s failed in our seat log (`wd.py metrics` shows it as taint) |
 | Opponent solo | `outcome == "won"` and the winner is not us |
 | Our power eliminated early | our center count reaches 0 before the last two years |
 | A big swing within one year | our centers drop (a stab or collapse) or jump by 3 or more between consecutive years |
@@ -71,6 +71,11 @@ may shift slightly.
 - `python3 games/webdiplomacy/tools/wd.py metrics DIR... --policy NAME:vN [--json]`:
   the per-power overview, coverage and telemetry.
 - `python3 games/webdiplomacy/tools/wd.py seats DIR... [--policy NAME:vN]`: one
-  JSON line per seat with its center trajectory by year. Feed it to ad-hoc
-  flags or to an instrument in `../../instruments/`.
+  JSON line per seat with its center trajectory by year. Pipe it into the
+  two tools below, or into your own instrument in `../../instruments/`.
+- `… wd.py seats DIR... | python3 games/webdiplomacy/tools/flag_episodes.py --policy NAME:vN`:
+  a first cut of the table above (crashes, opponent solos, early eliminations,
+  swings, best and worst games by raw score).
+- `… wd.py seats DIR... | python3 games/webdiplomacy/tools/year_deltas.py`: mean
+  center change per game year, by policy.
 - `python3 games/webdiplomacy/tools/wd.py costs DIR...`: LLM spend per seat.

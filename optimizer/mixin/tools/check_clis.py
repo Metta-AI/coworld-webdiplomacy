@@ -15,6 +15,7 @@ Standard-library Python 3.12+.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import pwd
@@ -77,7 +78,8 @@ def problems(installed: dict[str, str], latest: dict[str, str | None]) -> list[s
     return found
 
 
-def main() -> None:
+def main(argv=None) -> None:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
     installed = installed_versions()
     if installed is None:
         print("CLI check: `uv` was not found, so the coworld and softmax CLIs cannot be checked.")
