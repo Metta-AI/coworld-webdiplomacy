@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ record.title }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/reports.css"><link rel="stylesheet" href="/static/experiments.css">{% endblock %}
+{# One experiment record (routes_experiments.py): its front matter, the result so far, and its text. #}
+{% block content %}
+<article class="page experiment-view"{% if result.pending %} data-reload="4"{% elif record.status == "running" %} data-reload="30"{% endif %}>
+  <p class="eyebrow"><a href="/experiments">Experiments</a></p>
+  <div class="page-head">
+    <h1>{{ record.title }}</h1>
+    <span class="tag {{ tones.get(record.status, '') }}">{% if record.status == "running" %}<span class="dot warn pulse"></span>{% endif %}{{ record.status }}</span>
+  </div>
+
+  {% if not record.hypothesis %}
+  <p class="notice">The agent has opened this record and not filled it in yet: the hypothesis, the versions and
+    the decision rule come before anything is run.</p>
+  {% endif %}
+  <dl class="facts experiment-record">
+    <dt>Hypothesis</dt><dd>{% if record.hypothesis %}{{ record.hypothesis_html | safe }}{% else %}<span class="muted">not written yet</span>{% endif %}</dd>
+    <dt>Decision rule</dt><dd>{% if record.decision_rule %}{{ record.decision_rule_html | safe }}{% else %}<span class="muted">not written yet</span>{% endif %}</dd>
+    <dt>Versions</dt><dd><span class="mono">{{ record.baseline or "no baseline yet" }}</span> <span class="muted" aria-label="to">→</span>
+      <span class="mono">{{ record.candidate or "no candidate yet" }}</span>{% if record.policy %} <span class="muted">(policy {{ record.policy }})</span>{% endif %}</dd>
+    <dt>Batches</dt><dd>{% if record.evals %}<details><summary>{{ record.evals | length }} experience request{{ "" if record.evals | length == 1 else "s" }}</summary>
+      <span class="mono small">{{ record.evals | join(", ") }}</span></details>{% else %}<span class="muted">none launched yet</span>{% endif %}</dd>
+    <dt>File</dt><dd class="mono">{{ record.path }}</dd>
+  </dl>
+
+  <section aria-labelledby="result-h">
+    <h2 id="result-h">Result so far</h2>
+    {% if result.pending %}
+    <p class="small muted" role="status"><span class="dot warn pulse"></span>Still reading games: {{ result.pending }} to go. This page fills in by itself.</p>
+    {% endif %}
+    {% if result.report %}
+    {% set p = result.report %}
+    <p class="eyebrow">{{ record.candidate }} minus {{ record.baseline }}, in the same games</p>
+    <p class="experiment-lead"><strong class="{{ {'ok': 'good', 'err': 'bad'}.get(result.tone, '') }}">{{ result.diff }}</strong>
+      <span class="tag {{ result.tone }}">{{ result.verdict }}</span>
+      <span class="muted small">{{ p.n }} paired game{{ "" if p.n == 1 else "s" }} · SE {{ plain(p.se) }} · z {{ result.z }}{% if p.sd is not none %} · paired SD {{ plain(p.sd) }}{% endif %}</span></p>
+    <p class="about">{{ result.progress | capitalize }}{% if p.dropped_tainted %}; {{ p.dropped_tainted }} left out because a seat of ours crashed or was cut short{% endif %}.
+      {{ record.candidate }} sat in the lower seat in {{ p.a_in_lower_slot | replace("/", " of ") }}.
+      Computed now by the lab's <code>tools/paired.py</code> from <code>.runtime/artifacts/{{ record.batch }}</code>; the lab calls |z| below 2 no result.
+      {% if not is_open %}The record's own Result and Verdict below are the reading that counts.{% endif %}</p>
+    {% if p.warning %}<p class="notice err">{{ p.warning }}</p>{% endif %}
+    {% elif result.games_in %}
+    <p class="empty">{{ result.progress | capitalize }}, and none seats both versions{% if not (record.baseline and record.candidate) %}: the record does not name them yet{% endif %}.</p>
+    {% else %}
+    <p class="empty">{{ result.progress | capitalize }}. <code>tools/run_ab.py</code> fetches this experiment's games into
+      <code>.runtime/artifacts/{{ record.batch }}</code>; the number appears here when both versions have games.</p>
+    {% endif %}
+    {% for who, count in result.alone if count %}
+    <p class="about">Candidate-alone check: {{ count }} game{{ "" if count == 1 else "s" }} of the {{ who }} playing alone
+      {{ "is" if count == 1 else "are" }} on disk. Their reading is the agent's (<code>tools/compare.py</code>), in the record below.</p>
+    {% endfor %}
+    <p class="controls experiment-links">
+      {% if links.dashboard %}<a class="btn plain" href="{{ links.dashboard }}">{{ record.candidate }} on the dashboard</a>{% endif %}
+      {% if result.games_in %}<a class="btn plain" href="{{ links.replays }}">These {{ result.games_in }} games in Replays</a>{% endif %}
+    </p>
+    {% if asks %}
+    <p class="controls">
+      {% for ask in asks %}<button type="button" data-draft="{{ ask.text }}">{{ ask.label }}</button>{% endfor %}
+      <span class="muted small">A click puts the request in the message box; nothing is sent until you press Enter.</span>
+    </p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="versions-h">
+    <h2 id="versions-h">The two versions</h2>
+    {% if versions %}
+    <div class="table-scroll">
+    <table class="experiment-versions-table">
+      <thead><tr><th>Version</th><th title="When it was uploaded, Pacific Time">Uploaded</th><th>The one change</th><th>Validation</th></tr></thead>
+      <tbody>
+        {% for row in versions %}
+        <tr><td class="mono nowrap">{{ row.version }}{% if row.version == record.candidate %} <span class="muted">candidate</span>{% endif %}</td>
+          <td class="nowrap" title="{{ row.uploaded | when(zone=true) }}">{{ row.uploaded | when }}</td>
+          <td>{{ row.change | safe }}</td><td>{{ row.validation | safe }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="about">From <code>{{ versions[0].log }}</code>, where every upload gets one row.</p>
+    {% else %}
+    <p class="empty">{% if record.baseline or record.candidate %}Neither version has a row in a <code>VERSION_LOG.md</code> yet.{% else %}The record does not name its versions yet.{% endif %}</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="record-h">
+    <h2 id="record-h">The record</h2>
+    <div class="md report-body">
+{{ html | safe }}
+    </div>
+  </section>
+</article>
+{% endblock %}
+{% block scripts %}<script src="/static/experiments.js"></script>{% endblock %}

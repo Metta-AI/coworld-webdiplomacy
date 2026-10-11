@@ -319,6 +319,9 @@ dl.facts dd { margin: 0; }
 .agent-card h4 a { color: var(--ink); text-decoration-color: transparent; }
 .agent-card h4 a:hover { color: var(--navy); text-decoration-color: var(--navy); }
 .agent-card .open { display: inline-block; margin-top: var(--s1); font-weight: 600; }
+/* An idea card's two actions (chat.js `ideaActions`); the home page shows the same pair beside an idea. */
+.idea-actions { display: flex; gap: var(--s2); margin: var(--s1) 0 var(--s2); }
+.home-lines .idea-actions { display: inline-flex; margin: 0 0 0 var(--s2); vertical-align: baseline; }
 
 .agent-compose { border-top: 1px solid var(--rule); padding: var(--s3) var(--s4); background: var(--paper-2); }
 .agent-compose textarea { min-height: 58px; max-height: 220px; font-size: var(--text-sm); background: var(--paper); }

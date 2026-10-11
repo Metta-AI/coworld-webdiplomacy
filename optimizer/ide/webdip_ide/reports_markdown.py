@@ -21,7 +21,7 @@ from __future__ import annotations
 import html
 import re
 
-IDE_PATH = r"/(?:replays|reports|dashboard)(?:[/?#][\w\-./?=&%#;:+~]*)?"
+IDE_PATH = r"/(?:replays|reports|dashboard|experiments)(?:[/?#][\w\-./?=&%#;:+~]*)?"
 _LINK = re.compile(r"\[([^\[\]\n]+)\]\(([^)\s\x00]{1,2000})\)")  # no \x00: a code span is never part of an address
 _KEPT = re.compile(r"\x00(\d+)\x00")
 MAX_LIST_DEPTH = 12  # deeper items are shown at this depth

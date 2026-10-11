@@ -134,8 +134,9 @@ Also in `tools/`, run the same way; flags are in each docstring.
 ## The IDE
 
 `ide/` (at the optimizer root) is a local web page for the user: replays with notes and the
-press audit laid over them, the `matchups.py` dashboard, the reports the two write-up skills
-produce, and a chat panel that reaches **this session**. You start it (`ide/ide start --open`)
+press audit laid over them, the `matchups.py` dashboard, the experiment records
+(`/experiments`: each record's status and rule with `paired.py`'s number for its games so far),
+the reports the two write-up skills produce, and a chat panel that reaches **this session**. You start it (`ide/ide start --open`)
 when the user asks or when you have something to show; their messages arrive through this
 session's hooks as text starting `[webDiplomacy IDE]`, and you answer with `ide/ide say` and
 `ide/ide show`: the user reads the browser, so the whole answer and any question for them go

@@ -94,6 +94,10 @@
   <section aria-labelledby="home-waiting-h">
     <h3 id="home-waiting-h">Waiting</h3>
     <ul class="home-lines">
+      {% for row in experiments %}
+      <li>{% if loop.first %}<strong class="num">{{ experiments | length }}</strong> experiment{{ "" if experiments | length == 1 else "s" }} running: {% endif %}<a href="{{ row.link }}">{{ row.title }}</a>
+        <span class="muted">· {{ row.result.progress }}{% if row.result.report %} · {{ row.result.minus }} {{ row.result.words }}, {{ row.result.verdict }}{% endif %}</span></li>
+      {% endfor %}
       <li>{% if notes.count %}<strong class="num">{{ notes.count }}</strong> of your notes {{ "has" if notes.count == 1 else "have" }} not been sent to the agent, on
         {% for episode, n in notes.games[:4] %}<a class="mono" href="/replays/{{ episode }}" title="Episode id {{ episode }}: {{ n }} note{{ '' if n == 1 else 's' }} to send">{{ (episode | replace("ereq_", ""))[:8] }}</a>{{ ", " if not loop.last }}{% endfor %}{% if notes.games | length > 4 %} and {{ notes.games | length - 4 }} more <a href="/replays?annotated=yes&policy=">games with notes</a>{% endif %}.
         {% else %}<span class="muted">No notes waiting to be sent. In a game, click a province, write what went wrong and send it to the agent.</span>{% endif %}</li>
@@ -102,6 +106,7 @@
         {% elif reports.total %}<span class="muted">No new reports{% if since %} since you were last here ({{ since | when }}){% endif %}.</span> <a href="/reports">All {{ reports.total }}</a>
         {% else %}<span class="muted">No reports yet. Ask the agent why we lose to an opponent, or for an opponent profile.</span>{% endif %}</li>
       <li id="home-card"><span class="muted">No cards from the agent yet.</span></li>
+      <li id="home-ideas" hidden></li>
     </ul>
   </section>
 
@@ -139,7 +144,30 @@
     line.replaceChildren(
       document.createTextNode("Newest from the agent (" + state.cards.length + " card" + (state.cards.length === 1 ? "" : "s") + "): "),
       title);
+    showIdeas(state.cards);
   });
+  // The agent's newest ideas that the user has not set aside, each with the two actions the card has
+  // in the panel ("Test this idea" drafts the request for an experiment; "Not now" hides the line here).
+  var ideasShown = null;
+  function showIdeas(cards) {
+    var open = cards.filter(function (card) { return window.ide.ideaActions(card); }).slice(-3).reverse();
+    var key = open.map(function (card) { return card.id; }).join(" ");
+    if (key === ideasShown) return;  // built once per change, so a poll never takes a button from under the pointer
+    ideasShown = key;
+    var first = document.getElementById("home-ideas");
+    document.querySelectorAll(".home-idea").forEach(function (old) { old.remove(); });
+    first.hidden = true;
+    open.forEach(function (card) {
+      var line = document.createElement("li");
+      line.className = "home-idea";
+      var href = window.ide.safeHref(card.link);
+      var title = document.createElement(href ? "a" : "strong");
+      title.textContent = card.title;
+      if (href) title.href = href;
+      line.append(document.createTextNode("Idea from the agent: "), title, window.ide.ideaActions(card));
+      first.before(line);
+    });
+  }
   document.querySelectorAll("[data-draft]").forEach(function (button) {
     button.addEventListener("click", function () { window.ide.draft(button.dataset.draft); });
   });

@@ -118,6 +118,11 @@ class GameCache:
     def sync(self, wait: float = WAIT_SECONDS) -> tuple[list, int, int]:
         """Start reading whatever is new and return (games read so far, episodes still to read,
         the generation those games belong to: the key `report()` files its result under)."""
+        by_directory, pending, generation = self.sync_by_directory(wait)
+        return list(by_directory.values()), pending, generation
+
+    def sync_by_directory(self, wait: float = WAIT_SECONDS) -> tuple[dict[str, object], int, int]:
+        """`sync()`, with each game under its episode directory (for a page about one batch's games)."""
         mu = matchups()
         root = paths.artifacts_dir()
         with self.lock:
@@ -150,7 +155,7 @@ class GameCache:
         if thread is not None:
             thread.join(wait)
         with self.lock:
-            return [game for _, game in self.games.values()], self.pending, self.generation
+            return {key: game for key, (_, game) in self.games.items()}, self.pending, self.generation
 
     def report(self, games: list, generation: int, key: tuple) -> dict:
         """`matchups.report` for `games`, the snapshot `sync()` returned with `generation`."""

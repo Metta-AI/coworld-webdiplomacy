@@ -129,6 +129,14 @@ ide/ide show --kind result --title "v7 vs v6: no result (z = 0.8, n = 14)" --bod
     games with one seat of the policy, which leaves out paired A/B games.
   - `/reports/matchups/<slug>` and `/reports/opponents/<slug>`: the slug is the
     report's file name without `.md`.
+  - `/experiments/<id>`: one experiment record (the id is the record's file
+    name without `.md`), with the paired result of the games on disk beside it.
+    `/experiments` is the list.
+- Link a card to what backs it. A `result` card for an experiment links to its
+  record (`--link /experiments/<id>`), so the user reads the number beside the
+  rule it was to be read against. An `idea` card links to its evidence (the
+  replay, the dashboard view or the report). In the browser an idea card has a
+  "Test this idea" button, which sends you a request for the whole experiment.
 
 ## Annotations are input to the loop
 
@@ -165,11 +173,21 @@ with the page's context, and names the skill to use:
 | Reports, when no write-up exists yet | A matchup write-up against the whole field | [matchup-writeup](../matchup-writeup/SKILL.md) |
 | A report, in the list or open | Refresh it: run the report's skill again on the games now on disk and rewrite the file | The skill that wrote it: opponent-profile for `reports/opponents/`, matchup-writeup for `reports/matchups/` |
 | A replay's notes | The user's notes on that game, each with a link to its phase | Read them as below; inspect the phases with [replay-inspection](../replay-inspection/SKILL.md) |
+| An idea card ("Test this idea") | An experiment for that idea: the record, the one change, a paired A/B at the default size, a health game, a result card | The seed's `experiment` skill for the record, then [ab](../ab/SKILL.md) (`tools/run_ab.py --record <id>`) |
+| An experiment that is running | Its result so far, read against the record's decision rule | The seed's `ab-compare` skill with the lab's [ab](../ab/SKILL.md) binding (`tools/paired.py` on `.runtime/artifacts/<id>`) |
+| An experiment with no verdict yet | Close the record: Result, Verdict and status, and `closed_levers.md` if it is refuted | The seed's `experiment` skill (step 6, then `record.py validate`) |
+| An experiment whose games show a paired win | The candidate-alone check, with its pass mark written in the record first | `tools/run_ab.py --record <id> --alone`; see [ab](../ab/SKILL.md) |
 
 Say in the chat that the work has started. When the file is written, post a
-card that links to it (`--kind report --link /reports/…`, or `--kind replay`
-for an audit). The Reports page lists a report as soon as its file exists under
-`games/webdiplomacy/reports/`.
+card that links to it (`--kind report --link /reports/…`, `--kind replay`
+for an audit, or `--kind result --link /experiments/<id>` for an experiment).
+The Reports page lists a report as soon as its file exists under
+`games/webdiplomacy/reports/`, and the Experiments page a record as soon as its
+file exists under `games/webdiplomacy/experiments/`. That page shows the user
+each record's status, hypothesis and decision rule, how many of its games are
+in, and `paired.py`'s number for them, so keep the record's front matter
+current: set `status: running` when the batches launch and close it when the
+verdict is read.
 
 ## Press audits run on demand
 

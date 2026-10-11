@@ -13,6 +13,12 @@ the coding agent that is already running in the optimizer root.
   the annotations to the agent, overlay the press audit. The board stays in view while you
   read the press beside it; pointing at an order or an audited claim lights it on the board.
 - **Dashboard**: how the policy performs by power, opponent, version and source.
+- **Experiments**: the improvement loop as the lab records it. Every experiment record with
+  its status, hypothesis and decision rule, how many of its games are in and the paired
+  difference of those games; the refuted levers and the practices that held up; and, on a
+  record's page, requests to the agent for the result, for closing the record and for the
+  candidate-alone check. An idea card has "Test this idea", which drafts the request for an
+  experiment.
 - **Reports**: matchup write-ups and opponent profiles the agent's skills produce.
 
 **Prototype (V1, 2026-10-11).** Local only, one user, one agent session per lab.
@@ -212,6 +218,7 @@ The server and the agent never talk to each other directly; both use `webdip_ide
 | `webdip_ide/routes_replays.py` | The replay browser and viewer pages, `/api/replays/...`, annotations |
 | `webdip_ide/episodes.py` | The replay index (one row per fetched game) and the viewer's data, press audit included |
 | `webdip_ide/routes_dashboard.py` | The dashboard and `/api/dashboard`: the lab's `tools/matchups.py` report as tables and charts |
+| `webdip_ide/routes_experiments.py` | The experiments pages and `/api/experiments`: lists and renders `<lab>/experiments/*.md`, `closed_levers.md` and `best_practices.md`; the paired number is the lab's `tools/paired.py` on the games the dashboard has read; never writes a record |
 | `webdip_ide/routes_reports.py`, `reports_markdown.py` | Lists and renders the Markdown reports under `<lab>/reports/`; never writes one |
 | `webdip_ide/reader.py` | Parses fetched games for the dashboard and the replay index: worker processes for a large batch, one parse of a game for both |
 | `webdip_ide/dates.py` | The one date format (Pacific, `Oct 11, 2:42 AM`); the Jinja filters `when` and `day` |
@@ -270,6 +277,7 @@ window.ide.renderMarkdown(text)   // safe HTML for a small Markdown subset
 window.ide.safeHref(link)         // the link if it is an IDE path or an http(s) address, else null; use it before setting any href from data
 window.ide.draft(text)            // put text in the message box for the user to edit and send
 window.ide.when(seconds)          // "4:46 AM PDT" (with "Oct 10, " when not today): Pacific, whatever zone the browser is in
+window.ide.ideaActions(card)      // the "Test this idea" and "Not now" buttons for an idea card, or null
 ```
 
 Shared pieces live in `static/app.css`, so pages built by different people look like one
@@ -309,6 +317,30 @@ both are given. The other paths a card or a report may link to:
   and gunboat.
 - `/reports`, `/reports?kind=opponents|matchups`, `/reports/opponents/<slug>`,
   `/reports/matchups/<slug>` (the slug is the report's file name without `.md`).
+- `/experiments`, `/experiments/<id>` (the id is the record's file name without `.md`).
+
+"Not now" on an idea card is kept in the browser only (`localStorage`, key `ide.ideasNotNow`,
+a list of card ids): the card stays, its two buttons go, and the server stores nothing.
+
+### Experiments
+
+A record is a file the agent writes with the optimizer-seed `experiment` skill:
+`<lab>/experiments/<id>.md`, front matter (`id`, `policy`, `baseline`, `candidate`, `status`,
+`hypothesis`, `decision_rule`, `evals`) and then Context, Predictions, Design, Result and
+Verdict. `_template.md` is not a record. The IDE reads the front matter with its own small
+reader (`routes_experiments.front_matter`: `key: value`, folded `>` values and lists, which is
+what the template uses), because the IDE has no YAML library. A field that still holds the
+template's `<...>` text counts as not written.
+
+The games of an experiment are the ones under `.runtime/artifacts/<id>/`, where
+`tools/run_ab.py` fetches them (or the folder the record's `Artifacts:` line names). "x of y
+games in" counts the finished games there; y is the number in the decision rule ("over 28
+balanced paired games"), and is left out when the rule states none. The paired difference is
+`paired.paired_report` from the lab's `tools/paired.py` with the candidate as A and the
+baseline as B, given the seats the dashboard's cache already holds, so the page parses no game
+and the number is the one `paired.py <folder> --a <candidate> --b <baseline>` prints (checked
+on the two closed records of 2026-10-11: 27 games, +0.038, SE 0.043, z 0.89; and 28 games,
++0.039, SE 0.049, z 0.81). The page does not judge: the record's Verdict is the agent's.
 
 Write routes with `dependencies=[Depends(routes_chat.require_same_origin)]` so another
 web site open in the same browser cannot post to the IDE.
