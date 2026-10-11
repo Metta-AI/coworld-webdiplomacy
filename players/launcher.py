@@ -58,6 +58,7 @@ def main():
     query["mode"] = "bot"
     address = urlunsplit(url._replace(query=urlencode(query)))
     child = worker = control = None
+    child_exit_logged = False
     stop = False
     reason = "interrupted"
     status = 0
@@ -97,8 +98,14 @@ def main():
                     while not stop:
                         # A finished bot is allowed to wait for game_over. Failures remain
                         # visible in the player exit code, while presence and press survive.
-                        if child.poll() is not None and child.returncode != 0:
-                            status = child.returncode
+                        if child.poll() is not None:
+                            if not child_exit_logged:
+                                # The seat keeps its presence but now holds every phase. Say so
+                                # once in the seat log, so a dead bot is not read as a weak one.
+                                print(json.dumps({"event": "child_exit", "code": child.returncode}), flush=True)
+                                child_exit_logged = True
+                            if child.returncode != 0:
+                                status = child.returncode
                         try:
                             message = json.loads(ws.recv(timeout=0.5))
                         except TimeoutError:
