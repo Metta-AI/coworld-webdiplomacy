@@ -56,6 +56,24 @@ class Statistics(unittest.TestCase):
         self.assertEqual(matchups.stat([])["mean"], None)
         self.assertEqual(matchups.stat([("g", 0.2)])["se"], None)
 
+    def test_several_seats_in_a_game_do_not_reach_the_floor_sooner(self):
+        """Sixteen seats in four games are four games: no verdict, however large z is."""
+        s = matchups.stat([(f"g{i % 4}", 0.2 + 0.01 * (i % 4)) for i in range(16)])
+        self.assertEqual((s["n"], s["games"]), (16, 4))
+        self.assertGreater(s["z"], 2)
+        self.assertTrue(s["low_n"])
+        self.assertEqual(s["verdict"], "too few games")
+
+    def test_a_local_batch_takes_its_variant_from_run_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for batch, variant in (("press", "classic-press"), ("gunboat", "classic-gunboat")):
+                ep = game(Path(tmp) / batch, "ep-1", 0.3, hosted=False)
+                (ep.parent / "run.json").write_text(json.dumps({"variant": variant}))
+            bare = game(Path(tmp) / "bare", "ep-1", 0.3, hosted=False)
+            self.assertEqual(matchups.variant_of(Path(tmp) / "press" / "ep-1"), "classic-press")
+            self.assertEqual(matchups.variant_of(Path(tmp) / "gunboat" / "ep-1"), "classic-gunboat")
+            self.assertEqual(matchups.variant_of(bare), "unknown")
+
     def test_sign_test(self):
         h = matchups.sign_test(16, 4, 2)
         self.assertEqual((h["rate"], h["z"], h["verdict"]), (0.8, 2.68, "we finish ahead"))

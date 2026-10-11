@@ -115,6 +115,14 @@ one audit costs a sub-agent 9 to 14 minutes. When the user asks from a replay
 for that episode, say in the chat that it has started, and post a `replay` card
 linking to the game when `audit.json` is written.
 
+An audit belongs to one seat, but the folder is named after the episode, so a
+game holds one audit at a time. When two of our seats sit in one game (a paired
+run, or a table we own entirely), the replay page shows the audit only while its
+seat is followed; on the other seat it says whose audit it is and links there,
+and shows none of its counts or quotes. Auditing the second seat replaces the
+first (`press_audit.py extract --slot N --force`), so say so before doing it,
+and copy the first folder aside if the user wants both.
+
 ## Limits
 
 - Local only: the server binds to 127.0.0.1 and has no login. The IDE shows

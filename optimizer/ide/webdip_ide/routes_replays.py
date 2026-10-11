@@ -68,7 +68,7 @@ def _keep(row: dict, f: dict) -> bool:
 
     return (
         (not f["source"] or episode["source"] == f["source"])
-        and (not f["variant"] or episode["variant"] == f["variant"])
+        and (not f["variant"] or f["variant"] in (episode["variant_id"], episode["variant"]))
         and (not f["batch"] or episode["batch"] == f["batch"])
         and (not f["power"] or (seat is not None and seat["power"] == f["power"]))
         and (not f["opponent"] or any(episodes.matches_policy(p, f["opponent"]) for p in row["opponents"]))
@@ -110,7 +110,7 @@ def replays_page(
     options = {
         "policy": sorted({episodes.policy_name(n) for n in names}) + names,
         "source": sorted({e["source"] for e in all_episodes}),
-        "variant": sorted({e["variant"] for e in all_episodes}),
+        "variant": sorted({e["variant_id"] for e in all_episodes}),  # ids, as on the dashboard
         "batch": sorted({e["batch"] for e in all_episodes if e["batch"]}),
         "power": POWERS,
         "opponent": sorted({episodes.policy_name(n) for n in names}) + names,
@@ -178,6 +178,8 @@ def replay_data(episode: str, seat: int | None = None):
 
 @router.get("/api/replays/{episode}/audit-status")
 def audit_status(episode: str):
+    if episode.startswith("."):  # an episode id is a directory name, never a way out of the press folder
+        raise HTTPException(status_code=404, detail="no such episode")
     return {"stamp": episodes.audit_stamp(episode)}
 
 

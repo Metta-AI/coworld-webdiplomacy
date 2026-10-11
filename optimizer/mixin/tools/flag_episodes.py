@@ -24,32 +24,47 @@ SWING = 3            # centres gained or lost within one year
 EARLY_MARGIN = 2     # "early" = eliminated more than this many years before the game's last year
 
 
-def episode_flags(seats: list[dict], policy: str, top: int = 3) -> tuple[int, int, dict[str, list[str]]]:
-    """(our seats, episodes, flag name -> lines) for `policy` over `wd.py seats` rows."""
+def seat_flags(seats: list[dict], policy: str) -> tuple[list[dict], int, list[dict]]:
+    """(our seats, episodes, flags) for `policy` over `wd.py seats` rows.
+
+    Each flag is `{"flag": one of FLAG_ORDER's per-game names, "episode_id", "power", "detail"}`,
+    one per finding, in the order the games were given. The IDE's replay browser reads these.
+    """
     games = defaultdict(list)
     for seat in seats:
         games[seat["episode_id"]].append(seat)
-    flags: dict[str, list[str]] = defaultdict(list)
+    found: list[dict] = []
     ours = []
     for episode_id, game in games.items():
         for seat in (s for s in game if s["policy"] == policy):
             ours.append(seat)
-            where = f"{episode_id} as {seat['power']}"
+
+            def flag(name: str, detail: str) -> None:
+                found.append({"flag": name, "episode_id": episode_id, "power": seat["power"], "detail": detail})
+
             log = seat.get("log") or {}
             if log.get("exceptions") or log.get("rejected") or "no_decisions" in (seat.get("taint") or []):
-                flags["crash or dropped orders"].append(
-                    f"{where}: exceptions {log.get('exceptions')}, rejected {log.get('rejected')}, "
-                    f"decisions {log.get('decisions')}")
+                flag("crash or dropped orders", f"exceptions {log.get('exceptions')}, rejected {log.get('rejected')}, "
+                                                f"decisions {log.get('decisions')}")
             winner = next((s for s in game if s["solo"] and s["policy"] != policy), None)
             if winner:
-                flags["opponent solo"].append(f"{where}: {winner['policy']} soloed as {winner['power']}")
+                flag("opponent solo", f"{winner['policy']} soloed as {winner['power']}")
             years = sorted(seat["centers_by_year"].items())
             dead = next((y for y, c in years if c == 0), None)
             if dead and len(years) > EARLY_MARGIN and dead <= years[-1 - EARLY_MARGIN][0]:
-                flags["eliminated early"].append(f"{where}: zero centres from {dead}")
+                flag("eliminated early", f"zero centres from {dead}")
             for (_, before), (year, after) in zip(years, years[1:]):
                 if abs(after - before) >= SWING:
-                    flags["swing of 3+ centres in a year"].append(f"{where}: {before} -> {after} in {year}")
+                    flag("swing of 3+ centres in a year", f"{before} -> {after} in {year}")
+    return ours, len(games), found
+
+
+def episode_flags(seats: list[dict], policy: str, top: int = 3) -> tuple[int, int, dict[str, list[str]]]:
+    """(our seats, episodes, flag name -> printed lines) for `policy` over `wd.py seats` rows."""
+    ours, episodes, found = seat_flags(seats, policy)
+    flags: dict[str, list[str]] = defaultdict(list)
+    for f in found:
+        flags[f["flag"]].append(f"{f['episode_id']} as {f['power']}: {f['detail']}")
     ours.sort(key=lambda s: s["score"])
     for seat in ours[:top]:
         flags["worst games"].append(f"{seat['episode_id']} as {seat['power']}: score {seat['score']:.3f}, "
@@ -57,7 +72,7 @@ def episode_flags(seats: list[dict], policy: str, top: int = 3) -> tuple[int, in
     for seat in ours[::-1][:top]:
         flags["best games"].append(f"{seat['episode_id']} as {seat['power']}: score {seat['score']:.3f}, "
                                    f"{seat['final_centers']} centres")
-    return len(ours), len(games), dict(flags)
+    return len(ours), episodes, dict(flags)
 
 
 def main(argv=None) -> None:

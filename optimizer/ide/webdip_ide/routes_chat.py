@@ -19,12 +19,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from . import hooks, paths, store
-from .server import render
+from .server import render, require_local_host
 
 NAV = None  # the panel is on every page; home is the brand link
 
 MAX_MESSAGE_CHARS = 20_000
-LOCAL_HOSTS = ("127.0.0.1", "localhost", "[::1]")
 
 
 def require_same_origin(request: Request) -> None:
@@ -32,13 +31,13 @@ def require_same_origin(request: Request) -> None:
 
     Any web page the user has open can send a request to a localhost port. A browser
     always sends `Origin` on a cross-site POST, so requiring it to match `Host`, and
-    `Host` to be a loopback name (which stops DNS rebinding), keeps other sites out
-    without a token. Requests with no `Origin` (curl, the tests) are local programs.
-    Use as `dependencies=[Depends(require_same_origin)]` on any write route.
+    `Host` to be a loopback name (`server.require_local_host`, which every route has),
+    keeps other sites out without a token. Requests with no `Origin` (curl, the tests)
+    are local programs. Use as `dependencies=[Depends(require_same_origin)]` on any
+    write route.
     """
+    require_local_host(request)
     host = request.headers.get("host", "")
-    if host.rsplit(":", 1)[0] not in LOCAL_HOSTS:
-        raise HTTPException(403, "the IDE only answers on localhost")
     origin = request.headers.get("origin")
     if origin and urlsplit(origin).netloc != host:
         raise HTTPException(403, "cross-site request refused")

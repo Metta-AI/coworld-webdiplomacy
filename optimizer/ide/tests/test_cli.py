@@ -118,6 +118,14 @@ class ServerCommandTest(CliCase):
         self.assertEqual(self.ide("url", check=False).returncode, 1)
         self.assertIn("not running", self.ide("stop").stdout)
 
+    def test_stop_never_signals_a_pid_the_ide_does_not_answer_for(self):
+        """A record left by a dead server, whose pid now belongs to another program (here: this test)."""
+        record = self.lab / ".runtime" / "ide" / "server.json"
+        record.parent.mkdir(parents=True, exist_ok=True)
+        record.write_text(json.dumps({"pid": os.getpid(), "port": 9, "url": "http://127.0.0.1:9", "started": 0}))
+        self.assertIn("not running", self.ide("stop").stdout)  # ...and we are still here
+        self.assertIn("not running", self.ide("status").stdout)
+
     def test_hook_command_reads_stdin_and_exits_zero(self):
         store.post_message("user", "via the command")
         result = self.ide("hook", "PostToolUse", stdin=json.dumps({"tool_name": "Bash"}))
@@ -159,6 +167,13 @@ class ChatApiTest(LabCase):
         self.assertEqual(rebound.status_code, 403)
         same = self.client.post("/api/chat", json={"text": "x"}, headers={"origin": "http://127.0.0.1:8642"})
         self.assertEqual(same.status_code, 200)
+
+    def test_a_page_under_another_host_name_cannot_read(self):
+        """DNS rebinding: another site's name pointed at 127.0.0.1 must not read chat or pages."""
+        store.post_message("user", "private")
+        for path in ("/api/chat", "/api/cards", "/api/agent/status", "/"):
+            self.assertEqual(self.client.get(path, headers={"host": "evil.example:8642"}).status_code, 403, path)
+        self.assertEqual(self.client.get("/api/chat", headers={"host": "localhost:8642"}).status_code, 200)
 
     def test_cards_and_status(self):
         store.post_card("idea", "One")

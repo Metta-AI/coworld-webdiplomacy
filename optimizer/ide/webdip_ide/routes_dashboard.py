@@ -117,14 +117,17 @@ class GameCache:
             with self.lock:
                 self.games[str(ep)] = (fingerprint, game)
                 self.pending = len(todo) - index - 1
+                # Every change is a new generation, so a report made from part of a batch is never
+                # served once more games are in (`sync()` hands out games and generation together).
+                self.generation += 1
+                self.reports = {}
                 if index % 25 == 24 or self.pending == 0:
-                    self.generation += 1
-                    self.reports = {}
                     self.read_at = time.time()
         self._save()
 
-    def sync(self, wait: float = WAIT_SECONDS) -> tuple[list, int]:
-        """Start reading whatever is new and return (games read so far, episodes still to read)."""
+    def sync(self, wait: float = WAIT_SECONDS) -> tuple[list, int, int]:
+        """Start reading whatever is new and return (games read so far, episodes still to read,
+        the generation those games belong to: the key `report()` files its result under)."""
         mu = matchups()
         root = paths.artifacts_dir()
         with self.lock:
@@ -153,16 +156,17 @@ class GameCache:
         if thread is not None:
             thread.join(wait)
         with self.lock:
-            return [game for _, game in self.games.values()], self.pending
+            return [game for _, game in self.games.values()], self.pending, self.generation
 
-    def report(self, games: list, key: tuple) -> dict:
+    def report(self, games: list, generation: int, key: tuple) -> dict:
+        """`matchups.report` for `games`, the snapshot `sync()` returned with `generation`."""
         with self.lock:
-            cached = self.reports.get((self.generation, *key))
-            generation = self.generation
+            cached = self.reports.get((generation, *key))
         if cached is None:
             cached = matchups().report(games, *key)
             with self.lock:
-                self.reports[(generation, *key)] = cached
+                if generation == self.generation:
+                    self.reports[(generation, *key)] = cached
         return cached
 
     def forget(self) -> None:
@@ -226,7 +230,10 @@ def share(r: dict) -> str:
 def pacific(iso: str | None, with_time: bool = False) -> str:
     if not iso:
         return ""
-    when = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(PACIFIC)
+    try:
+        when = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(PACIFIC)
+    except ValueError:  # an episode.json with a date this cannot read: show it as written
+        return iso
     return when.strftime("%b %-d, %-I:%M %p %Z" if with_time else "%b %-d")
 
 
@@ -249,11 +256,16 @@ def _headline(report: dict) -> dict:
     direction = "above" if s["mean"] > 0 else "below"
     lead = f"{signed(s['mean'])} per game against par" if s["mean"] else "Exactly at par"
     if s["verdict"] == "too few games":
-        reading = (f"Too few games to say: {s['n']} seats, and the lab reads nothing from fewer than "
+        reading = (f"Too few games to say: {s['games']}, and the lab reads nothing from fewer than "
                    f"{report_low_n()}. The sign is a lead, not a result.")
     elif s["verdict"] == "no result":
         reading = (f"No result. With z = {signed(s['z'], 2)} the interval includes par, so this policy is not "
                    f"shown to be {direction} the field. That is not evidence that it is equal.")
+    elif s["ci"][0] <= 0 <= s["ci"][1]:
+        # |z| >= 2 is the lab's rule, but with few games the t interval is wider than 2 SE.
+        reading = (f"{direction.capitalize()} par by the lab's rule (z = {signed(s['z'], 2)}), but only just: with "
+                   f"{s['games']} games the 95% interval ({signed(s['ci'][0])} to {signed(s['ci'][1])}) still "
+                   "reaches zero. Treat it as borderline.")
     else:
         reading = (f"{direction.capitalize()} par. z = {signed(s['z'], 2)}, and the 95% interval "
                    f"({signed(s['ci'][0])} to {signed(s['ci'][1])}) stays {direction} zero.")
@@ -438,6 +450,8 @@ def _view(report: dict, filters: dict) -> dict:
                             "tip": stat_tip(f"{variant}, {SOURCE_LABELS[source]}", s["vs_par"]) if s else ""})
 
     paired_scale = Scale([o["paired"] for o in report["by_opponent"]], width=200, pad=8)
+    # The replay browser takes the same source and variant values, so the link opens the same games.
+    scope = {k: filters[k] for k in ("source", "variant") if filters[k] != "all"}
     opponents = []
     for o in report["by_opponent"]:
         h = o["head_to_head"]
@@ -446,7 +460,7 @@ def _view(report: dict, filters: dict) -> dict:
             **o, "mark": paired_scale.mark(o["paired"]), "tip": stat_tip(f"Ours minus {o['opponent']}", o["paired"]),
             "ahead_width": round(60 * h["ahead"] / decided) if decided else 0,
             "behind_width": round(60 * h["behind"] / decided) if decided else 0,
-            "replays": "/replays?" + urlencode({"policy": report["policy"], "opponent": o["opponent"]}),
+            "replays": "/replays?" + urlencode({"policy": report["policy"], "opponent": o["opponent"], **scope}),
             "focus": _link(filters, opponent=o["opponent"]),
         })
 
@@ -465,15 +479,15 @@ def _view(report: dict, filters: dict) -> dict:
 
 
 def _load(policy: str, version: str, source: str, variant: str, opponent: str, remembered: str = ""):
-    games, pending = CACHE.sync()
+    games, pending, generation = CACHE.sync()
     policies = matchups().list_policies(games)
     filters = _choose(policies, policy, version, source, variant, remembered)
     filters["opponent"] = opponent
     report = None
     if filters["row"]:
         name = filters["policy"] + (f':{filters["version"]}' if filters["version"] else "")
-        report = CACHE.report(games, (name, filters["source"],
-                                      None if filters["variant"] == "all" else filters["variant"], opponent or None))
+        report = CACHE.report(games, generation, (name, filters["source"], None if filters["variant"] == "all"
+                                                  else filters["variant"], opponent or None))
     return games, pending, policies, filters, report
 
 

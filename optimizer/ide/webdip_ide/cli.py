@@ -93,7 +93,20 @@ def cmd_serve(args) -> int:
         from .server import create_app
     except ImportError:
         _reexec_with_dependencies(["serve", "--port", str(args.port)] + (["--open"] if args.open else []))
+    import socket
+
     url = f"http://{HOST}:{args.port}"
+    # Take the port and the lab's server lock before writing the record, so a `serve` that
+    # loses either one never replaces, and then deletes, the record of the server that won.
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        listener.bind((HOST, args.port))
+    except OSError as error:
+        sys.exit(f"error: cannot listen on {url} ({error.strerror}); try another --port")
+    lock = hooks.hold_server_lock()  # held until this process ends: see hooks.server_info
+    if lock is None:
+        sys.exit("error: another IDE server is starting for this lab; run `ide/ide status` in a moment")
     record = paths.state_dir() / "server.json"
     record.write_text(json.dumps({"pid": os.getpid(), "port": args.port, "url": url, "started": time.time()}) + "\n")
     print(f"IDE at {url}  (lab {paths.lab_dir()})", flush=True)
@@ -102,7 +115,7 @@ def cmd_serve(args) -> int:
 
         threading.Timer(1.0, _open_browser, [url]).start()
     try:
-        uvicorn.run(create_app(), host=HOST, port=args.port, log_level="warning")
+        uvicorn.Server(uvicorn.Config(create_app(), log_level="warning")).run(sockets=[listener])
     finally:
         try:
             if json.loads(record.read_text()).get("pid") == os.getpid():
@@ -162,6 +175,13 @@ def cmd_stop(args) -> int:
         if not hooks.pid_alive(int(running["pid"])):
             break
         time.sleep(0.1)
+    # uvicorn ends on the signal itself, before `serve` can remove its record.
+    record = paths.state_dir() / "server.json"
+    try:
+        if json.loads(record.read_text()).get("pid") == running["pid"]:
+            record.unlink()
+    except (OSError, ValueError):
+        pass
     print(f"IDE stopped (was {running['url']})")
     return 0
 

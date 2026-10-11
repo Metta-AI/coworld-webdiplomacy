@@ -27,8 +27,11 @@ How the numbers are made
   metrics` prints. z = mean / SE. `ci` is the 95% t interval on (games - 1) degrees of
   freedom. The SE ignores the uncertainty of par itself (`par[...].n` shows how many field
   seats each par rests on).
-- **Verdict.** "above par" / "below par" only when |z| >= 2 and n >= LOW_N (16, the lab's
-  floor for a per-power cell); otherwise "no result", or "too few games" below LOW_N.
+- **Verdict.** "above par" / "below par" only when |z| >= 2 and games >= LOW_N (16, the lab's
+  floor for a per-power cell); otherwise "no result", or "too few games" below LOW_N. The
+  floor counts games, not seats, so paired seats in one game do not reach it sooner. With
+  few games the 95% t interval is wider than 2 SE, so a verdict at z just over 2 can sit
+  beside an interval that still touches zero: read that as borderline.
   Nothing is corrected for the number of rows shown: with dozens of rows some reach
   |z| >= 2 by chance. Treat by-opponent and power-pair rows as leads to check in replays.
 - **Opponents are associations.** Seats are not assigned at random across opponents, so
@@ -56,7 +59,7 @@ JSON shape (`--json`, and `report()`); every `stat` is
                   by_our_power: {power: stat}, by_their_power: {power: stat},
                   pairs: [{ours, theirs, vs_par: stat}]}],            most games first
    trajectory: [{variant, years: [{year, n, ours, field, diff, se}]}],  field = same powers as ours;
-                                                                        se is of diff, over our seats
+                                                                        se is of diff, clustered by game
    taint: {seats_seen, flags: {flag: seats}, games_dropped, games_missing_results},
    cost: {seats_with_log, llm_seats, usd_per_seat_game, usd_total, llm_calls, llm_failed},
    our_seats: [{episode, date, variant, source, policy, power, score, par, vs_par,
@@ -77,7 +80,6 @@ import argparse
 import json
 import math
 import re
-import statistics
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -119,12 +121,19 @@ def family_of(policy: str) -> str:
 
 
 def variant_of(ep_dir: Path) -> str:
-    """The variant id from episode.json (`Classic press` -> `classic-press`), else from the game config."""
+    """The variant id from episode.json (`Classic press` -> `classic-press`), else from the local
+    batch's run.json, else from the game config."""
     path = ep_dir / "episode.json"
     episode = read_json_file(path) if path.exists() else {}
     if episode.get("variant_name"):
         return re.sub(r"[^a-z0-9]+", "-", episode["variant_name"].lower()).strip("-")
-    press = (episode.get("game_config") or {}).get("press")
+    # A local `wd.py run` batch has no episode.json; it records its variant in run.json beside
+    # the ep-<id>/ directories. Without this, local press and gunboat games would share one par.
+    run_path = ep_dir.parent / "run.json"
+    run = read_json_file(run_path) if not episode and run_path.exists() else {}
+    if run.get("variant"):
+        return run["variant"]
+    press = ((episode or run).get("game_config") or {}).get("press")
     return {"NoPress": "classic-gunboat", "Regular": "classic-press"}.get(press, "unknown")
 
 
@@ -184,8 +193,10 @@ def stat(observations: list[tuple[str, float]]) -> dict:
             z = mean / se
             half = t_critical(clusters - 1) * se
             ci = [_round(mean - half), _round(mean + half)]
+    # The floor counts games, as the SE does: four of our seats in one game are one draw of the
+    # table, not four.
     return {"n": n, "games": clusters, "mean": _round(mean), "se": _round(se), "z": _round(z, 2), "ci": ci,
-            "low_n": n < LOW_N, "verdict": verdict_of(z, n)}
+            "low_n": clusters < LOW_N, "verdict": verdict_of(z, clusters)}
 
 
 def rate(flags) -> dict:
@@ -207,7 +218,7 @@ def difference(with_stat: dict, without_stat: dict) -> dict:
         return {"diff": _round(diff), "se": None, "z": None, "verdict": "too few games"}
     se = math.hypot(with_stat["se"], without_stat["se"])
     z = diff / se if se > 0 else None
-    n = min(with_stat["n"], without_stat["n"])
+    n = min(with_stat["games"], without_stat["games"])
     return {"diff": _round(diff), "se": _round(se), "z": _round(z, 2),
             "verdict": verdict_of(z, n, "better with them", "worse with them")}
 
@@ -334,19 +345,19 @@ def _opponent_row(name: str, rows: list[Ours], pars: dict) -> dict:
 def _trajectory(rows: list[Ours], pars: dict) -> list[dict]:
     out = []
     for variant in sorted({r.game.variant for r in rows}):
-        years: dict[int, list[tuple[int, float]]] = defaultdict(list)
+        years: dict[int, list[tuple[str, int, float]]] = defaultdict(list)
         for r in rows:
             if r.game.variant != variant:
                 continue
             field_years = pars.get(variant, {}).get(r.seat.power, {}).get("centers_by_year", {})
             for year, centers in r.seat.centers_by_year.items():
                 if year in field_years:
-                    years[year].append((centers, field_years[year]))
+                    years[year].append((r.game.episode, centers, field_years[year]))
         out.append({"variant": variant, "years": [
-            {"year": y, "n": len(v), "ours": _round(sum(a for a, _ in v) / len(v), 2),
-             "field": _round(sum(b for _, b in v) / len(v), 2),
-             "diff": _round(sum(a - b for a, b in v) / len(v), 2),
-             "se": _round(statistics.stdev(a - b for a, b in v) / math.sqrt(len(v)), 2) if len(v) > 1 else None}
+            {"year": y, "n": len(v), "ours": _round(sum(a for _, a, _ in v) / len(v), 2),
+             "field": _round(sum(b for _, _, b in v) / len(v), 2),
+             "diff": _round(sum(a - b for _, a, b in v) / len(v), 2),
+             "se": _round(stat([(game, a - b) for game, a, b in v])["se"], 2)}  # clustered by game, as everywhere
             for y, v in sorted(years.items())]})
     return out
 
@@ -571,7 +582,7 @@ def render(r: dict) -> str:
         if t["years"]:
             lines += ["", f"## Centres by year end, {t['variant']} (ours / field at the same powers)", "",
                       " ".join(f"{y['year']}: {y['ours']}/{y['field']}" for y in t["years"])]
-    lines += ["", f"\\* fewer than {LOW_N} seats: directional only. |z| < 2 is no result."]
+    lines += ["", f"\\* fewer than {LOW_N} games: directional only. |z| < 2 is no result."]
     return "\n".join(lines)
 
 

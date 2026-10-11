@@ -71,11 +71,14 @@ def phase_label(turn: int, phase: str) -> str:
 
 # ---------- the index ----------
 
+# Request handlers run in a thread pool and the deep pass in its own thread, so everything
+# below that is shared is touched only under `_lock`.
 _lock = threading.Lock()
 _basic: dict[str, tuple[tuple, dict]] = {}  # episode dir -> (file stamp, row)
-_deep: dict[str, dict] = {}  # episode dir -> {"stamp": [...], "seats": [...]}
+_deep: dict[str, dict] = {}  # episode dir -> {"stamp": [...], "seats": [...]}, or {"stamp", "seats": [], "error"}
 _deep_loaded_from: Path | None = None
 _worker: threading.Thread | None = None
+_save_lock = threading.Lock()  # one writer of the saved deep rows at a time
 
 
 def _mtime(path: Path | None) -> float:
@@ -132,7 +135,7 @@ def _basic_row(ep: Path) -> dict:
     if not results_path:
         taint.append("no_results")
 
-    policies = we._policies(ep, episode)  # the loader's slot -> policy label rule
+    policies = we.seat_policies(ep, episode)
     logged = we.seat_log_paths(ep)
     members = {int(m["countryID"]): m for m in results.get("members") or []}
     final_year = we.final_year_of(results)
@@ -172,6 +175,7 @@ def _basic_row(ep: Path) -> dict:
         "request": episode.get("experience_request_id") or "",
         "source": source(ep) if source else _source(ep, episode),
         "variant": episode.get("variant_name") or "local run",
+        "variant_id": tool("matchups").variant_of(ep),  # the dashboard's name for it, so its links can filter here
         "press": _is_press(episode, results),
         "coworld_version": episode.get("coworld_version"),
         "status": status,
@@ -191,9 +195,11 @@ def _basic_stamp(ep: Path) -> tuple:
 
 
 def _deep_stamp(ep: Path) -> list[float]:
+    """Changes when any file the loader reads for this episode changes."""
     we = tool("webdip_episodes")
     logs = sorted(we.seat_log_paths(ep).values())
-    return [_mtime(we.first_existing(ep, we.REPLAY_NAMES)), _mtime(ep / "results.json"), *(_mtime(p) for p in logs)]
+    files = [we.first_existing(ep, we.REPLAY_NAMES), ep / "results.json", ep / "episode.json", ep / "seating.json"]
+    return [_mtime(p) for p in [*files, *logs]]
 
 
 def _deep_cache_path() -> Path:
@@ -204,15 +210,16 @@ def _load_deep_cache() -> None:
     """Read the saved deep rows once per lab directory."""
     global _deep_loaded_from
     path = _deep_cache_path()
-    if _deep_loaded_from == path:
-        return
-    _deep.clear()
-    if path.exists():
-        try:
-            _deep.update(json.loads(path.read_text()))
-        except ValueError:
-            pass  # a half-written cache: rebuild it
-    _deep_loaded_from = path
+    with _lock:
+        if _deep_loaded_from == path:
+            return
+        _deep.clear()
+        if path.exists():
+            try:
+                _deep.update(json.loads(path.read_text()))
+            except ValueError:
+                pass  # a half-written cache: rebuild it
+        _deep_loaded_from = path
 
 
 def _deep_row(ep: Path) -> dict:
@@ -237,12 +244,14 @@ def _fill_deep(dirs: list[Path]) -> None:
 
 
 def _save_deep() -> None:
-    with _lock:
-        text = json.dumps(_deep)
-    path = _deep_cache_path()
-    scratch = path.with_name(path.name + ".tmp")
-    scratch.write_text(text)
-    scratch.replace(path)
+    """Save the deep rows. A game that could not be read is left out, so the next server start tries it again."""
+    with _save_lock:
+        with _lock:
+            text = json.dumps({key: row for key, row in _deep.items() if not row.get("error")})
+        path = _deep_cache_path()
+        scratch = path.with_name(path.name + ".tmp")
+        scratch.write_text(text)
+        scratch.replace(path)
 
 
 def _deep_missing(dirs: list[Path]) -> list[Path]:
@@ -259,9 +268,11 @@ def deepen(wait: bool = False) -> tuple[int, int]:
     if missing and wait:
         _fill_deep(missing)
         missing = []
-    elif missing and not (_worker and _worker.is_alive()):
-        _worker = threading.Thread(target=_fill_deep, args=(missing,), daemon=True, name="episode-index")
-        _worker.start()
+    elif missing:
+        with _lock:  # two pages asked for at once must not start two readers
+            if not (_worker and _worker.is_alive()):
+                _worker = threading.Thread(target=_fill_deep, args=(missing,), daemon=True, name="episode-index")
+                _worker.start()
     return len(dirs) - len(missing), len(dirs)
 
 
@@ -293,6 +304,7 @@ def index() -> list[dict]:
         with _lock:
             deep = _deep.get(str(ep))
         row["indexed"] = bool(deep)
+        row["index_error"] = (deep or {}).get("error")  # the replay or a seat log could not be read
         if deep and deep.get("seats"):
             row["seats"] = _merge_deep(row["seats"], deep["seats"])
         row["audit"] = (press_dir / ep.name / "audit.json").exists()
@@ -306,6 +318,7 @@ def _broken_row(ep: Path, error: Exception) -> dict:
     when = _mtime(ep)
     return {
         "id": ep.name, "dir": str(ep), "batch": "", "request": "", "source": "local", "variant": "unreadable",
+        "variant_id": "unknown",
         "press": None, "coworld_version": None, "status": "unreadable", "time": when,
         "date": datetime.fromtimestamp(when, PACIFIC).strftime("%Y-%m-%d %H:%M"),
         "outcome": f"unreadable: {type(error).__name__}", "reason": "", "final_year": None,
@@ -361,19 +374,16 @@ def followed_seats(row: dict, policy: str | None = None) -> tuple[list[dict], bo
 
 def flags(row: dict, seat: dict) -> list[str]:
     """`flag_episodes.py`'s per-game criteria for one of our seats, as short phrases."""
-    found = tool("flag_episodes").episode_flags(row["seats"], seat["policy"], top=0)[2]
-    ours = f"{row['id']} as {seat['power']}: "
-    out = []
-    for name, short in FLAG_WORDS.items():
-        for line in found.get(name, []):
-            if line.startswith(ours):
-                out.append(f"{short}: {line[len(ours):].replace(' -> ', '\u2192')}")
-    return out
+    found = tool("flag_episodes").seat_flags(row["seats"], seat["policy"])[2]
+    mine = [f for f in found if f["power"] == seat["power"]]
+    # Grouped in FLAG_WORDS order, the order the table has always shown.
+    return [f"{short}: {f['detail'].replace(' -> ', '\u2192')}"
+            for name, short in FLAG_WORDS.items() for f in mine if f["flag"] == name]
 
 
 # ---------- the viewer's data ----------
 
-_views: dict[tuple, tuple[tuple, dict]] = {}
+_views: dict[tuple, tuple[tuple, dict]] = {}  # (episode dir, slot) -> (file stamp, view); guarded by `_lock`
 MAX_VIEWS = 12
 
 
@@ -407,13 +417,16 @@ def load_view(row: dict, slot: int | None) -> dict:
     log_path = we.seat_log_paths(ep).get(slot) if slot is not None else None
     stamp = (_mtime(replay_path), _mtime(log_path), audit_stamp(row["id"]), _mtime(ep / "results.json"))
     key = (row["dir"], slot)
-    cached = _views.get(key)
+    with _lock:
+        cached = _views.get(key)
     if cached and cached[0] == stamp:
         return cached[1]
     view = _build_view(row, slot, replay_path, log_path)
-    if len(_views) >= MAX_VIEWS:
-        _views.pop(next(iter(_views)))
-    _views[key] = (stamp, view)
+    with _lock:
+        _views.pop(key, None)
+        if len(_views) >= MAX_VIEWS:
+            _views.pop(next(iter(_views)))
+        _views[key] = (stamp, view)
     return view
 
 
@@ -516,11 +529,18 @@ def _phase(i: int, ph: dict, supply: set[int]) -> dict:
 
 
 def _movement_index(phases: list[dict], turn: int) -> int | None:
-    """The movement phase of `turn`; when the game ended before it, the last phase."""
+    """The movement phase of `turn`; when the game ended before it, the last movement phase.
+
+    Press is shown only on movement phases, so press sent after the last one (during the final
+    retreats or builds) is listed there and not on a phase that shows no press.
+    """
+    last = None
     for ph in phases:
-        if ph["phase"] == "Diplomacy" and ph["turn"] == turn:
-            return ph["i"]
-    return phases[-1]["i"] if phases else None
+        if ph["phase"] == "Diplomacy":
+            if ph["turn"] == turn:
+                return ph["i"]
+            last = ph["i"]
+    return last if last is not None else (phases[-1]["i"] if phases else None)
 
 
 def _messages(pa, replay: list, rows: list[dict], our_power: str, phases: list[dict]) -> list[dict]:
@@ -589,7 +609,9 @@ def _audit(episode: str, slot: int | None, messages: list[dict], phases: list[di
                         "text": f"{AUDIT_MARKERS[claim['category']]}: {audited['from'].title()} "
                                 f"“{claim.get('quote', '')}”",
                     })  # fmt: skip
-    summary = data.get("summary") or {}
+    # An audit is one seat's view: what it relied on, who lied to it. Seen from another seat,
+    # only whose audit it is goes to the page, never its counts or the quotes it flagged.
+    summary = (data.get("summary") or {}) if joined else {}
     powers = {}
     for power, entry in (summary.get("powers") or {}).items():
         flagged = []

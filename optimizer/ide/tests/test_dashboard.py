@@ -107,7 +107,7 @@ class DashboardTests(unittest.TestCase):
             self.assertIn(heading, text)
         self.assertIn("+0.200 per game against par", text)
         self.assertIn("Too few games to say", text)  # three seats: no verdict
-        self.assertIn('href="/replays?policy=mine&amp;opponent=rival-a"', text)
+        self.assertIn('href="/replays?policy=mine&amp;opponent=rival-a&amp;variant=classic-press"', text)
         self.assertIn('data-writeup="rival-a"', text)
         self.assertIn("None on disk yet for this policy.", text)  # no league press games: the row stays
         self.assertIn("/static/dashboard.js", text)
@@ -148,6 +148,32 @@ class DashboardTests(unittest.TestCase):
         response = self.client.get("/dashboard", params={"policy": "mine", "refresh": 1}, follow_redirects=False)
         self.assertEqual((response.status_code, response.headers["location"]), (303, "/dashboard?policy=mine"))
         self.assertEqual(self.api(policy="mine")["report"]["seats"], 3)
+
+    def test_headline_does_not_claim_an_interval_that_reaches_zero(self):
+        """z >= 2 is the lab's rule; with 16 games the 95% t interval can still include zero."""
+        from webdip_ide import routes_dashboard
+
+        mu = routes_dashboard.matchups()
+        # z just over 2 on 15 degrees of freedom, where the t interval needs 2.13.
+        values = [0.2 * (-1) ** i + 0.105 for i in range(16)]
+        stat = mu.stat([(f"g{i}", v) for i, v in enumerate(values)])
+        self.assertEqual(stat["verdict"], "above par")
+        self.assertLess(stat["ci"][0], 0)
+        reading = routes_dashboard._headline({"overall": {"vs_par": stat}})["reading"]
+        self.assertIn("borderline", reading)
+        self.assertNotIn("stays above zero", reading)
+        clear = mu.stat([(f"g{i}", 0.1 + 0.01 * (i % 3)) for i in range(20)])
+        self.assertIn("stays above zero", routes_dashboard._headline({"overall": {"vs_par": clear}})["reading"])
+
+    def test_a_date_that_cannot_be_read_does_not_break_the_page(self):
+        self.lab_with_two_variants()
+        path = next(self.artifacts.rglob("episode.json"))
+        episode = json.loads(path.read_text())
+        episode["created_at"] = "not-a-date"
+        path.write_text(json.dumps(episode))
+        for policy in ("mine", "rival-a"):
+            page = self.client.get("/dashboard", params={"policy": policy, "variant": "all"})
+            self.assertEqual(page.status_code, 200)
 
 
 if __name__ == "__main__":

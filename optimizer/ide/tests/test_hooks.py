@@ -27,10 +27,11 @@ def run_hook(event: str, payload: dict | None = None) -> dict | None:
     return json.loads(out.getvalue()) if out.getvalue().strip() else None
 
 
-def fake_server() -> None:
-    """Make the IDE look open: a server record that names a live process (this one)."""
+def fake_server(case: unittest.TestCase) -> None:
+    """Make the IDE look open: a server record that names a live process (this one), which holds the server lock."""
     record = {"pid": os.getpid(), "port": 1, "url": "http://127.0.0.1:1", "started": time.time()}
     (paths.state_dir() / "server.json").write_text(json.dumps(record))
+    case.addCleanup(hooks.hold_server_lock().close)
 
 
 class HookCase(LabCase):
@@ -48,7 +49,7 @@ class DeliveryHookTest(HookCase):
         self.assertIsNone(store.agent_seen(), "an unused IDE must not look attached")
 
     def test_post_tool_use_hands_over_unread_messages_once(self):
-        fake_server()
+        fake_server(self)
         store.post_message("user", "why did Austria fold?", {"episode": "ereq_9", "phase": 4})
         output = run_hook("PostToolUse", {"tool_name": "Bash"})
         context = output["hookSpecificOutput"]
@@ -60,7 +61,7 @@ class DeliveryHookTest(HookCase):
         self.assertIsNone(run_hook("UserPromptSubmit"))
 
     def test_user_prompt_submit_delivers(self):
-        fake_server()
+        fake_server(self)
         store.post_message("user", "hello")
         output = run_hook("UserPromptSubmit", {"prompt": "x"})
         self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
@@ -70,13 +71,13 @@ class DeliveryHookTest(HookCase):
         self.assertIn("left over", run_hook("PostToolUse")["hookSpecificOutput"]["additionalContext"])
 
     def test_sub_agent_tool_calls_do_not_take_the_users_messages(self):
-        fake_server()
+        fake_server(self)
         store.post_message("user", "for the main session")
         self.assertIsNone(run_hook("PostToolUse", {"agent_id": "abc", "tool_name": "Read"}))
         self.assertTrue(store.has_unread_for_agent())
 
     def test_stop_blocks_with_unread_messages(self):
-        fake_server()
+        fake_server(self)
         hooks.register_listener()
         self.addCleanup(hooks.unregister_listener)
         store.post_message("user", "before you go")
@@ -86,14 +87,14 @@ class DeliveryHookTest(HookCase):
         self.assertIsNone(run_hook("Stop", {"stop_hook_active": True}))
 
     def test_stop_asks_for_a_listener_once_when_nothing_is_waiting(self):
-        fake_server()
+        fake_server(self)
         output = run_hook("Stop", {"stop_hook_active": False})
         self.assertEqual(output["decision"], "block")
         self.assertIn("ide/ide listen", output["reason"])
         self.assertIsNone(run_hook("Stop", {"stop_hook_active": True}), "must not loop")
 
     def test_stop_is_quiet_when_a_waiter_is_registered(self):
-        fake_server()
+        fake_server(self)
         hooks.register_listener()
         self.addCleanup(hooks.unregister_listener)
         self.assertIsNone(run_hook("Stop", {"stop_hook_active": False}))
@@ -102,7 +103,7 @@ class DeliveryHookTest(HookCase):
         closed = run_hook("SessionStart", {"source": "startup"})["hookSpecificOutput"]["additionalContext"]
         self.assertIn("ide/ide start --open", closed)
         self.assertIn("skills/ide/SKILL.md", closed)
-        fake_server()
+        fake_server(self)
         self.assertIn("http://127.0.0.1:1", run_hook("SessionStart")["hookSpecificOutput"]["additionalContext"])
 
     def test_a_hook_never_fails_the_session(self):
@@ -114,7 +115,7 @@ class DeliveryHookTest(HookCase):
         self.assertEqual(out.getvalue(), "")
 
     def test_annotations_named_in_the_context_are_spelled_out(self):
-        fake_server()
+        fake_server(self)
         row = store.add_annotation(
             "ereq_9", "user", "trusted Turkey too long", tag="bad-trust", phase=9, power="TURKEY"
         )
@@ -140,7 +141,7 @@ class RewakeTest(HookCase):
         waiter.stderr.close()
 
     def test_exits_2_with_the_message_on_stderr(self):
-        fake_server()
+        fake_server(self)
         waiter = self._waiter()
         deadline = time.time() + 10
         while not hooks.listener_alive() and time.time() < deadline:
@@ -179,6 +180,16 @@ class StatusTest(HookCase):
 
     def test_a_dead_server_record_is_not_running(self):
         (paths.state_dir() / "server.json").write_text(json.dumps({"pid": 2**22 + 12345, "port": 1, "url": "x"}))
+        self.assertIsNone(hooks.server_info())
+
+    def test_a_record_left_by_a_killed_server_is_not_running_even_when_its_pid_is_alive(self):
+        """The pid can come to belong to another program (here: this test). The lock tells them apart."""
+        (paths.state_dir() / "server.json").write_text(json.dumps({"pid": os.getpid(), "port": 1, "url": "x"}))
+        self.assertIsNone(hooks.server_info())
+        lock = hooks.hold_server_lock()
+        self.assertIsNotNone(hooks.server_info())
+        self.assertIsNone(hooks.hold_server_lock())  # a second server for the same lab is refused
+        lock.close()
         self.assertIsNone(hooks.server_info())
 
     def test_dead_listener_records_are_cleared(self):

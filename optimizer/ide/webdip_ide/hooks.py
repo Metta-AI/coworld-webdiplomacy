@@ -33,6 +33,7 @@ Standard library only, and no syntax newer than Python 3.9: hooks run under plai
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import sys
@@ -58,6 +59,8 @@ WAITER_GRACE_SECONDS = 2.0
 
 
 def pid_alive(pid: int) -> bool:
+    if pid <= 0:  # 0 and negative numbers name process groups, not a process
+        return False
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -67,6 +70,35 @@ def pid_alive(pid: int) -> bool:
     return True
 
 
+def hold_server_lock():
+    """Take the lab's server lock for as long as the returned file stays open; None when another server has it.
+
+    The lock is how everything else tells a running server from a `server.json` left
+    behind by one that was killed: the system drops the lock when the process ends, and
+    a pid alone can come to belong to another program.
+    """
+    lock = open(paths.state_dir() / "server.lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        lock.close()
+        return None
+    return lock
+
+
+def _server_lock_held() -> bool:
+    try:
+        probe = open(paths.state_dir() / "server.lock")
+    except OSError:
+        return False
+    with probe:
+        try:
+            fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)  # shared: two probes never block each other
+        except OSError:
+            return True
+    return False
+
+
 def server_info() -> dict | None:
     """The running server's `server.json` ({pid, port, url, started}), or None when it is not running."""
     path = paths.state_dir() / "server.json"
@@ -74,7 +106,7 @@ def server_info() -> dict | None:
         info = json.loads(path.read_text())
     except (OSError, ValueError):
         return None
-    return info if pid_alive(int(info.get("pid", 0) or 0)) else None
+    return info if pid_alive(int(info.get("pid", 0) or 0)) and _server_lock_held() else None
 
 
 def _listeners_dir():
@@ -267,8 +299,6 @@ def rewake() -> int:
     IDE is not open or another waiter holds the lock, and soon after the IDE server or
     the session that started it has gone.
     """
-    import fcntl
-
     if server_info() is None:
         return 0
     lock = open(paths.state_dir() / "rewake.lock", "w")

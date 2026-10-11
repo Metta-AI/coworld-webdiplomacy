@@ -65,22 +65,24 @@
 
   // --- Markdown: escape everything first, then add a small set of tags ---
 
+  // Code spans and link tags are set aside while emphasis is applied, so `_` or `*` inside
+  // code or inside an address (/replays/x?a=_b_) is never turned into a tag.
   function inline(text) {
-    var code = [];
-    var out = escapeHtml(text).replace(/`([^`]+)`/g, function (_, body) {
-      code.push("<code>" + body + "</code>");
-      return "\u0000" + (code.length - 1) + "\u0000";
+    var kept = [];
+    function keep(html) { kept.push(html); return "\u0000" + (kept.length - 1) + "\u0000"; }
+    var out = escapeHtml(String(text).replace(/\u0000/g, "")).replace(/`([^`]+)`/g, function (_, body) {
+      return keep("<code>" + body + "</code>");
     });
     out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (whole, label, href) {
       var safe = safeHref(href.replace(/&amp;/g, "&"));
       if (!safe) return whole;
       var external = /^https?:/i.test(safe);
-      return '<a href="' + escapeHtml(safe) + '"' + (external ? ' target="_blank" rel="noopener"' : "") + ">" + label + "</a>";
+      return keep('<a href="' + escapeHtml(safe) + '"' + (external ? ' target="_blank" rel="noopener"' : "") + ">") + label + keep("</a>");
     });
     out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     out = out.replace(/(^|[^\w*])\*([^*\s][^*]*)\*(?!\w)/g, "$1<em>$2</em>");
     out = out.replace(/(^|[^\w_])_([^_\s][^_]*)_(?!\w)/g, "$1<em>$2</em>");
-    return out.replace(/\u0000(\d+)\u0000/g, function (_, index) { return code[Number(index)]; });
+    return out.replace(/\u0000(\d+)\u0000/g, function (_, index) { return kept[Number(index)]; });
   }
 
   function tableRow(line) {

@@ -56,7 +56,16 @@ saw in README.md under "What was verified".
   Change the entries there, not in the script.
 - Claude Code shows a blocked stop and a Rewake wake-up as "Stop hook error" or "Stop
   hook feedback". That is the delivery, not a failure.
-- `server.json` and `listeners/<pid>` are trusted only while their process is alive
-  (`hooks.pid_alive`); stale files are ignored or removed.
+- `server.json` is trusted only while the server holds `server.lock`
+  (`hooks.server_info`): a pid alone can come to belong to another program after a crash
+  or a reboot, and `ide/ide stop` signals that pid. `listeners/<pid>` records are trusted
+  while their process is alive; stale ones are removed.
+- A server started some other way (`uvicorn --factory webdip_ide.server:create_app`, as
+  in tests) writes no `server.json`, so the hooks treat the IDE as closed.
+- `server.require_local_host` is on every route. The test client must use a loopback
+  `base_url` (`http://127.0.0.1:8642`); `testserver`, Starlette's default, is also let
+  through for now because `tests/test_reports.py` still uses it.
+- The index (`episodes.py`) and the dashboard cache are shared by request threads and a
+  background reader: touch their module-level dictionaries only under their lock.
 - `ide/ide start` runs `uv run --project ide` with `PYTHONPATH` set to the IDE directory,
   because the project is not an installable package (`[tool.uv] package = false`).

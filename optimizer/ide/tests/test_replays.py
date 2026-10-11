@@ -135,6 +135,38 @@ class ReplayTests(unittest.TestCase):
         for seat in press["seats"]:
             self.assertIsInstance(self.episodes.flags(press, seat), list)
 
+    def test_deep_rows_follow_a_changed_episode_json(self):
+        """The loader takes policy names from episode.json, so a corrected one must replace the saved seats."""
+        self.episodes.deepen(wait=True)
+        path = self.press_dir / "episode.json"
+        episode = json.loads(path.read_text())
+        episode["participants"][0]["policy_name"] = "corrected"
+        path.write_text(json.dumps(episode))
+        os.utime(path, (path.stat().st_atime, path.stat().st_mtime + 5))
+        self.assertIn(self.press_dir, self.episodes._deep_missing([self.press_dir]))
+        self.episodes.deepen(wait=True)
+        policies = {s["policy"] for s in self.row("ereq_press")["seats"]}
+        self.assertTrue(any(p.startswith("corrected:") for p in policies), policies)
+
+    def test_a_game_that_could_not_be_read_is_marked_and_tried_again_after_a_restart(self):
+        we = self.episodes.tool("webdip_episodes")
+        original = we.load_episode
+
+        def broken(ep):
+            if ep.name == "ereq_press":
+                raise OSError("disk hiccup")
+            return original(ep)
+
+        we.load_episode = broken
+        self.addCleanup(setattr, we, "load_episode", original)
+        done, total = self.episodes.deepen(wait=True)
+        self.assertEqual(done, total)  # it is not retried on every page load
+        self.assertIn("disk hiccup", self.row("ereq_press")["index_error"])
+        self.assertIsNone(self.row("ereq_gunboat")["index_error"])
+        saved = json.loads((self.lab / ".runtime" / "ide" / "episode_index.json").read_text())
+        self.assertNotIn(str(self.press_dir), saved)  # so the next start reads it again
+        self.assertIn("not read", self.client.get("/replays").text)
+
     def test_index_sees_a_changed_results_file(self):
         self.assertEqual(self.row("ereq_press")["outcome"], "drawn")
         path = self.press_dir / "results.json"
@@ -153,9 +185,12 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn("/replays/ereq_press?seat=", page.text)
         self.assertIn("/replays/ereq_gunboat", page.text)
-        only_press = self.client.get("/replays", params={"variant": "Classic press"}).text
-        self.assertIn("/replays/ereq_press", only_press)
-        self.assertNotIn("/replays/ereq_gunboat", only_press)
+        # The variant is filtered by its id, as the dashboard links it; the display name still works.
+        for variant in ("classic-press", "Classic press"):
+            only_press = self.client.get("/replays", params={"variant": variant}).text
+            self.assertIn("/replays/ereq_press", only_press)
+            self.assertNotIn("/replays/ereq_gunboat", only_press)
+        self.assertIn('<option value="classic-press" selected>', self.client.get("/replays?variant=classic-press").text)
         followed = self.client.get("/replays", params={"policy": "field-press-a", "source": "xp"}).text
         self.assertIn("/replays/ereq_press", followed)
         self.assertNotIn("/replays/g-011287fb8a", followed)
@@ -246,6 +281,18 @@ class ReplayTests(unittest.TestCase):
         other = self.client.get("/api/replays/ereq_press", params={"seat": 2}).json()
         self.assertFalse(other["audit"]["joined"], "an audit for seat 3 must not be laid over seat 2's press")
         self.assertEqual([c for m in other["messages"] for c in m["claims"]], [])
+        # Nothing of seat 3's audit reaches seat 2's page except whose audit it is: no counts, no flagged quotes.
+        self.assertEqual((other["audit"]["slot"], other["audit"]["powers"], other["audit"]["markers"]), (3, {}, []))
+        self.assertNotIn("I keep out of Tyrolia", json.dumps(other["audit"]))
+        self.assertEqual([e for e in other["events"] if e["kind"] == "betrayed"], [])
+
+    def test_press_after_the_last_movement_phase_is_listed_on_it(self):
+        """Press is drawn only on movement phases; a turn the game never reached must not hide its press."""
+        phases = [{"i": 0, "turn": 0, "phase": "Diplomacy"}, {"i": 1, "turn": 1, "phase": "Diplomacy"},
+                  {"i": 2, "turn": 1, "phase": "Builds"}, {"i": 3, "turn": 2, "phase": "Finished"}]
+        self.assertEqual(self.episodes._movement_index(phases, 1), 1)
+        self.assertEqual(self.episodes._movement_index(phases, 2), 1)
+        self.assertIsNone(self.episodes._movement_index([], 0))
 
     # ----- annotations -----
 

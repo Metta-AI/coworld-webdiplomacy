@@ -35,14 +35,17 @@
   --rule: #e4dac8;
   --rule-strong: #d4c9b5;
   --rule-subtle: #f0ebe1;
-  /* the seven powers (muted to sit on cream; use on the dot or the name, not on boxes) */
-  --power-austria: #b5433a;
-  --power-england: #7a4b8f;
-  --power-france: #2f6fa8;
-  --power-germany: #5c5852;
-  --power-italy: #4f7d3c;
-  --power-russia: #8a7f6a;
-  --power-turkey: #b08a1e;
+  /* The seven powers: marks only (a dot, a line, a unit), never a box or text. Chosen by search so
+     that every pair stays apart for protan and deutan readers as well (OKLab distance 9 or more
+     under simulation, 16 or more with full colour vision) and each has 3:1 contrast on the paper.
+     Change one and the others must be checked again; a power's name is always beside its colour. */
+  --power-austria: #8f2f36;
+  --power-england: #b350ac;
+  --power-france: #2393f1;
+  --power-germany: #da7827;
+  --power-italy: #49a478;
+  --power-russia: #504799;
+  --power-turkey: #7b6c01;
   /* type */
   --serif: "Merriweather", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --sans: "Merriweather Sans", "Avenir Next", "Segoe UI", system-ui, sans-serif;

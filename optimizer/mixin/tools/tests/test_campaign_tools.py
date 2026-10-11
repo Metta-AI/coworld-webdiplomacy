@@ -202,6 +202,21 @@ class FlagEpisodes(unittest.TestCase):
         self.assertTrue(flags["worst games"][0].startswith("g1"))
         self.assertTrue(flags["best games"][0].startswith("g2"))
 
+    def test_seat_flags_are_structured_and_the_printed_lines_come_from_them(self):
+        seats = [
+            seat("g1", 0, "A", 0.0, years={"1901": 3, "1902": 0, "1903": 0, "1904": 0, "1905": 0}),
+            seat("g1", 1, "B", 1.0, solo=True),
+        ]
+        ours, episodes, found = flag_episodes.seat_flags(seats, "A")
+        self.assertEqual((len(ours), episodes), (1, 1))
+        power = seats[0]["power"]
+        self.assertIn({"flag": "opponent solo", "episode_id": "g1", "power": power,
+                       "detail": f"B soloed as {seats[1]['power']}"}, found)
+        self.assertIn({"flag": "swing of 3+ centres in a year", "episode_id": "g1", "power": power,
+                       "detail": "3 -> 0 in 1902"}, found)
+        lines = flag_episodes.episode_flags(seats, "A")[2]
+        self.assertEqual(lines["swing of 3+ centres in a year"], [f"g1 as {power}: 3 -> 0 in 1902"])
+
     def test_short_game_has_no_early_elimination_and_does_not_crash(self):
         seats = [seat("g1", 0, "A", 0.0, years={"1901": 0, "1902": 0})]
         _, _, flags = flag_episodes.episode_flags(seats, "A")

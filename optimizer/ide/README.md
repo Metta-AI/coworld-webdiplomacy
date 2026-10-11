@@ -153,6 +153,7 @@ Under `<lab>/.runtime/ide/` (git-ignored; delete the directory to reset the IDE)
 | `cards.jsonl` | One card per line: `{seq, id, ts, kind, title, body, link}` |
 | `agent_seen` | Time of the agent side's last action: the presence signal |
 | `server.json` | `{pid, port, url, started}` while the server runs |
+| `server.lock` | Locked by the server for as long as it lives. A `server.json` whose lock is free was left by a server that was killed, and is ignored |
 | `listeners/<pid>` | One file per waiting `listen` or Rewake process |
 | `server.log` | Output of a server started by `ide/ide start` |
 
@@ -175,10 +176,18 @@ web site open in the same browser cannot post to the IDE.
 ## Security
 
 The server binds to 127.0.0.1 and has no login. It shows private press from the lab's
-episodes; do not put it behind a tunnel or a proxy. Writes are refused unless they come
-from the IDE's own pages (`Origin` must match `Host`, and `Host` must be a loopback
-name). Agent text is rendered through an escaping Markdown renderer; links may only go
-to IDE paths or `http(s)` addresses.
+episodes; do not put it behind a tunnel or a proxy. Every route, pages and JSON alike,
+refuses a request whose `Host` is not a loopback name, so another site that points its
+own name at 127.0.0.1 (DNS rebinding) cannot read the pages. Writes are also refused
+unless they come from the IDE's own pages (`Origin` must match `Host`). Agent text,
+press and annotations are rendered as text or through an escaping Markdown renderer;
+links may only go to IDE paths or `http(s)` addresses. Static files are served with
+`Cache-Control: no-cache`, so a browser never shows a new page with an old script.
+
+A press audit is one seat's view of a game. The viewer joins it to the press only while
+that seat is followed; from any other seat it shows whose audit it is and nothing else.
+The audit folder is per episode (`.runtime/press/<episode id>/`), so when two of our
+seats sit in one game, auditing the second replaces the first.
 
 ## Tests
 

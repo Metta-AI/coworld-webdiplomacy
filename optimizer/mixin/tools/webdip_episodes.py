@@ -189,7 +189,8 @@ def seat_log_paths(ep: Path) -> dict[int, Path]:
     return out
 
 
-def _policies(ep: Path, episode: dict) -> dict[int, str]:
+def seat_policies(ep: Path, episode: dict) -> dict[int, str]:
+    """slot -> policy label: `name:vN` from `episode.json`'s participants, else the `seating.json` label."""
     out = {}
     for p in episode.get("participants") or []:
         if p.get("policy_name") is not None:
@@ -197,6 +198,9 @@ def _policies(ep: Path, episode: dict) -> dict[int, str]:
     if not out and (ep / "seating.json").exists():
         out = dict(enumerate(json.loads((ep / "seating.json").read_text())))
     return out
+
+
+_policies = seat_policies  # its name before the IDE needed it
 
 
 def final_year_of(results: dict) -> int | None:
@@ -255,7 +259,7 @@ def load_episode(ep: Path) -> tuple[list[Seat], dict]:
         status["missing"].append("replay")
     status["outcome"] = results.get("outcome", "")
 
-    policies = _policies(ep, episode)
+    policies = seat_policies(ep, episode)
     logs = seat_log_paths(ep)
     members = {int(m["countryID"]): m for m in results.get("members") or []}
     final_year = final_year_of(results)

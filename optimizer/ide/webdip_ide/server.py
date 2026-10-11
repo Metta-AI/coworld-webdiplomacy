@@ -17,7 +17,7 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -36,10 +36,40 @@ def render(request: Request, template: str, **context):
 
 NAV: list[tuple[str, str]] = []
 
+# "testserver" is the name Starlette's test client sends; no browser reaches the IDE under it.
+LOCAL_HOSTS = ("127.0.0.1", "localhost", "[::1]", "testserver")
+
+
+def require_local_host(request: Request) -> None:
+    """Answer only when the browser asked for a loopback name.
+
+    The server binds to 127.0.0.1, but another web site can point its own host name at
+    127.0.0.1 (DNS rebinding) and then read the IDE's pages, private press included, as
+    if they were its own. Such a request still carries the other site's name in `Host`,
+    so every route refuses any name that is not loopback.
+    """
+    if request.headers.get("host", "").rsplit(":", 1)[0] not in LOCAL_HOSTS:
+        raise HTTPException(403, "the IDE only answers on localhost")
+
+
+class FreshStaticFiles(StaticFiles):
+    """Static files the browser checks before reusing.
+
+    Without a `Cache-Control` header a browser may keep a stylesheet or script for hours on a
+    guess. After the IDE is updated that shows new pages with old styles: the agent panel's
+    hidden context chip was seen as an empty box this way. `no-cache` still lets the browser
+    keep its copy; it asks first, and an unchanged file costs one short 304 answer.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="webDiplomacy optimizer IDE")
-    app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
+    app = FastAPI(title="webDiplomacy optimizer IDE", dependencies=[Depends(require_local_host)])
+    app.mount("/static", FreshStaticFiles(directory=PACKAGE_DIR / "static"), name="static")
     NAV.clear()
     for name in FEATURES:
         module = importlib.import_module(f"{__package__}.{name}")

@@ -28,6 +28,7 @@ import fcntl
 import json
 import os
 import secrets
+import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -57,8 +58,12 @@ def _read_lines(path: Path) -> list[dict]:
 
 
 def _write_atomic(path: Path, text: str) -> None:
-    """Replace `path` in one step, so an unlocked reader never sees a partial file."""
-    temporary = path.with_name(path.name + ".tmp")
+    """Replace `path` in one step, so an unlocked reader never sees a partial file.
+
+    The scratch name is this writer's own: two processes (a hook and a CLI command) may
+    write the same file at once, and a shared name would let one rename the other's away.
+    """
+    temporary = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     temporary.write_text(text)
     os.replace(temporary, path)
 
@@ -108,12 +113,14 @@ def has_unread_for_agent() -> bool:
 
 
 def touch_agent_seen() -> None:
-    (paths.state_dir() / "agent_seen").write_text(str(time.time()))
+    _write_atomic(paths.state_dir() / "agent_seen", str(time.time()))
 
 
 def agent_seen() -> float | None:
-    path = paths.state_dir() / "agent_seen"
-    return float(path.read_text()) if path.exists() else None
+    try:
+        return float((paths.state_dir() / "agent_seen").read_text())
+    except (OSError, ValueError):
+        return None
 
 
 # --- cards ---
