@@ -15,7 +15,8 @@ standalone optimizer repository owned by the user.
   (`AGENTS.md`), the five required skill bindings (`ab`, `survey`,
   `replay-inspection`, `eval-design`, `diagnosis`), game docs, analysis and
   campaign tools in `tools/` (one-command build-upload-log and A/B runs, request
-  builders, sizing), and the reference policy `players/castlereagh/`, built by
+  builders, sizing), a `press-audit` skill that checks what was said in a press
+  game against what was ordered, and the reference policy `players/castlereagh/`, built by
   `tools/build.sh`. The reference policy adapts a prior lab's Castlereagh:
   Kissinger search as the core, plus an LLM press layer
   (`CASTLEREAGH_POLICY=press|search`, default `press`).

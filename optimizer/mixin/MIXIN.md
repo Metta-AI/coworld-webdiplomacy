@@ -67,7 +67,7 @@ required set. List them all: an unlisted skill is an undiscoverable one.)*
 
 | Skill | Path | What it does | Use when |
 |---|---|---|---|
-| *(none)* | | | |
+| `press-audit` | `skills/press-audit/` | Checks what powers said in a press game against what they ordered: an agent (a sub-agent per game) lists each message's promises, threats, requests and statements in a fixed vocabulary; `tools/press_audit.py` checks them against the adjudicated orders, works out whether we relied on each, and writes `audit.json` and a local `audit.html` | A press game went badly; deciding whom the policy should trust; checking whether our own bot keeps its word |
 
 ## What else this mixin provides
 
@@ -78,7 +78,7 @@ required set. List them all: an unlisted skill is an undiscoverable one.)*
 | Reference policy | `players/castlereagh/` | Python package `castlereagh`. Kissinger search as the core, plus an LLM press layer. Mode set by `CASTLEREAGH_POLICY`: `press` (default: search plus press; plays its search floor in a no-press game or without `COWORLD_LLM_ENDPOINT`), `search` (press off). Logs one `decision` line per phase. The starting point `seed-a-policy` improves on |
 | Build tooling | `tools/build.sh` | `tools/build.sh --tag <image-tag> [--ref <game-ref>] [--policy press\|search] [--overrides "KEY=VAL,…"]`. Builds the coworld player base image from a pinned coworld-webdiplomacy commit on GitHub, then the reference policy, for linux/amd64; prints the tag. `--tag` is required (one tag per experiment); `--overrides` bakes config overrides into the image. Needs Docker |
 | Analysis tools | `tools/` | Standard-library Python: `webdip_episodes.py` (loader), `wd.py` (`metrics`, `seats`, `costs`, `local`, `arena`, `slim`), `paired.py`, `compare.py`, `ab_stats.py` (the statistics library behind `compare.py`), `llm_sidecar_local.py`, `check_clis.py` (CLI version check), with unit tests in `tools/tests/`. See `AGENTS.md` |
-| Campaign tools | `tools/` | `run_ab.py` (one paired A/B from an experiment record; `--alone` for the candidate-alone check), `make_request.py` + `field_sets.json` (named opponent sets; balanced power rotation with both seat orders), `ship.py` (build, upload, VERSION_LOG row), `field.py` (league field from its rounds), `sizing.py`, `seat_bias.py`, `flag_episodes.py`, `year_deltas.py`, `mine_variance.py`, `gzip_replays.py`. See `AGENTS.md` |
+| Campaign tools | `tools/` | `run_ab.py` (one paired A/B from an experiment record; `--alone` for the candidate-alone check), `make_request.py` + `field_sets.json` (named opponent sets; balanced power rotation with both seat orders), `ship.py` (build, upload, VERSION_LOG row), `field.py` (league field from its rounds), `sizing.py`, `seat_bias.py`, `flag_episodes.py`, `year_deltas.py`, `mine_variance.py`, `gzip_replays.py`, `press_audit.py` (press against orders; see the press-audit skill). See `AGENTS.md` |
 | Session setup | `tools/session_env.sh` | `source` it: private credentials directory, Docker config and active player; prints the acting identity |
 | Opponent sets | `field_sets.json` | Named opponent sets for `tools/make_request.py`. Ships with the format only (placeholder seats): fill it from `tools/field.py` and date each set |
 | Your instruments | `instruments/` | Empty. Your own analysis code goes here; everything the mixin ships is in `tools/` |

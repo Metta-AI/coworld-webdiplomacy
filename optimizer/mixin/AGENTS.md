@@ -40,6 +40,7 @@ kept in the game docs so each fact has one home:
 | The live field picture | [META.md](META.md) (maintained by meta-recon; dated) |
 | Comparing versions | [skills/ab](skills/ab/SKILL.md) |
 | Reading a batch | [skills/survey](skills/survey/SKILL.md) |
+| Who lied, who kept their word, where we were betrayed | [skills/press-audit](skills/press-audit/SKILL.md) |
 | Reading replays and our logs | [skills/replay-inspection](skills/replay-inspection/SKILL.md) |
 | Designing a hosted eval | [skills/eval-design](skills/eval-design/SKILL.md) |
 | Finding why we lose | [skills/diagnosis](skills/diagnosis/SKILL.md) |
@@ -122,6 +123,7 @@ Also in `tools/`, run the same way; flags are in each docstring.
 | `flag_episodes.py` | Episodes worth opening (reads `wd.py seats` on stdin) |
 | `year_deltas.py` | Centre change per game year by policy (reads `wd.py seats` on stdin) |
 | `gzip_replays.py` | Compress fetched replays in place, about 20x; the loader reads them |
+| `press_audit.py extract\|verify\|report` | One press game from our seat: every message we saw, its claims (an agent lists them), each checked by code against the orders, and a local HTML page. See the press-audit skill |
 
 ## How the loop runs here
 
