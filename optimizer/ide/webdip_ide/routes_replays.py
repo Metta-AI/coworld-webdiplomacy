@@ -5,7 +5,9 @@ Pages:
                                 as query parameters (so a card can link to a filtered list);
                                 `sort=score` puts the lowest scores first, `sort=-score` the highest.
                                 Without `policy` the list follows the policy last chosen here or on
-                                the dashboard (a cookie); `policy=` (empty) follows every seat with a log
+                                the dashboard (a cookie), else the policy the lab names as ours
+                                (`routes_dashboard.lab_policy`); `policy=` (empty), or a lab that
+                                names none, follows every seat with a log
   /replays/<episode>?phase=N&seat=S   the viewer; `phase` indexes the last replay frame's
                                 `history.phases`, `seat` is the roster slot whose log, private
                                 press and press audit are shown. `turn=T` in place of `phase`
@@ -24,7 +26,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
-from . import episodes, store
+from . import episodes, routes_dashboard, store
 from .routes_chat import require_same_origin
 from .server import render
 
@@ -109,7 +111,8 @@ def replays_page(
     known = {episodes.policy_name(n) for n in names}
     remembered = policy is None and request.cookies.get(POLICY_COOKIE, "") in known
     if policy is None:
-        policy = request.cookies.get(POLICY_COOKIE, "") if remembered else ""
+        policy = request.cookies.get(POLICY_COOKIE, "") if remembered else routes_dashboard.lab_policy(known)
+        remembered = bool(policy)  # a default, like the cookie: not a filter the user set on this page
     sort = sort if sort in SORTS else ""
     filters = {
         "policy": policy, "source": source, "variant": variant, "batch": batch, "power": power,

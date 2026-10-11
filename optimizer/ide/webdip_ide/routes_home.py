@@ -195,6 +195,8 @@ def home(request: Request):
     summary = routes_dashboard.summary(remembered)
     indexed, total = episodes.deepen()
     policy = summary["policy"] or (remembered if remembered in known else "")
+    # Nothing names this policy as ours: no choice in the browser, none recorded by the agent, no upload.
+    guessed = bool(policy) and remembered not in known and not routes_dashboard.lab_policy(known)
     variant = summary["variant"] if summary["headline"] and summary["variant"] != "all" else ""
     since, cookie = _sitting(request.cookies.get(VISIT_COOKIE, ""), time.time())
     response = render(
@@ -202,6 +204,7 @@ def home(request: Request):
         "home.html",
         summary=summary,
         policy=policy,
+        policy_guessed=guessed,
         work=worklist(policy, variant),
         variant=variant,
         recent=RECENT,

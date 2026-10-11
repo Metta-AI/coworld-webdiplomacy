@@ -1,10 +1,14 @@
 """The IDE's command line: `ide/ide <command>`, run by the agent from the optimizer root.
 
   Open and close
-    start [--port N] [--open]   start the web server in the background and print its URL
+    start [--port N] [--open]   start the web server in the background and print its URL.
+                                Without --port: the port this lab used last, else 8642; when
+                                that one is taken (another lab's IDE), the next free one
     stop                        stop it
     serve [--port N] [--open]   run the server in the foreground (what `start` runs)
     status [--json]             is the server up, is something waiting for messages, anything unread
+    follow [NAME]               record which policy is the user's, so every page follows it
+                                until the user picks another in the browser (no NAME: print it)
     url                         print the running server's URL (exit 1 when it is not running)
   Talk to the user (the user reads the browser, not the terminal)
     say TEXT                    post a chat message
@@ -41,6 +45,7 @@ from pathlib import Path
 from . import hooks, paths, store
 
 DEFAULT_PORT = 8642
+PORTS_TO_TRY = 20  # how far past the wanted port `start` looks for a free one
 HOST = "127.0.0.1"  # never anything else: the IDE shows private press and has no login
 START_WAIT_SECONDS = 90  # the first start also builds the virtualenv
 
@@ -76,6 +81,46 @@ def _healthy(url: str) -> bool:
         return False
 
 
+def _port_free(port: int) -> bool:
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # as `serve` binds it
+        try:
+            probe.bind((HOST, port))
+        except OSError:
+            return False
+    return True
+
+
+def _last_port() -> int | None:
+    try:
+        return int((paths.state_dir() / "port").read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def _choose_port(asked: int | None) -> int:
+    """The port to serve on. A port the caller named is used as it is, free or not.
+
+    Otherwise: the port this lab's server used last (so a restart keeps the address the
+    user's browser tab has), else the default; and when that one is taken, which is the
+    normal case for a second lab on one machine, the next free port after it.
+    """
+    if asked is not None:
+        return asked
+    wanted = _last_port() or DEFAULT_PORT
+    for port in range(wanted, wanted + PORTS_TO_TRY):
+        if _port_free(port):
+            if port != wanted:
+                print(
+                    f"note: port {wanted} is in use (another lab's IDE?), so this lab's IDE uses {port}",
+                    file=sys.stderr,
+                )
+            return port
+    sys.exit(f"error: no free port from {wanted} to {wanted + PORTS_TO_TRY - 1}; name one with --port")
+
+
 def _open_browser(url: str) -> None:
     import webbrowser
 
@@ -94,23 +139,30 @@ def cmd_serve(args) -> int:
 
         from .server import create_app
     except ImportError:
-        _reexec_with_dependencies(["serve", "--port", str(args.port)] + (["--open"] if args.open else []))
+        _reexec_with_dependencies(
+            ["serve"] + (["--port", str(args.port)] if args.port else []) + (["--open"] if args.open else [])
+        )
     import socket
 
-    url = f"http://{HOST}:{args.port}"
+    port = _choose_port(args.port)
+    url = f"http://{HOST}:{port}"
     # Take the port and the lab's server lock before writing the record, so a `serve` that
     # loses either one never replaces, and then deletes, the record of the server that won.
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
-        listener.bind((HOST, args.port))
+        listener.bind((HOST, port))
     except OSError as error:
-        sys.exit(f"error: cannot listen on {url} ({error.strerror}); try another --port")
+        sys.exit(
+            f"error: cannot listen on {url} ({error.strerror}). Another program has that port: "
+            "leave out --port and the IDE picks a free one"
+        )
     lock = hooks.hold_server_lock()  # held until this process ends: see hooks.server_info
     if lock is None:
         sys.exit("error: another IDE server is starting for this lab; run `ide/ide status` in a moment")
     record = paths.state_dir() / "server.json"
-    record.write_text(json.dumps({"pid": os.getpid(), "port": args.port, "url": url, "started": time.time()}) + "\n")
+    record.write_text(json.dumps({"pid": os.getpid(), "port": port, "url": url, "started": time.time()}) + "\n")
+    (paths.state_dir() / "port").write_text(f"{port}\n")  # the next `start` comes back to this address
     print(f"IDE at {url}  (lab {paths.lab_dir()})", flush=True)
     if args.open:
         import threading
@@ -134,11 +186,13 @@ def cmd_start(args) -> int:
         if args.open:
             _open_browser(running["url"])
         return 0
+    port = _choose_port(args.port)
     log = paths.state_dir() / "server.log"
     with open(log, "ab") as out:
+        log_start = out.tell()  # an error shows only what this start wrote, not older runs
         try:
             child = subprocess.Popen(
-                _uv_command("serve", "--port", str(args.port)),
+                _uv_command("serve", "--port", str(port)),
                 env=_uv_env(),
                 stdin=subprocess.DEVNULL,
                 stdout=out,
@@ -147,12 +201,13 @@ def cmd_start(args) -> int:
             )
         except FileNotFoundError:
             sys.exit("error: `uv` is not installed; the IDE server needs it (https://docs.astral.sh/uv/)")
-    url = f"http://{HOST}:{args.port}"
+    url = f"http://{HOST}:{port}"
     deadline = time.time() + START_WAIT_SECONDS
     while time.time() < deadline:
         info = hooks.server_info()
         if info and _healthy(info["url"]):
-            store.touch_agent_seen()
+            if os.environ.get("CLAUDECODE"):  # started by an agent's shell, not by the user in a terminal
+                store.touch_agent_seen()
             print(f"IDE running at {info['url']}")
             print("The user's messages reach this session through its hooks (ide/ide status shows how).")
             if args.open:
@@ -161,7 +216,9 @@ def cmd_start(args) -> int:
         if child.poll() is not None:
             break
         time.sleep(0.3)
-    tail = "".join(log.read_text(errors="replace").splitlines(keepends=True)[-15:])
+    with open(log, "rb") as written:
+        written.seek(log_start)
+        tail = "".join(written.read().decode(errors="replace").splitlines(keepends=True)[-15:])
     sys.exit(f"error: the IDE server did not come up at {url}. Last lines of {log}:\n{tail}")
 
 
@@ -200,9 +257,20 @@ def cmd_status(args) -> int:
     )
     print(f"listener:  {waiting}")
     seen = "never" if status["seen_age"] is None else f"{status['seen_age']:.0f} s ago"
-    print(f"agent:     last seen {seen}")
+    print(f"agent:     last seen {seen}" + (" (its session has ended)" if status["state"] == "ended" else ""))
     print(f"unread:    {status['waiting']} user message(s) not yet delivered")
     print(f"lab:       {paths.lab_dir()}")
+    return 0
+
+
+def cmd_follow(args) -> int:
+    if not args.name:
+        print(store.followed_policy() or "No policy recorded. `ide/ide follow NAME` records the user's policy.")
+        return 0
+    name = args.name.partition(":v")[0]  # a policy, not one version of it
+    store.set_followed_policy(name)
+    store.touch_agent_seen()
+    print(f"The IDE's pages now follow {name} unless the user picks another policy in the browser.")
     return 0
 
 
@@ -349,11 +417,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     for name, handler in (("start", cmd_start), ("serve", cmd_serve)):
         sub = add(name, handler)
-        sub.add_argument("--port", type=int, default=DEFAULT_PORT)
+        sub.add_argument(
+            "--port", type=int, help=f"default: the port this lab used last, else {DEFAULT_PORT}, else the next free"
+        )
         sub.add_argument("--open", action="store_true", help="open the IDE in the default browser")
     add("stop", cmd_stop)
     add("status", cmd_status).add_argument("--json", action="store_true")
     add("url", cmd_url)
+    add("follow", cmd_follow).add_argument("name", nargs="?", help="a policy name, for example castlereagh-ide")
 
     add("say", cmd_say).add_argument("text", nargs="*", help="the message; read from stdin when omitted")
     show = add("show", cmd_show)

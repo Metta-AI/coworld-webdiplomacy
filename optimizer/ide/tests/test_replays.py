@@ -197,6 +197,19 @@ class ReplayTests(unittest.TestCase):
         none = self.client.get("/replays", params={"annotated": "yes"}).text
         self.assertIn("No game matches these filters.", none)
 
+    def test_browser_follows_the_policy_the_agent_recorded(self):
+        from webdip_ide import store
+
+        selected = '<option value="field-press-a" selected>'
+        self.assertNotIn(selected, self.client.get("/replays").text)  # nothing recorded: every seat with a log
+        store.set_followed_policy("field-press-a")
+        page = self.client.get("/replays")
+        self.assertIn(selected, page.text)
+        self.assertNotIn("Clear filters", page.text, "a default is not a filter the user set")
+        self.assertNotIn("set-cookie", {k.lower() for k in page.headers}, "a default is not the user's choice")
+        every = self.client.get("/replays", params={"policy": ""}).text  # the user can still ask for every seat
+        self.assertNotIn(selected, every)
+
     def test_viewer_page_and_unknown_episode(self):
         page = self.client.get("/replays/ereq_press?phase=3")
         self.assertEqual(page.status_code, 200)

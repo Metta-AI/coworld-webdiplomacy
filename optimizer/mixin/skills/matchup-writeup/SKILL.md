@@ -249,7 +249,10 @@ policy).
 Find the phase where our centre count turned (the "centres by year" line gives
 the year, the "centres changed" lines the phase). A phase number belongs to
 one game: Autumn 1902 is `phase=5` in one game and `phase=4` in another,
-because retreat phases shift the count.
+because retreat phases shift the count. In the report, name a link by what
+the print calls that phase, or link by turn, which needs no count:
+`?turn=T`, where T is 2 × (year − 1901), plus 1 for Autumn (Autumn 1903 is
+`?turn=5`).
 
 For each game, collect:
 

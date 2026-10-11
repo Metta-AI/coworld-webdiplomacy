@@ -24,10 +24,31 @@ from the optimizer root.
 ide/ide start --open     # starts the server in the background, prints the URL, opens the browser
 ```
 
-Tell the user the URL (`ide/ide url` prints it again). `ide/ide status` shows
-whether the server is up and whether something is waiting for the user's
-messages. `ide/ide stop` closes the IDE when the user is done. `start` on a
-running IDE only prints its URL; `--port N` moves it off the default 8642.
+**Tell the user the URL first**, before any note-taking or fetching
+(`ide/ide url` prints it again). `ide/ide status` shows whether the server is
+up and whether something is waiting for the user's messages. `ide/ide stop`
+closes the IDE when the user is done. `start` on a running IDE only prints its
+URL.
+
+`start` chooses the port: the one this lab used last, else 8642, and when
+another lab's IDE already holds that one, the next free port (it prints a
+note). So a second lab on the same machine needs nothing from you, and a
+restart comes back at the address the user's tab already has. `--port N`
+forces a port.
+
+The pages update themselves: new games, cards, reports and a finished audit
+appear without a reload, and an open tab reconnects by itself after the server
+restarts. Do not tell the user to refresh.
+
+When the user says which policy is theirs ("my policy is X"), or you learn it
+from an upload, record it so every page follows that policy:
+
+```sh
+ide/ide follow <policy name>     # no name: print the recorded one
+```
+
+Without it the pages follow what this lab uploaded last, and in a lab that has
+uploaded nothing they guess.
 
 ## How the user's messages reach you
 
@@ -40,12 +61,19 @@ message arrives once:
 | Idle at the prompt | A background hook wakes you with the message ("Stop hook feedback") |
 | Busy in a turn | The same, or it is added to your context after your next tool call |
 | About to stop | The Stop hook holds the turn open and gives it to you |
+| Interrupted (the user pressed Esc in the terminal) | The same background hook wakes you |
 
 Every time you receive one:
 
 1. **Answer in the browser:** `ide/ide say "..."`. The user is not reading the
    terminal. Say what you will do before long work, and say when it is done.
 2. Do the work. Post a card for anything the user should be able to find again.
+3. **Everything meant for the user goes to the browser**: progress during a
+   long job (one `say` each time the plan or the wait changes, for example
+   "84 games to download, about three minutes"), the full answer, and above
+   all any choice or question you have for them. A list of options that
+   appears only in the terminal is a question nobody was asked. End the turn
+   in the terminal with one line ("answered in the IDE").
 
 `ide/ide inbox` prints anything unread on demand and marks it delivered
 (`--peek` prints without marking); `ide/ide inbox --recent 5` prints the last
@@ -89,8 +117,11 @@ ide/ide show --kind result --title "v7 vs v6: no result (z = 0.8, n = 14)" --bod
     indexes the last replay frame's `history.phases`; `seat` is the roster slot
     to follow. The episode id is the episode directory's name.
   - `/replays/<episode id>?seat=<slot>&turn=<t>`: the same, at the movement
-    phase of turn `t` (0 is Spring 1901, 1 is Autumn 1901). Use it when you
-    know the year and season but have not read the replay for the phase index.
+    phase of turn `t` (0 is Spring 1901, 1 is Autumn 1901; `t` is
+    2 × (year − 1901), plus 1 for Autumn). Use it whenever you name a year and
+    a season: a `phase=` number counted by hand is off by one as soon as the
+    game has a retreat phase. Use `phase=` only with a number a tool printed
+    for that game.
   - `/replays?policy=<name>&opponent=<name>&sort=score`: the game list, filtered.
   - `/dashboard`, or one view of it:
     `/dashboard?policy=<name>&variant=classic-press&alone=1`. Also `version=vN`,
@@ -117,7 +148,8 @@ Treat them as evidence from an expert reader, not as orders:
   `bad-trust` mark names a phase to inspect with the replay-inspection skill.
 - One annotated game is an anecdote. Turn a `suggestion` into a hypothesis in
   an experiment record, check [closed_levers.md](../../closed_levers.md), and
-  measure it like any other change. Tell the user what you did with it.
+  measure it like any other change. Tell the user what you did with it, and
+  where you wrote it down (the file), in the chat.
 - Answer a `question` in the chat, with the phase link.
 
 ## What the user can ask for from a page
@@ -155,6 +187,11 @@ seat is followed; on the other seat it says whose audit it is and links there,
 and shows none of its counts or quotes. Auditing the second seat replaces the
 first (`press_audit.py extract --slot N --force`), so say so before doing it,
 and copy the first folder aside if the user wants both.
+
+## Time
+
+You have no clock. Before you say how long something took, how long the user
+has waited or how much of their session is used, run `date`.
 
 ## Limits
 

@@ -272,7 +272,10 @@ lists (`ours:v1, ours:v6`), else leave it out; `games` is the game count from
 the tool's header; `variant` is the variant id; `sources` is the header's
 `sources` line, copied as it is (directories under `.runtime/artifacts/`).
 Links to replays are written as `/replays/<episode id>?phase=N` so the IDE
-makes them clickable. Never paste private press into the report: reports are
+makes them clickable. `N` is the phase number the tool printed for that game;
+when you have only the year and season, write `?turn=T` (T is
+2 × (year − 1901), plus 1 for Autumn), because a phase number counted by hand
+is wrong in any game with a retreat phase. Never paste private press into the report: reports are
 tracked files.
 
 ### 6. Update META.md

@@ -22,8 +22,12 @@ The agent comes first. Start Claude Code in the optimizer root and say **"open t
 IDE"**. The agent runs:
 
 ```sh
-ide/ide start --open      # server in the background on http://127.0.0.1:8642, browser opened
+ide/ide start --open      # server in the background, browser opened; prints the URL
 ```
+
+The address is http://127.0.0.1:8642 unless another lab's IDE already has that port: then
+`start` takes the next free one and says so. A lab comes back to the port it used last, so
+an open tab keeps working across a restart.
 
 Type in the panel on the right. The message reaches the agent session whether it is
 idle or in the middle of a turn, and its answer appears in the panel. `ide/ide stop`
@@ -44,9 +48,10 @@ Needs [uv](https://docs.astral.sh/uv/) (the first start builds `ide/.venv`) and
 
 | Command | What it does |
 |---|---|
-| `start [--port N] [--open]` | Start the server in the background; print the URL. Reuses a running one |
+| `start [--port N] [--open]` | Start the server in the background; print the URL. Reuses a running one. Without `--port`: the port this lab used last, else 8642, else the next free one |
 | `serve [--port N] [--open]` | The server in the foreground |
 | `stop`, `status [--json]`, `url` | Close it; what is running; print the URL |
+| `follow [NAME]` | Record which policy is the user's, so Home, Dashboard and Replays follow it until the user picks another in the browser. No name: print it |
 | `say TEXT` | Agent to user: a chat line (text from stdin when no arguments) |
 | `show --kind idea\|replay\|report\|result\|note --title T [--body MD \| --body-file F] [--link /path]` | Agent to user: a card |
 | `inbox [--peek] [--recent N]` | Print unread user messages and mark them delivered |
@@ -66,12 +71,13 @@ one cursor (`agent_cursor`), advanced under a file lock, so a message is deliver
 
 | Route | Reaches | How |
 |---|---|---|
-| **Rewake hook** | an idle session, and a busy one | A hook on `Stop` and `SessionStart` marked `"asyncRewake": true` runs `ide/ide hook Rewake`. Claude Code keeps it in the background; it waits for a message and exits with code 2 and the message on stderr, which wakes the session. The next `Stop` starts a new one. Until a message comes it lives as long as the session (its hook timeout is seven days), and it keeps waiting while the IDE server is down, so a server started or restarted while the session is idle still reaches it. A second waiter started while one is alive exits at once (`rewake.lock`). Needs nothing from the agent |
+| **Rewake hook** | an idle session, a busy one, and one the user interrupted with Esc | A hook on `SessionStart`, `UserPromptSubmit`, `PostToolUse` and `Stop` marked `"asyncRewake": true` runs `ide/ide hook Rewake`. Claude Code keeps it in the background; it waits for a message and exits with code 2 and the message on stderr, which wakes the session. The session's next hook event starts a new one. Until a message comes it lives as long as the session (its hook timeout is seven days), and it keeps waiting while the IDE server is down, so a server started or restarted while the session is idle still reaches it. A second waiter started while one is alive exits at once (`rewake.lock`), which is what every tool call's start normally does. Needs nothing from the agent |
 | **PostToolUse / UserPromptSubmit hooks** | a busy session | Return unread messages as `additionalContext` after the agent's next tool call or the user's next terminal prompt |
 | **Stop hook** | a session about to go idle | Blocks the stop with the unread messages as the reason. When the IDE is open and nothing is waiting (no Rewake hook, no listener), it blocks once and asks the agent to start `ide/ide listen` |
 | **`ide/ide listen`** | an idle session, without the Rewake hook | The agent runs it as a background task; when it exits with the message, Claude Code calls the agent again. The agent restarts it each time |
 | **`ide/ide inbox`, MCP `inbox`** | on demand | For harnesses with no hooks and no background tasks |
 | **SessionStart hook** | a new session | Says the IDE exists, whether it is open, and where the skill is |
+| **SessionEnd hook** | the page | Records that the session ended (`agent_ended`), so the panel says "The agent session has ended" at once instead of "working" |
 
 `optimizer/install.sh` writes the hook entries into `.claude/settings.json` (they come
 from `webdip_ide/hooks.py: hook_settings()`), the `webdip-ide` server into `.mcp.json`,
@@ -104,11 +110,34 @@ about 02:30 PDT): the server was stopped and started with the session idle, and 
 sent afterwards was answered in a few seconds. The cases in the table were not run again
 after this change.
 
+Third run, after the cold-start drive of 2026-10-11 (Claude Code 2.1.296, Opus 5.5, a scratch
+install, typing into the page; about 05:15 PDT). The drive had found that a browser message
+sent after Esc in the terminal waited until the user typed there, and that the page said
+"Agent is working" for three minutes after an interrupt or an exit. With the waiter also on
+`PostToolUse` and `UserPromptSubmit`, and the `SessionEnd` hook:
+
+| Case | Seen |
+|---|---|
+| Busy (a chain of `sleep 6` calls), one message | answered in the page in under 10 s, mid-turn |
+| That waiter having fired, Esc in the terminal, then a message | a waiter was alive after the Esc; answered in under 5 s, nothing typed in the terminal |
+| `/exit`, then a message | page: "The agent session has ended. Start claude again…" within 5 s |
+| `claude` started again, nothing typed | the waiting message was answered about 25 s after launch |
+| Terminal closed (`tmux kill-session`) | `SessionEnd` ran; status shows the session ended |
+| `ide/ide start` with another lab's IDE on 8642 | "note: port 8642 is in use … uses 8643"; `stop` then `start` came back on 8643 |
+
+Not covered by that fix: Esc before the turn's first tool call, when the waiter fired during
+this same turn. No hook runs between the two, so no waiter exists; the page then says the
+message is still waiting and to type in the terminal (after 25 s), and "not listening" after
+three minutes.
+
 Not tried in a live session: `ide/ide listen` and the MCP tools under a harness other than
 Claude Code.
 
-The panel shows the truth about each message: "Delivered to the agent", or why it is
-still waiting (agent busy, agent idle and not listening, no agent attached).
+The panel shows the truth about each message as far as it can know it: "Delivered to the
+agent", or why it is still waiting (agent busy, agent idle and not listening, session ended,
+no agent attached). An interrupt runs no hook, so an interrupted session looks busy; a
+message that has waited more than 25 s under "busy" is shown as "Still waiting", with what
+to do.
 
 ### Limits
 
@@ -190,17 +219,20 @@ Under `<lab>/.runtime/ide/` (git-ignored; delete the directory to reset the IDE)
 | `agent_cursor` | `seq` of the last user message handed to the agent |
 | `cards.jsonl` | One card per line: `{seq, id, ts, kind, title, body, link}` |
 | `agent_seen` | Time of the agent side's last action: the presence signal |
+| `agent_ended` | Time the agent's session ended (its SessionEnd hook). Newer than `agent_seen`: no session is attached |
+| `followed_policy` | The policy name recorded with `ide/ide follow` |
+| `port` | The port the server last listened on; the next `start` uses it again |
 | `server.json` | `{pid, port, url, started}` while the server runs |
 | `server.lock` | Locked by the server for as long as it lives. A `server.json` whose lock is free was left by a server that was killed, and is ignored |
 | `listeners/<pid>` | One file per waiting `listen` or Rewake process |
 | `rewake.lock` | Locked by the Rewake waiter while it lives, so a session has one waiter |
-| `chat.jsonl.lock`, `cards.jsonl.lock`, `agent_cursor.lock` | Lock files for writes to the file they are named after. Empty; safe to delete when nothing is running |
+| `chat.jsonl.lock`, `cards.jsonl.lock`, `agent_cursor.lock`, `<episode id>.json.lock` | Lock files for writes to the file they are named after (the last for an annotation file). Empty; safe to delete when nothing is running |
 | `server.log` | Output of a server started by `ide/ide start` |
 | `dashboard_games.pickle`, `episode_index.json` | What was read from each fetched game, so a game is parsed once. Safe to delete: the next page load reads the games again |
 
 Annotations are lab knowledge and are tracked: `<lab>/annotations/<episode id>.json`
-(a list of `{id, ts, author, phase, power, territory, tag, text}`; a `<episode id>.json.lock`
-file appears beside it on the first write).
+(a list of `{id, ts, author, phase, power, territory, tag, text}`). Its lock file is in the
+state directory, so nothing but the notes appears in the tracked folder.
 
 ### Reading games
 
@@ -236,10 +268,12 @@ a filter bar is `<form class="filters">` with a `<label>` around each `<select>`
 class `set` to a select that narrows the page); a sortable column heading is a link or a
 `th[data-sort]` and shows its direction with `aria-sort`; `.about` is the grey line that
 explains a section. The policy the user follows is one cookie, `dashboard_policy`, read
-and written by both the dashboard and the replay browser. Until the user picks one, the
-dashboard and the home page follow the policy this lab uploaded last, read from the rows
-`tools/ship.py` adds to `<lab>/players/*/VERSION_LOG.md` (a policy with press games first);
-without such a row, the first policy `matchups.py --list` gives. The replay browser then
+and written by both the dashboard and the replay browser. Until the user picks one, every
+page follows the policy the agent recorded with `ide/ide follow NAME`; without that, the
+policy this lab uploaded last, read from the rows `tools/ship.py` adds to
+`<lab>/players/*/VERSION_LOG.md` (the dashboard and the home page take a policy with press
+games first). A lab with neither is guessing: the dashboard and the home page take the first
+policy `matchups.py --list` gives and the home page says it is a guess; the replay browser
 follows every seat that has a log.
 
 Write every date with the `when` filter (`{{ row.time | when }}` gives `Oct 11, 2:42 AM`,
