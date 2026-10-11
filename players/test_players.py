@@ -125,6 +125,12 @@ class PlayerTests(unittest.TestCase):
             if not close_early:
                 self.assertTrue(state.get("ack"), text)
             self.assertEqual(code, child_code or 0, text)
+            # A bot that exits before game over is reported once; one stopped at game over is not.
+            self.assertEqual(
+                text.count('{"event": "child_exit", "code": %s}' % child_code), 0 if child_code is None else 1, text
+            )
+            if child_code is None:
+                self.assertNotIn("child_exit", text)
             self.assertLess(time.monotonic() - state["finished"], 20)
             self.assertIn(sentinel, text)
             self.assertNotIn("fixture-key", text)

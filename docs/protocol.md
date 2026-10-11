@@ -241,7 +241,9 @@ archive. A worker deadline can prevent an archive entirely and is logged explici
 Game stdout, public JSON files and replay never receive these private archives.
 
 Presence reconnects without spawning the bot again. A bot that exits early leaves
-the launcher connected and archiving until game_over or termination. Child process
+the launcher connected and archiving until game_over or termination; the launcher
+prints one `{"event": "child_exit", "code": N}` line to the player log when it sees
+the exit, because the seat then holds every phase. Child process
 groups get two seconds to terminate, then are killed and reaped. Archive work runs
 in a separate synchronous worker, with a 12-second completion deadline and a
 bounded kill/reap. The default server completion window is 20 seconds; reducing
