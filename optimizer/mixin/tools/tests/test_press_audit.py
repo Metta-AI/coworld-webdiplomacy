@@ -241,6 +241,9 @@ class Stance(unittest.TestCase):
         self.assertTrue(pa.relied_on("GERMANY", {"trust": {"GERMANY": 0.8}}, SPRING))
         self.assertFalse(pa.relied_on("GERMANY", {"trust": {"GERMANY": 0.2}}, SPRING))
         self.assertFalse(pa.relied_on("GERMANY", {"stances": {"GERMANY": "enemy"}, "trust": {"GERMANY": 0.9}}, SPRING))
+        # The reference policy's word for it is "hostile", usually logged with no trust number.
+        self.assertFalse(pa.relied_on("GERMANY", {"stances": {"GERMANY": "hostile"}}, SPRING))
+        self.assertIsNone(pa.relied_on("GERMANY", {"stances": {"GERMANY": "neutral"}}, SPRING))
         # an expected order counts for the power whose unit it names
         expecting = {"expected_orders": ["A BER - PRU"]}
         self.assertTrue(pa.relied_on("GERMANY", expecting, SPRING))
@@ -256,9 +259,64 @@ class Stance(unittest.TestCase):
         self.assertEqual(cat("promise", "GERMANY", "broken", None, "RUSSIA"), "false_no_stance")
         self.assertEqual(cat("promise", "GERMANY", "released", True, "RUSSIA"), "none")
         self.assertEqual(cat("promise", "RUSSIA", "broken", None, "RUSSIA"), "we_broke_our_word")
+        # a promise to attack us is not one we could rely on or doubt
+        self.assertEqual(cat("promise", "GERMANY", "broken", True, "RUSSIA", against_us=True), "attack_not_made")
+        self.assertEqual(cat("promise", "GERMANY", "kept", False, "RUSSIA", against_us=True), "attack_announced")
+        self.assertEqual(cat("statement", "GERMANY", "false", True, "RUSSIA", against_us=True), "deceived")
         # requests and proposals do not put anyone's honesty on the line
         self.assertEqual(cat("request", "GERMANY", "refused", True, "RUSSIA"), "none")
         self.assertEqual(cat("proposal", "GERMANY", "not_followed", True, "RUSSIA"), "none")
+
+
+def bul_is_yours():
+    return {"kind": "promise", "commitment": [{"not": {"p": "attacks", "power": "TURKEY", "provinces": ["BUL"]}}]}
+
+
+class HelpIsNotAnAttack(unittest.TestCase):
+    # Hosted 2026-10-10: Turkey said "BUL is yours this autumn", then supported our RUM - BUL twice.
+    BOARD = phase(
+        5,
+        [order("RUSSIA", "A RUM - BUL"), order("TURKEY", "A GRE S A RUM - BUL"), order("AUSTRIA", "A BUL H")],
+        [("RUSSIA", "RUM"), ("TURKEY", "GRE"), ("AUSTRIA", "BUL")],
+        centers={"BUL": "AUSTRIA"},
+    )
+    def outcome(self, to):
+        said = message("prv-9", turn=5, sender="TURKEY", to=to)
+        return pa.check_claim(bul_is_yours(), said, [self.BOARD])["outcome"]
+
+    def test_supporting_the_addressees_own_move_keeps_x_is_yours(self):
+        self.assertEqual(self.outcome("RUSSIA"), "kept")
+
+    def test_the_same_support_breaks_it_when_said_to_someone_else(self):
+        self.assertEqual(self.outcome("AUSTRIA"), "broken")
+
+    def test_the_claim_itself_is_not_modified(self):
+        claim = bul_is_yours()
+        pa.check_claim(claim, message("prv-9", turn=5, sender="TURKEY", to="RUSSIA"), [self.BOARD])
+        self.assertEqual(claim, bul_is_yours())
+
+
+class AimedAtUs(unittest.TestCase):
+    BOARD = phase(0, [], [("RUSSIA", "WAR"), ("GERMANY", "BER")], centers={"MOS": "RUSSIA", "BER": "GERMANY"})
+
+    def aimed(self, *preds):
+        return pa.aimed_at_us(list(preds), self.BOARD, "RUSSIA")
+
+    def test_a_move_or_support_into_our_unit_or_centre_is_aimed_at_us(self):
+        self.assertTrue(self.aimed({"p": "moves_to", "power": "GERMANY", "province": "WAR"}))
+        self.assertTrue(self.aimed({"p": "moves_to", "power": "GERMANY", "province": "MOS"}))
+        self.assertTrue(self.aimed({"p": "supports", "power": "GERMANY", "province": "WAR", "kind": "move"}))
+        self.assertTrue(self.aimed({"p": "attacks", "power": "GERMANY", "target": "RUSSIA"}))
+        self.assertTrue(self.aimed({"p": "order", "power": "GERMANY", "order": "A BER - WAR"}))
+        self.assertTrue(self.aimed({"any": [{"p": "holds", "power": "GERMANY", "province": "BER"},
+                                            {"p": "attacks", "power": "GERMANY", "provinces": ["WAR"]}]}))
+
+    def test_a_promise_not_to_attack_or_a_move_elsewhere_is_not(self):
+        self.assertFalse(self.aimed(not_moving_to("GERMANY", "WAR")))
+        self.assertFalse(self.aimed({"p": "moves_to", "power": "GERMANY", "province": "SIL"}))
+        self.assertFalse(self.aimed({"p": "supports", "power": "GERMANY", "province": "WAR", "kind": "hold"}))
+        self.assertFalse(self.aimed({"p": "moves_to", "power": "RUSSIA", "province": "MOS"}))  # our own move
+        self.assertFalse(self.aimed({"p": "unverifiable", "why": "vague"}))
 
 
 class Audit(unittest.TestCase):
@@ -293,6 +351,12 @@ class Audit(unittest.TestCase):
         self.assertEqual((germany["claims"], germany["did_not_hold"], germany["held_share"]), (1, 1, 0.0))
         self.assertEqual(germany["flagged"][0]["quote"], "PRU stays empty")
         self.assertEqual(data["summary"]["messages_with_claims"], 1)
+
+    def test_one_broken_deal_restated_is_several_claims_but_one_betrayal_event(self):
+        restated = [dict(self.CLAIMS["prv-1"][0], quote=q) for q in ("PRU stays empty", "Locked.", "Confirmed.")]
+        claims = {"prv-1": restated, "prv-2": []}
+        germany = pa.audit(self.LEDGER, claims)["summary"]["powers"]["GERMANY"]
+        self.assertEqual((germany["categories"]["betrayed"], germany["betrayal_events"]), (3, 1))
 
     def test_a_statement_about_another_power_is_weighed_against_its_speaker(self):
         # Germany tells us "Russia moved on SIL": true, and it is Germany's word, not Russia's.

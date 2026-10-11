@@ -33,7 +33,21 @@ marked otherwise. The platform changes; re-check anything a decision depends on.
   build fails with "content digest … not found").
 
   `source games/webdiplomacy/tools/session_env.sh <player id>` does all of this
-  in one step and prints the identity commands will act as.
+  in one step and prints the identity commands will act as. It also wraps `git`
+  and `gh` to run with the real `HOME`, so `git push` keeps working (without
+  that it fails with "could not read Username": the credential helper and, on
+  macOS, the keychain are found through `HOME`).
+
+  **In a coding-agent harness** shell state does not persist between commands.
+  Pin the directory and source the script at the start of every command line:
+
+  ```sh
+  export WEBDIP_SESSION_HOME=<one scratch directory for this session>
+  source games/webdiplomacy/tools/session_env.sh    # give the player id the first time only
+  ```
+
+  Without a pinned `WEBDIP_SESSION_HOME` every command gets a fresh copy of the
+  shared credentials and acts as whichever player the shared file names.
 
 ## Uploading
 

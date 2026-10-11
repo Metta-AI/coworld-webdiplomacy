@@ -32,6 +32,14 @@ For LLM policies also report LLM calls and failures per seat-phase and cost
 
 ## Decompositions
 
+- **In a paired run, read a power from `vs_par_by_power`.** `paired.py` prints
+  it: each version's mean score vs par *at the same power*, and the difference
+  with its (unpaired) standard error. Do not read `pair_diff_when_a_plays` as a
+  per-power effect: in each of those games the other version holds a different
+  power, and two uploads of identical code read −0.25 and +0.25 there at
+  |z| = 4 (hosted gunboat, 84 games, 2026-10-10). With 7 powers and the game
+  counts a session can afford, a per-power cell is a prompt to look, rarely a
+  verdict.
 - **By power, always.** Powers are shuffled per episode and differ hugely in
   strength (par from 0.290 France to 0.090 England in one 2026-10 field; yours will differ). Report
   score vs par per power, then pooled across powers. A pooled raw mean mostly
@@ -55,8 +63,16 @@ each arm:
 | Dropped orders | nonzero `rejected` in our seat's `decision` log lines | **Our policy** (a bug to fix, not just filter) |
 | Our seat crashed | any `exception` event, uncaught Python traceback or launcher `child_exit` line with a nonzero code in our seat log, or a seat log with no `decision` line at all (the bot died at startup and the seat held every phase) | **Our policy** |
 | Missing artifacts | results, replay or our seat log not downloaded | Fetch problem. Re-run the fetcher; report coverage, **never impute** |
+| Seat log lost by the platform | the seat log is one line, "No logs collected for pod …: the pod was deleted before log collection" (`wd.py metrics` counts it under "without our log") | Platform, seen under heavy load (4 of 112 seat logs with about 140 press games in flight, 2026-10-10). Re-fetching does not help. Not a taint: the score stands. But that seat was never checked for failing LLM calls, rejected orders or a crash, and every log-based count is short by it. Report the number |
 | Failing LLM seat | at least half of the `llm_call`s in our seat log failed, so the seat mostly played its floor in silence | Configuration (model or parameter mismatch). Check per seat, per episode |
 | Mixed opponent sets | the batch spans a field change | Design error. Never pool across opponent sets |
+
+**A taint that goes with losing biases the mean.** Dropping an episode is safe
+only when the fault is unrelated to the result. On 2026-10-10 the reference
+policy's press mode raised an exception in a movement phase with no units left
+(fixed since), so the `exception` filter removed exactly the games in which our
+seat had been wiped out. When a taint appears, look at the score of the games
+it drops, and report the read with and without them (`paired.py --keep-tainted`).
 
 "Our policy crashed" versus "the platform failed": our exceptions and rejections
 are visible only in our own seat log; platform failures show as `cancelled`,
@@ -84,12 +100,14 @@ checked every time.
 - **Priors for sizing**, from 2026-10 measurements (recompute after your first
   batch):
   - Per-seat score SD in press was about 0.12 to 0.18 (a prior lab).
+  - `paired.py` prints the paired SD as `sd`; pass it to `sizing.py --sd`.
   - At 16 episodes per arm the standard error of one arm's mean is about 0.03
     to 0.045 and of the difference between two arms about 0.04 to 0.06, so
     only effects of about 0.08 or more can show up.
   - Game counts: use `tools/sizing.py` (press by default; `--league gunboat`
-    for the other league). The press paired SD in it is an estimate (0.23):
-    replace it with your own after the first paired batch. In hosted gunboat
+    for the other league). The press paired SD in it is 0.20 (measured 0.19
+    and 0.21 on 2026-10-10, 27 and 55 games, one opponent set): check it
+    against your own first paired batch. In hosted gunboat
     (2026-10-10: 0.22 per seat, about 0.34 for a paired difference) a 0.04
     difference needs about 290 paired games for an even chance of reaching
     z = 2, about 240 per arm with separate arms, so pairing saved about 1.7x

@@ -82,6 +82,14 @@ tools), `notation.py` (standard notation, board brief, the map connectivity list
 as *possible* moves). User-owned markdown: `HARNESS.md`, `souls/<name>/SOUL.md` (select with
 `PRESS_SOUL`), `skills/<name>/SKILL.md` (listed in the system prompt, loaded with `read_skill`).
 
+`PRESS_MAX_PINNED_SHARE` (default 1.0, no limit) caps the share of our units one commit may
+pin with `require_orders`; a commit over the cap is refused with a message the model can act
+on and the saved orders stay as they were. Measured hosted on 2026-10-10 (56 seats): at the
+default the model pinned every unit in 77% of movement phases, so the search chose few of
+the orders played; at 0.5 that fell to 0.2%. The score difference in that one run was within
+noise; the knob is there so you can test it in your field. Refusals are counted as
+`press_pin_refused` in the `decision` line's `trace`.
+
 The LLM goes only through `COWORLD_LLM_ENDPOINT` (OpenAI-compatible, no streaming). Limits
 start generous ("set all limits high, then tighten"): 30 model calls and 120 s per wake,
 6000 max tokens per call. Model quirks the sidecar turns into silent floor play (it forces

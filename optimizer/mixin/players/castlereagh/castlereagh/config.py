@@ -89,6 +89,10 @@ PRESS_MIN_WAKE_S = 8.0              # no wake shorter than this
 PRESS_FINAL_MARGIN_S = 12.0         # orders saved with Ready this long before the deadline
 PRESS_POLL_S = 1.0                  # how often new press is checked between wakes
 PRESS_MAX_MESSAGES_PER_PHASE = 30
+# Largest share of our units one commit may pin with `require_orders` (at least one unit is
+# always allowed). 1.0 = no limit. Below 1.0, a commit that pins more is refused with a message
+# the model can act on, so the search still chooses the other units' orders.
+PRESS_MAX_PINNED_SHARE = 1.0
 PRESS_MAX_MESSAGE_CHARS = 800
 PRESS_NOTE_CHARS = 4000             # per note key
 PRESS_STATE_DIR = "/tmp/castlereagh"  # per-game notes, kept across bot restarts within a game

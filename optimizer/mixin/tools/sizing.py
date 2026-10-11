@@ -12,9 +12,10 @@ true effect of a given size at z = 2 (a coin flip to reach the bar) or at z = 2.
 
 Default standard deviations, per league (`--league`, default press):
 - press: 0.15 per seat, the middle of the 0.12 to 0.18 a prior lab measured in hosted press
-  games (2026-10). **The SD of a paired difference has not been measured in press**; 0.23 is
-  an estimate (the per-seat SD times the 1.55 ratio measured in gunboat). Work it out from your
-  first paired batch (`paired.py` prints the standard error; SD = SE x sqrt(games)) and pass --sd.
+  games (2026-10). 0.20 for a paired difference: two hosted runs on 2026-10-10 against one
+  opponent set gave 0.19 (27 games, identical code) and 0.21 (55 games). Before that it was an
+  estimate of 0.23. Check it against your own first paired batch (`paired.py` prints `sd`) and
+  pass --sd.
 - gunboat: 0.34 for a paired difference (three runs of 80 to 84 games gave 0.30 to 0.36) and
   0.22 per seat for the search, measured hosted on 2026-10-10 against one opponent set.
 Re-measure after a field change and pass --sd. The platform's `coworld
@@ -26,7 +27,7 @@ import argparse
 import math
 
 # league -> (SD of a paired difference, SD per seat). See the module docstring for sources.
-LEAGUE_SD = {"press": (0.23, 0.15), "gunboat": (0.34, 0.22)}
+LEAGUE_SD = {"press": (0.20, 0.15), "gunboat": (0.34, 0.22)}
 Z_EVEN = 2.0      # a true effect here reaches |z| >= 2 half the time
 Z_POWER_80 = 2.8  # ... and here about 80% of the time (2 + 0.84)
 

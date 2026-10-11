@@ -61,6 +61,18 @@ jobs:
       - run: uv run ruff check optimizer
       - working-directory: optimizer/mixin
         run: python3 -m unittest discover -s tools/tests -v
+      # The lab's own tests must pass after a user fills field_sets.json, so this check
+      # of the shipped file lives here and not in tools/tests.
+      - name: Shipped field_sets.json holds placeholders only
+        working-directory: optimizer/mixin
+        run: |
+          python3 - <<'PY'
+          import json
+          sets = {k: v for k, v in json.load(open("field_sets.json")).items() if not k.startswith("_")}
+          assert sets, "field_sets.json ships no example sets"
+          real = [s["policy_ref"] for v in sets.values() for s in v["seats"] if not s["policy_ref"].startswith("<")]
+          assert not real, f"field_sets.json ships real policy ids: {real}"
+          PY
       # Includes the golden search test (334 recorded decisions, about a minute).
       - working-directory: optimizer/mixin
         run: >-

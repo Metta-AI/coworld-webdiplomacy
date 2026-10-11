@@ -125,6 +125,14 @@ class PressPlayer:
     def commit(self, policy):
         if self.locked:
             raise ValueError("orders are locked for this phase; nothing was changed")
+        pinned = len((policy or {}).get("require_orders") or [])
+        allowed = max(1, int(config.PRESS_MAX_PINNED_SHARE * len(self.service.slots)))
+        if pinned > allowed:
+            self.trace["press_pin_refused"] = self.trace.get("press_pin_refused", 0) + 1
+            raise ValueError(f"require_orders pins {pinned} of your {len(self.service.slots)} units; at most {allowed} "
+                             "may be pinned. Nothing was changed. Pin only the orders you promised another power "
+                             "and let the search choose the rest (stances, expected_orders, forbid_moves_into and "
+                             "center_values steer it).")
         orders, report, _ = self.service.search(policy)
         difference = save_orders(self.api, self.context, orders, ready="No")
         self.policy, self.orders = policy, orders
@@ -277,7 +285,10 @@ class PressPlayer:
     def play(self, context, play_phase):
         """Handle one new phase. `play_phase` is bot.play_phase (gunboat path)."""
         game = context["game"]
-        if game["phase"] == "Diplomacy" and game.get("pressType") != "NoPress":
+        # A movement phase with no units to order (we have been wiped off the board) has nothing
+        # to search or negotiate: the plain handler logs the decision line and moves on.
+        has_units = bool((context.get("orders") or {}).get("orders"))
+        if game["phase"] == "Diplomacy" and game.get("pressType") != "NoPress" and has_units:
             from castlereagh.bot import phase_rng_key
             self.movement_phase(context, phase_rng_key(self.seed, self.country, game["turn"], game["phase"]))
             return True

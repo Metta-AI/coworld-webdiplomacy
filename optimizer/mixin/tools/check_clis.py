@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Warn when the `coworld` or `softmax` CLI is missing or older than PyPI's latest.
 
-    python3 games/webdiplomacy/tools/check_clis.py
+    python3 games/webdiplomacy/tools/check_clis.py [-v]
 
 The lab uses the CLIs installed as uv tools (`uv tool install coworld`,
 `uv tool install softmax-cli`). A stale tool fails in confusing ways, and a tool
 installed from a local checkout can sit on an old dev build for months without
 anyone noticing. The optimizer's SessionStart hook runs this script, so it prints
 nothing when both tools are current and never fails the session: exit status is
-always 0, and network errors only skip the comparison.
+always 0, and network errors only skip the comparison. `-v`, for a run by hand, also
+prints the versions when both are current.
 
 Standard-library Python 3.12+.
 """
@@ -79,7 +80,10 @@ def problems(installed: dict[str, str], latest: dict[str, str | None]) -> list[s
 
 
 def main(argv=None) -> None:
-    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args(argv)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help="also say so when both tools are current (the hook stays silent)")
+    args = parser.parse_args(argv)
     installed = installed_versions()
     if installed is None:
         print("CLI check: `uv` was not found, so the coworld and softmax CLIs cannot be checked.")
@@ -90,6 +94,10 @@ def main(argv=None) -> None:
         print("CLI check: update these before using the platform (stale CLIs fail in confusing ways).")
         for problem in found:
             print(f"- {problem}")
+    elif args.verbose:
+        versions = ", ".join(f"{package} {installed.get(package)}" for package in TOOLS)
+        checked = "current" if all(latest.values()) else "installed (PyPI was not reachable, so not compared)"
+        print(f"CLI check: {versions}: {checked}.")
 
 
 if __name__ == "__main__":

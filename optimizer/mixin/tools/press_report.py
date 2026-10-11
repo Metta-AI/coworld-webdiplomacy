@@ -24,6 +24,8 @@ CHIP = {  # outcome or category -> chip class
     "we_kept_our_word": "ok",
     "doubted_rightly": "ok",
     "true_no_stance": "ok",
+    "attack_announced": "muted",
+    "attack_not_made": "muted",
     "broken": "err",
     "false": "err",
     "not_carried_out": "err",
@@ -66,6 +68,8 @@ WORDS = {
     "we_broke_our_word": "we broke our word",
     "true_no_stance": "held; we took no stance",
     "false_no_stance": "did not hold; we took no stance",
+    "attack_announced": "an attack on us, announced and made",
+    "attack_not_made": "an attack on us, announced and not made",
 }
 STYLE = """
 :root{--bg:#fffdf4;--surface:#fffaf0;--fg:#111827;--sub:#555;--muted:#6b6560;--navy:#1a3875;--sage:#5d6d41;

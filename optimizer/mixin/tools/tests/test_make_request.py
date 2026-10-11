@@ -48,14 +48,14 @@ class PlainBodies(unittest.TestCase):
         self.assertGreater(make_request.PRESS_LLM_BUDGET_USD, 0)
         self.assertEqual(make_request.default_llm_budget({"league": "gunboat"}), 0.0)
 
-    def test_the_shipped_field_sets_are_placeholders_and_are_refused(self):
+    def test_a_set_with_placeholder_ids_is_refused(self):
         # field_sets.json ships with the format only; a real set needs ids from tools/field.py.
-        shipped = make_request.load_field_sets()
-        self.assertTrue(shipped)
-        for name, field_set in shipped.items():
-            kind = "paired" if len(field_set["seats"]) == 5 else "field"
+        # Built here, not read from field_sets.json: that file is the user's and holds real sets.
+        for kind, seats in (("paired", 5), ("field", 6)):
+            placeholder = field(seats)
+            placeholder["seats"][0]["policy_ref"] = "<policy version id from tools/field.py>"
             with self.assertRaisesRegex(ValueError, "placeholder"):
-                make_request.build_bodies(kind, "a", "b" if kind == "paired" else None, field_set, name, 1)
+                make_request.build_bodies(kind, "a", "b" if kind == "paired" else None, placeholder, "example", 1)
 
 
 class BalancedPaired(unittest.TestCase):

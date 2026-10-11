@@ -56,6 +56,9 @@ Predicates (provinces are three-letter abbreviations, powers are upper-case name
                                                               P moved on, or supported a move on, Q's units or centres
                                                               (`what`, `how` narrow it; `unit` = that unit of P's)
     {"p": "attacks", "power": P, "provinces": ["SER", "RUM"]} the same, for a list of provinces
+                                                              (in a private message, P supporting the other party's
+                                                              own move into the province is not an attack; "spare": Q
+                                                              names another power to spare)
     {"p": "dislodged", "power": P, "province": "RUH"}         P's unit in RUH was dislodged
     {"p": "unit_at", "power": P, "province": "PRU", "when": "start" | "end"}
     {"p": "owns", "power": P, "province": "DEN", "when": "start" | "end"}
@@ -69,7 +72,7 @@ window, and `not` holds only if it never does. `"success": true` on `order`, `mo
 (a bounce). `when` defaults to "end".
 
 What "relied on" means: our policy's committed press policy for that turn named the
-sender an ally, gave it trust of 0.5 or more, or expected orders from it. An enemy stance
+sender an ally, gave it trust of 0.5 or more, or expected orders from it. A hostile (or enemy) stance
 or trust below 0.5 means we did not rely on it. With neither, `relied` is null. Policies
 that do not log a press policy always get null.
 
@@ -183,6 +186,9 @@ ORDER_TYPES = {
     "Convoy": "convoy",
 }
 RELY_TRUST = 0.5  # trust at or above this counts as relying on a power's word
+# Stances that mean "we did not rely on this power". The reference policy logs "hostile"
+# (press/HARNESS.md); "enemy" is kept for policies that use that word.
+DISTRUST_STANCES = ("hostile", "enemy")
 # outcome -> did the words match the deeds (None = says nothing about honesty)
 HONEST = {"kept": True, "carried_out": True, "true": True, "broken": False, "not_carried_out": False, "false": False}
 
@@ -433,6 +439,10 @@ def matching_orders(pred: dict, phase: dict) -> list[dict]:
         hit = attacked_provinces(pred, phase)
         how = {"move": ("move",), "support": ("support_move",)}.get(pred.get("how"), ("move", "support_move"))
         found = [o for o in mine if o["type"] in how and o["to"] in hit]
+        if pred.get("spare"):
+            # Supporting the spared power's own move into the province is help, not an attack.
+            found = [o for o in found
+                     if not (o["type"] == "support_move" and owner_of_unit(phase, o["src"]) == pred["spare"])]
         if pred.get("unit"):
             found = [o for o in found if o["at"] == province(pred["unit"])]
     else:
@@ -529,6 +539,25 @@ OUTCOMES = {  # kind -> (commitment held, did not hold)
 UNMET = {"promise": "released", "threat": "not_triggered"}  # every other kind: "not_applicable"
 
 
+def sparing(preds: list[dict], power: str) -> list[dict]:
+    """A copy of `preds` in which every `attacks` predicate spares `power` (unless it names its own).
+
+    "BUL is yours" from Turkey to us is `not attacks [BUL]` by Turkey. Turkey supporting OUR army
+    into Bulgaria keeps that promise; without this it would read as breaking it."""
+    out = []
+    for pred in preds:
+        pred = dict(pred)
+        if "not" in pred:
+            pred["not"] = sparing([pred["not"]], power)[0]
+        for key in ("any", "all"):
+            if key in pred:
+                pred[key] = sparing(pred[key], power)
+        if pred.get("p") == "attacks" and pred.get("power") != power:
+            pred.setdefault("spare", power)
+        out.append(pred)
+    return out
+
+
 def check_claim(claim: dict, message: dict, phases: list[dict]) -> dict:
     first, last = claim.get("turns") or [message["turn"], message["turn"]]
     window = [p for p in phases if first <= p["turn"] <= last]
@@ -541,7 +570,11 @@ def check_claim(claim: dict, message: dict, phases: list[dict]) -> dict:
         result["evidence"] += [f"condition: {line}" for line in evidence]
         if met is False:
             return {**result, "outcome": UNMET.get(claim["kind"], "not_applicable")}
-    held, evidence = evaluate_all(claim["commitment"], window)
+    commitment = claim["commitment"]
+    other = message["to"] if message["from"] != message["to"] else None
+    if other in POWER.values():  # a private message: the party it was said to
+        commitment = sparing(commitment, other)
+    held, evidence = evaluate_all(commitment, window)
     result["evidence"] = unique(result["evidence"] + evidence)
     yes, no = OUTCOMES[claim["kind"]]
     unknown = held is None or result["condition"] == "unverifiable"
@@ -555,7 +588,7 @@ def relied_on(power: str, belief: dict | None, phase: dict | None) -> bool | Non
         return None
     stance = (belief.get("stances") or {}).get(power)
     trust = (belief.get("trust") or {}).get(power)
-    if stance == "enemy" or (trust is not None and float(trust) < RELY_TRUST):
+    if stance in DISTRUST_STANCES or (trust is not None and float(trust) < RELY_TRUST):
         return False
     expected = False
     for text in belief.get("expected_orders") or []:
@@ -568,13 +601,48 @@ def relied_on(power: str, belief: dict | None, phase: dict | None) -> bool | Non
     return None
 
 
-def category(kind: str, speaker: str, outcome: str, relied: bool | None, our_power: str) -> str:
-    """How we stood towards a claim whose honesty could be checked. `speaker` is who said it."""
+def aimed_at_us(preds: list[dict], phase: dict, our_power: str) -> bool:
+    """Does this commitment say the named power WILL move on, or support a move on, one of our
+    units or centres (as they stood at the start of the window)? "PIC falls this autumn" said to
+    the power holding PIC is an announced attack, not a promise we could rely on. Negated
+    predicates ("I will not enter ENG") are never aimed at us."""
+    ours = {u["at"] for u in phase["units"] if u["power"] == our_power}
+    ours |= {where for where, owner in phase["centers"].items() if owner == our_power}
+    for pred in preds:
+        if "any" in pred or "all" in pred:
+            if aimed_at_us(pred.get("any") or pred.get("all"), phase, our_power):
+                return True
+            continue
+        kind = pred.get("p")
+        if pred.get("power") == our_power:
+            continue
+        if kind == "moves_to" or (kind == "supports" and pred.get("kind") != "hold" and pred.get("province")):
+            targets = {province(pred["province"])}
+        elif kind == "attacks":
+            targets = attacked_provinces(pred, phase)
+        elif kind == "order":
+            order = parse_order(pred["order"])
+            targets = {order["to"]} if order["type"] in ("move", "support_move") else set()
+        else:
+            continue
+        if targets & ours:
+            return True
+    return False
+
+
+def category(kind: str, speaker: str, outcome: str, relied: bool | None, our_power: str,
+             against_us: bool = False) -> str:
+    """How we stood towards a claim whose honesty could be checked. `speaker` is who said it.
+    `against_us`: a promise that is itself an attack on us (see `aimed_at_us`)."""
     honest = HONEST.get(outcome)
     if honest is None or kind not in SPEAKERS_WORD:
         return "none"
     if speaker == our_power:
         return "we_kept_our_word" if honest else "we_broke_our_word"
+    if against_us and kind == "promise":
+        # Not ours to rely on or doubt: it would otherwise read "betrayed" when the attack
+        # never came and "doubted wrongly" (a missed alliance) when it did.
+        return "attack_announced" if honest else "attack_not_made"
     if relied is None:
         return "true_no_stance" if honest else "false_no_stance"
     if relied:
@@ -622,7 +690,9 @@ def audit(ledger: dict, claims: dict) -> dict:
             # The word being weighed is always the sender's: a claim about another power's
             # conduct is still the sender's statement.
             relied = relied_on(message["from"], phase["belief"] if phase else None, phase)
-            stood = category(claim["kind"], message["from"], result["outcome"], relied, ledger["our_power"])
+            against_us = phase is not None and aimed_at_us(claim["commitment"], phase, ledger["our_power"])
+            stood = category(claim["kind"], message["from"], result["outcome"], relied, ledger["our_power"],
+                             against_us)
             checked.append({**claim, **result, "relied": relied, "category": stood})
         messages.append({**message, "claims": checked})
     kept = ("episode", "slot", "policy", "our_power", "score", "outcome", "belief_logged")
@@ -636,7 +706,8 @@ def audit(ledger: dict, claims: dict) -> dict:
 
 FLAGGED = ("betrayed", "deceived", "doubted_wrongly", "we_broke_our_word")
 # what `verify` prints per power
-SUMMARY_KEYS = ("claims", "held", "did_not_hold", "unverifiable", "asked", "complied", "categories")
+SUMMARY_KEYS = ("claims", "held", "did_not_hold", "unverifiable", "asked", "complied", "categories",
+                "betrayal_events")
 
 
 def summarize(messages: list[dict], our_power: str) -> dict:
@@ -647,8 +718,12 @@ def summarize(messages: list[dict], our_power: str) -> dict:
     def row(power: str) -> dict:
         return powers.setdefault(power, {
             "messages": 0, "claims": 0, "held": 0, "did_not_hold": 0, "unverifiable": 0, "held_share": None,
-            "asked": 0, "complied": 0, "categories": {}, "flagged": [],
+            "asked": 0, "complied": 0, "categories": {}, "flagged": [], "betrayal_events": 0,
         })  # fmt: skip
+
+    # A deal restated ten times ("Locked.", "Confirmed.") is ten promises, and one order breaks
+    # them all. Count the distinct sets of orders behind the betrayed and deceived claims too.
+    events: dict[str, set] = {}
 
     for message in messages:
         speaker = row(message["from"])
@@ -666,12 +741,15 @@ def summarize(messages: list[dict], our_power: str) -> dict:
                 speaker["held" if honest else "did_not_hold"] += 1
             if claim["category"] != "none":
                 speaker["categories"][claim["category"]] = speaker["categories"].get(claim["category"], 0) + 1
+            if claim["category"] in ("betrayed", "deceived"):
+                events.setdefault(message["from"], set()).add(tuple(claim.get("evidence") or [message["id"]]))
             if claim["category"] in FLAGGED:
                 speaker["flagged"].append({
                     "message": message["id"], "turn": message["turn"], "category": claim["category"],
                     "quote": claim.get("quote", ""),
                 })  # fmt: skip
-    for entry in powers.values():
+    for power, entry in powers.items():
+        entry["betrayal_events"] = len(events.get(power, ()))
         judged = entry["held"] + entry["did_not_hold"]
         entry["held_share"] = round(entry["held"] / judged, 3) if judged else None
     return {

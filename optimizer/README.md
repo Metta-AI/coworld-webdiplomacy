@@ -57,7 +57,9 @@ git push --force origin main     # the template is generated output
 
 ## Checks
 
-These also run in CI, which then runs `install.sh` and checks the result:
+These also run in CI, which also checks that `mixin/field_sets.json` ships placeholders
+only (the lab's own tests must keep passing once a user fills that file, so the check is
+in the workflow), then runs `install.sh` and checks the result:
 
 ```sh
 uv run ruff check optimizer
@@ -65,6 +67,35 @@ uv run ruff check optimizer
 (cd optimizer/mixin && uv run --no-project --python 3.12 --with "pydantic-ai-slim[openai]==2.54.0" \
   python -m unittest discover -s players/castlereagh/tests)
 ```
+
+## Known gaps
+
+Found by two fresh-install test drives (2026-10-10 gunboat, 2026-10-10/11 press) and not
+yet fixed. Each is a setup gap, not a fact about any field of opponents.
+
+- **Press audit: a promise made to a third power is weighed as if made to us.** A public
+  "we have agreed a DMZ with France" that later breaks is marked `betrayed` when we
+  trusted the speaker. A claim needs to record whom the promise was made to.
+- **Press audit: the annotator is not blind.** The ledger's `phases` hold each order's
+  result beside the starting board the annotator needs. `verify` does not check that a
+  claim's `quote` occurs in the message.
+- **Press audit: a kept narrow promise reads as a missed alliance** (`doubted_wrongly`)
+  even when the same power attacked us elsewhere that turn. `verify` could list the
+  sender's attacks on us in the claim's window.
+- **The press-audit annotation rules added on 2026-10-11 are untested**: no game has
+  been re-annotated with them.
+- **No hosted game has run** the press player's no-units fix or `run_ab.py --alone`'s
+  two-arm fetch.
+- **`child_exit` and `no_decisions` taints have never fired on a hosted game** (about
+  890 of our seats in the second drive); they have unit tests only.
+- **An installed lab has no ruff config.** This repository's `pyproject.toml` sets the
+  rules; a user's `ruff check` in their copy uses ruff's defaults and reports other things.
+- **Credits spent cannot be read back.** The lab quotes per-game estimates; nothing shows
+  a batch's real cost after it ran.
+- **`ship.py` writes every version-log row to `players/castlereagh/VERSION_LOG.md`**,
+  whatever policy name is uploaded.
+- **Hooks were not observed firing** in the second drive (its session was rooted outside
+  the install).
 
 ## Layout
 

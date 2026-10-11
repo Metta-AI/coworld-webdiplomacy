@@ -53,7 +53,9 @@ names the entry. Fix that entry and run it again.
 
 ### Annotating: use a sub-agent per game
 
-A chatty seat sees 100 to 160 messages in a game. **Give each game to its own
+A chatty seat sees 100 to 160 messages in a short game and 230 to 300 in a full
+`classic-press` game (measured 2026-10-10). Annotating one full game took a
+sub-agent 9 to 14 minutes and 160,000 to 200,000 tokens. **Give each game to its own
 sub-agent** (several games: several sub-agents at once). The reading then stays
 out of your own context, and each game is read in one pass by an agent that
 holds the whole conversation. Give the sub-agent this brief, with the paths
@@ -74,7 +76,19 @@ filled in:
 > claims and which claims you marked unverifiable.
 
 Then read `verify`'s summary yourself and spot-check a few claims in
-`audit.html` against their messages before you rely on the numbers.
+`audit.html` against their messages before you rely on the numbers. Check the
+flagged ones first: for each `betrayed`, read the evidence line beside the
+message and ask "was this promise made to us, and did this order hurt us?".
+The first real games audited (2026-10-10) had three kinds of false alarm, two
+since fixed in the code (an announced attack on us; help into a province read
+as an attack on it) and one not: **a promise made to a third power**. "We have
+agreed a DMZ in Burgundy with France", said in public, is checked like any
+promise, and when it breaks while we trust the speaker it is marked `betrayed`
+although nothing was promised to us.
+
+The ledger's `phases` hold results (`success`, `dislodged`, `units_end`) next to
+the starting board the annotator needs, so the annotator can see how every
+order came out. The brief tells it not to use that; it is not blind.
 
 ### The claim vocabulary
 
@@ -144,10 +158,40 @@ Rules that keep annotations checkable:
   `{"any": [unit_at, owns]}`. `holds` needs a unit in the province, so name
   only provinces where that power has one.
 - **"X is yours"** is a promise not to move on X:
-  `{"not": {"p": "attacks", "power": <sender>, "provinces": ["X"]}}`.
+  `{"not": {"p": "attacks", "power": <sender>, "provinces": ["X"]}}`. In a
+  private message the sender supporting the addressee's own move into X keeps
+  this promise (the code spares the addressee). When the sender's own unit
+  already sits in X, add `{"p": "leaves", "power": <sender>, "province": "X"}`
+  only if the message says it will go.
 - **A restated agreement is a fresh promise for this turn.** "Our understanding
   stands" renews the terms. If the same message announces an order that breaks
-  them, record both: the contradiction is the finding.
+  them, record both: the contradiction is the finding. A restatement covers
+  **one turn** (the turn it is said in), whatever the first statement's range
+  was.
+- **Record each deal once per sender per turn.** Bots confirm the same terms
+  many times in a phase ("Locked.", "Confirmed.", "Orders locked as agreed").
+  Give the claim to the first message of the turn that states the terms; later
+  echoes in the same turn get `[]`. (Before this rule, one broken deal showed
+  as six to twelve betrayals. `betrayal_events` in the summary also guards
+  against it.)
+- **"Quiet".** "ARM/BLA quiet", "I keep SEV quiet": the sender's units there do
+  not move on or support a move on anyone:
+  `{"not": {"p": "attacks", "power": <sender>, "target": <addressee>, "unit": "ARM"}}`,
+  one predicate per province named. Not `holds`: a unit that supports an attack
+  also "holds". A sign-off like "Quiet Black Sea." with nothing else is
+  goodwill: no claim.
+- **Counts and "every turn"** ("your 13th attack", "three phases running")
+  cannot be written: predicates are true when any order in the window matches.
+  Mark the count `unverifiable`; when the message also names one specific
+  season, add that as a separate one-turn statement.
+- **A condition in one turn and a commitment in a later one** ("if you attack
+  RUM now, we are at war in 1903"; "stand down this turn and I restore the DMZ
+  next year") does not fit: a claim has one `turns` window for both. Mark it
+  `unverifiable` with `"why": "condition and commitment in different turns"`.
+  Do not widen the window to cover both: an order from before the trigger would
+  then count as carrying out the threat.
+- **Season words that contradict the phase** ("this fall", said in a Spring
+  phase): record the season the message names, as the next turn.
 - **Encode the gist of a loosely described move.** "Your SWE-DEN with BAL
   support" means a supported move on DEN: `moves_to DEN` plus `supports` into
   DEN, not an exact order with the units the message may have swapped. Use an
@@ -181,7 +225,7 @@ abbreviations (the ledger's `phases` show the spelling):
 | `{"p": "leaves", "power": P, "province": "TRI"}` | P's unit in TRI was ordered to move |
 | `{"p": "supports", "power": P, "of": Q, "province": "X", "kind": "move"}` | P supported a unit. Optional: `of` (whose unit), `province` (into or in X), `kind` (`move` or `hold`), `unit` (only P's unit in that province) |
 | `{"p": "attacks", "power": P, "target": Q}` | P moved on, or supported a move on, a unit or supply centre of Q. Optional: `"what": "unit"` or `"centre"`; `"unit": "ALB"` (only that unit of P's); `"how": "move"` or `"support"` ("no support against your centres" is `"how": "support", "what": "centre"`) |
-| `{"p": "attacks", "power": P, "provinces": ["SER", "RUM"]}` | The same, for a list of provinces |
+| `{"p": "attacks", "power": P, "provinces": ["SER", "RUM"]}` | The same, for a list of provinces. In a private message, P supporting the other party's own move into the province is help, not an attack (the code spares the addressee; `"spare": Q` names another power) |
 | `{"p": "dislodged", "power": P, "province": "RUH"}` | P's unit in RUH was dislodged |
 | `{"p": "unit_at", "power": P, "province": "PRU", "when": "start"}` | P has a unit there at the start (or `"end"`, the default) of the window |
 | `{"p": "owns", "power": P, "province": "DEN"}` | P owns that supply centre (`when` as above) |
@@ -203,13 +247,22 @@ unmet), `outcome`, the `evidence` (the orders that settled it), `relied` and a
 | Category | Meaning | What to do with it |
 |---|---|---|
 | `betrayed`, `deceived` | We relied on a promise or statement that did not hold | The cases that cost centers. Open the turn: what did we commit because of it? |
-| `doubted_wrongly` | We did not rely on a promise that was kept | A missed alliance: was our distrust earned? |
+| `doubted_wrongly` | We did not rely on a promise that was kept | Perhaps a missed alliance: was our distrust earned? Look at what else that power ordered the same turn first. A narrow promise ("my fleet stays out of Belgium") is "kept" by a power that attacked us somewhere else |
 | `trusted_rightly`, `doubted_rightly` | Our stance matched what happened | Evidence the trust rule works |
+| `attack_announced`, `attack_not_made` | The sender said it would move on our own unit or centre ("PIC falls this autumn"), and did or did not. Worked out by code from the board; never counted as a betrayal or a missed alliance | Whether a power's threats to us are real |
 | `true_no_stance`, `false_no_stance` | It held or did not; our policy recorded no stance on that power that turn | Count them per power: this is each power's honesty |
 | `we_kept_our_word`, `we_broke_our_word` | Our own outgoing claims | Whether the bot says one thing and orders another |
 
+"Relied" is read at the **first turn of the claim's window**, from that turn's
+final committed policy. A trust number below 0.5 counts as "did not rely" even
+when the stance is `ally` (the reference policy does log "ally at trust 0.4");
+`hostile` (or `enemy`) counts as "did not rely" whatever the trust.
+
 `summary.powers` gives, per speaker, its messages, its claims, how many held,
-how often requests made to it were met, and the flagged claims. **"Relied" comes from our policy's own log** (its committed press policy
+how often requests made to it were met, and the flagged claims. `betrayal_events` counts the
+distinct sets of orders behind a power's `betrayed` and `deceived` claims: a deal
+restated ten times and broken by one order is ten claims and **one** event. Quote the
+events, not the claims, when you say how often a power betrayed us. **"Relied" comes from our policy's own log** (its committed press policy
 for the turn: an ally stance, trust of 0.5 or more, or expected orders from
 the sender). A policy that does not log one gets `relied: null`, and every
 claim lands in the two "no stance" categories. That still shows who lied.

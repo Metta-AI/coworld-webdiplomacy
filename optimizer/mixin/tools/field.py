@@ -9,7 +9,9 @@ league's own games: `coworld rounds` -> `coworld episodes -r` -> `coworld
 episodes <ereq>` (only the single-episode call carries participant names).
 
 Output: one row per policy version with its version id (paste into a roster as
-`policy_ref`), filler or entrant, owner, rounds seen, and mean league score.
+`policy_ref`), filler or entrant, owner, rounds seen, and mean league score; then the
+seating of each round (who sat, how many seats each), which is what a field set copies.
+"Entrant" is as of the round: a policy whose membership was retired since still shows.
 A league round is ONE game, so these means rest on a handful of games; they
 say who is present, not who is strong. Standard library only; needs the
 `coworld` CLI on PATH and an authenticated session.
@@ -63,6 +65,19 @@ def summarize(field: dict[str, dict]) -> list[dict]:
     return rows
 
 
+def seatings(rows: list[dict]) -> dict[int, dict[str, int]]:
+    """Round number -> {policy label: seats it held in that round}, newest round first.
+
+    A field set should copy a real seating: a league that seats one filler twice is a
+    different field from one that seats it once."""
+    out: dict[int, dict[str, int]] = {}
+    for row in rows:
+        for number in row["rounds"]:
+            seats = out.setdefault(number, {})
+            seats[row["label"]] = seats.get(row["label"], 0) + 1
+    return dict(sorted(out.items(), reverse=True))
+
+
 def collect(league_id: str, rounds: int) -> dict[str, dict]:
     field: dict[str, dict] = {}
     for rnd in coworld("rounds", "-l", league_id, "--limit", str(rounds)):
@@ -88,6 +103,12 @@ def main(argv=None) -> None:
         kind = "filler" if row["filler"] else "entrant"
         print(f"| {row['label']} | `{row['policy_version_id']}` | {kind} | {row['player']} | "
               f"{row['seats']} | {row['mean_score']} | {sorted(set(row['rounds']))} |")
+    print("\n'entrant' means the seat was a league member's WHEN THAT ROUND RAN; the membership may have been "
+          "retired since (check the standings: `coworld results <div_id>`).")
+    print("\nSeating by round (newest first):")
+    for number, seats in seatings(rows).items():
+        names = (f"{label} x{n}" if n > 1 else label for label, n in sorted(seats.items()))
+        print(f"- round {number}: " + ", ".join(names))
 
 
 if __name__ == "__main__":

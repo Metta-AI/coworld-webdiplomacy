@@ -101,13 +101,22 @@ is today, from the optimizer root:
    filler, with its version id. Standings: `coworld results <league_id>`, then
    `coworld results <div_id>` ([game.md](game.md#leagues)).
 2. **Name your opponent sets.** Put the version ids into `field_sets.json` as
-   dated sets (five seats for a paired A/B, six for a field eval).
+   dated sets (five seats for a paired A/B, six for a field eval). Copy a real
+   seating: `field.py` ends with "Seating by round", and a league that seats one
+   filler twice is a different field from one that seats it once. A workable
+   rule: the six-seat set is the most recent round's seating minus the one
+   entrant seat you would take; the five-seat set drops one more seat (say
+   which, and why, in the set's `defined` line). "Entrant" in that table is as
+   of the round; check the standings to see who is still entered.
 3. **How strong each is, and power par.** Run a field eval
    (`tools/make_request.py field --balanced`, the
    [eval-design binding](../skills/eval-design/SKILL.md)), fetch it, then
    `tools/wd.py metrics DIR --policy NAME:vN` for any seated policy and for
-   par by power.
-4. **How each plays.** Replays carry every power's adjudicated orders and
+   par by power. Any batch against the set will do: the same-code check that
+   your first A/B needs anyway seats every field policy, so it doubles as the
+   field eval.
+4. **How each plays** (optional on a first pass; steps 1 to 3 and 5 are enough
+   to start measuring). Replays carry every power's adjudicated orders and
    public press: the [survey](../skills/survey/SKILL.md) and
    [replay-inspection](../skills/replay-inspection/SKILL.md) bindings, and
    `tools/wd.py seats` for center trajectories. Rivals' logs are not readable.
