@@ -36,7 +36,7 @@ kept in the game docs so each fact has one home:
 | Rules, scoring, `results.json`, variants, leagues, timing | [docs/game.md](docs/game.md) |
 | The bot contract: image, launcher, environment, HTTP API, LLM sidecar | [docs/protocol.md](docs/protocol.md) |
 | Hosted specifics: XP requests, cost, artifacts, model quirks, credentials | [docs/platform.md](docs/platform.md) |
-| How the game is won; measured field facts (2026-10) | [docs/strategy.md](docs/strategy.md) |
+| How the game is won; lessons from a measured field; how to rebuild the field picture | [docs/strategy.md](docs/strategy.md) |
 | The live field picture | [META.md](META.md) (maintained by meta-recon; dated) |
 | Comparing versions | [skills/ab](skills/ab/SKILL.md) |
 | Reading a batch | [skills/survey](skills/survey/SKILL.md) |
@@ -58,9 +58,8 @@ each doc at a pinned commit.
 - **Core: Kissinger search.** Heuristic (DumbBot-style) seeds, alternatives
   for single units, pairs and convoys, improved against 16 sampled opponent
   plans with a fast adjudicator. Opponents are modeled one step smarter than
-  the heuristic ("level 1"). Retreats and builds come from the heuristic. This
-  search was the gunboat champion and, silent, beat most press bots in the
-  2026-10 press field.
+  the heuristic ("level 1"). Retreats and builds come from the heuristic. In a prior
+  lab's measurements (2026-10) this search, silent, outscored most LLM press bots.
 - **Optional press layer.** An LLM negotiates and steers the search through a
   policy (stances, trust, expected or required orders). The search's legal
   orders are saved first, so the LLM can never leave the seat without orders.
@@ -126,7 +125,7 @@ Also in `tools/`, run the same way; flags are in each docstring.
 
 | Loop step | In this game |
 |---|---|
-| Understand | [docs/game.md](docs/game.md), then [docs/strategy.md](docs/strategy.md); refresh `META.md` if stale. Recent league games show who is in the field; replays show every power's orders and public press |
+| Understand | [docs/game.md](docs/game.md), then [docs/strategy.md](docs/strategy.md); refresh `META.md` if stale (`tools/field.py` lists who is in the field; the recipe is in [strategy.md](docs/strategy.md#rebuilding-the-field-picture)); replays show every power's orders and public press |
 | Evaluate | Hosted XP requests on the league's full variant against explicit field `policy_ref`s; paired seating by default; stream artifacts. See [eval-design](skills/eval-design/SKILL.md) |
 | Read | Taint first, then score vs same-batch par **per power**; \|z\| < 2 is no result. See [ab](skills/ab/SKILL.md) and [survey](skills/survey/SKILL.md) |
 | Hypothesize | Known failure modes and the procedure in [diagnosis](skills/diagnosis/SKILL.md); check [closed_levers.md](closed_levers.md) first |

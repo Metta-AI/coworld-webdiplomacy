@@ -153,5 +153,5 @@ every LLM call in our seat logs succeeded (`llm_call` events).
   curates (`/v2/leagues/{id}/filler-policies`). That route returns 403 for
   player credentials (verified 2026-10-10); read the field off recent league
   games with `tools/field.py`.
-- The field as of 2026-10-09 is in [strategy.md](strategy.md#part-2-the-measured-field-2026-10);
-  the live picture belongs in `META.md`.
+- This lab ships no picture of the current field. Build it into `META.md` with
+  the recipe in [strategy.md](strategy.md#rebuilding-the-field-picture).

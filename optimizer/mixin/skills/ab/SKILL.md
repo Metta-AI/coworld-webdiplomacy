@@ -33,7 +33,7 @@ For LLM policies also report LLM calls and failures per seat-phase and cost
 ## Decompositions
 
 - **By power, always.** Powers are shuffled per episode and differ hugely in
-  strength (par from 0.290 France to 0.090 England in the 2026-10 field). Report
+  strength (par from 0.290 France to 0.090 England in one 2026-10 field; yours will differ). Report
   score vs par per power, then pooled across powers. A pooled raw mean mostly
   measures which powers each arm drew.
 - **By game year** for "where is the loss": the center trajectory by year (from
@@ -100,7 +100,7 @@ checked every time.
 seated in fixed roster seats 0 and 1 under a cyclic power rotation, read +0.113
 for seat 0 (z 2.6, n=84). `paired.py` prints `a_in_lower_slot` and warns when
 the seat order is one-sided. Our two seats are board neighbours in that design and
-only one of them has a weak filler on its other side. A paired A/B must give
+their other neighbours differ. A paired A/B must give
 each version both seat positions equally (`tools/make_request.py
 --balanced` writes both orders), and a new design or field set should first be
 run with identical code to confirm it reads zero.

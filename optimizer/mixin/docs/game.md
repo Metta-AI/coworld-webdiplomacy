@@ -131,7 +131,7 @@ equal shares to survivors) but the leagues use the default.
   `WEBDIP_COUNTRY_ID` tells the bot its power.
 - **`results.json` is in slot order.** `results.countries[slot]` is that slot's
   power ID.
-- Powers differ a lot in strength. In the 2026-10 press field France averaged
+- Powers differ a lot in strength. In one measured field (2026-10) France averaged
   about three times England's score (see [strategy.md](strategy.md)). Always
   compare a seat with the field's average **for the same power**.
 

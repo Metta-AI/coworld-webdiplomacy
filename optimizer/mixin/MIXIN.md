@@ -54,9 +54,10 @@ announce gaps and proceed on their generic method with the human warned.
 
 | Provides | Path | Notes |
 |---|---|---|
-| Strategy doc | `docs/strategy.md` | A general Diplomacy primer (not yet verified against this field) and measured field facts from 2026-10: power par, the strongest seats, league rosters |
+| Strategy doc | `docs/strategy.md` | A general Diplomacy primer, dated lessons from a measured field (power par, press against search), and the recipe for rebuilding the field picture. It names no current opponents |
 | Game reference | `docs/game.md` | Rules, scoring, `results.json`, variants, leagues, timing |
 | Platform notes | `docs/platform.md` | XP requests, costs, artifacts, LLM sidecar quirks, credentials |
+| Field roster | `tools/field.py`, `field_sets.json`, `META.md` | Who is seated in a league's recent rounds, with version ids; named opponent sets; the dated field picture (ships empty) |
 | Field decode | `skills/replay-inspection/`, `skills/survey/` | Replays carry every power's adjudicated orders and public press; `wd.py seats` gives every seat's center trajectory. Rivals' logs are not readable |
 
 ### Additional skills
@@ -73,7 +74,7 @@ required set. List them all: an unlisted skill is an undiscoverable one.)*
 | Element | Path | Notes |
 |---|---|---|
 | Lab manual | `AGENTS.md` | How to use this lab, the knowledge map, the loop table and the gotchas |
-| Game docs | `docs/` | `game.md` (rules, scoring, results, variants, leagues), `protocol.md` (the bot contract), `platform.md` (hosted specifics), `strategy.md` (primer and measured field facts) |
+| Game docs | `docs/` | `game.md` (rules, scoring, results, variants, leagues), `protocol.md` (the bot contract), `platform.md` (hosted specifics), `strategy.md` (primer, dated lessons, field-recon recipe) |
 | Reference policy | `players/castlereagh/` | Python package `castlereagh`. Kissinger search as the core, plus an optional LLM press layer. Mode set by `CASTLEREAGH_POLICY`: `search` (default; press off), `press` (search plus press; plays its search floor without `COWORLD_LLM_ENDPOINT`). Logs one `decision` line per phase. The starting point `seed-a-policy` improves on |
 | Build tooling | `tools/build.sh` | `tools/build.sh --tag <image-tag> [--ref <game-ref>] [--policy search\|press] [--overrides "KEY=VAL,…"]`. Builds the coworld player base image from a pinned coworld-webdiplomacy commit on GitHub, then the reference policy, for linux/amd64; prints the tag. `--tag` is required (one tag per experiment); `--overrides` bakes config overrides into the image. Needs Docker |
 | Analysis tools | `tools/` | Standard-library Python: `webdip_episodes.py` (loader), `wd.py` (`metrics`, `seats`, `costs`, `local`, `arena`, `slim`), `paired.py`, `compare.py`, `llm_sidecar_local.py`. See `AGENTS.md` |
