@@ -122,9 +122,9 @@ class ServerCommandTest(CliCase):
 
     def test_follow_records_the_policy_without_its_version(self):
         self.assertIn("No policy recorded", self.ide("follow").stdout)
-        self.assertIn("follow castlereagh-ide", self.ide("follow", "castlereagh-ide:v2").stdout)
-        self.assertEqual(self.ide("follow").stdout.strip(), "castlereagh-ide")
-        self.assertEqual(store.followed_policy(), "castlereagh-ide")
+        self.assertIn("follow my-policy", self.ide("follow", "my-policy:v2").stdout)
+        self.assertEqual(self.ide("follow").stdout.strip(), "my-policy")
+        self.assertEqual(store.followed_policy(), "my-policy")
 
     def test_port_choice(self):
         """A named port is used as it is; otherwise the lab's last port, else the default, else the next free one."""

@@ -100,6 +100,34 @@ class HomeTests(unittest.TestCase):
         self.assertIn("Policy we follow · other ·", page)
         self.assertEqual(self.rows(page), ["ereq_011"])
 
+    def test_the_newer_of_the_browsers_pick_and_the_agents_follow_wins(self):
+        import os
+        import time
+
+        from webdip_ide import paths, store
+
+        self.lab_with_games()
+        self.game(11, 0.6, policy="other:v1")
+        self.dashboard.CACHE.sync(60)
+        # The user picked "other" on the dashboard a while ago...
+        picked = self.client.get("/dashboard", params={"policy": "other"})
+        self.assertIn("dashboard_policy_at=", picked.headers.get("set-cookie", ""))
+        self.assertIn("Policy we follow · other ·", self.client.get("/").text)
+        # ...then told the agent "my policy is mine": every page follows it, the old pick included.
+        store.set_followed_policy("mine")
+        later = time.time() + 60
+        os.utime(paths.state_dir() / "followed_policy", (later, later))
+        self.assertIn("Policy we follow · mine ·", self.client.get("/").text)
+        self.assertIn('<option value="mine" selected>', self.client.get("/replays").text)
+        self.assertIn('<option value="mine" selected>', self.client.get("/dashboard").text)
+        # A pick made after that wins again.
+        os.utime(paths.state_dir() / "followed_policy", (later - 3600, later - 3600))
+        self.client.get("/replays", params={"policy": "other"})
+        self.assertIn("Policy we follow · other ·", self.client.get("/").text)
+        # A pick from before the time was kept (no second cookie) loses to a recorded policy.
+        self.client.cookies.delete("dashboard_policy_at")
+        self.assertIn("Policy we follow · mine ·", self.client.get("/").text)
+
     def test_five_lowest_then_two_highest_without_the_crash(self):
         self.lab_with_games()
         page = self.client.get("/").text

@@ -19,7 +19,7 @@ One observation is **one seat of our policy in one episode**.
 
 | Metric | Type | Direction | Why it matters |
 |---|---|---|---|
-| **Score vs par** | mean | higher | The headline. Our seat's score minus the **same-batch field par**: the mean score of every non-target seat at the **same power** in the same set of episodes. Removes power luck (France scored about 3× England in one 2026-10 field) |
+| **Score vs par** | mean | higher | The headline. Our seat's score minus the **same-batch field par**: the mean score of every non-target seat at the **same power** in the same set of episodes. Removes power luck: the powers do not start equal, and a shuffle assigns them |
 | Raw score | mean | higher | What the league ranks (mean score). Report it, but never judge on it alone |
 | Final supply centers | mean | higher | Drives the SC² score. From `results.json` `members[].supplyCenterNo` (strings), **not** the replay's `Finished` entry |
 | Survival rate | rate | higher | Eliminated powers score 0 |
@@ -30,19 +30,29 @@ One observation is **one seat of our policy in one episode**.
 For LLM policies also report LLM calls and failures per seat-phase and cost
 (`wd.py costs`), so "the change fired" is checked next to "the score moved".
 
+**Check the mechanism beside the score, and keep the two apart.** A change is
+meant to alter a behaviour so that the score rises. Measure the behaviour in
+the same games: the counter the change logs, if it has one, and the behaviour
+itself (`tools/holds.py` for anything meant to free units;
+`tools/board_counts.py` for an order or a centre). Three outcomes, and they mean different things:
+
+| Behaviour | Score | What it says |
+|---|---|---|
+| did not move | any | The change did not bite. The run says nothing about the hypothesis |
+| moved | moved, \|z\| ≥ 2 | A result |
+| moved | \|z\| < 2 | The behaviour is real and is not (at this dose) where the points are. Inconclusive on the score; say both halves |
+
 ## Decompositions
 
 - **In a paired run, read a power from `vs_par_by_power`.** `paired.py` prints
   it: each version's mean score vs par *at the same power*, and the difference
   with its (unpaired) standard error. Do not read `pair_diff_when_a_plays` as a
   per-power effect: in each of those games the other version holds a different
-  power, and two uploads of identical code read −0.25 and +0.25 there at
-  |z| = 4 (hosted gunboat, 84 games, 2026-10-10). With 7 powers and the game
-  counts a session can afford, a per-power cell is a prompt to look, rarely a
-  verdict.
-- **By power, always.** Powers are shuffled per episode and differ hugely in
-  strength (par from 0.290 France to 0.090 England in one 2026-10 field; yours will differ). Report
-  score vs par per power, then pooled across powers. A pooled raw mean mostly
+  power, so identical code can read strongly negative at one power and
+  strongly positive at another. With 7 powers and the game counts a session
+  can afford, a per-power cell is a prompt to look, rarely a verdict.
+- **By power, always.** Powers are shuffled per episode and differ in
+  strength. Report score vs par per power, then pooled across powers. A pooled raw mean mostly
   measures which powers each arm drew.
 - **By game year** for "where is the loss": the center trajectory by year (from
   `wd.py seats`) shows whether a change loses early (openings) or late (the
@@ -67,12 +77,13 @@ each arm:
 | Our pod was deleted mid-game | the seat log is one line, "No logs collected for pod …: the pod was deleted before log collection" (taint `pod_deleted`) | Platform: about 2.5% of press seats on 2026-10-10 and 2026-10-11, more under heavy load. Re-fetching does not help. **A taint, not only a lost log:** the bot stopped and the seat held from then on (28 of 29 such seats held their last three or more movement phases; 21 of 3,513 other logged seats did). It does not depend on how we were doing, so dropping these games does not bias the mean. Report the number |
 | Failing LLM seat | at least half of the `llm_call`s in our seat log failed (taint `llm_failing`), so the seat mostly played its floor in silence | Configuration (model or parameter mismatch). Check per seat, per episode |
 | Mixed opponent sets | the batch spans a field change | Design error. Never pool across opponent sets |
+| Another seat's pod was deleted | only visible when that seat's log is on disk (an account that owns the field bots); otherwise a field seat that holds to the end (`tools/holds.py`, "stopped seats") | Platform. The tools drop games where **our** seat is tainted and keep these. In a paired run both our seats sit beside the dead seat, so the difference is mostly unharmed; in an alone run our level is flattered (a dead neighbour is free centres). Count them and say so |
 
 **A taint that goes with losing biases the mean.** Dropping an episode is safe
-only when the fault is unrelated to the result. On 2026-10-10 the reference
-policy's press mode raised an exception in a movement phase with no units left
-(fixed since), so the `exception` filter removed exactly the games in which our
-seat had been wiped out. When a taint appears, look at the score of the games
+only when the fault is unrelated to the result. For example, a policy that
+raises an exception in a phase where it has no units left: the `exception`
+filter then removes exactly the games in which our seat was wiped out. When a
+taint appears, look at the score of the games
 it drops, and report the read with and without them (`paired.py --keep-tainted`).
 
 "Our policy crashed" versus "the platform failed": our exceptions and rejections
@@ -81,47 +92,72 @@ are visible only in our own seat log; platform failures show as `cancelled`,
 child episodes. Rivals' logs are not
 readable (403), so a rival's crash looks like a seat that holds every phase.
 
-In a prior lab's hosted press games, 208 of 208 ended normally (`drawn` or `won`
-at the end year) and none had rejected orders. Taint is rare but must still be
-checked every time.
+Check taint every time, however rare it has been.
 
 ## Tests and floors
 
 - **Default design: paired seating.** Seat the baseline and the candidate in
   the **same games** (plus five field seats). Each game gives a paired
   difference: (candidate − par at its power) − (baseline − par at its power).
-  This needed about 1.7 times fewer games than separate arms for the same
-  precision (hosted gunboat, 2026-10-10). Use separate arms only when pairing is impossible, for example
+  It needs fewer games than separate arms for the same precision (compare
+  `tools/sizing.py` with and without `--separate`; the separate count is per
+  arm). Use separate arms only when pairing is impossible, for example
   when the question needs our policy against the league's exact six-opponent
   field.
 - **Test:** the mean paired difference over its standard error, z = mean / SE.
   For separate arms, compare per-power score vs par with a two-sample test per
   power and pooled (`compare.py`).
-- **|z| < 2 is no result.** Three leads of about +0.08 at z ≈ 1.4 vanished when
-  re-run. Report "no detectable change" plainly.
-- **Priors for sizing**, from 2026-10 measurements (recompute after your first
-  batch):
-  - Per-seat score SD in press was about 0.12 to 0.18 (a prior lab).
-  - `paired.py` prints the paired SD as `sd`; pass it to `sizing.py --sd`.
-  - At 16 episodes per arm the standard error of one arm's mean is about 0.03
-    to 0.045 and of the difference between two arms about 0.04 to 0.06, so
-    only effects of about 0.08 or more can show up.
-  - Game counts: use `tools/sizing.py` (press by default; `--league gunboat`
-    for the other league). The press paired SD in it is 0.20 (measured 0.19
-    and 0.21 on 2026-10-10, 27 and 55 games, one opponent set): check it
-    against your own first paired batch. In hosted gunboat
-    (2026-10-10: 0.22 per seat, about 0.34 for a paired difference) a 0.04
-    difference needs about 290 paired games for an even chance of reaching
-    z = 2, about 240 per arm with separate arms, so pairing saved about 1.7x
-    in games there, not 2 to 3x.
+- **|z| < 2 is no result.** Report "no detectable change" plainly.
+- **Sizing.** Game counts come from `tools/sizing.py` (press by default;
+  `--league gunboat` for the other league). Its SDs (press: 0.20 for a paired
+  difference, 0.15 per seat; gunboat: 0.34 and 0.22) are starting values,
+  measured once (2026-10-10/11, hosted, one or two opponent sets), not a fact about
+  the game. `paired.py` prints `sd` for your own batch: pass it with `--sd`.
+- **The 16-game floor.** Fewer than about 16 games per arm is directional
+  only: with `sizing.py`'s starting SD, two arms of 16 can show only an effect
+  of about 0.1 or more (`sizing.py --games 16 --separate`).
 - **Do not peek and stop.** Fix the episode count when you write the decision
   rule.
 
-**Run a same-code check first, and swap the two seats.** Measured 2026-10-10 in hosted gunboat: two uploads of identical code,
-seated in fixed roster seats 0 and 1 under a cyclic power rotation, read +0.113
-for seat 0 (z 2.6, n=84). `paired.py` prints `a_in_lower_slot` and warns when
-the seat order is one-sided. Our two seats are board neighbours in that design and
-their other neighbours differ. A paired A/B must give
+### Extending a run
+
+A run that ends with no result is often followed by "play more of the same".
+That is a second look at the data. It is allowed only in one of two forms; any
+other extension is a new experiment whose first read is thrown away.
+
+1. **Planned before the first game (preferred).** Write both stages into the
+   record's decision rule before launch, for example: "Stage 1, 28 games: check the health
+   line and that the mechanism fired; stop only if it did not fire, or for a
+   difference of −0.08 or worse at z ≤ −2. No score verdict at stage 1. Stage
+   2, to 84 games: one read on all 84, confirmed iff +0.04 or more at z ≥ 2."
+   The threshold is the one the full size can see (`tools/sizing.py --games
+   84`), chosen before any game.
+2. **Decided after a first read with no result.** Then say so in a follow-on
+   record that names the first (its `artifacts:` front matter lists the first
+   record's folder; `run_ab.py` and the IDE read it pooled with the new
+   record's own folder), and fix three things
+   before launch: the total, one read on the pooled games, and the threshold.
+   Because the data have been looked at once, ask more of the pooled result:
+   **|z| ≥ 2.2** for a result (two looks at the 5% level), and treat 2.0 to 2.2
+   as a lead. The threshold may follow from the new size; it may not follow
+   from the first read ("it read +0.02, so call +0.02 a win" is the failure).
+   No third extension under the same rule.
+
+What an extension cannot rescue: a first run sized for an effect the change
+was never likely to have. Before the first launch ask what size of effect the
+mechanism could plausibly have (earlier tests in the same family, in
+`../../open_levers.md` and `../../experiments/`, are the best guide) and size
+for that.
+
+**Small leads of one sign are not a trend.** Three readings of the same sign
+inside the noise happen by chance one time in four. Count a lead as a reason
+to size the next test properly, never as evidence that adds up.
+
+**Run a same-code check first, and swap the two seats.** Two uploads of
+identical code in fixed roster seats under a cyclic power rotation can read a
+difference that looks real: our two seats are board neighbours in that design
+and their other neighbours differ. `paired.py` prints `a_in_lower_slot` and
+warns when the seat order is one-sided. A paired A/B must give
 each version both seat positions equally (`tools/make_request.py
 --balanced` writes both orders), and a new design or field set should first be
 run with identical code to confirm it reads zero.
@@ -129,17 +165,12 @@ run with identical code to confirm it reads zero.
 **A paired win is not a result until the candidate has also played alone.**
 With paired seating both of our policies sit in the same game, so they also
 play against each other, and the league never seats two of our entries
-together. Measured 2026-10-10 in hosted gunboat:
-a change won its paired run by +0.079 (z 3.08, 168 games, powers and seat order
-balanced, same-code check passed) and then scored exactly level with the
-baseline when each played alone against the field (0.235 vs 0.243, 84 games
-per arm). The paired gain was taken from the twin. So:
+together. A paired gain can be taken from the twin and not from the field. So:
 
-1. Use paired seating to **screen**. It costs about 1.7 times fewer games,
-   and a paired null is usually a safe reason not to promote (it would hide a
-   real gain only if the change lost to its own twin exactly what it won
-   from the field). It is not proof of "no effect": one null checked alone
-   read −0.049, z −1.7.
+1. Use paired seating to **screen**. It costs fewer games, and a paired null
+   is usually a safe reason not to promote (it would hide a real gain only if
+   the change lost to its own twin exactly what it won from the field). It is
+   not proof of "no effect".
 2. Any paired win must pass a **candidate-alone check** before it changes the
    baseline or is submitted: two separate arms, each with one of our seats and
    the same six field seats, powers balanced
@@ -148,7 +179,13 @@ per arm). The paired gain was taken from the twin. So:
    least 30 seats per side, so with 7 bodies a per-power verdict needs many
    games; judge the check on the pooled `all` row.
    Pre-register its pass mark next to the paired rule.
-   `tools/run_ab.py --alone` runs it in one command.
+   `tools/run_ab.py --alone` runs it in one command, and it can be launched as
+   soon as the paired run has written its ids, without waiting for the paired
+   result. That costs the alone games when the paired run turns out
+   null, so do it when the clock matters more than the credits. Size it to be
+   able to answer: `-n 2` is 14 games per arm, below `compare.py`'s floor of 30
+   seats per side, so it can only catch a large reversal; `-n 5` (35 per arm)
+   is the least that can pass or fail.
 3. For a verdict that must stand on its own, use separate arms from the start
    and size them with `tools/sizing.py --separate`.
 
@@ -168,6 +205,8 @@ tool takes `--help`); they may shift slightly from what is shown here.
 | `make_request.py`, `run_ab.py` | Build the request bodies for a balanced A/B; run one end to end, and the candidate-alone check | see the lab manual's "Run one A/B" |
 | `seat_bias.py` | Whether one roster seat outscores another whoever sits there: the read for a same-code check | `wd.py seats DIR \| python3 games/webdiplomacy/tools/seat_bias.py` (see docstring) |
 | `sizing.py` | Games needed for an effect, or the smallest effect a run can see | `python3 games/webdiplomacy/tools/sizing.py --effect 0.04` |
+| `holds.py` | The mechanism check for a change meant to free units: hold share by version beside the field, and any refusal counters the press layer logs | `python3 games/webdiplomacy/tools/holds.py DIR... --policy NAME --variant classic-press` |
+| `batches.py` | What the run cost and how long it took, from the episode rows | `python3 games/webdiplomacy/tools/batches.py DIR...` |
 
 All of them load episodes through `webdip_episodes.py`, which handles
 slot-to-power mapping and bytes-literal seat logs. Analysis beyond these goes

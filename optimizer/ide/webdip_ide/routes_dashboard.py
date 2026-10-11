@@ -55,6 +55,7 @@ SCALE_MIN_N = 8  # rows with fewer seats do not stretch a chart's axis
 MIN_CELL = 3  # a heatmap cell or power pair with fewer games than this stays blank
 HEATMAP_MIN_GAMES = 8  # an opponent needs this many shared games for a heatmap row
 COOKIE = "dashboard_policy"
+COOKIE_AT = "dashboard_policy_at"  # when COOKIE was set, in seconds since 1970: see `remembered_policy`
 
 
 def matchups():
@@ -182,6 +183,28 @@ CACHE = GameCache()
 
 
 VERSION_LOG_ROW = re.compile(r"^\| *([\w.-]+):v\d+ *\|", re.M)
+
+
+def remembered_policy(request: Request) -> str:
+    """The policy the user picked in this browser, or "" when there is none or it no longer counts.
+
+    The newer of the two choices wins: a pick in the browser stays until the agent records a
+    policy after it (`ide/ide follow NAME`, which the agent runs when the user says "my policy
+    is X"), and that stays until the user picks again. The pick's time is the second cookie; a
+    pick without one (made before the time was kept) loses to any recorded policy.
+    """
+    name = request.cookies.get(COOKIE, "")
+    try:
+        picked = float(request.cookies.get(COOKIE_AT, ""))
+    except ValueError:
+        picked = 0.0
+    return name if name and picked >= store.followed_at() else ""
+
+
+def remember_policy(response, name: str) -> None:
+    """Record in the browser that the user picked this policy now."""
+    for cookie, value in ((COOKIE, name), (COOKIE_AT, f"{time.time():.3f}")):
+        response.set_cookie(cookie, value, max_age=365 * 24 * 3600, samesite="lax")
 
 
 def shipped_policies() -> list[str]:
@@ -411,8 +434,8 @@ def _heatmap(report: dict, key: str) -> dict | None:
     values = [s["mean"] for o in rows for s in o[key].values() if s["n"] >= MIN_CELL]
     if not values:
         return None
-    # Never tighter than 0.15: one seat's score has an SD near 0.15, so a tighter scale would
-    # paint the noise of an eight-game cell in the darkest colours.
+    # Never tighter than 0.15: a tighter scale would paint the noise of an eight-game cell in
+    # the darkest colours.
     # Cells with enough games set the scale; a three-game cell at +0.4 just saturates.
     solid = [s["mean"] for o in rows for s in o[key].values() if not s["low_n"]]
     limit = max(0.15, min(0.3, max((abs(v) for v in solid), default=0.0)))
@@ -588,7 +611,7 @@ def dashboard(request: Request, policy: str = "", version: str = "", source: str
         query = {k: v for k, v in request.query_params.items() if k != "refresh"}
         return RedirectResponse("/dashboard" + (f"?{urlencode(query)}" if query else ""), status_code=303)
     games, pending, policies, filters, report, cover = _load(policy, version, source, variant, opponent,
-                                                             request.cookies.get(COOKIE, ""), alone=alone)
+                                                             remembered_policy(request), alone=alone)
     response = render(
         request, "dashboard.html", report=report, view=_view(report, filters) if report else None,
         policies=policies, filters=filters, games_on_disk=len(games), pending=pending,
@@ -597,7 +620,7 @@ def dashboard(request: Request, policy: str = "", version: str = "", source: str
         signed=signed, plain=plain, share=share, cover=cover, few_tip=few_tip,
     )
     if policy and filters["policy"] == policy.partition(":v")[0]:
-        response.set_cookie(COOKIE, filters["policy"], max_age=365 * 24 * 3600, samesite="lax")
+        remember_policy(response, filters["policy"])
     return response
 
 

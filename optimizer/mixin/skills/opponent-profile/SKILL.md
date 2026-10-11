@@ -97,7 +97,7 @@ the end). What to look for:
 | Results by power | Where it is above or below the field at the same power, and how its games end. `*` marks fewer than 16 seats: means and rates are directional only, though "8 of 8" still stands as what happened. `tables` is how many different seatings its games at that power had |
 | Openings | One Spring 1901 order set in every game at a power means a fixed opening. Then read how many of the field's seats at that power play the same set: when most do, it is the shared default and not a habit of this opponent. Several sets means it varies (an LLM, a sampled search, or press) |
 | Whom it attacks | Its first target per power and the season of the first hostile act (two powers hit in the same first turn both count, so the counts can sum past n). "In reply" counts the games where that power had hit it first: a target it only ever answers is not a target it chooses. A first target that never changes is a commitment we can punish or avoid |
-| Centres taken and lost | Where it grows, who takes its centres, its fleet share, and its order mix beside the field's at the same power (a policy that holds 42% of its orders where the field holds 16% is passive; without the field number, 42% says nothing) |
+| Centres taken and lost | Where it grows, who takes its centres, its fleet share, and its order mix beside the field's at the same power (a hold share means something only beside the field's at the same power) |
 | Centre trajectory | When it pulls ahead of or falls behind the field: opening, midgame or the last years |
 | Versus | Our versions, how many shared games held two of our seats, who struck first between it and us, whether we were its first target, what we took from each other, and how other policies in our seat did beside it |
 | Episodes to open | The games for step 3, as IDE links |
@@ -170,13 +170,36 @@ reading, because the counts cannot make them:
 - **Did a rival solo?** A solo zeroes every other seat; its "worst game" may
   say nothing about its own play.
 
-To check a claim over all games rather than five, write a small script in
-`instruments/`; do not eyeball it. The tool's docstring has the import
-skeleton, the fields of `seat_facts` and the shape of a phase's order rows.
-Give the script an `--episodes FILE` flag and pass the saved run
+**Check each claim over all games, not five; do not eyeball it.** Three tools
+count what profiles keep needing, each with the field beside the opponent and
+each taking `--episodes $L/.runtime/opponent-<name>-$V.json` so it counts the
+same games as the profile:
+
+```sh
+# an order, a centre, a unit: "as Turkey it opens F ANK - BLA and owns Sevastopol after 1902"
+python3 $L/tools/board_counts.py $A --policy <name> --as Turkey --variant $V --episodes <saved>.json \
+    --order "F ANK - BLA" --when S1901 --owns SEV --split-by Russia
+# any move into a province, over a year: "it goes for Holland in 1902"
+python3 $L/tools/board_counts.py $A --policy <name> --as England --variant $V --order "* - HOL" --when 1902 --rows
+# how much it holds, by year, and the seats that stopped moving (a dead bot or a locked position)
+python3 $L/tools/holds.py $A --policy <name> --variant $V --episodes <saved>.json
+# the seats themselves, worst first: taint, first targets, home centre lost, who sat beside it
+python3 $L/tools/seat_rows.py $A --policy <name> --as Russia --variant $V --versus <our policy>
+```
+
+`--split-by POWER` answers "only beside one neighbour?", which eval batches
+that replay one seating make the first question to ask.
+
+Write a script in `instruments/` only for what those cannot count (a supported
+attack and how the defender answered; a retreat onto a home centre). The
+profile tool's docstring has the import skeleton, the fields of `seat_facts`
+and the shape of a phase's order rows. Give the script an `--episodes FILE`
+flag and pass the saved run
 (`load_games(..., only=read_episode_list(Path(args.episodes)))`) so it counts
-the same games as the profile, the field's included. In the loader's order
-rows a hold always has `success: false`: do not count holds as failed.
+the same games as the profile, the field's included, and a refresh can re-run
+it. In the loader's order rows a hold always has `success: false`: do not count
+holds as failed. Keep the script in `instruments/` (tracked), not in a scratch
+folder, or the refresh cannot find it.
 
 ### 4. Write claims, not impressions
 
@@ -184,15 +207,15 @@ Every claim in the profile has four parts:
 
 | Part | Contents |
 |---|---|
-| **Pattern** | What it does, as a rule a reader could falsify: "As Turkey it opens Byzantine and makes its first hostile move on Russia in Autumn 1901" |
-| **Evidence** | The count with its n, and the episodes with phase links: "21 of 21 games; `/replays/ereq_…?phase=1`". Say which part you counted and which you saw in the games you opened |
+| **Pattern** | What it does, as a rule a reader could falsify: "As `<power>` it opens `<order set>` and makes its first hostile move on `<neighbour>` in Autumn 1901" |
+| **Evidence** | The count with its n, and the episodes with phase links: "`<k>` of `<n>` games; `/replays/ereq_…?phase=1`". Say which part you counted and which you saw in the games you opened |
 | **What we could exploit** | The gameplay consequence for us, or "nothing we can use" |
 | **How to test it** | The experiment that would show the exploit pays: the change (in words is enough here; the diagnosis skill turns it into a setting or a code location), the power it should move, and the opponent set. Or "not worth a test" with the reason |
 
 Three to six claims is a good profile. "It is aggressive" is not a claim;
-"it attacks a neighbour's centre by Spring 1902 in 30 of 31 games as Austria"
-is. Where the counts show no pattern, write that: "its Italy opening varies (6
-order sets in 24 games); nothing to plan against" is a finding.
+"it attacks a neighbour's centre by Spring 1902 in `<k>` of `<n>` games as `<power>`"
+is. Where the counts show no pattern, write that: "its `<power>` opening varies (`<k>`
+order sets in `<n>` games); nothing to plan against" is a finding.
 
 ### 5. Write the report
 
@@ -226,16 +249,16 @@ on disk and rewrite the file.
 
 ```markdown
 ---
-title: How webdip-example plays
-date: 2026-10-11
+title: How <opponent> plays
+date: <YYYY-MM-DD>
 policy: <our policy>:vN
-opponent: webdip-example:v2
-games: 56
+opponent: <opponent>:vN
+games: <n>
 variant: classic-press
-sources: seed-press-1011 (55 games), league-press (1 game)
+sources: <folder> (<n> games), league-press (<n> games)
 ---
 
-# How webdip-example plays
+# How <opponent> plays
 
 One paragraph: what kind of player this is and the one thing to remember.
 
@@ -248,7 +271,7 @@ One paragraph: what kind of player this is and the one thing to remember.
 
 ### 1. <the pattern, as one sentence>
 
-- **Evidence:** 21 of 21 games as Turkey. [Autumn 1901](/replays/ereq_…?phase=1), …
+- **Evidence:** <k> of <n> games as <power>. [Autumn 1901](/replays/ereq_…?phase=1), …
 - **What we could exploit:** …
 - **How to test it:** …
 
@@ -283,7 +306,7 @@ tracked files.
 
 In `$L/META.md`, set or add the opponent's row in "Who is in the field": the
 "How it plays (and how we know)" cell gets **one sentence and a link**:
-`Fixed openings, attacks Russia first as Turkey ([profile](reports/opponents/<slug>.md), 2026-10-11, v2, 56 games)`.
+`<the one thing to remember> ([profile](reports/opponents/<slug>.md), <date>, <version>, <n> games)`.
 The row's other cells ("Entrant or filler", "Seen in rounds") belong to
 `meta-recon` and come from `tools/field.py press|gunboat`: fill them from its
 output if you run it, otherwise leave what is there or write "not checked".
@@ -318,7 +341,14 @@ one-paragraph summary in your reply.
   tables a pattern rests on, and prefer league games and balanced field evals.
 - **A shared default is not a habit.** Bots built on the same search open the
   same way. If the field plays the opponent's opening too, there is nothing
-  opponent-specific to counter; the finding is about the field.
+  opponent-specific to counter; the finding is about the field. The same holds
+  for any behaviour, not only openings. **Put the field's number
+  beside every rate before it reaches the summary, the card or `META.md`**
+  (`board_counts.py` and `holds.py` print it), and write the headline last.
+- **Its best game may be its usual game beside weak or dead neighbours.** Open
+  the best game as the contradicting case before writing "it varies", and look
+  at `seat_rows.py`'s "other seats tainted" for it: a seat beside a dead pod
+  collects free centres.
 - **Version drift.** A profile describes the versions it names on the date it
   names. When `tools/field.py` or the header shows a new version, the profile
   is history until you re-run it. Check the date before you rely on one.
@@ -358,5 +388,6 @@ one-paragraph summary in your reply.
 - **[matchup-writeup](../matchup-writeup/SKILL.md)** reads the profile to
   explain why we win or lose against this opponent.
 - A "How to test it" line becomes a hypothesis: take it to
-  [diagnosis](../diagnosis/SKILL.md) and an experiment record, after checking
-  [closed_levers.md](../../closed_levers.md).
+  [diagnosis](../diagnosis/SKILL.md) and a `proposed` experiment record, after
+  checking [closed_levers.md](../../closed_levers.md),
+  [open_levers.md](../../open_levers.md) and the records in `experiments/`.

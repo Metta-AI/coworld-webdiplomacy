@@ -107,6 +107,18 @@ class DeliveryHookTest(HookCase):
         fake_server(self)
         self.assertIn("http://127.0.0.1:1", run_hook("SessionStart")["hookSpecificOutput"]["additionalContext"])
 
+    def test_session_start_asks_for_the_chat_file_to_be_watched(self):
+        """A change to it runs the FileChanged waiter, so a message wakes a session that has no waiter left."""
+        chat = paths.state_dir() / "chat.jsonl"
+        self.assertFalse(chat.exists())
+        output = run_hook("SessionStart", {"source": "startup"})["hookSpecificOutput"]
+        self.assertEqual(output["watchPaths"], [str(chat)])
+        self.assertTrue(chat.exists(), "there must be a file to watch before the first message")
+        self.assertEqual(store.messages(), [])
+        store.post_message("user", "hello")
+        run_hook("SessionStart", {"source": "resume"})  # an existing chat is left as it is
+        self.assertEqual([m["seq"] for m in store.messages()], [1])
+
     def test_a_hook_never_fails_the_session(self):
         out = io.StringIO()
         with mock.patch.object(sys, "stdin", io.StringIO("this is not json")), redirect_stdout(out):
@@ -231,20 +243,26 @@ class StatusTest(HookCase):
 class SettingsTest(unittest.TestCase):
     def test_hook_settings_shape(self):
         settings = hooks.hook_settings()
-        self.assertEqual(sorted(settings), ["PostToolUse", "SessionEnd", "SessionStart", "Stop", "UserPromptSubmit"])
+        self.assertEqual(sorted(settings),
+                         ["FileChanged", "PostToolUse", "SessionEnd", "SessionStart", "Stop", "UserPromptSubmit"])
         commands = [hook for entries in settings.values() for entry in entries for hook in entry["hooks"]]
         self.assertTrue(
             all(hook["command"].startswith('python3 "$CLAUDE_PROJECT_DIR/ide/ide" hook ') for hook in commands)
         )
         waiters = [hook for hook in commands if hook.get("asyncRewake")]
         # Every event but SessionEnd starts the waiter, so one is alive again after it fired
-        # and the user then interrupted the turn (an interrupt runs no Stop hook).
+        # and the user then interrupted the turn (an interrupt runs no Stop hook). FileChanged
+        # has the waiter and nothing else: it runs when the chat file changes, whatever the
+        # agent's turn is doing, and its group has no matcher (a matcher would name a file in
+        # the working directory; the watched path comes from the SessionStart hook).
         with_waiter = [
             event
             for event, entries in settings.items()
             if any(hook.get("asyncRewake") for entry in entries for hook in entry["hooks"])
         ]
-        self.assertEqual(sorted(with_waiter), ["PostToolUse", "SessionStart", "Stop", "UserPromptSubmit"])
+        self.assertEqual(sorted(with_waiter),
+                         ["FileChanged", "PostToolUse", "SessionStart", "Stop", "UserPromptSubmit"])
+        self.assertEqual(settings["FileChanged"], [{"hooks": waiters[:1]}])
         self.assertTrue(all(hook["command"].endswith("hook Rewake") for hook in waiters))
         self.assertTrue(all(hook["timeout"] <= 20 for hook in commands if not hook.get("asyncRewake")))
 

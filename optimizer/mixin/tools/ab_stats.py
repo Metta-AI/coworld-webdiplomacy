@@ -12,8 +12,7 @@ tests, checked against scipy to 1e-9 (see `tests/test_ab_stats.py`):
 
 One lab-specific rule is added: a directional verdict also needs |z| >= 2, where z
 is the Welch t statistic for means and the two-proportion z for rates. Anything
-weaker is reported as "no result". Three +0.08 leads at z of about 1.4 vanished on
-replication in the webdiplomacy lab.
+weaker is reported as "no result".
 
 This module knows nothing about webDiplomacy. `compare.py` is the adapter: it builds
 records, declares METRICS and groups, and calls `build_deltas`, `render_markdown`

@@ -90,8 +90,8 @@ class PresenceTest(LabCase):
 class FollowedPolicyTest(LabCase):
     def test_recorded_and_read_back(self):
         self.assertEqual(store.followed_policy(), "")
-        store.set_followed_policy("castlereagh-ide")
-        self.assertEqual(store.followed_policy(), "castlereagh-ide")
+        store.set_followed_policy("my-policy")
+        self.assertEqual(store.followed_policy(), "my-policy")
 
 
 class CardTest(LabCase):

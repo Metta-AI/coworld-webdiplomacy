@@ -54,7 +54,7 @@ arena   (needs Docker and the coworld CLI)
     `metrics OUT --policy candidate`; parity is 1/7 = 0.143. Local results do not
     transfer to the hosted field.
     Example (reference policy in its default press mode vs a search field):
-        wd.py arena --image webdip-castlereagh:exp12 --use-llm \\
+        wd.py arena --image webdip-<policy>:exp12 --use-llm \\
             --episodes 8 --parallel 4 --out .runtime/local/exp12-arena
 
     How local runs find the game manifest, most explicit first:
@@ -128,7 +128,6 @@ def _se(xs):
 
 
 # Below this many seats a per-power cell is directional only (the survey binding's floor).
-# A 17-seat Austria cell once read 0.033 where 60 pinned games gave 0.091.
 DIRECTIONAL_BELOW = 16
 
 

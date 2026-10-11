@@ -260,13 +260,24 @@
     try { return JSON.parse(localStorage.getItem(IDEAS_NOT_NOW)) || []; } catch (error) { return []; }
   }
 
-  // The request "Test this idea" puts in the message box. It asks for the whole loop the lab's
-  // experiment skill describes, so the user only has to press Enter (or change it first).
+  // The request "Test this idea" puts in the message box, so the user only has to press Enter (or
+  // change it first). An idea card normally links to the proposed experiment record the agent wrote
+  // with it (/experiments/<id>): then the request is to run that record. A card with no record asks
+  // for the record first, so the idea is on the Experiments page before anything is built.
   function testIdeaText(card) {
-    return "Test this idea: \u201c" + card.title + "\u201d. Open an experiment record for it with the experiment skill " +
-      "(check closed_levers.md first; write the hypothesis, the predictions and the decision rule before anything is built), " +
-      "make the one change as a new version, run a paired A/B against the current version at the lab's default size " +
-      "(tools/run_ab.py: 28 games) and a health game, and post a result card that links to the record (/experiments/<id>).";
+    var record = /^\/experiments\/([A-Za-z0-9][A-Za-z0-9._-]*)$/.exec(card.link || "");
+    if (record) {
+      return "Run the proposed experiment " + record[1] + " (\u201c" + card.title + "\u201d). Check closed_levers.md, open_levers.md and " +
+        "the earlier records in experiments/, and the record's predictions and decision rule once more, tell me what it will cost before you launch, then make the one " +
+        "change as a new version (tools/ship.py --experiment " + record[1] + "), write it in the record as the candidate, run " +
+        "the paired A/B (tools/run_ab.py --record " + record[1] + ") and a health game, and post a result card that links to " +
+        "/experiments/" + record[1] + ".";
+    }
+    return "Test this idea: \u201c" + card.title + "\u201d. First write it down as a proposed experiment record with the experiment " +
+      "skill (check closed_levers.md, open_levers.md and the earlier records in experiments/; hypothesis, predictions, decision rule and cost; status proposed), so it is on the " +
+      "Experiments page, and tell me its cost. Then make the one change as a new version, run a paired A/B against the " +
+      "current version at the lab's default size (tools/run_ab.py: 28 games) and a health game, and post a result card that " +
+      "links to the record (/experiments/<id>).";
   }
 
   function ideaActions(card) {

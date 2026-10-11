@@ -53,7 +53,7 @@
     </div>
 
     {% if key == "opponents" %}
-    <h3>Policies in the fetched episodes without a profile</h3>
+    <h3>Opponents in the fetched games without a profile</h3>
     {% if unreadable %}
     <p class="notice err">{{ unreadable }} episode{{ "" if unreadable == 1 else "s" }} on disk could not be read, so
       the policies seated in {{ "it" if unreadable == 1 else "them" }} are not in this list. The Replays page shows
@@ -82,10 +82,15 @@
       </tbody>
     </table>
     </div>
-    <p class="muted small prose">Every policy in the episodes is listed, ours included: the page cannot tell which
-      are ours. A profile of our own policy is a fair way to see it as others do.</p>
     {% elif not unreadable %}
-    <p class="empty">{% if reports[key] %}Every policy in the fetched episodes has a profile.{% else %}No episodes are on disk yet.{% endif %}</p>
+    <p class="empty">{% if reports[key] or ours %}Every opponent in the fetched games has a profile.{% else %}No games are on disk yet.{% endif %}</p>
+    {% endif %}
+    {% if ours %}
+    <p class="muted small prose">Left out as ours: <span class="mono">{{ ours | join(", ") }}</span> (the policy we
+      follow, and every policy this lab has uploaded). Ask in the chat if you want a profile of one of them.</p>
+    {% elif missing %}
+    <p class="muted small prose">Every policy in the games is listed, ours included: nothing in this lab says yet
+      which are ours (no upload in a version log, and no policy recorded with <code>ide/ide follow</code>).</p>
     {% endif %}
     {% else %}
     <p class="controls ask-matchup">

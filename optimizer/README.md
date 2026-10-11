@@ -16,13 +16,22 @@ first version (2026-10-11). `INSTALL.md` is planned and does not exist yet.
   `replay-inspection`, `eval-design`, `diagnosis`), game docs, analysis and
   campaign tools in `tools/` (one-command build-upload-log and A/B runs, request
   builders, sizing, `matchups.py` for score by power and opponent, `fetch_league.py`
-  for league matches), a `press-audit` skill that checks what was said in a press
+  for league matches, `holds.py`, `board_counts.py`, `seat_rows.py` and `seat_log.py` for
+  counting a claim over every game and reading one seat's log, `batches.py` for what a
+  batch cost and how long it took), `closed_levers.md`, `open_levers.md` and `best_practices.md` (what was
+  refuted, what was tested with no result yet, and graduated practice: each ships with its
+  format and no entries), a `press-audit` skill that checks what was said in a press
   game against what was ordered, an `opponent-profile` skill and a `matchup-writeup`
   skill (how each opponent plays, and why we win or lose against it), the `ide`
   skill, and the reference policy `players/castlereagh/`, built by
-  `tools/build.sh`. The reference policy adapts a prior lab's Castlereagh:
-  Kissinger search as the core, plus an LLM press layer
+  `tools/build.sh`. The reference policy is a search core plus an LLM press layer
   (`CASTLEREAGH_POLICY=press|search`, default `press`).
+
+  **The mixin ships methods, not field knowledge.** Rules, the bot contract, platform facts
+  (dated, with the command that re-measures them), tools and skills belong in it. Anything
+  true of one field of opponents, one lab's experiments or one night's data does not: no
+  experiment results, no opponent behaviour, no named league policies, no "what worked for
+  us". Someone who makes a copy next week would take it as current fact.
 - **`install.sh`** and **`seed.lock`**: the installer and the pinned
   optimizer-seed commit.
 - **`ide/`**: a local web IDE, as its own uv project ([ide/README.md](ide/README.md)).
@@ -30,8 +39,8 @@ first version (2026-10-11). `INSTALL.md` is planned and does not exist yet.
   user types in the browser reaches that running session through Claude Code hooks. The
   pages: a home page (where the followed policy stands and which games to open), replays
   with notes and the press audit laid over them, a dashboard of `matchups.py`, the
-  experiment records with the paired result of their games so far, and the
-  reports the write-up skills produce. The agent answers and posts
+  experiment records (proposed ideas with their cost, and the paired result of the games of
+  the ones that ran), and the reports the write-up skills produce. The agent answers and posts
   cards with `ide/ide say` and `ide/ide show`, or the same actions as tools on the
   `ide/ide mcp` stdio server.
 
@@ -68,7 +77,9 @@ git push --force origin main     # the template is generated output
 
 These also run in CI, which also checks that `mixin/field_sets.json` ships placeholders
 only (the lab's own tests must keep passing once a user fills that file, so the check is
-in the workflow), then runs `install.sh` and checks the result:
+in the workflow), then runs `install.sh` and checks the result (no unfilled placeholders, the files the skills
+and the IDE name, the hook and MCP wiring, a record made from the template that the seed's
+validator accepts, and the lab's tool tests in the installed copy):
 
 ```sh
 uv run ruff check optimizer
@@ -80,8 +91,9 @@ uv run ruff check optimizer
 
 ## Known gaps
 
-Found by two fresh-install test drives (2026-10-10 gunboat, 2026-10-10/11 press) and the
-IDE build (2026-10-11), and not yet fixed. Each is a setup gap, not a fact about any field of opponents.
+Found by two fresh-install test drives (2026-10-10 gunboat, 2026-10-10/11 press), the
+IDE build (2026-10-11), a third drive of the published template and an overnight campaign
+(2026-10-11), and not yet fixed. Each is a setup gap, not a fact about any field of opponents.
 
 - **Press audit: "we broke our word" is still about half noise.** Measured 2026-10-11 on
   nine hosted games with every flag read against a rubric (by sub-agents, not people): flags
@@ -95,28 +107,53 @@ IDE build (2026-10-11), and not yet fixed. Each is a setup gap, not a fact about
   `kept_despite_doubt`, with the attack orders listed.
 - **Press audit: the annotator's file leaks one thing.** `annotate.json` has no orders or
   results, but the next turn's starting board shows where units ended.
-- **Bots write "this fall" in a spring phase** in about a quarter of such messages and mean
-  the current turn (ours and opponents'). The press-audit skill checks both turns; the
-  policy's prompt is worth its own look.
+- **Press audit: "this fall" written in a spring phase** may mean the current turn or the
+  next one. The press-audit skill has the annotator check both turns; code cannot decide.
 - **A node lost under a player pod kills that seat for the rest of the game** and the game
   still completes (about 2.5% of press seats on 2026-10-11). The loader taints the seat
   (`pod_deleted`); the cause is on the platform side.
 - **IDE: one agent session per lab, Claude Code only.** Delivery to the running session
   uses Claude Code hooks, tested on 2.1.296. Other harnesses get the `ide/ide listen`
-  background task or the MCP tools, which were not tested inside a live session.
-- **No hosted game has run** the press player's no-units fix or `run_ab.py --alone`'s
-  two-arm fetch.
+  background task or the MCP tools. The MCP tools were used in a live Claude Code session
+  (2026-10-11); nothing was tried under another harness.
+- **No hosted game is known to have run the press player's no-units fix.** (`run_ab.py
+  --alone`'s two-arm fetch ran hosted on 2026-10-11: 14 games per arm.) `run_ab.py`'s
+  `--health`, `--alone --resume` and its estimate line were added after that run and have
+  unit tests only.
 - **Two taint rules have never fired on a hosted game** (about 890 of our seats in the
   second drive): `no_decisions`, and the launcher's nonzero `child_exit` line, which
   taints a seat as `exception`. They have unit tests only.
 - **An installed lab has no ruff config.** This repository's `pyproject.toml` sets the
   rules; a user's `ruff check` in their copy uses ruff's defaults and reports other things.
-- **Credits spent cannot be read back.** The lab quotes per-game estimates; nothing shows
-  a batch's real cost after it ran.
-- **`ship.py` writes every version-log row to `players/castlereagh/VERSION_LOG.md`**,
-  whatever policy name is uploaded.
-- **Hooks were not observed firing** in the second drive (its session was rooted outside
-  the install).
+- **Credits charged cannot be read back.** `tools/batches.py` prints the platform's estimate at
+  create time (1.4 to 2.0 credits per press game on 2026-10-11) and each episode's recorded
+  `cost_usd` (about $0.5); `run_ab.py` prints the estimate when it launches. Neither is the
+  bill, their relation is not known, and nobody has read a balance.
+- **`ship.py` and `build.sh` know one source tree, `players/castlereagh`.** Every upload is
+  built from it and logged in its `VERSION_LOG.md`, whatever policy name it is uploaded under
+  (the row's first cell carries the name, which is what the IDE reads). A second policy source
+  tree under `players/` would need its own build and its own log; neither tool takes a
+  source directory yet.
+- **Press audit: a lie is flagged only when our log shows a stance that turn.** A broken
+  promise in a turn with no logged stance lands in `false_no_stance` and is not in the
+  headline count. The IDE's line above the
+  board now adds "N more did not hold where we logged no stance"; `press_audit.py`'s own
+  summary and `audit.html` do not.
+- **IDE: the profile request for a gunboat opponent names the wrong page.** "Ask for a
+  profile" sends `/reports/opponents/<policy>` as the page it came from, and a gunboat
+  profile is written as `<policy>-gunboat.md`. The list finds the report by its `opponent`
+  field, so only that hint is off.
+- **`run_ab.py` does not read the health game.** `--health` launches it and notes its id;
+  fetching it and reading `wd.py metrics` is the agent's step.
+- **A dead pod in a field seat is not a taint.** The tools drop games where our own seat's
+  pod died. A normal account cannot see a rival's (its log is 403); `tools/holds.py` lists
+  seats that stopped moving.
+- **`field.py` sees only what recent rounds seated**, which can be less than the roster.
+  The roster ids are in `coworld leagues <id> --json`; the tool does not read them yet.
+- **`session_env.sh` has no user mode.** Acting as the user (not a player) from a private
+  `HOME` is set up by hand (`mixin/docs/platform.md`, "Setup").
+- **`opponent_profile.py` lacks two counts**: failed moves
+  ordered again unchanged, and the first home centre lost (to whom, when).
 
 ## Layout
 

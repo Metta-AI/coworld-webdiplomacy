@@ -8,7 +8,8 @@
     serve [--port N] [--open]   run the server in the foreground (what `start` runs)
     status [--json]             is the server up, is something waiting for messages, anything unread
     follow [NAME]               record which policy is the user's, so every page follows it
-                                until the user picks another in the browser (no NAME: print it)
+                                until the user picks another in the browser (no NAME: print it).
+                                It replaces a pick the browser made earlier
     url                         print the running server's URL (exit 1 when it is not running)
   Talk to the user (the user reads the browser, not the terminal)
     say TEXT                    post a chat message
@@ -270,7 +271,7 @@ def cmd_follow(args) -> int:
     name = args.name.partition(":v")[0]  # a policy, not one version of it
     store.set_followed_policy(name)
     store.touch_agent_seen()
-    print(f"The IDE's pages now follow {name} unless the user picks another policy in the browser.")
+    print(f"The IDE's pages now follow {name}, in every browser, until the user picks another policy there.")
     return 0
 
 
@@ -424,7 +425,7 @@ def build_parser() -> argparse.ArgumentParser:
     add("stop", cmd_stop)
     add("status", cmd_status).add_argument("--json", action="store_true")
     add("url", cmd_url)
-    add("follow", cmd_follow).add_argument("name", nargs="?", help="a policy name, for example castlereagh-ide")
+    add("follow", cmd_follow).add_argument("name", nargs="?", help="a policy name, the name you upload under")
 
     add("say", cmd_say).add_argument("text", nargs="*", help="the message; read from stdin when omitted")
     show = add("show", cmd_show)

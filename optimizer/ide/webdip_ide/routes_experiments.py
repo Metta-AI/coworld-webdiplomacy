@@ -2,23 +2,27 @@
 
 The agent writes one record per hypothesis before it runs anything (the optimizer-seed
 `experiment` skill): `<lab>/experiments/<id>.md`, with front matter (`id`, `policy`, `baseline`,
-`candidate`, `status`, `hypothesis`, `decision_rule`, `evals`) and sections (Context,
-Predictions, Design, Result, Verdict). `_template.md` is the template and is not a record.
-The files are the record: this module lists and renders them, and never writes one.
+`candidate`, `status`, `hypothesis`, `decision_rule`, `evals`, and this lab's two optional keys,
+`artifacts` and `cost`) and sections (Context, Predictions, Design, Result, Verdict).
+`_template.md` is the template and is not a record. The files are the record: this module lists
+and renders them, and never writes one.
 
 Pages:
   /experiments           every record, newest first, each with its paired result so far, and
-                         "What is closed": the entries of `closed_levers.md` and `best_practices.md`
+                         "What is closed": the entries of `open_levers.md` (tested, no result yet),
+                         `closed_levers.md` and `best_practices.md`
   /experiments/<id>      one record: its front matter, the result so far, the version-log rows of
                          its two versions, requests to the agent, and the record's text
 
 JSON:
   GET /api/experiments   [{id, title, status, policy, baseline, candidate, hypothesis,
-                           decision_rule, evals, batch, path, link, result}]
+                           decision_rule, cost, evals, artifacts, batch, path, link, result}]
 
 The result so far is not computed here. It is the lab's `tools/paired.py` (`paired_report`, the
-function behind the command the agent runs) on the games in the record's artifact directory,
-`.runtime/artifacts/<id>/`, which is where `tools/run_ab.py` fetches them. The games are the ones
+function behind the command the agent runs) on the games in the record's artifact folders: the
+folders its `artifacts: [folder, folder]` key names (a follow-on record whose rule pools its own
+games with an earlier record's), and always `.runtime/artifacts/<id>/`, which is where
+`tools/run_ab.py` fetches them. `tools/run_ab.py: artifact_dirs` is the same rule. The games are the ones
 the dashboard has already read (`routes_dashboard.CACHE`), so a page never parses a game and
 never waits for a read: while games are still being read it shows what is in and says so.
 """
@@ -50,7 +54,6 @@ SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 PAGE_ONLY = ("body", "modified", "rule_brief", "planned", "date", "hypothesis_html", "decision_rule_html")
 ALONE_ARMS = (("-alone-a", "candidate"), ("-alone-b", "baseline"))  # where `run_ab.py --alone` fetches
 
-_ARTIFACTS = re.compile(r"^Artifacts:\s*`\.runtime/artifacts/([\w.\-]+)/?`", re.M)
 _PLACEHOLDER = re.compile(r"<[A-Za-z][^<>]*>")  # the template's `<policy name>`, `<metric>`, `<Experiment title>`
 _COMMENT = re.compile(r"(^|\s)#.*$")
 _BLOCK_SCALAR = (">", "|", ">-", "|-", ">+", "|+")
@@ -59,8 +62,9 @@ _BLOCK_SCALAR = (">", "|", ">-", "|-", ">+", "|+")
 _THRESHOLD = re.compile(r"([+\-−]\s?\d*\.\d+)\s+or more")
 _MIN_Z = re.compile(r"\bz\s*(?:>=|≥)\s*(\d+(?:\.\d+)?)")
 _PLANNED = re.compile(r"\b(?:over|on)\s+(\d+)\s+(?:[\w-]+\s+){0,3}games\b")
-_KILLED_BY = re.compile(r"\*\*Killed by:\*\*\s*(.+?)(?=\n\*\*|\Z)", re.S)
-_CLOSED_ON = re.compile(r"^(.*?)\s{2,}closed\s+(.+)$")
+# The line under an entry's name: what refuted it (`closed_levers.md`), or what was measured (`open_levers.md`).
+_KILLED_BY = re.compile(r"\*\*(?:Killed by|Read):\*\*\s*(.+?)(?=\n\*\*|\Z)", re.S)
+_CLOSED_ON = re.compile(r"^(.*?)\s{2,}(?:closed|tested)\s+(.+)$")
 
 
 # --- reading a record -----------------------------------------------------------------
@@ -132,7 +136,7 @@ def read_record(path: Path) -> dict:
     status = field("status").lower()
     rule = field("decision_rule")
     planned = _PLANNED.search(rule)
-    artifacts = _ARTIFACTS.search(body)
+    folders = artifact_folders(meta.get("artifacts"), path.stem)
     candidate = field("candidate")
     return {
         "id": path.stem,
@@ -149,13 +153,28 @@ def read_record(path: Path) -> dict:
         "decision_rule_html": reports_markdown.render_inline(rule),
         "rule_brief": rule_brief(rule),
         "planned": int(planned.group(1)) if planned else None,
+        "cost": field("cost"),
         "evals": [e for e in meta["evals"] if e] if isinstance(meta.get("evals"), list) else [],
-        # The first folder under `.runtime/artifacts`: the replay browser's `batch` filter value.
-        "batch": artifacts.group(1) if artifacts else path.stem,
+        # The folders under `.runtime/artifacts` whose games the result is read from.
+        "artifacts": folders,
+        "batch": folders[0],  # the first folder; kept for readers of the JSON from before a record could name several
         "path": str(path.relative_to(paths.lab_dir())),
         "link": f"/experiments/{path.stem}",
         "body": body,
     }
+
+
+def artifact_folders(listed, record_id: str) -> list[str]:
+    """The folders under `.runtime/artifacts` a record's games are in.
+
+    The names in the front matter's `artifacts: [folder, folder]`, in the order written (a folder
+    may be written with or without `.runtime/artifacts/` in front), and then always the record's
+    own id, which is where `tools/run_ab.py --record <id>` fetches. An empty or missing list is
+    the record's own folder alone. `tools/run_ab.py: artifact_dirs` reads the key the same way.
+    """
+    names = [str(item).strip().strip("`\"'").rstrip("/").rpartition("/")[2] for item in listed] \
+        if isinstance(listed, list) else []  # fmt: skip
+    return list(dict.fromkeys([name for name in names if SLUG.match(name)] + [record_id]))
 
 
 def experiments_dir() -> Path:
@@ -178,22 +197,31 @@ def paired():
     return importlib.import_module("paired")
 
 
-def games_by_batch() -> tuple[dict[str, list], int]:
-    """(the games read so far under each folder of `.runtime/artifacts`, games still to be read).
+def games_by_batch() -> tuple[dict[str, dict], int]:
+    """(the games read so far under each folder of `.runtime/artifacts`, by episode id; games still to be read).
 
     Does not wait for a large read: `CACHE` hands out what it has and goes on reading."""
     by_directory, pending, _ = routes_dashboard.CACHE.sync_by_directory(0.0)
     prefix = str(paths.artifacts_dir()) + os.sep
-    batches: dict[str, list] = defaultdict(list)
+    batches: dict[str, dict] = defaultdict(dict)
     for directory, game in by_directory.items():
         below = directory[len(prefix) :].split(os.sep) if directory.startswith(prefix) else []
         if len(below) > 1:
-            batches[below[0]].append(game)
+            batches[below[0]][below[-1]] = game
     return batches, pending
 
 
-def _finished(games: list) -> list:
-    return [game for game in games if game.seats and not game.missing_results]
+def _finished(games: dict) -> dict:
+    return {episode: game for episode, game in games.items() if game.seats and not game.missing_results}
+
+
+def _games(count: int) -> str:
+    return f"{count} game{'' if count == 1 else 's'}"
+
+
+def _family(record: dict) -> str:
+    """The policy name the record's games are followed by: the candidate's, else the record's `policy`."""
+    return record["candidate"].rpartition(":")[0] or record["policy"]
 
 
 def _short(candidate: str, baseline: str) -> tuple[str, str]:
@@ -202,17 +230,26 @@ def _short(candidate: str, baseline: str) -> tuple[str, str]:
     return (a_version, b_version) if a_name and a_name == b_name else (candidate, baseline)
 
 
-def result_so_far(record: dict, batches: dict[str, list], pending: int) -> dict:
+def result_so_far(record: dict, batches: dict[str, dict], pending: int) -> dict:
     """What the games on disk say now: how many are in, and `paired.py`'s report (candidate minus
     baseline) when both versions have games. `report` is None until then."""
-    games = _finished(batches.get(record["batch"], []))
+    pooled: dict = {}  # by episode id: a game fetched into two of the folders counts once
+    folders = []
+    for folder in record["artifacts"]:
+        new = {episode: game for episode, game in _finished(batches.get(folder, {})).items() if episode not in pooled}
+        pooled.update(new)
+        folders.append({"name": folder, "games": len(new),
+                        "replays": "/replays?" + urlencode({"batch": folder, "policy": _family(record)})})  # fmt: skip
+    games = list(pooled.values())
     if record["planned"]:
         progress = f"{len(games)} of {record['planned']} games in"
     else:
-        progress = f"{len(games)} game{'' if len(games) == 1 else 's'} in" if games else "no games in yet"
+        progress = f"{_games(len(games))} in" if games else "no games in yet"
     out = {"games_in": len(games), "planned": record["planned"], "progress": progress, "pending": pending,
+           "folders": folders, "covers": ", ".join(f"{f['name']} ({f['games']})" for f in folders),
            "report": None, "words": "", "verdict": "", "tone": "", "win": False,
-           "alone": [(who, len(_finished(batches.get(record["batch"] + suffix, [])))) for suffix, who in ALONE_ARMS]}
+           # `run_ab.py --alone` names its two folders after the record, whatever the record pools.
+           "alone": [(who, len(_finished(batches.get(record["id"] + suffix, {})))) for suffix, who in ALONE_ARMS]}
     if not (games and record["candidate"] and record["baseline"]):
         return out
     seats = [seat for game in games for seat in game.seats]
@@ -248,12 +285,16 @@ def running() -> list[dict]:
 
 
 def register(name: str) -> list[dict]:
-    """The `## ` sections of one of the lab's registers (`closed_levers.md`, `best_practices.md`):
-    [{name, closed, killed_by, entries, html}]. The text before the first section is its preface."""
+    """The `## ` sections of one of the lab's registers (`closed_levers.md`, `open_levers.md`,
+    `best_practices.md`): [{name, closed, killed_by, entries, html}]. `closed` is the date in the
+    heading ("closed YYYY-MM-DD", "tested YYYY-MM-DD") and `killed_by` the entry's **Killed by:**
+    or **Read:** line. The text before the first section is its preface."""
     path = paths.lab_dir() / name
     if not path.is_file():
         return []
-    parts = re.split(r"^## +(.+)$", path.read_text(errors="replace"), flags=re.M)[1:]
+    # Without the fenced blocks: the format example in a register's preface is not an entry.
+    text = re.sub(r"^```.*?^```", "", path.read_text(errors="replace"), flags=re.M | re.S)
+    parts = re.split(r"^## +(.+)$", text, flags=re.M)[1:]
     out = []
     for heading, body in zip(parts[::2], parts[1::2]):
         dated = _CLOSED_ON.match(heading.strip())
@@ -310,17 +351,26 @@ def asks(record: dict, result: dict) -> list[dict]:
     out = []
     name = f"{record['id']} (“{record['title']}”)" if record["title"] != record["id"] else record["id"]
     card = f"post a result card that links to {record['link']}"
-    if record["status"] == "running" or (record["status"] == "proposed" and result["games_in"]):
+    started = record["status"] == "running" or bool(result["games_in"])
+    if record["status"] == "proposed" and not started:
+        out.append({"label": "Run this", "text": (
+            f"Run the proposed experiment {name}. Check closed_levers.md, open_levers.md and the earlier records in "
+            "experiments/, and the record's predictions and decision rule once more, tell me what it will cost "
+            "before you launch, then make the one change as a new version "
+            f"(tools/ship.py --experiment {record['id']}), write it in the record as the candidate, run the paired "
+            f"A/B (tools/run_ab.py --record {record['id']}) and a health game, and {card}."
+        )})  # fmt: skip
+    if record["status"] in OPEN and started:
+        folders = " and ".join(f".runtime/artifacts/{folder}" for folder in record["artifacts"])
         out.append({"label": "Ask the agent for the result", "text": (
-            f"What is the result of experiment {name} so far? Read the games in .runtime/artifacts/{record['batch']} "
+            f"What is the result of experiment {name} so far? Read the games in {folders} "
             f"with tools/paired.py ({record['candidate'] or 'the candidate'} against "
             f"{record['baseline'] or 'the baseline'}), read the number against the record's decision rule, and {card}."
         )})  # fmt: skip
-    if record["status"] in OPEN:
         out.append({"label": "Ask the agent to close this record", "text": (
             f"Close the experiment record {name} with the experiment skill: write its Result and Verdict against the "
             "decision rule that was written before the run, set its status, add the lever to closed_levers.md if it "
-            f"is refuted, run record.py validate, and {card}."
+            f"is refuted or to open_levers.md if it is inconclusive, run record.py validate, and {card}."
         )})  # fmt: skip
     if result["win"]:
         out.append({"label": "Ask for the candidate-alone check", "text": (
@@ -335,14 +385,11 @@ def asks(record: dict, result: dict) -> list[dict]:
 
 
 def _links(record: dict) -> dict:
-    """Where the candidate's numbers and this experiment's games are on the other pages."""
+    """Where the candidate's numbers are on the dashboard. (The games: `result_so_far`'s `folders`, one
+    Replays link each, with `policy` in it: without it the browser follows the remembered policy, which
+    may not be in these games.)"""
     name, _, version = record["candidate"].rpartition(":")
-    family = name or record["policy"]
-    return {
-        "dashboard": "/dashboard?" + urlencode({"policy": family, "version": version}) if name else "",
-        # `policy` as well: without it the browser follows the remembered policy, which may not be in these games.
-        "replays": "/replays?" + urlencode({"batch": record["batch"], "policy": family}),
-    }
+    return {"dashboard": "/dashboard?" + urlencode({"policy": name, "version": version}) if name else ""}
 
 
 @router.get("/experiments")
@@ -356,8 +403,10 @@ def experiments_page(request: Request):
         rows=rows,
         pending=pending,
         any_running=any(row["status"] == "running" for row in rows),
+        asks={row["id"]: asks(row, row["result"]) for row in rows if row["status"] == "proposed"},
         tones=STATUS_TONE,
         levers=register("closed_levers.md"),
+        open_levers=register("open_levers.md"),
         practices=register("best_practices.md"),
         folder=str(experiments_dir()),
     )
@@ -398,6 +447,7 @@ def experiments_json():
         result = result_so_far(record, batches, pending)
         row = {k: v for k, v in record.items() if k not in PAGE_ONLY}
         row["result"] = {"games_in": result["games_in"], "planned": result["planned"], "reading": pending,
+                         "folders": {f["name"]: f["games"] for f in result["folders"]},
                          "paired": result["report"]}  # fmt: skip
         out.append(row)
     return out

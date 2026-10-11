@@ -10,6 +10,10 @@ experiment, never `latest`), `coworld upload-policy` with the slug as its
 `purpose` tag, a lookup of the new version's id, and an appended row in
 `players/castlereagh/VERSION_LOG.md`. The row is written before this script
 returns, so "upload without a row" cannot happen (the optimizer's rule 2).
+The log is the one of the source tree this tool builds (`build.sh` builds
+`players/castlereagh` and nothing else), so every policy name uploaded from that
+tree is logged there; a row's first cell is the uploaded `NAME:vN`, and the IDE
+finds a version by that cell in any `players/*/VERSION_LOG.md`.
 It also prints which identity uploaded, because the CLI acts as the active
 player and a wrong player is easy to miss.
 
@@ -74,7 +78,8 @@ def main(argv=None) -> None:
     build = [str(LAB / "tools" / "build.sh"), "--policy", args.policy, "--tag", tag]
     if args.overrides:
         build += ["--overrides", args.overrides]
-    print(f"building {tag} (the first build on a machine also builds the player base image)", file=sys.stderr)
+    print(f"building {tag} (a first build on this machine also builds the player base image, a few minutes)",
+          file=sys.stderr)
     run(build, env=env)
 
     upload = ["coworld", "upload-policy", tag, "--name", args.name, "--tag", f"purpose={args.slug}",

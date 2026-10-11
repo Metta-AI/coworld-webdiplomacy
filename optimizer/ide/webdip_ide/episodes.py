@@ -334,7 +334,7 @@ def find(episode: str) -> dict | None:
 
 
 def policy_name(policy: str) -> str:
-    """'botts-cs2:v6' -> 'botts-cs2'."""
+    """'my-policy:v6' -> 'my-policy'."""
     return policy.rsplit(":v", 1)[0]
 
 

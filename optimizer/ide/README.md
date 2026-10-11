@@ -14,11 +14,13 @@ the coding agent that is already running in the optimizer root.
   read the press beside it; pointing at an order or an audited claim lights it on the board.
 - **Dashboard**: how the policy performs by power, opponent, version and source.
 - **Experiments**: the improvement loop as the lab records it. Every experiment record with
-  its status, hypothesis and decision rule, how many of its games are in and the paired
-  difference of those games; the refuted levers and the practices that held up; and, on a
-  record's page, requests to the agent for the result, for closing the record and for the
-  candidate-alone check. An idea card has "Test this idea", which drafts the request for an
-  experiment.
+  its status, hypothesis and decision rule; for a proposed one (an idea not run yet) what it
+  would cost and a "Run this" request; for the others how many of their games are in and the
+  paired difference of those games; the lab's registers (levers tested with no result, refuted
+  levers, recorded practices); and,
+  on a record's page, requests to the agent for the result, for closing the record and for
+  the candidate-alone check. An idea card links to its proposed record and has "Test this
+  idea", which drafts the same request as "Run this".
 - **Reports**: matchup write-ups and opponent profiles the agent's skills produce.
 
 **Prototype (V1, 2026-10-11).** Local only, one user, one agent session per lab.
@@ -58,7 +60,7 @@ Needs [uv](https://docs.astral.sh/uv/) (the first start builds `ide/.venv`) and
 | `start [--port N] [--open]` | Start the server in the background; print the URL. Reuses a running one. Without `--port`: the port this lab used last, else 8642, else the next free one |
 | `serve [--port N] [--open]` | The server in the foreground |
 | `stop`, `status [--json]`, `url` | Close it; what is running; print the URL |
-| `follow [NAME]` | Record which policy is the user's, so Home, Dashboard and Replays follow it until the user picks another in the browser. No name: print it |
+| `follow [NAME]` | Record which policy is the user's, so Home, Dashboard and Replays follow it until the user picks another in the browser. It replaces a pick the browser made before. No name: print it |
 | `say TEXT` | Agent to user: a chat line (text from stdin when no arguments) |
 | `show --kind idea\|replay\|report\|result\|note --title T [--body MD \| --body-file F] [--link /path]` | Agent to user: a card |
 | `inbox [--peek] [--recent N]` | Print unread user messages and mark them delivered |
@@ -78,12 +80,12 @@ one cursor (`agent_cursor`), advanced under a file lock, so a message is deliver
 
 | Route | Reaches | How |
 |---|---|---|
-| **Rewake hook** | an idle session, a busy one, and one the user interrupted with Esc | A hook on `SessionStart`, `UserPromptSubmit`, `PostToolUse` and `Stop` marked `"asyncRewake": true` runs `ide/ide hook Rewake`. Claude Code keeps it in the background; it waits for a message and exits with code 2 and the message on stderr, which wakes the session. The session's next hook event starts a new one. Until a message comes it lives as long as the session (its hook timeout is seven days), and it keeps waiting while the IDE server is down, so a server started or restarted while the session is idle still reaches it. A second waiter started while one is alive exits at once (`rewake.lock`), which is what every tool call's start normally does. Needs nothing from the agent |
+| **Rewake hook** | an idle session, a busy one, and one the user interrupted with Esc | A hook on `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop` and `FileChanged` marked `"asyncRewake": true` runs `ide/ide hook Rewake`. Claude Code keeps it in the background; it waits for a message and exits with code 2 and the message on stderr, which wakes the session. The session's next hook event starts a new one. Until a message comes it lives as long as the session (its hook timeout is seven days), and it keeps waiting while the IDE server is down, so a server started or restarted while the session is idle still reaches it. A second waiter started while one is alive exits at once (`rewake.lock`), which is what every tool call's start normally does. `FileChanged` is there for the session that has no waiter left (Esc runs no hook): the `SessionStart` hook has Claude Code watch `chat.jsonl` (`watchPaths`), so a message appended to it starts a waiter, which finds the message and wakes the session within about a second. Needs nothing from the agent |
 | **PostToolUse / UserPromptSubmit hooks** | a busy session | Return unread messages as `additionalContext` after the agent's next tool call or the user's next terminal prompt |
 | **Stop hook** | a session about to go idle | Blocks the stop with the unread messages as the reason. When the IDE is open and nothing is waiting (no Rewake hook, no listener), it blocks once and asks the agent to start `ide/ide listen` |
 | **`ide/ide listen`** | an idle session, without the Rewake hook | The agent runs it as a background task; when it exits with the message, Claude Code calls the agent again. The agent restarts it each time |
 | **`ide/ide inbox`, MCP `inbox`** | on demand | For harnesses with no hooks and no background tasks |
-| **SessionStart hook** | a new session | Says the IDE exists, whether it is open, and where the skill is |
+| **SessionStart hook** | a new session | Says the IDE exists, whether it is open, and where the skill is. Creates `chat.jsonl` when it is missing and asks Claude Code to watch it |
 | **SessionEnd hook** | the page | Records that the session ended (`agent_ended`), so the panel says "The agent session has ended" at once instead of "working" |
 
 `optimizer/install.sh` writes the hook entries into `.claude/settings.json` (they come
@@ -132,13 +134,43 @@ sent after Esc in the terminal waited until the user typed there, and that the p
 | Terminal closed (`tmux kill-session`) | `SessionEnd` ran; status shows the session ended |
 | `ide/ide start` with another lab's IDE on 8642 | "note: port 8642 is in use … uses 8643"; `stop` then `start` came back on 8643 |
 
-Not covered by that fix: Esc before the turn's first tool call, when the waiter fired during
-this same turn. No hook runs between the two, so no waiter exists; after 25 s the page says
-the message is not delivered yet and what to do (see "Limits"), and "not listening" after
-three minutes.
+Left open by that fix: Esc before the turn's first tool call, when the waiter fired during
+this same turn. No hook runs between the two, so it was reasoned that no waiter exists. The
+fourth run closes it with the `FileChanged` waiter.
 
-Not tried in a live session: `ide/ide listen` and the MCP tools under a harness other than
-Claude Code.
+Fourth run, 2026-10-11, 10:37 to 11:03 PDT (Claude Code 2.1.296, Opus 5.5, scratch installs
+with 80 real games copied in, headless Chrome typing into the pages, another lab's IDE
+holding port 8642):
+
+| Case | Seen |
+|---|---|
+| "open the IDE" in the terminal | URL in the terminal 6 s later, on 8643, with the reason for the port |
+| Message typed in the panel, session idle | delivered in 1 s, answered in the page in 18 s |
+| Message typed while a chain of `sleep 6` calls ran | answered in the page in 24 s, mid-turn; the sleeps went on |
+| A note pinned to a phase and sent | acknowledged in 5 s naming the seat and phase; the answer 2 min 21 s after the click, about that phase, with a proposed experiment record and an idea card linking to it |
+| "Ask the agent to audit this game" and "Ask for a profile", 12 s apart | both acknowledged; the profile and its card after 3.5 min; `audit.json` after 12 min 47 s and the overlay on the replay page. The session was ended 24 s later, before any card for the audit |
+| The session's only waiter ended by hand, then a message (session idle) | with the `FileChanged` entry: delivered in 1.0 s, answered in 2.5 s. In an install without that entry: not delivered in 40 s |
+| Esc right after a wake-up, before its first tool call, then a message | answered in 4 s. Without the `FileChanged` entry this also worked in this run (a waiter was alive after the Esc), so the case above is the one that shows what the entry adds |
+| `/exit`, then a message | page: "The agent session has ended…" (looked at 12 s after the exit) |
+| `claude` started again, nothing typed | the waiting message answered 11 s after launch |
+| `ide/ide stop`, `ide/ide start` | back on 8643 |
+| `ide/ide follow` against a pick made in the browser | the page followed the browser's pick, then the policy recorded after it, then a pick made after that |
+
+The MCP server in that session (`/mcp`: `webdip-ide`, connected, 6 tools, no approval
+prompt): asked to use the tools and not the shell, the agent called `status` (the same
+object as `GET /api/agent/status`), `say` ("sent #18", and the line appeared in the chat),
+`show_card` ("card #2 posted", and the card appeared with its link), `inbox` with `peek`
+("No unread messages.") and `annotations` for one game (the user's note, as stored). No
+call failed. `annotate` was not called.
+
+Not tried in a live session: `ide/ide listen` in this run, and the MCP tools under a
+harness other than Claude Code. After this run `tools/run_ab.py`, the registers on the
+Experiments page and the audit line above the board changed. A further scratch install
+(11:07 PDT) was checked for those only: "open the IDE" gave the URL in 6 s; "how often do we
+hold compared with the field?" typed in the panel was answered in 43 s from the lab's
+`tools/holds.py`; the Experiments page listed the entries of `open_levers.md`; the
+audit line read "1 more did not hold where we logged no stance"; the phase counter read
+"1 of 36". The table above was not run a second time, and `run_ab.py` launched nothing.
 
 The panel shows the truth about each message as far as it can know it: "Delivered to the
 agent", or why it is still waiting (agent busy, agent idle and not listening, session ended,
@@ -148,14 +180,14 @@ the one thing to do.
 
 ### Limits
 
-- **Esc before the turn's first tool call can leave no waiter.** The message then waits. What
-  works: click into the agent's terminal, type any word and press Enter. That prompt runs the
-  `UserPromptSubmit` hook, which hands over the waiting messages with it and starts a new
-  waiter (seen in the cold-start drive: "go on" delivered a message that had waited three
-  minutes). Enter on an empty prompt does not help: it submits nothing, and the only hooks
-  are on `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop` and `SessionEnd`
-  (`hooks.py: HOOK_EVENTS`), so none runs. The page says this after 25 s. (That an empty
-  Enter runs no hook is read from the hook list, not tried in a live session.)
+- **A session with no waiter depends on the file watch.** After Esc no hook runs, so if the
+  waiter had just fired there may be none. The `FileChanged` entry covers that: the next
+  message written to `chat.jsonl` starts a waiter (seen live, below). It needs the watch the
+  `SessionStart` hook asks for, so it is absent in a session that started before the hooks
+  were installed, and it may stop if `.runtime/ide/` is deleted while the session runs.
+  Then the old way still works: click into the agent's terminal, type any word and press
+  Enter; the `UserPromptSubmit` hook hands over the waiting messages and starts a waiter. The
+  page says so when a message has waited 25 s.
 - **A long tool call delays a busy agent.** Hooks run between tool calls; the Rewake
   message is also injected between them. A 20-minute command means a 20-minute wait.
 - **Delivered is not the same as read.** The cursor moves when the text is handed to
@@ -167,7 +199,7 @@ the one thing to do.
   main session gets them at its next step.
 - **Hooks need workspace trust** and Claude Code 2.1.296 or newer (older versions were
   not tested; one that does not know `asyncRewake` may run the waiter as an ordinary
-  blocking Stop hook, so remove the two `Rewake` entries there and rely on `listen`).
+  blocking hook, so remove the `Rewake` entries there and rely on `listen`).
 - **MCP channels** (a research preview that pushes events into a session) were not
   used: a local channel server must be chosen when `claude` is launched, which
   contradicts "the agent is already running".
@@ -218,7 +250,7 @@ The server and the agent never talk to each other directly; both use `webdip_ide
 | `webdip_ide/routes_replays.py` | The replay browser and viewer pages, `/api/replays/...`, annotations |
 | `webdip_ide/episodes.py` | The replay index (one row per fetched game) and the viewer's data, press audit included |
 | `webdip_ide/routes_dashboard.py` | The dashboard and `/api/dashboard`: the lab's `tools/matchups.py` report as tables and charts |
-| `webdip_ide/routes_experiments.py` | The experiments pages and `/api/experiments`: lists and renders `<lab>/experiments/*.md`, `closed_levers.md` and `best_practices.md`; the paired number is the lab's `tools/paired.py` on the games the dashboard has read; never writes a record |
+| `webdip_ide/routes_experiments.py` | The experiments pages and `/api/experiments`: lists and renders `<lab>/experiments/*.md`, `open_levers.md`, `closed_levers.md` and `best_practices.md`; the paired number is the lab's `tools/paired.py` on the games the dashboard has read; never writes a record |
 | `webdip_ide/routes_reports.py`, `reports_markdown.py` | Lists and renders the Markdown reports under `<lab>/reports/`; never writes one |
 | `webdip_ide/reader.py` | Parses fetched games for the dashboard and the replay index: worker processes for a large batch, one parse of a game for both |
 | `webdip_ide/dates.py` | The one date format (Pacific, `Oct 11, 2:42 AM`); the Jinja filters `when` and `day` |
@@ -236,7 +268,7 @@ Under `<lab>/.runtime/ide/` (git-ignored; delete the directory to reset the IDE)
 | `cards.jsonl` | One card per line: `{seq, id, ts, kind, title, body, link}` |
 | `agent_seen` | Time of the agent side's last action: the presence signal |
 | `agent_ended` | Time the agent's session ended (its SessionEnd hook). Newer than `agent_seen`: no session is attached |
-| `followed_policy` | The policy name recorded with `ide/ide follow` |
+| `followed_policy` | The policy name recorded with `ide/ide follow`. The file's time is when: a browser's pick older than it no longer counts |
 | `port` | The port the server last listened on; the next `start` uses it again |
 | `server.json` | `{pid, port, url, started}` while the server runs |
 | `server.lock` | Locked by the server for as long as it lives. A `server.json` whose lock is free was left by a server that was killed, and is ignored |
@@ -285,8 +317,13 @@ tool: a page's sections are `<section>` with an `<h2>` (a serif heading over one
 a filter bar is `<form class="filters">` with a `<label>` around each `<select>` (add
 class `set` to a select that narrows the page); a sortable column heading is a link or a
 `th[data-sort]` and shows its direction with `aria-sort`; `.about` is the grey line that
-explains a section. The policy the user follows is one cookie, `dashboard_policy`, read
-and written by both the dashboard and the replay browser. Until the user picks one, every
+explains a section. The policy the user follows is one cookie, `dashboard_policy`, with the
+time it was picked in a second one, `dashboard_policy_at`; read them only through
+`routes_dashboard.remembered_policy(request)` and write them with `remember_policy(response,
+name)`, as the dashboard, the home page and the replay pages do. The newer choice wins: a
+pick in the browser stays until the agent runs `ide/ide follow NAME` after it, and that
+stays until the user picks again (a cookie from before the time was kept loses to any
+recorded policy). Until the user picks one, every
 page follows the policy the agent recorded with `ide/ide follow NAME`; without that, the
 policy this lab uploaded last, read from the rows `tools/ship.py` adds to
 `<lab>/players/*/VERSION_LOG.md` (the dashboard and the home page take a policy with press
@@ -322,25 +359,46 @@ both are given. The other paths a card or a report may link to:
 "Not now" on an idea card is kept in the browser only (`localStorage`, key `ide.ideasNotNow`,
 a list of card ids): the card stays, its two buttons go, and the server stores nothing.
 
+The Reports page offers an opponent profile for every policy in the fetched games except
+ours: the policy recorded with `ide/ide follow` and every name with a row in a version log
+(`routes_reports.our_policies`). It names the ones it left out. A lab with neither lists
+every policy and says why.
+
+In the replay viewer the phase counter reads from 1 ("1 of 35"); a link's `?phase=` and a
+note's phase count from 0, and the counter's tooltip gives that number.
+
 ### Experiments
 
 A record is a file the agent writes with the optimizer-seed `experiment` skill:
 `<lab>/experiments/<id>.md`, front matter (`id`, `policy`, `baseline`, `candidate`, `status`,
-`hypothesis`, `decision_rule`, `evals`) and then Context, Predictions, Design, Result and
-Verdict. `_template.md` is not a record. The IDE reads the front matter with its own small
+`hypothesis`, `decision_rule`, `evals`, and the lab's two optional keys `cost` and
+`artifacts`) and then Context, Predictions, Design, Result and Verdict. `_template.md` is not a record. The IDE reads the front matter with its own small
 reader (`routes_experiments.front_matter`: `key: value`, folded `>` values and lists, which is
 what the template uses), because the IDE has no YAML library. A field that still holds the
 template's `<...>` text counts as not written.
 
+A record is `proposed` from the moment the idea is written down (the lab's IDE skill has the
+agent write one before it posts an idea card). While it is proposed and has no games, the
+pages show its hypothesis, its rule, its `cost:` line (or, without one, the number of games
+the rule names) and one request, "Run this"; the requests for a result and for closing the
+record appear once it is running or has games.
+
 The games of an experiment are the ones under `.runtime/artifacts/<id>/`, where
-`tools/run_ab.py` fetches them (or the folder the record's `Artifacts:` line names). "x of y
+`tools/run_ab.py` fetches them. A record whose rule pools its games with an earlier record's,
+or whose games were fetched by hand into another folder, names those folders in its front
+matter, `artifacts: [<earlier id>]`; the record's own folder is always read too, after the
+listed ones, whether it is listed or not. Nothing in the record's text is read for this. The
+pages then read all the folders, say how many games each gave, and link to each folder's games
+in Replays (a game fetched into two of the folders counts once). `tools/run_ab.py:
+artifact_dirs` is the same rule, so the tool prints the same pooled read (checked on a pair of
+records with 28 and 56 real games: the page showed what `paired.py` prints for the two
+folders). "x of y
 games in" counts the finished games there; y is the number in the decision rule ("over 28
 balanced paired games"), and is left out when the rule states none. The paired difference is
 `paired.paired_report` from the lab's `tools/paired.py` with the candidate as A and the
 baseline as B, given the seats the dashboard's cache already holds, so the page parses no game
 and the number is the one `paired.py <folder> --a <candidate> --b <baseline>` prints (checked
-on the two closed records of 2026-10-11: 27 games, +0.038, SE 0.043, z 0.89; and 28 games,
-+0.039, SE 0.049, z 0.81). The page does not judge: the record's Verdict is the agent's.
+on two closed records, 27 and 28 games). The page does not judge: the record's Verdict is the agent's.
 
 Write routes with `dependencies=[Depends(routes_chat.require_same_origin)]` so another
 web site open in the same browser cannot post to the IDE.

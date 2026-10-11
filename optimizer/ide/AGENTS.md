@@ -54,6 +54,12 @@ saw in README.md under "What was verified".
 
 - The hook settings live in `hooks.hook_settings()`; `optimizer/install.sh` imports it.
   Change the entries there, not in the script.
+- The `FileChanged` entry has no matcher on purpose. A matcher there is a list of file names
+  in the session's working directory to watch; the chat file is elsewhere, so the
+  `SessionStart` hook names it in `watchPaths` and creates it when it is missing (Claude Code
+  starts its watcher only when something names a file). Keep both halves together.
+- Read the followed policy's cookie only through `routes_dashboard.remembered_policy` (it
+  applies the rule against `ide/ide follow`), never `request.cookies` directly.
 - Claude Code shows a blocked stop and a Rewake wake-up as "Stop hook error" or "Stop
   hook feedback". That is the delivery, not a failure.
 - `server.json` is trusted only while the server holds `server.lock`
@@ -67,7 +73,10 @@ saw in README.md under "What was verified".
   through for now because `tests/test_reports.py` and `tests/test_dashboard.py` still use it.
 - The experiments pages compute nothing of their own: the number is `paired.paired_report`
   from the lab's tools, on games taken from `routes_dashboard.CACHE.sync_by_directory(0.0)`.
-  Keep it that way, and keep the wait at 0 so the page never blocks on a read.
+  Keep it that way, and keep the wait at 0 so the page never blocks on a read. Which folders
+  a record reads is `routes_experiments.artifact_folders`; `tools/run_ab.py: artifact_dirs`
+  is the same rule (the folders the `artifacts:` key lists, then always the record's own), so
+  change the two together. `tests/test_experiments.py` compares them.
 - The index (`episodes.py`) and the dashboard cache are shared by request threads and a
   background reader: touch their module-level dictionaries only under their lock.
 - Never parse many games in a server thread: parsing holds the interpreter lock and every

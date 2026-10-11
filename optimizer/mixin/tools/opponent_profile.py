@@ -339,7 +339,7 @@ def family(policy: str) -> str:
 
 
 def slug(policy: str) -> str:
-    """'webdip-kissinger:v2' -> 'webdip-kissinger': the report file name."""
+    """'Some-Bot:v2' -> 'some-bot': the report file name."""
     name = policy.split(":v")[0].lower()
     return re.sub(r"[^a-z0-9]+", "-", name).strip("-")
 

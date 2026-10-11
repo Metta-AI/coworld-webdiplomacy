@@ -6,8 +6,8 @@ per-model quirks, and credentials. The optimizer's own `docs/platform.md` (at
 the optimizer root) covers the generic platform: auth, API routes, upload and
 submit. Read that first.
 
-Facts here were measured by a prior webDiplomacy lab in **2026-10** unless
-marked otherwise. The platform changes; re-check anything a decision depends on.
+Facts here were read from the platform in **2026-10** and carry their date. The
+platform changes; re-check anything a decision depends on.
 
 ## Setup
 
@@ -48,6 +48,32 @@ marked otherwise. The platform changes; re-check anything a decision depends on.
 
   Without a pinned `WEBDIP_SESSION_HOME` every command gets a fresh copy of the
   shared credentials and acts as whichever player the shared file names.
+
+- **Know who you are acting as, and say it.** One login holds a user account and one or
+  more players. `coworld player list` shows the players and which is active; "No active
+  player; commands act as your main user" means every command acts as the user, and
+  requests a player created will be missing. `softmax status` prints `subject_type`
+  (`user` or `player`). Uploads, requests and league entries belong to the **player** that
+  made them, so act as the player for the whole loop
+  (`source games/webdiplomacy/tools/session_env.sh <player id>`), and name the acting
+  identity to the user before the first upload or launch.
+- **What a player can and cannot do** (checked as a player that is not a Softmax team
+  member, 2026-10-11):
+
+  | Works as a player | Needs the league owner or a Softmax team account |
+  |---|---|
+  | `coworld upload-policy`, `coworld submit`, creating, listing and fetching its own XP requests | Starting a league round (`POST /v2/leagues/{id}/trigger-round`): there is no CLI command, and nothing a player can do makes a round run sooner |
+  | `coworld leagues <league_id> --json`: the league's settings and its filler roster ids | Other entrants' memberships (`/v2/league-policy-memberships` returns only your own rows to a player) |
+  | `coworld rounds`, `coworld episodes -r`, `coworld results`, `coworld memberships`, `coworld submissions --mine` | `/v2/leagues/{id}/filler-policies` (403 for a player, 2026-10-10) |
+  | League episodes' results and replays, and the logs of its own seats | Any other policy's seat log (403) |
+
+  A team member acts as the **user**, with elevated privileges asked for explicitly
+  (`--elevated` on the CLI, the header `X-Use-Elevated-Privileges: true` on the API).
+  `session_env.sh` has no user mode: for a user call, copy the credentials into a second
+  scratch `HOME` and run `coworld player unset` there. Keep it apart from the player's
+  `HOME`, so the two identities never share a file.
+- **Shell.** The default shell on macOS is zsh: quote `--include='*.py'`, do not write
+  `echo ===`, and pass several ids as separate words (zsh does not split `$IDS`).
 
 ## Uploading
 
@@ -101,25 +127,53 @@ set; see the eval-design binding):
   pool. When you are most of that pool, the game becomes self-play.
 - `episode_player_llm_spend_limit_usd` is the LLM budget **per episode**,
   split evenly over the seven seats. Zero disables LLM access for all seats.
-  A prior lab used 14, which is `make_request.py`'s default for a press set.
+  `make_request.py`'s default for a press set is 14.
 - `game_config_overrides` sets episode config fields (for example `seed`).
   Pinning powers with `countries` works from webDiplomacy Coworld 0.7.9
   (verified hosted 2026-10-10); see the eval-design binding and
   `tools/make_request.py --balanced`.
 - The allowed body keys are in the optimizer's `docs/platform.md`; `private`
   and `episode_player_llm_spend_limit_usd` are accepted. **Dry-run every body**
-  (`eval_request.py create body.json --dry-run`) before creating it.
+  (`eval_request.py create body.json --dry-run`) before creating it. The dry run
+  checks the body's shape and prints no cost; the estimate comes with the real
+  create (below).
+- **Keep the ids; the listing will not give them back.** `coworld xp-request list
+  --mine --json` returns rows under `entries` with a `next_cursor` (follow it: 1,000 rows
+  came back with more behind them on 2026-10-11), and a row has no roster, no notes and
+  `title: null`. `coworld xp-request episodes <xreq> --json` returns sealed rows
+  (`"evidence_state": "sealed"`, `participants: null`), even to the owner. What does
+  identify a request is `coworld xp-request get <xreq> --json`: `requested.notes` is
+  the note `make_request.py` wrote (what it compares, the field set, the experiment
+  id), and `cost_preview` is the estimate. So write every batch id into the
+  experiment record when it is created (`run_ab.py` does), and use the seed's
+  `fetch_artifacts.py` to read a batch, not the CLI listing.
+- **The platform may run an episode again.** The league settings carry
+  `fulfillment.retry_times: 2`, and a restarted game finishes about a game's length
+  after the others (seen 2026-10-11). The watcher shows only "still waiting". A
+  straggler is not a reason to stop the fetch or to read the batch without it.
 
 ## Cost and duration
 
-- About **15 XP credits per hosted full `classic-press` game** with five LLM
-  seats (LLM plus compute).
-- LLM spend on `z-ai/glm-5.3-flash` (reasoning low): about **$0.006 per seat
-  per movement phase**, about 13 to 14 calls per seat-phase, median latency
-  4.4 s (p90 15.6 s). That is about $0.10 per seat per full game.
-- A full hosted `classic-press` game takes **60 to 100 minutes** (61 by one
-  measurement, 80 to 100 by another; re-measure). Sixteen episodes in one
-  request ran in parallel, so a 16-game arm took about an hour of wall clock.
+As the platform reported it on 2026-10-10/11. Re-measure on your own batches with
+`python3 games/webdiplomacy/tools/batches.py <artifact dirs> [--responses DIR]`.
+
+| Game | Platform's estimate at create (`cost_preview.estimated_cost_credits`) | Episode row's `cost_usd` | Minutes of play |
+|---|---|---|---|
+| Full `classic-press` | 1.37 to 1.95 credits | $0.51 to $0.61 | median 61, longest 75 |
+| `classic-press-short` (health game) | 1.4 to 1.7 credits | $0.11 to $0.28 | 23 to 27 |
+| `classic-gunboat` | 0.50 credits | $0.026 | median 2.4 |
+
+- The estimate differed between launches of the same design on the same day; why is
+  not known.
+- **Not established:** the credits actually charged, and how `cost_usd` relates to
+  credits. Nobody has read a balance. Quote the platform's estimate as an estimate.
+- LLM spend depends on the model and the policy's prompts: `wd.py costs` prints it per
+  seat and per phase from the `llm_call` events.
+- A game usually starts within 3 minutes of the request. What you wait for is the
+  slowest game: about 60 press games launched together were all in after 70 minutes,
+  and a batch with a restarted or late game took 100 to 130.
+- Requests share one queue: a large gunboat batch created just after many press games
+  waited about an hour before its games ran.
 - The episode cap is 5,910 s (about 98 minutes) of game time; the manifest's
   episode timeout is 100 minutes.
 
@@ -153,8 +207,8 @@ error**. Verified on hosted health checks, 2026-10-08/09:
 | `openai/gpt-6-luna`, `anthropic/claude-haiku-5.5` | Reject `temperature` | Omit `temperature` |
 | `google/gemini-3.5-flash-lite` | Rejects reasoning off (HTTP 400) | Reasoning effort `low` |
 | `deepseek/deepseek-v4.1-flash`, `qwen/qwen3.8-flash`, `minimax/minimax-m3` | Reason past a 2,000-token `max_tokens` and return nothing | Raise the cap (6,000) or turn reasoning off (deepseek, qwen) |
-| `qwen/qwen3.8-flash` | About 40 provider 429s per game | Not used |
-| `minimax/minimax-m3` | About one call per 60 s | Not used |
+| `qwen/qwen3.8-flash` | About 40 provider 429s per game | None found |
+| `minimax/minimax-m3` | About one call per 60 s | None found |
 
 The sidecar also strips several request fields (`provider`, `models`,
 `fallbacks`, `metadata`, and others); `reasoning` passes through. After any
@@ -164,11 +218,21 @@ every LLM call in our seat logs succeeded (`llm_call` events).
 ## Leagues and the field
 
 - Two leagues; IDs and variants are in [game.md](game.md#leagues).
-- A league round is one game a day ([game.md](game.md#leagues)), so league
-  episodes are slow evidence; hosted XP requests are the instrument.
+- A league round is one game, at most one a day ([game.md](game.md#leagues)), so
+  league episodes are slow evidence; hosted XP requests are the instrument.
 - Empty league seats are filled from a **filler roster** that the league owner
-  curates (`/v2/leagues/{id}/filler-policies`). That route returns 403 for
-  player credentials (verified 2026-10-10); read the field off recent league
-  games with `tools/field.py`.
-- This lab ships no picture of the current field. Build it into `META.md` with
-  the recipe in [strategy.md](strategy.md#rebuilding-the-field-picture).
+  curates. The route `/v2/leagues/{id}/filler-policies` returns 403 for player
+  credentials (verified 2026-10-10), but **`coworld leagues <league_id> --json` lists
+  the roster's version ids in `filler_policy_version_ids`, and a player can read it**
+  (verified 2026-10-11). That is the whole roster. `tools/field.py` shows only what
+  recent rounds seated, with names, so it can miss part of the roster. Use the roster for the ids and
+  `field.py` for names and seatings; an id `field.py` has not seen can be named with
+  `GET /stats/policy-versions/<id>` (worked for a player on 2026-10-11, for ids that
+  the same account owned; not tried on a stranger's policy).
+- **Entering a league:** `coworld submit <policy>:vN --league <league_id> --player
+  <player id> --no-open-browser`; check it with `coworld memberships` (the entry
+  reads `competing / active` once it is in). The optimizer's `submit` skill sets the preconditions and the go-ahead; read
+  [game.md](game.md#leagues) on what an entry does and does not get you.
+- This lab ships no picture of the current field. Build it into `META.md`: the
+  roster and `tools/field.py` for who is in it, then the
+  [opponent-profile](../skills/opponent-profile/SKILL.md) skill for how each plays.

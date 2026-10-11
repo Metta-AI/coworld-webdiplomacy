@@ -111,8 +111,8 @@ Rules `verify` applies after checking the orders (each from a false alarm in rea
   had not broken our own word to that power in those turns. Otherwise kept_but_attacked_us or
   kept_despite_doubt. Every claim made to us lists `attacks_on_us` and `our_attacks_on_them`.
 
-Measured 2026-10-11 on nine hosted games, with every flag read by a careful reader: the first
-audits raised 279 flags and 80% were false alarms. The causes are in the press-audit skill.
+A flag is a lead, not a count to quote: read its evidence first. The kinds of false alarm are
+in the press-audit skill.
 
 What "relied on" means: our policy's committed press policy for that turn named the
 sender an ally, gave it trust of 0.5 or more, or expected orders from it. A hostile (or enemy) stance

@@ -5,8 +5,9 @@ it to the running agent session. Several things can, and whichever runs first wi
 because `store.take_unread_for_agent()` advances one cursor under a file lock:
 
   hooks      `ide hook <event>`, wired in `.claude/settings.json` (see `hook_settings()`):
-               Rewake (on SessionStart, UserPromptSubmit, PostToolUse and Stop,
-               `"asyncRewake": true`)          a waiter that Claude Code keeps in the background.
+               Rewake (on SessionStart, UserPromptSubmit, PostToolUse, Stop and
+               FileChanged, `"asyncRewake": true`)
+                                               a waiter that Claude Code keeps in the background.
                                                It exits with code 2 when a message arrives, and
                                                that wakes the session, idle or busy. This is what
                                                reaches a session sitting at its prompt, and it
@@ -14,13 +15,18 @@ because `store.take_unread_for_agent()` advances one cursor under a file lock:
                                                the session and waits while the server is down.
                                                Every event starts one and a second one exits at
                                                once, so a waiter is alive again right after one
-                                               fired, also when the user then interrupts the
-                                               turn (Esc), which runs no Stop hook.
+                                               fired. FileChanged is the one event that does not
+                                               depend on the agent's turn: Claude Code watches
+                                               `chat.jsonl` (the SessionStart hook asks for it)
+                                               and runs the waiter when a message is appended, so
+                                               a session with no waiter left (the user pressed
+                                               Esc, which runs no hook) is still reached.
                PostToolUse, UserPromptSubmit   add unread messages to the agent's context,
                                                so a busy agent sees them mid-turn.
                Stop                            hold the turn open when messages are unread, or
                                                when the IDE is open and nothing is waiting.
-               SessionStart                    say that the IDE exists and whether it is open.
+               SessionStart                    say that the IDE exists and whether it is open,
+                                               and have `chat.jsonl` watched (`watchPaths`).
                SessionEnd                      record that the session ended, so the page stops
                                                saying an agent is attached.
   listener   `ide listen`, run by the agent as a background task. It exits when a message
@@ -29,8 +35,8 @@ because `store.take_unread_for_agent()` advances one cursor under a file lock:
              Claude Code); the Stop hook asks for it when it is needed.
   inbox      `ide inbox` or the MCP `inbox` tool, when the agent asks.
 
-The hooks and the listener were tried against a live Claude Code 2.1.296 session on
-2026-10-11; the IDE's README records what was seen and what was not tried.
+The hooks, the listener and the MCP tools were tried against live Claude Code 2.1.296
+sessions on 2026-10-11; the IDE's README records what was seen and what was not tried.
 
 A hook must never break the session: `run_hook` catches everything and exits 0, and a
 hook that has nothing to say prints nothing.
@@ -56,7 +62,10 @@ except ZoneInfoNotFoundError:  # a machine with no time zone database: use its l
     PACIFIC = None
 SEEN_RECENTLY_SECONDS = 180
 HOOK_EVENTS = ("SessionStart", "UserPromptSubmit", "PostToolUse", "Stop", "SessionEnd")
-WAITER_EVENTS = ("SessionStart", "UserPromptSubmit", "PostToolUse", "Stop")
+# FileChanged is not in HOOK_EVENTS: it has no hook of its own, only the waiter. Claude Code runs it
+# when `chat.jsonl` changes (the SessionStart hook asks for that file to be watched), which is the
+# one event that does not depend on the agent's turn. See `rewake`.
+WAITER_EVENTS = ("SessionStart", "UserPromptSubmit", "PostToolUse", "Stop", "FileChanged")
 REWAKE_TIMEOUT_SECONDS = 7 * 24 * 3600  # the waiter lives as long as the session does
 # At Stop the Rewake waiter starts at the same moment as the Stop hook. Give it this long
 # to register before deciding that nothing is waiting.
@@ -286,7 +295,15 @@ def _hook_output(event: str, payload: dict) -> dict | None:
     if payload.get("agent_id"):
         return None  # a sub-agent's tool call: the user's messages are for the main session
     if event == "SessionStart":
-        return {"hookSpecificOutput": {"hookEventName": event, "additionalContext": session_start_text()}}
+        chat = paths.state_dir() / "chat.jsonl"
+        chat.touch()  # so there is a file to watch before the first message
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": event,
+                "additionalContext": session_start_text(),
+                "watchPaths": [str(chat)],  # a change runs the FileChanged waiter
+            }
+        }
     if event == "SessionEnd":
         if store.agent_seen() is not None:  # only a session the IDE knew about leaves a mark
             store.mark_agent_ended()
@@ -319,8 +336,10 @@ def rewake() -> int:
 
     Claude Code runs such a hook in the background and wakes the session when it exits
     with code 2, with stderr as the message. So this waits like `ide listen` and exits 2
-    with the user's message; the session's next hook event starts a new one. It exits 0 at
-    once when another waiter holds the lock, and soon after the session that started it has gone.
+    with the user's message; the session's next hook event starts a new one, and so does the
+    next change to `chat.jsonl` (the FileChanged entry), which finds the message already
+    there and exits 2 within a second. It exits 0 at once when another waiter holds the
+    lock, and soon after the session that started it has gone.
 
     It keeps waiting while the IDE server is down: the server may be started or restarted
     later (by the agent, or by the user in another terminal) while this session sits
@@ -406,5 +425,5 @@ def hook_settings(command: str = 'python3 "$CLAUDE_PROJECT_DIR/ide/ide" hook') -
     }
     settings = {event: [entry(event)] for event in HOOK_EVENTS}
     for event in WAITER_EVENTS:
-        settings[event].append(waiter)
+        settings.setdefault(event, []).append(waiter)
     return settings

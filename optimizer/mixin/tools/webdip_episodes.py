@@ -113,8 +113,9 @@ def read_json_file(path: Path):
     return json.loads(data)
 
 
-def read_log(path: Path | None) -> list[dict]:
+def read_log(path: Path | str | None) -> list[dict]:
     """JSON-object lines of a seat log; decodes a whole-file Python bytes literal."""
+    path = Path(path) if path is not None else None
     if path is None or not path.exists():
         return []
     text = path.read_text(errors="replace")

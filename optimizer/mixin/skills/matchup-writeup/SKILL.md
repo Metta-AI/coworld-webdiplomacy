@@ -94,6 +94,18 @@ the quick answer to "is this about how we play that power?". Do not quote its
 "vs par" numbers for us: its par is drawn from different seats than
 `matchups.py`'s, and `matchups.py` is the record for scores.
 
+When our hold share stands out beside the field's, one more command says
+where it comes from:
+
+```sh
+python3 $L/tools/holds.py $A --policy $P --variant $V --episodes $S/matchups.json --alone > $S/holds.txt
+```
+
+It gives our hold share by version, power and year beside the field, our seats
+that stopped moving, and, for a press build, the holds split by what our own
+press layer committed that phase. Quote it as what we do, not as why we lose:
+that a behaviour costs score is a hypothesis until an A/B tests it.
+
 **Then the "By opponent" table.** Per opponent: our score vs par with them at
 the table and without, the difference, their own score vs par, the
 head-to-head count (games we finished ahead of them and behind them) and the
@@ -206,12 +218,26 @@ Marks on those lines, and what to do with them:
 | `[OUR seat held to the end]`, `[its seat held to the end]` | That bot stopped playing or was locked in place. Ours: not evidence about the opponent |
 | `[press audit on disk]` | Step 4 can read an audit for this game |
 
-To count something the tools do not print, write a small script in
-`instruments/` with `opponent_profile.load_games` and `seat_facts` (the tool's
-docstring has the skeleton and the shape of a phase's order rows). Give it an
-`--episodes FILE` flag and pass `$S/matchups.json`, so it counts the same
-games and a refresh can re-run it (`matchups.read_episode_list(Path(FILE))`
-returns the ids).
+**Count the pattern over all the games** before it becomes a "what happened"
+sentence. Three tools print what write-ups keep needing, each on the same
+games with `--episodes $S/matchups.json`:
+
+```sh
+# every game of ours with this opponent: both scores, who finished ahead, first hostile act each way,
+# centres taken each way, and every tainted seat in the game (matchups.py prints none of these per game)
+python3 $L/tools/seat_rows.py $A --policy $P --versus <opponent> --variant $V --episodes $S/matchups.json
+# "our Austria leaves Trieste empty in Spring 1901", "its Italy orders A VEN - TRI", with the field beside it
+python3 $L/tools/board_counts.py $A --policy $P --as Austria --variant $V --episodes $S/matchups.json \
+    --unit-at TRI --when S1901 --owns TRI --split-by Italy --rows
+python3 $L/tools/board_counts.py $A --policy <opponent> --as Italy --variant $V --episodes $S/matchups.json \
+    --order "A VEN - TRI" --when 1901-1902
+```
+
+Write a script in `instruments/` only for a count these cannot make, with
+`opponent_profile.load_games` and `seat_facts` (the tool's docstring has the
+skeleton and the shape of a phase's order rows). Give it an `--episodes FILE`
+flag and pass `$S/matchups.json`, so it counts the same games and a refresh
+can re-run it (`matchups.read_episode_list(Path(FILE))` returns the ids).
 
 ### 3. Read the opponent's profile, or make one
 
@@ -263,11 +289,17 @@ For each game, collect:
 | Press games only: the press audit, when `.runtime/press/<episode id>/audit.json` exists | Who lied, where we were `betrayed`, where we `doubted_wrongly`, whether we broke our own word. Read the evidence beside each flagged claim before quoting a count; a count you did not check may appear only with "not checked" beside it |
 | The user's annotations: `ide/ide annotations <episode id>` (or `$L/annotations/<episode id>.json`) | What an expert reader saw. Quote them as evidence, with the phase, and say they are the user's reading |
 
+For the turning phase, `python3 $L/tools/seat_log.py $A --game <episode id>
+--power <ours> --when <A1902>` prints what our seat received, what it sent,
+every policy it committed that turn and the decision line, in order. It is the
+quickest way to see whether the press layer chose the order that lost the
+centre. It prints private press: describe it in your own words in the report.
+
 Read only our own seats' logs. When a batch seats only our account's policies
 every seat has a log on disk; a rival's log is not evidence a matchup may rest
 on, because league games will not have it.
 
-A press audit costs a sub-agent 9 to 14 minutes a game. Run one
+A press audit costs a sub-agent about ten minutes a game. Run one
 ([press-audit skill](../press-audit/SKILL.md)) for the one or two games where
 the turning point looks like a broken or doubted promise, not for all six.
 
@@ -281,7 +313,7 @@ For each opponent write the result, then the mechanism, as separate parts:
 - **Result:** the numbers from step 1, with n and the verdict, in the tool's
   words. No adjectives.
 - **What happened:** what the games show, as counts where you can make them:
-  "in 5 of our 6 worst games with it we held Austria or Russia and it took a
+  "in `<k>` of our `<n>` worst games with it we held `<power>` and it took a
   home centre from us by 1903".
 - **Why (mechanism):** each causal sentence carries its evidence and one of
   three confidence words:
@@ -307,20 +339,20 @@ this opponent (a centre we leave empty that any neighbour takes): say so.
 The file is `$L/reports/matchups/<our policy>-vs-<opponent>.md` for one
 opponent and `…-vs-field.md` for several: full policy names in lower case, no
 version, and `-gunboat` at the end for a gunboat write-up so it does not
-overwrite the press one (`castlereagh-ide-search-vs-webdip-kissinger-gunboat.md`,
-`castlereagh-ide-search-vs-field-gunboat.md`). Create the folder if it is not
+overwrite the press one (`<our policy>-vs-<opponent>-gunboat.md`,
+`<our policy>-vs-field-gunboat.md`). Create the folder if it is not
 there (`mkdir -p $L/reports/matchups`). For one opponent, use the same
 sections with a one-row summary table and a title that names it.
 
 ```markdown
 ---
 title: Why <our policy> wins and loses, by opponent
-date: 2026-10-11
+date: <YYYY-MM-DD>
 policy: <our policy>:vN
 opponent: field
-games: 82
+games: <n>
 variant: classic-press
-sources: ide-press-field (55 games), 2026-10-11-ide-press-pin-limit (27 games)
+sources: <folder> (<n> games), <folder> (<n> games)
 ---
 
 # Why <our policy> wins and loses, by opponent
@@ -339,7 +371,7 @@ Two or three sentences: the one or two matchups that matter and what to do.
 **Why.** … (seen / likely / guess, each with its episodes)
 **Cannot tell apart.** …
 **Evidence.**
-- [ereq_… Autumn 1902](/replays/ereq_…?phase=5): we were Austria; …
+- [ereq_… Autumn 1902](/replays/ereq_…?phase=5): we were <power>; …
 **What to try.**
 - Hypothesis: … Predicted effect: … Test: …
 
@@ -389,9 +421,12 @@ folder, and rewrite the file.
 ### 7. Hand off the hypotheses
 
 "What to try" lines are **hypotheses, not changes**. For each, check
-[closed_levers.md](../../closed_levers.md) and
-[best_practices.md](../../best_practices.md). If it was refuted before, say
-so in the report and name the new evidence, or drop it.
+[closed_levers.md](../../closed_levers.md),
+[open_levers.md](../../open_levers.md) (tested, no result),
+[best_practices.md](../../best_practices.md) and the records in
+`experiments/`. If it was refuted before, say so in the report and name the
+new evidence, or drop it. If a neighbouring idea was tested without a result,
+say what that test read and what size of run yours would need.
 
 The write-up ends there. Turning a hypothesis into a tested change is a
 separate task: the [diagnosis binding](../diagnosis/SKILL.md) (core skill
@@ -415,8 +450,8 @@ ide/ide show --kind report --title "<our policy> vs <opponent or the field>: <th
   --body "<the finding in two lines, with n and z>" --link "/reports/matchups/<file name without .md>"
 ```
 
-The title says what was found, "no result" included ("botts-cs2 vs the press
-field: no result; one lead against talleyrand-press").
+The title says what was found, "no result" included ("`<our policy>` vs the press
+field: no result; one lead against `<opponent>`").
 
 Run it whether or not the IDE is open: the card is stored and shows when the
 IDE next starts. If the `ide/ide` command is not installed, skip it; the file
@@ -447,6 +482,14 @@ table in your reply.
 - **Press and gunboat are not one matchup.** One variant per write-up.
 - **Versions.** Name ours and theirs. A write-up about `v3` is history after
   `v4` ships; say in the summary which versions it covers.
+- **A report that a later count overturned must be corrected in the file.** A
+  correction that lives only in a chat message leaves the tracked report
+  teaching the old claim. When a later check reverses a sentence, edit the
+  report: strike the claim, add a dated line under "Changes" saying what
+  replaced it and where the count is.
+- **A lead about our own play is not this opponent's doing.** A habit of ours
+  that shows against every opponent is not the reason we finish behind one
+  policy. Say so and hand it to the diagnosis skill.
 
 ## Handoffs
 

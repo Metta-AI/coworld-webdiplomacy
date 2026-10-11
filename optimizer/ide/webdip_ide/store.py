@@ -21,7 +21,8 @@ Files, under `paths.state_dir()` unless noted:
   agent_ended     the time the agent's session ended (its SessionEnd hook). Newer than
                   `agent_seen` means no session is attached.
   followed_policy the name of the policy the pages follow until the user picks another in
-                  the browser. The agent writes it (`ide/ide follow NAME`).
+                  the browser. The agent writes it (`ide/ide follow NAME`); the file's time is
+                  when, and a browser's choice made before then no longer counts.
   port            the port the server last listened on, so the next `start` uses it again.
   annotations/<episode id>.json   (in `paths.annotations_dir()`, tracked by git)
                   a list of {id, ts, author: "user"|"agent", phase, power, territory, tag,
@@ -167,6 +168,15 @@ def followed_policy() -> str:
         return (paths.state_dir() / "followed_policy").read_text().strip()
     except OSError:
         return ""
+
+
+def followed_at() -> float:
+    """When the agent last recorded the policy (every `ide/ide follow NAME` counts, also with the
+    same name), or 0.0 when it never did."""
+    try:
+        return (paths.state_dir() / "followed_policy").stat().st_mtime
+    except OSError:
+        return 0.0
 
 
 # --- cards ---

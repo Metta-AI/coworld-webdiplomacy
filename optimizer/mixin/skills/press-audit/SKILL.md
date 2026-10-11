@@ -11,7 +11,7 @@ description: >
 
 # Press audit — webDiplomacy
 
-Negotiation only pays when the policy trusts the right powers. This skill
+This skill
 turns one game's press into a checked record: **what was said, what was done,
 and how we stood**. It answers four questions that the score cannot:
 
@@ -53,11 +53,20 @@ python3 $L/tools/press_audit.py report $OUT        # prints the path of audit.ht
 has a `quote` that is not in its message, and names the entry. Fix that entry
 and run it again.
 
+**Choosing the games.** An audit costs a sub-agent about ten minutes a game, so
+pick on purpose: `python3 $L/tools/seat_rows.py $L/.runtime/artifacts --policy
+<policy> --variant classic-press --as <power> --limit 3` lists our worst games
+at a power (drop `--limit` and read from the bottom for the best), with the
+episode ids `extract` needs. Audit a good game beside a bad one at the same
+power. `extract` keeps an existing `claims.json` ("use --force to start it
+again"): pass `--force` only when you mean to throw the annotation away, for
+example after the tool's rules changed.
+
 ### Annotating: use a sub-agent per game
 
-A chatty seat sees 100 to 160 messages in a short game and 230 to 300 in a full
-`classic-press` game (measured 2026-10-10). Annotating one full game took a
-sub-agent 9 to 14 minutes and 160,000 to 200,000 tokens. **Give each game to its own
+Annotating one full `classic-press` game of 230 to 300 messages took a
+sub-agent about 10 minutes and 160,000 to 200,000 tokens (2026-10-10/11);
+`extract`, `verify` and `report` add about a minute. **Give each game to its own
 sub-agent** (several games: several sub-agents at once). The reading then stays
 out of your own context, and each game is read in one pass by an agent that
 holds the whole conversation. Give the sub-agent this brief, with the paths
@@ -87,17 +96,29 @@ flagged ones first: for each `betrayed`, read the evidence line beside the
 message and ask "was this promise made to us, did they choose to break it, and
 had anything been said since?".
 
-**How far to trust the flags (measured 2026-10-11 on nine hosted games).**
-Careful readers judged all 279 flags of the first audits: 80% were false
-alarms. The causes, most frequent first: the plan was changed in the open by a
-later message before the orders (58); the letter was broken but nobody was hurt
-or misled (34); the annotator read a forecast, a boast or an offer as a promise
-(33); our logged distrust did not match what we did (20); a kept promise that
-could not have been broken (16) or sat beside an attack on us (19); the order
-was given and bounced (13); the other side broke a mutual deal first (11); the
-wrong turn was checked (11); the words were about a third power (7). `verify`
-now decides most of these by code (see "Reading the result") and the rules
-below cover the rest. Still read a flag before you act on it.
+**How far to trust the flags.** A flag can be a false alarm. The kinds: the
+plan was changed in the open by a later message before the orders; the letter
+was broken but nobody was hurt or misled; the annotator read a forecast, a
+boast or an offer as a promise; our logged distrust did not match what we did;
+a kept promise that could not have been broken, or that sat beside an attack on
+us; the order was given and bounced; the other side broke a mutual deal first;
+the wrong turn was checked; the words were about a third power. `verify`
+decides most of these by code (see "Reading the result") and the rules below
+cover the rest. Still read a flag before you act on it.
+
+**Read the flags, then also read the turn we lost.** Two checks the counts
+cannot make for you:
+
+- *A flagged count nobody read is not a finding.* Quote a count you did not
+  check only with "by the tool's count, not read" beside it.
+- *The lie that decided the game may not be flagged at all.* A broken promise
+  is `betrayed` only when our policy's log shows it relied on the speaker that
+  turn. When the log holds no stance toward that power for the turn, the claim
+  lands in `false_no_stance` and is not flagged, though our orders show we went
+  along with it. So: find the turn our centres fell (`opponent_profile.py --game … --powers`),
+  and read every claim made to us in that turn and the one before, whatever
+  its category. `tools/seat_log.py --game … --power … --when …` shows what our
+  seat committed in reply.
 
 **The annotator is kept blind to results.** `annotate.json` has no orders and
 no outcomes. One leak remains: the next turn's starting board shows where units
@@ -160,8 +181,7 @@ Rules that keep annotations checkable:
   `promise` of `{"not": {"p": "supports", ...}}` that `replaces` the promised
   support. Only replace what the new message really changes: a plan for the
   same unit, the same province, or the same deal. A new message that merely
-  adds something replaces nothing. (Before this rule, 58 of 279 flags were a
-  plan changed in the open and then carried out as last stated.) The details:
+  adds something replaces nothing. The details:
   - **A "final orders" list replaces the turn's earlier plan.** "Final orders:
     RUH takes BUR with GAS and PAR support, fleets hold" takes the place of
     every earlier claim by that sender to that party about those units for
@@ -190,8 +210,7 @@ Rules that keep annotations checkable:
 - **Check your `replaces` before you finish.** Go through each turn once more,
   one pair of powers at a time, reading their messages in order. Wherever a
   later message changes what an earlier one said about that turn, the later
-  claim must carry `replaces`. This is the most common miss: 10 of the 29 false
-  flags left after the first re-annotation were changes nobody linked.
+  claim must carry `replaces`. This is the most common miss.
 - **Describing is not ordering.** "BUL is covered by CON", "my BUL, which I
   hold with support", "pressure the North Sea", "contain England", "my SER
   holds watch", "I'll back you against Turkey next year" name no order. Leave
@@ -279,9 +298,8 @@ Rules that keep annotations checkable:
   many times in a phase ("Locked.", "Confirmed.", "Orders locked as agreed").
   Give the claim to the first message of the turn that states the terms; later
   echoes in the same turn get `[]`. A later message that **changes** the terms
-  is not an echo: see "A changed plan". (Before this rule, one broken deal showed
-  as six to twelve betrayals. `betrayal_events` in the summary also guards
-  against it.)
+  is not an echo: see "A changed plan". (`betrayal_events` in the summary also
+  guards against one broken deal counted many times.)
 - **"Quiet".** "ARM/BLA quiet", "I keep SEV quiet": the sender's units there do
   not move on or support a move on anyone:
   `{"not": {"p": "attacks", "power": <sender>, "target": <addressee>, "unit": "ARM"}}`,
@@ -300,9 +318,9 @@ Rules that keep annotations checkable:
   then count as carrying out the threat.
 - **Season words that contradict the phase** ("this fall", listed under a
   Spring turn): cover **both** turns, the message's own and the one it names
-  (`"turns": [4, 5]`). The bots write "this fall" in a spring phase in about a
-  quarter of their messages and usually mean the orders they are about to
-  enter; checking only the named turn produced 11 false flags in 279. "Next
+  (`"turns": [4, 5]`). A sender that writes "this fall" in a spring phase may
+  mean the orders it is about to enter; checking only the named turn gives
+  false flags. "Next
   fall" and "next year" are not this case: they mean the following game year.
 - **Encode the gist of a loosely described move.** "Your SWE-DEN with BAL
   support" means a supported move on DEN: `moves_to DEN` plus `supports` into
@@ -362,6 +380,17 @@ will take Belgium") and `"success": false` that it was ordered and failed
 unmet, unverifiable), `outcome`, the `evidence` (the orders that settled it, then `note:`
 lines for any rule below that changed the verdict), `relied` and a `category`.
 
+Its layout, so you do not have to probe it:
+
+| Key | Contents |
+|---|---|
+| `episode`, `slot`, `policy`, `our_power`, `score`, `outcome` | The game and our seat |
+| `belief_logged` | False when our policy's log carried no press policy: every claim is then a "no stance" one |
+| `summary.messages`, `summary.messages_with_claims` | Counts |
+| `summary.powers.<POWER>` | Per speaker (upper-case name): `messages`, `claims`, `held`, `did_not_hold`, `unverifiable`, `held_share`, `asked`, `complied`, `categories` (category to count), `flagged` (the flagged claims, with quotes) and `betrayal_events` |
+| `messages[]` | `id`, `turn`, `sent_in`, `from`, `to`, `direction`, `text`, and `claims[]`: `kind`, `quote`, `commitment`, `turns`, `window`, `condition`, `evidence`, `outcome`, `to`, `relied`, `category` |
+| `phases[]` | Per movement phase: `turn`, `label`, `orders`, `units`, `centers`, `units_end`, `centers_end`, `end_known`, and `belief` (our committed stances, trust, required and expected orders that turn) |
+
 Outcomes beyond kept / broken / true / false:
 
 | Outcome | Meaning |
@@ -376,7 +405,7 @@ Outcomes beyond kept / broken / true / false:
 | Category | Meaning | What to do with it |
 |---|---|---|
 | `betrayed`, `deceived` | A promise made **to us** (`betrayed`), or a statement of the speaker's own coming orders or a threat that was not carried out (`deceived`), that we relied on and that did not hold, with no notice beforehand | The cases that cost centers. Open the turn: what did we commit because of it? |
-| `doubted_wrongly` | Perhaps a missed alliance: a pledge **not to move on us** was kept, the speaker had a unit that could have broken it, it did not move on us in the window or the turn before, we had not relied on it, **we moved on the speaker** in the window, and we had not given that power our own word for those turns (that would be `we_broke_our_word`) | Rare by design, and still the least certain flag: in the 2026-10-11 measurement no reader agreed with any of the eight raised by a looser rule. Was our distrust earned? |
+| `doubted_wrongly` | Perhaps a missed alliance: a pledge **not to move on us** was kept, the speaker had a unit that could have broken it, it did not move on us in the window or the turn before, we had not relied on it, **we moved on the speaker** in the window, and we had not given that power our own word for those turns (that would be `we_broke_our_word`) | Rare by design, and still the least certain flag. Was our distrust earned? |
 | `kept_despite_doubt` | Kept or true, and we had not relied on it, but nothing shows we lost by that | No action. It still counts for the speaker's honesty |
 | `kept_but_attacked_us` | Kept in the letter while the speaker moved on our units or centres that turn or the turn before (the orders are in the `note:` lines) | Evidence the distrust was right |
 | `trusted_rightly`, `doubted_rightly` | Our stance matched what happened | Evidence the trust rule works |
@@ -411,7 +440,7 @@ and `could_break`. A statement carries `scope`: `own_orders`, `forecast` or
 
 "Relied" is read at the **first turn of the claim's window**, from that turn's
 final committed policy. A trust number below 0.5 counts as "did not rely" even
-when the stance is `ally` (the reference policy does log "ally at trust 0.4");
+when the stance is `ally`;
 `hostile` (or `enemy`) counts as "did not rely" whatever the trust.
 
 `summary.powers` gives, per speaker, its messages, its claims, how many held,
@@ -431,8 +460,8 @@ claim lands in the two "no stance" categories. That still shows who lied.
 - **A changed plan is only seen when it is recorded.** `superseded` needs the
   annotator's `replaces`, or a later claim that names the very order. A plan
   dropped with a vague "things have changed" still reads as broken.
-- **"Relied" is the logged stance, not what we did.** The bot often logs low
-  trust and goes along with the deal anyway. That is why a kept promise is a
+- **"Relied" is the logged stance, not what we did.** A policy can log low
+  trust and go along with the deal anyway. That is why a kept promise is a
   missed alliance only when we attacked the speaker.
 - **Counts are small.** One game gives a power a handful of checkable claims.
   "Germany kept 4 of 5" is an observation about this game, not a rate.

@@ -96,6 +96,16 @@ class FetchEpisode(unittest.TestCase):
             self.assertEqual(fetch_league.fetch_episode(episode(), ROUND, LEAGUE, out, get=get), "have")
             self.assertEqual(len(get.paths), before)
 
+    def test_an_episode_whose_downloads_all_fail_is_not_marked_done(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            self.assertEqual(fetch_league.fetch_episode(episode(), ROUND, LEAGUE, out, get=lambda *a, **k: False),
+                             "empty")
+            self.assertFalse((out / "round-0003" / "ereq_1" / ".done").exists())
+            # The next run tries again, and a run that gets the files marks it.
+            self.assertEqual(fetch_league.fetch_episode(episode(), ROUND, LEAGUE, out, get=FakeGet()), "fetched")
+            self.assertTrue((out / "round-0003" / "ereq_1" / ".done").exists())
+
     def test_a_running_episode_is_left_for_the_next_run(self):
         with tempfile.TemporaryDirectory() as tmp:
             get = FakeGet()

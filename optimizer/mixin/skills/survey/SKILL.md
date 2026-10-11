@@ -33,7 +33,14 @@ Under it, one line each:
   an `exception`, seats that never played (`no_decisions`), seats whose pod the
   platform deleted mid-game (`pod_deleted`), failing LLM seats. The `taint:`
   line of `wd.py metrics` counts each. Infrastructure problems go here, not in
-  the score table.
+  the score table. Report `http errors` from the `telemetry` line when it is
+  not zero; "no errors" means every counter on that line is zero.
+- **Which games the headline is from.** Say it with the number, every time:
+  alone runs or all games (`matchups.py --alone` leaves paired games out),
+  which sources (league, experience requests), how many games, how many
+  dropped as tainted. The same policy reads differently raw and against par,
+  and in alone runs and in all runs; unlabelled, those look like different
+  headlines. Pick the alone view for "how good is it" and name it.
 - **Field par by power** for the batch, so a reader sees whether the field
   itself looked unusual.
 
@@ -41,8 +48,8 @@ A batch with fewer than about 16 seats per power is directional only. Say so.
 
 ## Structure worth surfacing
 
-- Which powers we gain or lose on relative to par. A policy that is fine as
-  France and broken as Austria is a common shape.
+- Which powers we gain or lose on relative to par. A policy can be fine at
+  one power and broken at another.
 - When our trajectory falls behind: the center count by year
   (`wd.py seats`) separates opening, midgame and endgame losses.
 - Who wins the games we lose: one opponent soloing often, or a field-wide
@@ -64,7 +71,16 @@ Flag cheaply from results and seat rows, rarer flags first:
 
 Write one specific reason per flagged episode: power, year, what happened, the
 number. Point the human at the replay with the hosted viewer
-(`coworld replay-open <episode-request-id> --hosted`).
+(`coworld replay-open <episode-request-id> --hosted`), or in the IDE at
+`/replays/<episode id>?seat=<slot>&turn=T` (T is 2 × (year − 1901), plus 1 for
+Autumn; a phase number counted by hand is wrong in any game with a retreat).
+
+**Check a line before it goes on a card.** A card stays as posted. What you
+did not look at is left out or marked "not checked".
+
+**A count from a tool nobody read is quoted as that.** Give a number such as
+the press audit's "betrayed" count with "by the tool's count, flags not
+read", or read the flags first (the press-audit skill says how).
 
 ## Tooling
 
@@ -82,3 +98,8 @@ may shift slightly.
 - `… wd.py seats DIR... | python3 games/webdiplomacy/tools/year_deltas.py`: mean
   center change per game year, by policy.
 - `python3 games/webdiplomacy/tools/wd.py costs DIR...`: LLM spend per seat.
+- `python3 games/webdiplomacy/tools/seat_rows.py DIR... --policy NAME [--as POWER] [--limit N]`:
+  the games themselves, worst score first, with centres by year, taint and
+  first targets: "our worst games as Austria" without a script.
+- `python3 games/webdiplomacy/tools/batches.py DIR...`: what each batch cost and
+  how long it took, from the episode rows.

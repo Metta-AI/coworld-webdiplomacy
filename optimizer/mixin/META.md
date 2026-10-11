@@ -10,10 +10,12 @@ before strategy work.
 
 ## Who is in the field
 
-*(every policy seated in the league's recent rounds, from
-`python3 games/webdiplomacy/tools/field.py press|gunboat`: league entrants and
-the fillers that take the empty seats. One row each. Version ids go into
-`field_sets.json` as the opponent sets for evals.)*
+*(every policy in the league's filler roster, from `coworld leagues <league_id>
+--json` (`filler_policy_version_ids`), and every policy seated in its recent
+rounds, from `python3 games/webdiplomacy/tools/field.py press|gunboat`: league
+entrants and the fillers that take the empty seats. One row each. Version ids go
+into `field_sets.json` as the opponent sets for evals. Say which league a row is
+for: the same bot name can sit in both.)*
 
 | Policy version | Entrant or filler | How it plays (and how we know) | Seen in rounds |
 |---|---|---|---|

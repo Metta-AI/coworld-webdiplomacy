@@ -106,7 +106,8 @@ def download(token: str, path: str, dest: Path, add_suffix: bool = False) -> boo
 
 def fetch_episode(episode: dict, rnd: dict, league: dict, out: Path, skip: frozenset[str] = frozenset(),
                   get=download, token: str = "") -> str:
-    """Save one league episode. Returns "fetched", "have" (already complete) or "running"."""
+    """Save one league episode. Returns "fetched", "have" (already complete), "running", or
+    "empty" when no download succeeded (nothing is marked done, so the next run tries again)."""
     ep_dir = episode_dir(out, rnd, episode)
     if (ep_dir / ".done").exists():
         return "have"
@@ -118,18 +119,23 @@ def fetch_episode(episode: dict, rnd: dict, league: dict, out: Path, skip: froze
                            "round_number": rnd["round_number"]}
     (ep_dir / "episode.json").write_text(json.dumps(row, indent=2, default=str))
     ereq = episode["id"]
+    got = False
     for artifact, stem in EPISODE_ARTIFACTS:
         if artifact not in skip:
-            get(token, f"/v2/episode-requests/{ereq}/artifacts/{artifact}", ep_dir / stem,
-                add_suffix=not stem.endswith(".log"))
+            got |= bool(get(token, f"/v2/episode-requests/{ereq}/artifacts/{artifact}", ep_dir / stem,
+                            add_suffix=not stem.endswith(".log")))
     for seat in episode.get("participants") or []:
         version, position = seat.get("policy_version_id"), seat.get("position")
         if version is None or position is None:
             continue
-        get(token, f"/v2/episode-requests/{ereq}/{version}/policy-logs/{position}",
-            ep_dir / "policy-logs" / f"{version}.{position}.log")
-        get(token, f"/v2/episode-requests/{ereq}/{version}/policy-artifact/{position}",
-            ep_dir / "artifacts" / f"{version}.{position}.zip")
+        got |= bool(get(token, f"/v2/episode-requests/{ereq}/{version}/policy-logs/{position}",
+                        ep_dir / "policy-logs" / f"{version}.{position}.log"))
+        got |= bool(get(token, f"/v2/episode-requests/{ereq}/{version}/policy-artifact/{position}",
+                        ep_dir / "artifacts" / f"{version}.{position}.zip"))
+    if not got:
+        # Every download was refused or missing. Marking it done would leave a folder with a
+        # row and nothing else for good. Leave it for the next run.
+        return "empty"
     (ep_dir / ".done").write_text(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     return "fetched"
 
@@ -162,7 +168,7 @@ def main(argv=None) -> None:
     out = args.out or LAB / ".runtime" / "artifacts" / f"league-{league['key']}"
     skip = frozenset(part for part in args.skip.split(",") if part)
     token = current_token()
-    counts = {"fetched": 0, "have": 0, "running": 0, "other policies": 0}
+    counts = {"fetched": 0, "have": 0, "running": 0, "empty": 0, "other policies": 0}
     for rnd, episode in league_episodes(league["id"], args.rounds):
         if not seats_policy(episode, args.policy):
             counts["other policies"] += 1
@@ -171,6 +177,9 @@ def main(argv=None) -> None:
         counts[state] += 1
         if state == "fetched":
             print(f"  fetched round {rnd['round_number']} {episode['id']} ({episode.get('status')})", flush=True)
+        elif state == "empty":
+            print(f"  nothing could be downloaded for round {rnd['round_number']} {episode['id']}: every request "
+                  "was refused or missing; it is not marked done and the next run tries again", file=sys.stderr)
     print(json.dumps({"out": str(out), **counts}))
 
 

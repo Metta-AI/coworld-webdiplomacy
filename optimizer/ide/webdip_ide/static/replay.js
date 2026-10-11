@@ -811,11 +811,14 @@
     box.hidden = !(audit && audit.joined && audit.powers && Object.keys(audit.powers).length);
     if (box.hidden) return;
     box.appendChild(el("span", "eyebrow", "Press audit"));
-    var liars = [], doubted = 0, broke = 0;
+    var liars = [], doubted = 0, broke = 0, noStance = 0;
     Object.keys(audit.powers).forEach(function (power) {
       var entry = audit.powers[power], cats = entry.categories || {};
       doubted += power === audit.our_power ? 0 : (cats.doubted_wrongly || 0);
       if (power === audit.our_power) { broke = cats.we_broke_our_word || 0; return; }
+      // Did not hold, in a turn where our policy logged no trust or distrust of that power: the
+      // audit cannot call it a lie we relied on, and it must not vanish from the headline either.
+      noStance += cats.false_no_stance || 0;
       var lies = (entry.flagged || []).filter(function (f) { return f.category === "betrayed" || f.category === "deceived"; });
       if (lies.length) liars.push({ power: power, lies: lies.sort(function (a, b) { return (a.pi || 0) - (b.pi || 0); }) });
     });
@@ -833,6 +836,13 @@
         jump.addEventListener("click", function (event) { event.preventDefault(); jumpToFlag(liar.lies[0]); });
         box.appendChild(jump);
       });
+    }
+    if (noStance) {
+      box.appendChild(el("span", "sep", "·"));
+      var more = el("span", "", noStance + " more did not hold where we logged no stance");
+      more.title = "Claims by other powers that were broken or not true in a turn where our policy recorded no trust " +
+        "or distrust of that power. They are not in the count of lies; read them under “Whose word held”.";
+      box.appendChild(more);
     }
     box.appendChild(el("span", "sep", "·"));
     box.appendChild(document.createTextNode("we doubted " + doubted + " kept word" + (doubted === 1 ? "" : "s") +
@@ -1205,8 +1215,10 @@
   function showBoard() {
     var ph = phase();
     $("phase-title").textContent = ph.label;
-    $("phase-count").textContent = current + " of " + (view.phases.length - 1);
-    $("phase-count").title = "Phase " + current + " of " + (view.phases.length - 1);
+    // Counted from 1 for the reader. A link's ?phase= and a note's phase count from 0: the tooltip says so.
+    $("phase-count").textContent = (current + 1) + " of " + view.phases.length;
+    $("phase-count").title = "Phase " + (current + 1) + " of " + view.phases.length +
+      " (phase=" + current + " in a link to this page)";
     $("note-phase").textContent = ph.label;
     drawMap();
     drawPins();

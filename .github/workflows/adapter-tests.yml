@@ -87,3 +87,35 @@ jobs:
       - name: Installed lab has no unfilled placeholders
         run: |
           ! grep -rn '{{' "$RUNNER_TEMP/webdip-optimizer/games/webdiplomacy" --include='*.md'
+      # What a cold start depends on: the files the skills and the IDE name, the wiring, a
+      # record made from the template that the seed's validator accepts, and the lab's own
+      # tests passing where a user will run them.
+      - name: Installed optimizer is complete
+        working-directory: ${{ runner.temp }}/webdip-optimizer
+        run: |
+          lab=games/webdiplomacy
+          for file in open_levers.md closed_levers.md best_practices.md experiments/_template.md \
+              tools/holds.py tools/board_counts.py tools/seat_rows.py tools/seat_log.py tools/batches.py \
+              tools/run_ab.py skills/ide/SKILL.md; do
+            test -f "$lab/$file" || { echo "missing $lab/$file"; exit 1; }
+          done
+          test -x ide/ide
+          test "$(git ls-files -s ide/ide | cut -c1-6)" = 100755
+          for link in ide press-audit opponent-profile matchup-writeup; do
+            test -f ".claude/skills/webdiplomacy-$link/SKILL.md" || { echo "skill link $link is broken"; exit 1; }
+          done
+          python3 - <<'PY'
+          import json
+          hooks = json.load(open(".claude/settings.json"))["hooks"]
+          waiters = sorted(event for event, entries in hooks.items()
+                           if any(hook.get("asyncRewake") for entry in entries for hook in entry["hooks"]))
+          assert waiters == ["FileChanged", "PostToolUse", "SessionStart", "Stop", "UserPromptSubmit"], waiters
+          assert "SessionEnd" in hooks
+          assert "webdip-ide" in json.load(open(".mcp.json"))["mcpServers"]
+          PY
+          python3 ide/ide status
+          uv run skills/experiment/scripts/record.py new "$lab" ci-check
+          uv run skills/experiment/scripts/record.py validate "$lab"
+          (cd "$lab" && python3 -m unittest discover -s tools/tests)
+          # Nothing but the new record is left for git to pick up: no lock file, cache or virtualenv.
+          test "$(git status --porcelain | wc -l)" -eq 1
