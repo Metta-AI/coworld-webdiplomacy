@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ report.title }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/reports.css">{% endblock %}
+{% block content %}
+<article class="page report-view">
+  <p class="eyebrow"><a href="/reports?kind={{ report.kind }}">{{ kind.label }}</a></p>
+  <div class="page-head">
+    <h1>{{ report.title }}</h1>
+  </div>
+  <dl class="facts report-facts">
+    {% if report.opponent %}<dt>{{ "Opponent" if report.kind == "opponents" else "Against" }}</dt><dd class="mono">{{ report.opponent }}</dd>{% endif %}
+    {% if report.policy %}<dt>{{ "Seen from" if report.kind == "opponents" else "Our policy" }}</dt><dd class="mono">{{ report.policy }}</dd>{% endif %}
+    <dt>Games</dt><dd>{{ report.games or "not stated" }}{% if report.variant %} <span class="muted">({{ report.variant }})</span>{% endif %}</dd>
+    <dt>Dated</dt><dd>{% if report.date %}{{ report.date }}{% else %}not stated{% endif %}
+      <span class="muted">(file last changed {{ report.modified }} PT)</span></dd>
+    {% if report.sources %}<dt>From</dt><dd class="mono">{{ report.sources }}</dd>{% endif %}
+    <dt>File</dt><dd class="mono">{{ report.path }}</dd>
+  </dl>
+  {% if stale %}
+  <p class="notice">The fetched episodes now hold <span class="mono">{{ stale | join(", ") }}</span>, which this
+    profile does not name. It describes the versions above; ask for a refresh before relying on it.</p>
+  {% endif %}
+  <p class="controls">
+    <button type="button" id="report-refresh"
+      data-ask="Refresh the {{ kind.one }} “{{ report.title }}” ({{ report.path }}): run the {{ kind.skill }} skill again on the episodes now on disk, rewrite the file and post a card."
+      data-kind="{{ report.kind }}" data-slug="{{ report.slug }}">Ask the agent to refresh this report</button>
+    <span class="sent-note small" id="report-ask-status" role="status" aria-live="polite"></span>
+  </p>
+  <div class="md report-body">
+{{ html | safe }}
+  </div>
+</article>
+{% endblock %}
+{% block scripts %}<script src="/static/reports.js"></script>{% endblock %}

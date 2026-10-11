@@ -1,0 +1,44 @@
+/* Reports: the list of write-ups and one rendered report. Tokens and base components are in app.css. */
+
+.report-kind h3 { margin-top: var(--s5); }
+/* A column of the same request on every row: plain until the row is under the pointer. */
+.report-table td.actions button { background: transparent; border-color: transparent; }
+.report-table tr:hover td.actions button, .report-table td.actions button:focus-visible { background: var(--paper-2); border-color: var(--rule-strong); }
+.report-table .report-title { font-family: var(--serif); font-weight: 700; font-size: var(--text-md); }
+.report-table td { vertical-align: baseline; }
+.report-table td.actions { text-align: right; white-space: nowrap; padding-right: 0; }
+.report-table .tag { margin-left: var(--s2); }
+.nowrap { white-space: nowrap; }
+.ask-matchup { margin-top: var(--s3); }
+.sent-note { color: var(--sage); min-height: 1.4em; }
+.sent-note.bad { color: var(--terracotta); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* One report: a single reading column; tables may run wider than the prose. */
+.report-view .eyebrow a { color: inherit; text-decoration: none; }
+.report-view .eyebrow a:hover { color: var(--navy); }
+.report-view .page-head { margin-bottom: var(--s3); }
+.report-facts { max-width: var(--measure); padding-bottom: var(--s3); border-bottom: 1px solid var(--rule); }
+.report-facts dd { overflow-wrap: anywhere; }
+
+.report-body { font-size: var(--text-md); }
+.report-body > p, .report-body > ul, .report-body > ol, .report-body > blockquote { max-width: var(--measure); }
+.report-body h2 { font-size: var(--text-lg); margin: var(--s6) 0 var(--s3); }
+/* Report headings are often whole sentences (a pattern, an opponent): set them as text, not as labels. */
+.report-body h3 {
+  font-size: var(--text-md); text-transform: none; letter-spacing: 0; color: var(--ink);
+  margin: var(--s5) 0 var(--s2); max-width: var(--measure);
+}
+.report-body h4 { font-size: var(--text-sm); color: var(--ink-2); margin: var(--s4) 0 var(--s1); }
+.report-body li { margin-bottom: var(--s1); }
+.report-body li > ul, .report-body li > ol { margin: var(--s1) 0 0; }
+.report-body table { width: auto; min-width: 50%; }
+.report-body th { white-space: normal; vertical-align: bottom; }
+.report-body td { overflow-wrap: break-word; }
+.report-body .table-scroll { margin-bottom: var(--s4); }
+.report-body .table-scroll table { margin-bottom: 0; }
+.report-body a.path { font-family: var(--mono); font-size: 0.9em; overflow-wrap: anywhere; }
+.report-body pre { max-width: 100%; }
+
+/* Column headers stay in the text face even over number columns. */
+.reports-page th.num, .report-body th.num { font-family: var(--sans); }
