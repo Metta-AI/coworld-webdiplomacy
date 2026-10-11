@@ -128,6 +128,64 @@ class Report(unittest.TestCase):
         self.assertEqual(r["taint"]["flags"], {"cancelled": 1, "exception": 1, "no_decisions": 1})
         self.assertEqual(r["overall"]["raw_including_tainted"]["n"], 3)
 
+    def test_a_seat_whose_pod_was_deleted_drops_its_game_and_is_named(self):
+        game(self.root, "a", 0.4)
+        dead = game(self.root, "bb", 0.0, logs={0: []})
+        (dead / "logs" / "policy_agent_0.log").write_text(
+            "No logs collected for pod wd-bb-0: the pod was deleted before log collection\n")
+        # A rival's dead pod does not drop the game: only our own seats' taints do.
+        theirs = game(self.root, "ccc", 0.3, logs={1: []})
+        (theirs / "logs" / "policy_agent_1.log").write_text("No logs collected for pod wd-ccc-1\n")
+        game(self.root, "dddd", 0.2, ours="rival-d:v1")
+        r = self.report()
+        self.assertEqual(r["episodes"], ["a", "ccc"])
+        self.assertEqual(r["taint"]["flags"], {"pod_deleted": 1})
+        self.assertEqual(r["taint"]["games_dropped"], 1)
+        self.assertIn("taint: {'pod_deleted': 1}; games dropped 1", matchups.render(r))
+
+    def test_alone_leaves_paired_games_out_of_everything(self):
+        game(self.root, "a", 0.4)
+        game(self.root, "bb", 0.3, field=["mine:v2", *FIELD[1:]])  # two of our family: a paired run
+        game(self.root, "ccc", 0.2, ours="rival-d:v1")
+        both = self.report()
+        self.assertEqual((both["games"], both["alone_games"], both["paired_games"]), (2, 1, 1))
+        self.assertFalse(both["filters"]["alone"])
+        self.assertEqual(both["par"]["classic-press"]["Italy"]["n"], 3)
+        alone = self.report(alone=True)
+        self.assertEqual((alone["games"], alone["seats"], alone["alone_games"], alone["paired_games"]), (1, 1, 1, 1))
+        self.assertEqual(alone["several_of_ours_games"], 0)
+        self.assertEqual(alone["episodes"], ["a"])
+        self.assertEqual(alone["episodes_read"], ["a", "ccc"])
+        self.assertEqual(alone["par"]["classic-press"]["Italy"]["n"], 2)  # the paired game's field is not par
+        self.assertIn("alone runs only: 1 paired games left out", matchups.render(alone))
+        # One version's seat beside a sibling version is still a paired game.
+        self.assertEqual(self.report("mine:v2", alone=True)["games"], 0)
+        self.assertEqual(self.report("mine:v2")["paired_games"], 1)
+
+    def test_sources_and_episode_lists(self):
+        game(self.root / "league-press", "a", 0.5)
+        game(self.root / "xreq_1", "bb", 0.3)
+        game(self.root / "xreq_1", "ccc", 0.0, logs={0: [{"event": "exception"}]})
+        game(self.root / "xreq_1", "dddd", 0.1, ours="rival-d:v1")
+        r = self.report()
+        self.assertEqual(r["sources"], {"league": 1, "xp": 1, "local": 0})
+        self.assertEqual(r["episodes"], ["a", "bb"])  # our clean games
+        self.assertEqual(r["episodes_read"], ["a", "bb", "ccc", "dddd"])  # the tainted game and the field's too
+        self.assertEqual(self.report(source="league")["episodes_read"], ["a"])
+        self.assertIn("sources: 1 games from league matches, 1 from experience requests, 0 local | "
+                      "2 seat one seat of mine, 0 seat two or more", matchups.render(r))
+
+    def test_the_opponent_table_prints_verdicts_and_no_none(self):
+        for i, score in enumerate([0.1, 0.13, 0.19]):
+            game(self.root, "w" * (i + 1), score)
+        game(self.root, "p" * 6, 0.3, ours="rival-d:v1")
+        text = matchups.render(self.report())
+        row = next(line for line in text.splitlines() if line.startswith("| rival-a "))
+        # Every opponent sat in every game (no "without"), and three games are too few for a verdict.
+        self.assertEqual(row, "| rival-a | 3* | -0.160 | -6.05 | - (n=0) | - | - | no comparison | +0.007 | 1-2 "
+                              "| -0.58 | too few games | -0.167 | -5.40 | too few games |")
+        self.assertNotIn("None", text)
+
     def test_sources_and_variants_are_kept_apart(self):
         game(self.root / "league-gunboat", "a", 0.5, variant="Classic gunboat")
         game(self.root / "league-gunboat", "bb", 0.3, ours="rival-d:v1", variant="Classic gunboat")
@@ -202,6 +260,65 @@ class Report(unittest.TestCase):
             self.assertEqual(matchups.main([str(self.root), "--list"]), 0)
         self.assertIn("score vs par +0.200", out.getvalue())
         self.assertIn("no seats for this policy", out.getvalue())
+
+    def run_main(self, *args):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            code = matchups.main([str(self.root), *args])
+        return code, out.getvalue()
+
+    def test_out_saves_the_run_and_episodes_repeats_it(self):
+        game(self.root, "a", 0.4)
+        game(self.root, "bb", 0.2, ours="rival-d:v1")
+        with tempfile.TemporaryDirectory() as scratch:
+            prefix = str(Path(scratch) / "run")
+            code, text = self.run_main("--policy", "mine", "--out", prefix)
+            self.assertEqual(code, 0)
+            self.assertEqual(Path(prefix + ".txt").read_text(), text)
+            saved = json.loads(Path(prefix + ".json").read_text())
+            self.assertEqual((saved["episodes"], saved["episodes_read"]), (["a"], ["a", "bb"]))
+            # Games that arrive later do not move a pinned run.
+            game(self.root, "ccc", 0.9)
+            game(self.root, "dddd", 0.6, ours="rival-d:v1")
+            code, text = self.run_main("--policy", "mine", "--episodes", prefix + ".json", "--json")
+            self.assertEqual(json.loads(text), saved)
+            self.assertEqual(json.loads(self.run_main("--policy", "mine", "--json")[1])["games"], 2)
+            # A profile saved by opponent_profile.py --out, and a plain list, pin a run the same way.
+            profile, plain = Path(scratch) / "profile.json", Path(scratch) / "ids.txt"
+            profile.write_text(json.dumps({"opponent": "rival-a", "episodes": ["a"], "episodes_read": ["a", "bb"]}))
+            plain.write_text("a\nbb\n\n")
+            for file in (profile, plain):
+                code, text = self.run_main("--policy", "mine", "--episodes", str(file), "--json")
+                self.assertEqual(json.loads(text), saved)
+            # A report saved before `episodes` was written lists only our games: no field, so no par.
+            old = Path(scratch) / "old.json"
+            old.write_text(json.dumps({"our_seats": [{"episode": "a"}]}))
+            code, text = self.run_main("--policy", "mine", "--episodes", str(old), "--json")
+            self.assertEqual((json.loads(text)["episodes_read"], json.loads(text)["no_par_seats"]), (["a"], 1))
+            (Path(scratch) / "bad.json").write_text("{}")
+            with self.assertRaises(SystemExit):
+                self.run_main("--policy", "mine", "--episodes", str(Path(scratch) / "bad.json"))
+
+    def test_opponent_profile_reads_a_saved_run(self):
+        import opponent_profile
+        game(self.root, "a", 0.4)
+        game(self.root, "bb", 0.2, ours="rival-d:v1")
+        with tempfile.TemporaryDirectory() as scratch:
+            prefix = str(Path(scratch) / "run")
+            self.run_main("--policy", "mine", "--out", prefix)
+            self.assertEqual(opponent_profile.read_episode_list(Path(prefix + ".json")), {"a", "bb"})
+
+    def test_list_takes_the_variant_and_source(self):
+        game(self.root / "league-gunboat", "a", 0.5, variant="Classic gunboat")
+        game(self.root / "xreq_1", "bb", 0.3, ours="other:v1")
+        code, text = self.run_main("--list", "--variant", "classic-gunboat", "--json")
+        self.assertEqual(code, 0)
+        self.assertEqual([(p["name"], p["games"]) for p in json.loads(text) if p["name"] in ("mine", "other")],
+                         [("mine", 1)])
+        code, text = self.run_main("--list", "--source", "xp", "--json")
+        self.assertEqual([p["name"] for p in json.loads(text) if p["name"] in ("mine", "other")], ["other"])
+        self.assertEqual(len([p for p in json.loads(self.run_main("--list", "--json")[1])
+                              if p["name"] in ("mine", "other")]), 2)
 
 
 if __name__ == "__main__":

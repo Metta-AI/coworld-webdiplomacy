@@ -2,8 +2,10 @@
 """How one policy performs: by power, opponent, version, source and variant (the IDE dashboard's numbers).
 
     python3 games/webdiplomacy/tools/matchups.py DIR... --policy NAME[:vN] \\
-        [--source league|xp|local|all] [--variant classic-press] [--opponent NAME] [--json]
-    python3 games/webdiplomacy/tools/matchups.py DIR... --list        # which policies are in the data
+        [--source league|xp|local|all] [--variant classic-press] [--opponent NAME] [--alone]
+        [--episodes FILE] [--out PREFIX] [--json]
+    python3 games/webdiplomacy/tools/matchups.py DIR... --list [--variant V] [--source S]
+                                                          # which policies are in the data (or that slice)
 
 The IDE dashboard and the matchup write-up skill both call this module, so there is one
 implementation of the numbers. Standard library only; episodes are read through
@@ -36,12 +38,23 @@ How the numbers are made
   |z| >= 2 by chance. Treat by-opponent and power-pair rows as leads to check in replays.
 - **Opponents are associations.** Seats are not assigned at random across opponents, so
   "with vs without" mixes in the power draw, the date and the rest of the table.
+- **Alone and paired.** A game that seats two or more seats of NAME (any version) is a paired
+  run: its score level is not what one seat gets alone. `alone_games` and `paired_games` count
+  both kinds among our clean games. `--alone` leaves the paired games out of everything, par
+  included, as if they were not on disk; `paired_games` then says how many were left out.
+- **Pinning a run.** `--out PREFIX` also writes PREFIX.json and PREFIX.txt. `--episodes FILE`
+  reads only the games listed in FILE: a PREFIX.json from `--out` (its `episodes_read`, so par
+  rests on the same games), a JSON that `opponent_profile.py --out` wrote, or one episode id
+  per line. Use it to repeat a run on the same games while more are being fetched.
 
 JSON shape (`--json`, and `report()`); every `stat` is
 `{n, games, mean, se, z, ci: [lo, hi], low_n, verdict}` (`mean`.. `ci` are null when unknown):
 
-  {policy, version, family, filters: {source, variant, opponent},
+  {policy, version, family, filters: {source, variant, opponent, alone},
    games, seats, variants: {variant: games}, mixed_variants, several_of_ours_games, no_par_seats,
+   sources: {league, xp, local: games},  alone_games, paired_games,
+   episodes: [id],          our clean games, the ones every number rests on
+   episodes_read: [id],     every game in scope, the field's included: what --episodes reads back
    caveats: [str],
    overall: {vs_par: stat, score, raw_including_tainted: {n, score}, final_centers,
              solo|draw|eliminated|survival|top_score: {k, n, rate}},
@@ -144,14 +157,36 @@ def load_game(ep_dir: Path) -> Game:
     return Game(ep_dir.name, episode_source(ep_dir), variant_of(ep_dir), date, seats, "results" in status["missing"])
 
 
-def load_games(roots: list[Path]) -> list[Game]:
-    """Every episode below `roots`, once each (the same episode fetched twice is read once)."""
+def load_games(roots: list[Path], only: set[str] | None = None) -> list[Game]:
+    """Every episode below `roots` (only the ids in `only`, when given), once each (the same
+    episode fetched twice is read once)."""
     games: dict[str, Game] = {}
     for root in roots:
         for ep in episode_dirs(root):
-            if ep.name not in games:
+            if ep.name not in games and (only is None or ep.name in only):
                 games[ep.name] = load_game(ep)
     return list(games.values())
+
+
+def read_episode_list(path: Path) -> set[str]:
+    """Episode ids from a saved run of this tool or of `opponent_profile.py` (`--out` PREFIX.json,
+    or this tool's `--json`), or from a file with one id per line. `opponent_profile.py` reads its
+    `--episodes` file with this function too, so each tool takes the other's file."""
+    text = path.read_text()
+    if not text.lstrip().startswith("{"):
+        return {line.strip() for line in text.splitlines() if line.strip()}
+    saved = json.loads(text)
+    if "episodes" in saved:
+        # Every game the run read, so the field and par come out the same as in the saved run.
+        return set(saved.get("episodes_read") or saved["episodes"])
+    if "our_seats" in saved:  # a report saved before `episodes` was written
+        return {seat["episode"] for seat in saved["our_seats"]}
+    raise SystemExit(f"{path}: no `episodes` and no `our_seats`: not a saved matchups.py or opponent_profile.py run")
+
+
+def in_scope(games: list[Game], source: str = "all", variant: str | None = None) -> list[Game]:
+    """The games that pass the source and variant filters."""
+    return [g for g in games if (source == "all" or g.source == source) and (not variant or g.variant == variant)]
 
 
 # --- statistics -----------------------------------------------------------------------
@@ -372,24 +407,36 @@ def _cost(rows: list[Ours]) -> dict:
 
 
 def report(games: list[Game], policy: str, source: str = "all", variant: str | None = None,
-           opponent: str | None = None) -> dict:
-    """The whole dashboard for `policy` (`NAME` or `NAME:vN`) over `games`; see the module docstring."""
+           opponent: str | None = None, alone: bool = False) -> dict:
+    """The whole dashboard for `policy` (`NAME` or `NAME:vN`) over `games`; see the module docstring.
+
+    `alone` leaves out every game that seats two or more seats of the policy's family."""
     family = family_of(policy)
     version = policy if policy != family else None
 
     def ours(s: Seat) -> bool:
         return s.policy == version if version else family_of(s.policy) == family
 
-    in_scope = [g for g in games if (source == "all" or g.source == source) and (not variant or g.variant == variant)]
-    missing = sum(g.missing_results for g in in_scope)  # no seats to read, so these may or may not be ours
-    clean = [g for g in in_scope
-             if not any(s.taint and (ours(s) or set(s.taint) & EPISODE_TAINTS) for s in g.seats)]
+    def paired(g: Game) -> bool:
+        return sum(family_of(s.policy) == family for s in g.seats) > 1
+
+    def is_clean(g: Game) -> bool:
+        return not any(s.taint and (ours(s) or set(s.taint) & EPISODE_TAINTS) for s in g.seats)
+
+    scope = in_scope(games, source, variant)
+    games = [g for g in scope if any(ours(s) for s in g.seats)]
+    if opponent:
+        games = [g for g in games if opponent in _opponents(g, family)]
+    # Counted before `alone` narrows the view, so an alone report says how many games it left out.
+    seating = Counter("paired" if paired(g) else "alone" for g in games if is_clean(g))
+    if alone:
+        scope = [g for g in scope if not paired(g)]
+        games = [g for g in games if not paired(g)]
+    missing = sum(g.missing_results for g in scope)  # no seats to read, so these may or may not be ours
+    clean = [g for g in scope if is_clean(g)]
     # Par rests on every clean game in scope, with or without one of our seats and whatever the
     # opponent filter says, so a seat's score vs par does not move when the view is narrowed.
     pars = field_pars(clean, family)
-    games = [g for g in in_scope if any(ours(s) for s in g.seats)]
-    if opponent:
-        games = [g for g in games if opponent in _opponents(g, family)]
 
     seen = [s for g in games for s in g.seats if ours(s)]
     flags = Counter(t for s in seen for t in s.taint)
@@ -446,11 +493,15 @@ def report(games: list[Game], policy: str, source: str = "all", variant: str | N
                          "eliminated": rate(r.seat.survived is False for r in v)})
 
     opponent_names = Counter(name for v in our_games.values() for name in v[0].opponents)
+    sources = Counter(g.source for g in kept)
     return {
         "policy": policy, "version": version, "family": family,
-        "filters": {"source": source, "variant": variant, "opponent": opponent},
+        "filters": {"source": source, "variant": variant, "opponent": opponent, "alone": alone},
         "games": len(our_games), "seats": len(rows), "variants": dict(sorted(variants.items())),
         "mixed_variants": len(variants) > 1, "several_of_ours_games": several, "no_par_seats": no_par,
+        "sources": {name: sources[name] for name in SOURCES},
+        "alone_games": seating["alone"], "paired_games": seating["paired"],
+        "episodes": sorted(our_games), "episodes_read": sorted(g.episode for g in scope),
         "caveats": caveats,
         "overall": {
             **_summary(rows),
@@ -527,9 +578,8 @@ def _plain(x: float | None, places: int = 3) -> str:
 
 
 def _stat_cells(s: dict) -> str:
-    z = "-" if s["z"] is None else f"{s['z']:+.2f}"
-    return f"{s['n']}{'*' if s['low_n'] and s['n'] else ''} | {_signed(s['mean'])} | {_plain(s['se'])} | {z} | " \
-           f"{s['verdict'] if s['n'] else '-'}"
+    return f"{s['n']}{'*' if s['low_n'] and s['n'] else ''} | {_signed(s['mean'])} | {_plain(s['se'])} | " \
+           f"{_signed(s['z'], 2)} | {s['verdict'] if s['n'] else '-'}"
 
 
 def _pct(r: dict) -> str:
@@ -538,12 +588,19 @@ def _pct(r: dict) -> str:
 
 def render(r: dict) -> str:
     o, f = r["overall"], r["filters"]
-    scope = ", ".join(f"{k} {v}" for k, v in f.items() if v and v != "all") or "all sources and variants"
+    scope = ", ".join(f"{k} {f[k]}" for k in ("source", "variant", "opponent") if f[k] and f[k] != "all") \
+        or "all sources and variants"
+    if f["alone"]:
+        scope += f", alone runs only: {r['paired_games']} paired games left out"
     lines = [f"# {r['policy']}: {r['games']} games, {r['seats']} of our seats ({scope})", ""]
     lines += [f"> {c}" for c in r["caveats"]]
     v = o["vs_par"]
     interval = f", 95% interval {_signed(v['ci'][0])} to {_signed(v['ci'][1])}" if v["ci"] else ""
-    lines += ["", f"overall: score vs par {_signed(v['mean'])} ± {_plain(v['se'])} SE, z {v['z']}, n={v['n']}"
+    s = r["sources"]
+    seating = f"{r['alone_games']} seat one seat of {r['family']}, {r['paired_games']} seat two or more"
+    lines += ["", f"sources: {s['league']} games from league matches, {s['xp']} from experience requests, "
+                  f"{s['local']} local | {seating}{' (left out)' if f['alone'] else ''}",
+              f"overall: score vs par {_signed(v['mean'])} ± {_plain(v['se'])} SE, z {_signed(v['z'], 2)}, n={v['n']}"
                   f"{interval}: **{v['verdict']}**",
               f"raw score {_plain(o['score'])} (parity 0.143; with tainted games put back "
               f"{_plain(o['raw_including_tainted']['score'])}, n={o['raw_including_tainted']['n']}) | "
@@ -568,16 +625,19 @@ def render(r: dict) -> str:
     table("By variant and source", "segment", r["by_segment"], lambda i: f"{i['variant']} / {i['source']}")
     if r["by_opponent"]:
         lines += ["", "## By opponent", "",
-                  "| opponent | games | ours with them | z | without | with - without | z | their vs par | "
-                  "ahead-behind | z | ours - theirs (paired) | z |",
-                  "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+                  "| opponent | games | ours with them | z | without | with - without | z | verdict | their vs par | "
+                  "ahead-behind | z | verdict | ours - theirs (paired) | z | verdict |",
+                  "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
         for p in r["by_opponent"]:
-            h, d = p["head_to_head"], p["difference"]
+            h, d, g = p["head_to_head"], p["difference"], p["paired"]
             lines.append(
                 f"| {p['opponent']} | {p['games']}{'*' if p['with']['low_n'] else ''} | {_signed(p['with']['mean'])} "
-                f"| {p['with']['z']} | {_signed(p['without']['mean'])} (n={p['without']['n']}) | {_signed(d['diff'])} "
-                f"| {d['z']} | {_signed(p['their_vs_par']['mean'])} | {h['ahead']}-{h['behind']} | {h['z']} "
-                f"| {_signed(p['paired']['mean'])} | {p['paired']['z']} |")
+                f"| {_signed(p['with']['z'], 2)} | {_signed(p['without']['mean'])} (n={p['without']['n']}) "
+                f"| {_signed(d['diff'])} | {_signed(d['z'], 2)} | {d['verdict']} "
+                f"| {_signed(p['their_vs_par']['mean'])} | {h['ahead']}-{h['behind']} | {_signed(h['z'], 2)} "
+                f"| {h['verdict']} | {_signed(g['mean'])} | {_signed(g['z'], 2)} | {g['verdict']} |")
+        lines += ["", "Each verdict belongs to the z on its left: with - without, the ahead-behind count, the paired "
+                      "gap (there \"above par\" means we finish ahead of them, \"below par\" behind)."]
     for t in r["trajectory"]:
         if t["years"]:
             lines += ["", f"## Centres by year end, {t['variant']} (ours / field at the same powers)", "",
@@ -593,11 +653,21 @@ def main(argv=None) -> int:
     ap.add_argument("--source", choices=(*SOURCES, "all"), default="all")
     ap.add_argument("--variant", help="for example classic-press or classic-gunboat")
     ap.add_argument("--opponent", help="only games that also seat this opponent policy (NAME)")
-    ap.add_argument("--list", action="store_true", help="list the policies in the data and exit")
+    ap.add_argument("--alone", action="store_true",
+                    help="leave out games that seat two or more seats of the policy (any version): paired runs")
+    ap.add_argument("--episodes", metavar="FILE", help="only the episode ids in FILE: a PREFIX.json from --out (of "
+                    "this tool or opponent_profile.py), or one id per line. Repeats a run on the same games")
+    ap.add_argument("--out", metavar="PREFIX", help="also write PREFIX.json (the report) and PREFIX.txt (the text)")
+    ap.add_argument("--list", action="store_true",
+                    help="list the policies in the data (in that --variant and --source, when given) and exit")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
-    games = load_games([Path(d) for d in args.dirs])
-    policies = list_policies(games)
+    only = read_episode_list(Path(args.episodes)) if args.episodes else None
+    games = load_games([Path(d) for d in args.dirs], only)
+    if only is not None and len(games) < len(only):
+        print(f"{len(only) - len(games)} of the {len(only)} episodes in {args.episodes} are not under "
+              f"{', '.join(args.dirs)}", file=sys.stderr)
+    policies = list_policies(in_scope(games, args.source, args.variant))
     if args.list or not args.policy:
         if not args.list:
             print("--policy is required; policies in this data:", file=sys.stderr)
@@ -609,11 +679,14 @@ def main(argv=None) -> int:
                 print(f"{p['name']}: {p['games']} games, versions {versions}, {p['seats_with_log']} of "
                       f"{p['seats']} seats with a log, latest {p['latest'] or 'local'}")
         return 0 if args.list else 2
-    result = report(games, args.policy, args.source, args.variant, args.opponent)
+    result = report(games, args.policy, args.source, args.variant, args.opponent, args.alone)
     if not result["taint"]["seats_seen"]:
         print(json.dumps({"error": "no seats for this policy and these filters",
                           "policies": [p["name"] for p in policies]}))
         return 2
+    if args.out:
+        Path(args.out + ".json").write_text(json.dumps(result, indent=1) + "\n")
+        Path(args.out + ".txt").write_text(render(result) + "\n")
     print(json.dumps(result, indent=1) if args.json else render(result))
     return 0
 

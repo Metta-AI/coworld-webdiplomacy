@@ -160,7 +160,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from matchups import variant_of
+from matchups import read_episode_list, variant_of
 from press_audit import ABBREVIATION, movement_phases, province, public_press, turn_label
 from webdip_episodes import (
     EPISODE_TAINTS,
@@ -1201,21 +1201,6 @@ def _add(mix: dict) -> float | None:
     if mix["support_move"] is None:
         return None
     return mix["support_move"] + mix["support_hold"]
-
-
-def read_episode_list(path: Path) -> set[str]:
-    """Episode ids from a saved profile (`--out` PREFIX.json), a saved `matchups.py --json` report
-    (its `our_seats`), or a file with one id per line."""
-    text = path.read_text()
-    if text.lstrip().startswith("{"):
-        saved = json.loads(text)
-        if "episodes" in saved:
-            # Every game the run read, so the field and par come out the same as in the saved run.
-            return set(saved.get("episodes_read") or saved["episodes"])
-        if "our_seats" in saved:
-            return {seat["episode"] for seat in saved["our_seats"]}
-        raise SystemExit(f"{path}: no `episodes` (a profile saved with --out) and no `our_seats` (matchups.py --json)")
-    return {line.strip() for line in text.splitlines() if line.strip()}
 
 
 def logged_decisions(game: Game, wanted: set[str]) -> dict[int, list[str]]:

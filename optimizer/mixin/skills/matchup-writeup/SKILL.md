@@ -46,22 +46,35 @@ From the optimizer root, with these names:
 ### 1. Where the differences are, and whether they are real
 
 ```sh
-python3 $L/tools/matchups.py $A --policy $P --variant $V --json > $S/matchups.json
-python3 $L/tools/matchups.py $A --policy $P --variant $V > $S/matchups.md   # the same numbers, to read
+python3 $L/tools/matchups.py $A --policy $P --variant $V --out $S/matchups
 ```
 
-The JSON is the record: work from it. While games are still being fetched the
-second run can read more games; if its header shows a different game count,
-run both again (a run can take half a minute). After that the write-up is
-frozen on the saved JSON: games that arrive later are named in "What this
-does not show", not mixed in. Note the time of the run in the report.
+One read writes `$S/matchups.json` (the record: work from it) and
+`$S/matchups.txt` (the same numbers, to read). The JSON lists the games it
+read (`episodes_read`) and our clean games among them (`episodes`), so the
+write-up is frozen on that run: every later command takes
+`--episodes $S/matchups.json` and reads the same games, and
+`matchups.py ... --episodes $S/matchups.json` prints the same numbers again
+however many games have arrived since. Those later games are named in "What
+this does not show", not mixed in. Note the time of the run in the report.
 
-**Say what the games are.** Read the header, the caveats and "By variant and
+**Say what the games are.** Read the header, its `sources:` line (games from
+league matches, from experience requests and local, then how many seat one of
+our seats and how many two or more), the caveats and "By variant and
 source". `xp` rows are our own eval batches; `league` rows are league rounds.
 If the user asked about league games and there are none (`--source league`
 then answers with the error "no seats for this policy and these filters":
 that is the answer), lead the report with that. "N games seat more than one
-of our seats" means paired runs are mixed in.
+of our seats" means paired runs are mixed in. Then also save the alone view:
+
+```sh
+python3 $L/tools/matchups.py $A --policy $P --variant $V --episodes $S/matchups.json --alone --out $S/matchups-alone
+```
+
+`--alone` leaves out every game that seats two or more seats of our policy
+(any version), from par too, and its header says how many. Quote our level
+and the opponent rows from the alone view, name the paired games as left
+out, and say so when the alone view is too small to decide anything.
 
 **Check our own seats before anything else.** Run the profile tool on our own
 policy, on the same games:
@@ -84,9 +97,11 @@ the quick answer to "is this about how we play that power?". Do not quote its
 **Then the "By opponent" table.** Per opponent: our score vs par with them at
 the table and without, the difference, their own score vs par, the
 head-to-head count (games we finished ahead of them and behind them) and the
-paired gap (our score vs par minus theirs, per game). The text table prints z
-values; the verdict words are in the JSON (`by_opponent[].difference.verdict`,
-`.head_to_head.verdict`, `.paired.verdict`).
+paired gap (our score vs par minus theirs, per game). The text table prints
+each verdict to the right of its z, in the words of the JSON
+(`by_opponent[].difference.verdict`, `.head_to_head.verdict`,
+`.paired.verdict`); `-` means the number does not exist (no "without" games,
+or too few games for an SE).
 
 A row is a **result** when it passes two tests, in this order. Passing only
 the first makes it a **lead**. Everything else is **no result**, and the
@@ -146,7 +161,10 @@ python3 $L/tools/opponent_profile.py $A --opponent <opponent> --variant $V --ver
     --episodes $S/matchups.json --out $S/versus-<opponent>
 ```
 
-Read its "Versus" section before opening any game.
+Read its "Versus" section before opening any game. (The list is every game
+step 1 read, so the per-power tables above Versus also count its games
+without one of our seats, and games `matchups.py` dropped for a tainted seat
+of ours are in Versus, marked.)
 
 - **Power pairs.** One row per (its power, our power), neighbours first:
   games ahead, behind and level, the mean of our score minus its score, who
@@ -192,7 +210,8 @@ To count something the tools do not print, write a small script in
 `instruments/` with `opponent_profile.load_games` and `seat_facts` (the tool's
 docstring has the skeleton and the shape of a phase's order rows). Give it an
 `--episodes FILE` flag and pass `$S/matchups.json`, so it counts the same
-games and a refresh can re-run it.
+games and a refresh can re-run it (`matchups.read_episode_list(Path(FILE))`
+returns the ids).
 
 ### 3. Read the opponent's profile, or make one
 
@@ -351,8 +370,9 @@ too). Cite an audit by episode, turn and category, and describe what our
 for this): run every step again on the games now on disk, in a new scratch
 folder, and rewrite the file.
 
-- Compare the old and new `matchups.json` first (game counts, the `our_seats`
-  episodes). If no game arrived, say so at the top; the refresh is then a
+- Compare the old and new `matchups.json` first (game counts, the `episodes`
+  lists; a file saved before the tool wrote them has the ids in `our_seats`).
+  If no game arrived, say so at the top; the refresh is then a
   re-check of the explanations.
 - Do not carry a mechanism over without re-checking it against the new
   numbers and reading at least one game for it again (a game that arrived
@@ -404,9 +424,9 @@ table in your reply.
 
 - **A paired run is not a matchup.** With two of our seats in a game, our
   score level is off in either direction (see the ab binding). Use alone runs
-  and league games for a matchup. `matchups.py` reports
-  `several_of_ours_games` but cannot leave them out; the Versus section's
-  "one of our seats" line is the alone-run view.
+  and league games for a matchup: `matchups.py --alone` leaves the paired
+  games out (`alone_games` and `paired_games` in the JSON count both), and
+  the Versus section's "one of our seats" line is the same view pair by pair.
 - **Three games do not make a mechanism.** The games you read are examples of
   the number, not the proof of it. Count the pattern over all the games when a
   count is possible, and say when it is not.
