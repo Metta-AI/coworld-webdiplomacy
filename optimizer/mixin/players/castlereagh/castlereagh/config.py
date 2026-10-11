@@ -1,9 +1,9 @@
 """Live tunables for DumbBot, the search and the press layer.
 
-Defaults are the lab's Kissinger personality (`OPP_MODEL_LEVEL = 1`, everything else at
-the search defaults), which is what `CASTLEREAGH_POLICY=search` plays. Override any value
-at runtime with `CASTLEREAGH_OVERRIDES="KEY=VAL,KEY=VAL"` (see bot.apply_overrides).
-Config is a live module: components read it on every decision.
+The defaults are what `CASTLEREAGH_POLICY=search` plays, and the golden test
+(tests/test_golden.py) pins the orders they produce. Override any value at runtime with
+`CASTLEREAGH_OVERRIDES="KEY=VAL,KEY=VAL"` (see bot.apply_overrides). Config is a live
+module: components read it on every decision.
 """
 
 import os
@@ -53,28 +53,20 @@ OPP_LOGODDS_CLIP = 8.0
 # Search objective: "sc" (our projected centres) or "share" (projected SC^2 share x34).
 SEARCH_OBJECTIVE = "sc"
 # Opponent sophistication: 0 = DumbBot samples; 1 = each DumbBot sample improved by one pass
-# of that power's own best response (Kissinger, the measured best: level 0 lost 0.135 and
-# level 2 lost 0.11 per seat in the lab).
+# of that power's own best response.
 OPP_MODEL_LEVEL = 1
 SEARCH_RISK = 0.0  # 0 = mean over opponent samples; 1 = worst case
-# Opponent-belief likelihood: "competent" (sensible orders count as competent; +0.106 per
-# seat in the lab) or "dumbbot" (only DumbBot-matching orders do).
+# Opponent-belief likelihood: "competent" (any sensible order counts as competent) or
+# "dumbbot" (only DumbBot-matching orders do).
 OPP_LIKELIHOOD = "competent"
 # With OPP_MODEL_LEVEL=1: probability that a given opponent sample is the improved (level-1)
-# plan rather than the raw DumbBot plan. Mixes below 1.0 lost in the lab; the knob stays
-# because its random draw is part of the search's RNG stream (golden test).
+# plan rather than the raw DumbBot plan. Its random draw is part of the search's RNG stream,
+# so the golden test depends on the draw being made even at 1.0.
 OPP_LEVEL1_SHARE = 1.0
-# Implicit diplomacy (no-press): hostility memory from public history. Off in Kissinger.
-DIPLO = 0
-DIPLO_DECAY = 0.7      # per movement phase
-DIPLO_HOSTILE = 1.0    # decayed attacks at/above this = hostile
-DIPLO_GRUDGE = 0.5     # extra centre-value for taking a hostile power's centre
-DIPLO_PEACE = 0.6      # centre-value discount for taking a peaceful power's centre
-DIPLO_STAB_YEAR = 1905 # peace discount applies before this year
 
 # --- Press layer (press/): see "Press layer" in ../README.md ---
-# Limits start generous ("set all limits high, then tighten" once logs show what is used).
-PRESS_SOUL = "castlereagh"          # press/souls/<name>/SOUL.md
+# The limits are generous on purpose; tighten them once your logs show what a wake uses.
+PRESS_SOUL = "default"              # press/souls/<name>/SOUL.md: the first part of the system prompt
 PRESS_MODEL = "z-ai/glm-5.3-flash"  # local default; hosted uses COWORLD_LLM_MODEL (fixed per upload)
 PRESS_REASONING = "low"             # OpenRouter reasoning effort ("" = provider default)
 PRESS_TEMPERATURE = 0.4             # None omits it (the sidecar requires every sent parameter be supported)
@@ -89,21 +81,17 @@ PRESS_MIN_WAKE_S = 8.0              # no wake shorter than this
 PRESS_FINAL_MARGIN_S = 12.0         # orders saved with Ready this long before the deadline
 PRESS_POLL_S = 1.0                  # how often new press is checked between wakes
 PRESS_MAX_MESSAGES_PER_PHASE = 30
-# Largest share of our units one commit may pin with `require_orders` (at least one unit is
-# always allowed). 1.0 = no limit. Below 1.0, a commit that pins more is refused with a message
-# the model can act on, so the search still chooses the other units' orders.
-PRESS_MAX_PINNED_SHARE = 1.0
 PRESS_MAX_MESSAGE_CHARS = 800
 PRESS_NOTE_CHARS = 4000             # per note key
 PRESS_STATE_DIR = "/tmp/castlereagh"  # per-game notes, kept across bot restarts within a game
 
-# Per-model sidecar quirks, verified hosted in a prior lab (see the lab's docs/platform.md, "LLM
-# sidecar model quirks"). The sidecar forces provider.require_parameters=true, so an unsupported parameter
-# fails EVERY call and the seat silently plays its floor. Matched by substring of the model
-# name; the first match wins and overrides the PRESS_* defaults above.
+# Per-model request settings. The sidecar forces provider.require_parameters=true, so a
+# parameter the model does not support fails EVERY call and the seat silently plays its floor.
+# Matched by substring of the model name; the first match wins and overrides the PRESS_*
+# defaults above. Add an entry when a new model fails its health game on a parameter.
 MODEL_QUIRKS = [
     ("gpt-6-luna", {"PRESS_TEMPERATURE": None}),          # rejects temperature
     ("claude-haiku-5.5", {"PRESS_TEMPERATURE": None}),    # rejects temperature
     ("gemini-3.5-flash-lite", {"PRESS_REASONING": "low"}),  # rejects reasoning off
-    ("deepseek", {"PRESS_REASONING": "none"}),            # reasons past the cap even at "low"; too slow
+    ("deepseek", {"PRESS_REASONING": "none"}),            # reasons past the token cap even at "low"
 ]

@@ -131,9 +131,9 @@ equal shares to survivors) but the leagues use the default.
   `WEBDIP_COUNTRY_ID` tells the bot its power.
 - **`results.json` is in slot order.** `results.countries[slot]` is that slot's
   power ID.
-- Powers differ a lot in strength. In one measured field (2026-10) France averaged
-  about three times England's score (see [strategy.md](strategy.md)). Always
-  compare a seat with the field's average **for the same power**.
+- Powers do not score alike, and how much they differ depends on the field. Always
+  compare a seat with the field's average **for the same power** (`wd.py metrics`
+  prints it per batch).
 
 ## `results.json`
 
@@ -173,13 +173,30 @@ A full `classic-press` game has 16 movement phases (1901 to 1908).
 | webDiplomacy (main, full press) | `league_1bccc63d-cd0a-47d7-92d7-e762797b5f1c` | `classic-press` |
 | webDiplomacy Gunboat | `league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17` | `classic-gunboat` |
 
-As of 2026-10-10 (verified from `coworld rounds` and `coworld episodes -r`):
-**a round is a single game**, and rounds are at most daily, so standings rest on
-very few games. The schedule is not reliable enough to plan on: list the rounds
-that have actually run with `coworld rounds -l <league_id>`. One player per user, ranked by **mean score**. A new
-submission becomes the scoring entry at once ("Auto champion: always"). Empty seats are filled from each
-league's **filler roster**. Read the live settings with
-`coworld leagues <league_id> --json` before relying on these.
+Re-resolve the ids with `coworld leagues --json`. As read on 2026-10-11 from
+`coworld leagues <league_id> --json` (read the live settings before relying on these):
+both leagues say `round_interval_minutes: 1440`, one episode per round
+(`ladder.scheduler.num_episodes: 1`), `players_per_user: 1`, fillers for missing
+players (each league's **filler roster**), up to two retries of a failed episode, and
+`disqualify_after_consecutive_failures: 3`. Entrants are ranked by **mean score**, and a
+new submission becomes the scoring entry at once ("Auto champion: always").
+
+- **A round is a single game**, and rounds are at most daily, so standings rest on
+  very few games.
+- **The schedule is not reliable enough to plan on.** Scheduled rounds have been
+  skipped. List the rounds that have actually run with `coworld rounds -l <league_id>`.
+- **A normal user cannot start a round and cannot make one come sooner; they wait for
+  the schedule.** The league owner or a Softmax team member can start one by hand; it
+  looks like any other in `coworld rounds` (`scheduled_by: ladder`) and counts in the
+  standings.
+
+**What an entry gets you.** One game per round, with our seat's log. A handful of
+games says nothing about a policy whose versions differ by a few hundredths of score.
+Do not enter a league to collect evidence, and do not wait on a round for it: a field
+eval against the filler roster is the evidence, and it is also what the `submit`
+skill's first-entry rule asks for before an entry. If the user wants an entry in early
+anyway, that is their call: write it in the decision record as a departure from the
+rule, with the rollback. `fetch_league.py` brings the league's games in beside your evals.
 
 Standings take two steps: `coworld results <league_id>` lists the league's
 divisions with their `div_…` IDs, and `coworld results <div_id>` shows that
@@ -188,14 +205,14 @@ draw on; the filler roster and other uploaded policies also play.
 
 ## Timing
 
-- Hosted full `classic-press` games took **60 to 100 minutes** in the 2026-10
-  lab: about 61 minutes by one measurement, 80 to 100 by another. LLM seats
-  rarely all mark Ready, so press phases usually run their full 4 minutes.
-  Measure your own.
-- Hosted `classic-gunboat` games took a **median 2.4 minutes of play** (90th
-  percentile 3.8, maximum 6.6) plus a median 2.7 minutes queued, at about
-  **$0.027 and 0.5 credits per game** (353 games, 2026-10-10). One batch of 80
-  ran all at once and drained in about 8 minutes; batches of 10 to 12 fired
-  together queued behind each other for up to 8 minutes.
+As the platform reported it on 2026-10-10/11; `tools/batches.py` prints the same
+numbers for your own batches ([platform.md](platform.md#cost-and-duration)).
+
+- A hosted full `classic-press` game ran a **median 61 minutes** (longest 75), and a
+  `classic-press-short` game 23 to 27. LLM seats rarely all mark Ready, so press
+  phases usually run their full 4 minutes. Add queueing and platform restarts for
+  the wall clock.
+- A hosted `classic-gunboat` game took a **median 2.4 minutes of play** (maximum
+  6.6), plus its time in the queue.
 - Local gunboat games with bots that mark Ready take 40 to 45 seconds. Local
-  games with the search policy take about 4.5 minutes.
+  games with the reference policy's search take about 4.5 minutes.

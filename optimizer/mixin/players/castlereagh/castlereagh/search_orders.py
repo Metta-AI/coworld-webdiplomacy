@@ -26,8 +26,7 @@ def fast_orders(units, orders, parent):
     Convoys are approximated: a convoying fleet holds; a convoyed army move becomes a plain
     move when every fleet on its path is ordered to convoy exactly that move, otherwise a
     hold. This ignores convoy disruption by dislodging a fleet, which is fine for
-    *evaluating* hypotheticals. (The lab could switch this off and fall back to the
-    `diplomacy` package; that path was never the default and is not carried here.)"""
+    *evaluating* hypotheticals."""
     fu, fo = [], []
     convoys = None
     for u, o in zip(units, orders):

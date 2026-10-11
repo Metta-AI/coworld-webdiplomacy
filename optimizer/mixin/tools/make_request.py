@@ -12,15 +12,15 @@ six field seats (analyze with tools/wd.py metrics).
 
 `--balanced` pins powers with `game_config_overrides.countries` and fixed roster slots and
 rotates the assignment by one power per body, so every roster seat plays every power
-exactly `-n` times and no result depends on which powers a policy happened to draw (with
-shuffled powers, an 80-game batch gave one policy Turkey 3 times and another 18). For a
+exactly `-n` times and no result depends on which powers a policy happened to draw (shuffled
+powers can give one policy a power 3 times and another 18 times in 80 games). For a
 field eval that is seven bodies (`-r0` .. `-r6`). **For a paired A/B it is fourteen**: each
 rotation is written twice, once with A in seat 0 and B in seat 1 (`-r0` ..) and once with
 the two swapped (`-r0m` ..). The swap is required, not optional: under a cyclic rotation
 seat 0 always holds the power "before" seat 1 on the board (England/France, France/Italy,
 ...), and seat 0's other neighbour is a field bot while seat 1's is our own second seat.
-On 2026-10-10 two uploads of identical code scored 0.11 apart in that unmirrored
-design (seat 0 ahead, z 2.6, 84 games). Mirroring gives each of A and B both positions equally. `-n` is
+Identical code in the two seats can read as a real difference in that unmirrored
+design. Mirroring gives each of A and B both positions equally. `-n` is
 the episode count per body (paired total = 14 x n; field total = 7 x n).
 The field seats are put in a different order in each rotation (a fixed shuffle seeded
 by the rotation number, so two arms built with the same field set get the same orders).
@@ -59,8 +59,8 @@ LEAGUES = {
     "gunboat": "league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17",
 }
 FIELD_SEATS = {"paired": 5, "field": 6}
-# Per-episode cap, split evenly over the seven seats (the prior lab's value; actual spend was
-# about $0.10 per LLM seat per full game). It is a cap, not a charge.
+# Per-episode cap, split evenly over the seven seats. It is a cap, not a charge: `wd.py costs`
+# prints what the seats spent.
 PRESS_LLM_BUDGET_USD = 14.0
 POWERS = ["England", "France", "Italy", "Germany", "Austria", "Turkey", "Russia"]  # upstream ids 1..7
 

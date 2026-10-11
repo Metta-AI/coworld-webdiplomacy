@@ -46,8 +46,6 @@ class PositionEvaluator:
             if holder:
                 counts[holder] = counts.get(holder, 0) + 1
         sc = counts.get(me, 0)
-        if config.DIPLO and me == bot.country:
-            sc += self.diplomacy_adjust(projected, me)
         if bot.press and me == bot.country:
             values = bot.press.get("center_values")
             if values:
@@ -58,27 +56,6 @@ class PositionEvaluator:
             sc = 34.0 * sc * sc / total
         pos = sum(value.get(n, 0.0) for n in my_nodes) / vmax
         return config.SEARCH_SC_WEIGHT * sc + config.SEARCH_POS_WEIGHT * pos - config.SEARCH_DISLODGED_WEIGHT * lost
-
-    def diplomacy_adjust(self, projected, me):
-        """Implicit diplomacy: centres taken from a power count more if it has been hostile to
-        us (grudge) and less if it has left us alone (peace), until DIPLO_STAB_YEAR."""
-        bot = self.bot
-        hostility = bot.memory.get("hostility", {})
-        year = 1901 + bot.turn // 2
-        adj = 0.0
-        for t, holder in projected.items():
-            if holder != me:
-                continue
-            prev = bot.b.owner.get(t)
-            if not prev or prev == me:
-                continue
-            h = hostility.get(str(prev), 0.0)
-            if h >= config.DIPLO_HOSTILE:
-                adj += config.DIPLO_GRUDGE
-            elif year < config.DIPLO_STAB_YEAR:
-                adj -= config.DIPLO_PEACE
-        bot.trace["diplo_evals"] += 1
-        return adj
 
 
 def evaluator(bot):

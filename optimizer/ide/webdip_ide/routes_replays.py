@@ -34,7 +34,6 @@ router = APIRouter()
 NAV = ("Replays", "/replays")
 
 PAGE_SIZE = 200
-POLICY_COOKIE = "dashboard_policy"  # the policy we follow: the dashboard reads and writes the same cookie
 SOURCE_WORDS = {"xp": "experience request", "league": "league match", "local": "local run"}
 SORTS = ("", "score", "-score")
 POWERS = ("England", "France", "Italy", "Germany", "Austria", "Turkey", "Russia")
@@ -114,9 +113,11 @@ def replays_page(
 ):
     names = sorted({s["policy"] for e in episodes.index() for s in e["seats"]})
     known = {episodes.policy_name(n) for n in names}
-    remembered = policy is None and request.cookies.get(POLICY_COOKIE, "") in known
+    # The policy we follow is the dashboard's: the same cookie, and the same rule against `ide/ide follow`.
+    picked = routes_dashboard.remembered_policy(request)
+    remembered = policy is None and picked in known
     if policy is None:
-        policy = request.cookies.get(POLICY_COOKIE, "") if remembered else routes_dashboard.lab_policy(known)
+        policy = picked if remembered else routes_dashboard.lab_policy(known)
         remembered = bool(policy)  # a default, like the cookie: not a filter the user set on this page
     sort = sort if sort in SORTS else ""
     filters = {
@@ -168,7 +169,7 @@ def replays_page(
         source_words=SOURCE_WORDS,
     )
     if policy and not remembered and episodes.policy_name(policy) in known:
-        response.set_cookie(POLICY_COOKIE, episodes.policy_name(policy), max_age=365 * 24 * 3600, samesite="lax")
+        routes_dashboard.remember_policy(response, episodes.policy_name(policy))
     return response
 
 
@@ -181,7 +182,7 @@ def _episode_or_404(episode: str) -> dict:
 
 def _seat(row: dict, seat: int | None, remembered: str = "") -> int | None:
     """The seat to follow: the one the link names; else the audited seat (`default_seat`); else, in a
-    game with no audit, a logged seat of the policy last followed in the browser or on the dashboard."""
+    game with no audit, a logged seat of the policy we follow (`remembered`)."""
     if seat is not None and any(s["slot"] == seat for s in row["seats"]):
         return seat
     if remembered and not episodes.audit_path(row["id"]).exists():
@@ -204,7 +205,9 @@ def replay_page(
         request,
         "replays_view.html",
         episode=row,
-        seat=_seat(row, seat, request.cookies.get(POLICY_COOKIE, "")),
+        # The policy we follow: the browser's pick, else the one the lab can name (recorded, or uploaded last).
+        seat=_seat(row, seat, routes_dashboard.remembered_policy(request)
+                   or routes_dashboard.lab_policy({episodes.policy_name(s["policy"]) for s in row["seats"]})),
         phase=phase,
         turn=turn,
         source_words=SOURCE_WORDS,

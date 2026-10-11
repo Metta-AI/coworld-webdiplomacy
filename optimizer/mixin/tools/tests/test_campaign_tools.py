@@ -121,9 +121,27 @@ class RunAbRecord(unittest.TestCase):
               "evals: []\n---\n\n# Title\n\nBody mentions --- a dash rule.\n")
 
     def test_placeholders(self):
-        self.assertTrue(run_ab.has_placeholders(self.TEMPLATE))
-        self.assertFalse(run_ab.has_placeholders(self.FILLED))
-        self.assertFalse(run_ab.has_placeholders("no frontmatter at all"))
+        self.assertEqual(run_ab.placeholders(self.TEMPLATE),
+                         ["<policy name>", "<code location>", "One sentence: X happens because Y …"])
+        self.assertEqual(run_ab.placeholders(self.FILLED), [])
+        self.assertEqual(run_ab.placeholders("no frontmatter at all"), [])
+
+    def test_any_unfilled_front_matter_field_stops_the_launch(self):
+        # A record with its policy and hypothesis filled, but the rule or the cost still the template's.
+        rule = self.FILLED.replace("evals: []", "decision_rule: >\n  ship iff <metric> moves <threshold>\nevals: []")
+        self.assertEqual(run_ab.placeholders(rule), ["<metric>", "<threshold>"])
+        cost = self.FILLED.replace("evals: []", "evals: []\ncost: <what a run would spend, e.g. 28 press games>")
+        self.assertEqual(run_ab.placeholders(cost), ["<what a run would spend, e.g. 28 press games>"])
+        # Not placeholders: a comparison in a rule, and anything in the body.
+        fine = self.FILLED.replace("evals: []", "decision_rule: ship iff the difference is > 0.04 and |z| < 2 fails\n"
+                                   "evals: []") + "\nSee <the folder>.\n"
+        self.assertEqual(run_ab.placeholders(fine), [])
+        with tempfile.TemporaryDirectory() as tmp:
+            record = Path(tmp) / "x.md"
+            record.write_text(cost)
+            with self.assertRaises(SystemExit) as stopped:
+                run_ab.launch(None, record)
+        self.assertIn("<what a run would spend", str(stopped.exception))
 
     def test_evals_round_trip_and_status(self):
         self.assertEqual(run_ab.evals_in(self.FILLED), [])
@@ -138,6 +156,91 @@ class RunAbRecord(unittest.TestCase):
     def test_record_without_an_evals_line_is_an_error(self):
         with self.assertRaises(ValueError):
             run_ab.with_evals("---\nid: x\n---\n", ["xreq_1"])
+
+    def test_the_read_covers_the_folders_the_record_names_and_always_its_own(self):
+        base = run_ab.LAB / ".runtime" / "artifacts"
+        self.assertEqual(run_ab.artifact_dirs(self.FILLED, "x"), [base / "x"])
+        self.assertEqual(run_ab.artifact_dirs(self.FILLED.replace("evals: []", "evals: []\nartifacts: []"), "x"),
+                         [base / "x"])
+        pooled = self.FILLED.replace("evals: []", "evals: []\nartifacts: [first, .runtime/artifacts/x]  # pooled")
+        self.assertEqual(run_ab.artifact_dirs(pooled, "x"), [base / "first", base / "x"])
+        other = self.FILLED.replace("evals: []", "evals: []\nartifacts: [first]")
+        self.assertEqual(run_ab.artifact_dirs(other, "x"), [base / "first", base / "x"])
+        own_first = self.FILLED.replace("evals: []", "evals: []\nartifacts: [`x`, first/, first]")
+        self.assertEqual(run_ab.artifact_dirs(own_first, "x"), [base / "x", base / "first"])
+        not_a_name = self.FILLED.replace("evals: []", "evals: []\nartifacts: [.., first]")
+        self.assertEqual(run_ab.artifact_dirs(not_a_name, "x"), [base / "first", base / "x"])
+        # Nothing in the body is read: not a front-matter-like line, and not an `Artifacts:` line.
+        body_only = self.FILLED + "\nartifacts: [not-front-matter]\n\nArtifacts: `.runtime/artifacts/elsewhere`\n"
+        self.assertEqual(run_ab.artifact_dirs(body_only, "x"), [base / "x"])
+
+    def test_alone_ids_are_kept_apart_so_each_run_can_be_resumed(self):
+        text = run_ab.with_evals(self.FILLED, ["xreq_p1", "xreq_p2"], status="running")
+        self.assertEqual(run_ab.paired_ids(text), ["xreq_p1", "xreq_p2"])  # no alone lists yet
+        text = run_ab.with_ids(run_ab.with_evals(text, run_ab.evals_in(text) + ["xreq_a1"]), "alone_a", ["xreq_a1"])
+        text = run_ab.with_ids(run_ab.with_evals(text, run_ab.evals_in(text) + ["xreq_b1"]), "alone_b", ["xreq_b1"])
+        text = run_ab.with_ids(run_ab.with_evals(text, run_ab.evals_in(text) + ["xreq_a2"]), "alone_a",
+                               ["xreq_a1", "xreq_a2"])
+        self.assertEqual(run_ab.evals_in(text), ["xreq_p1", "xreq_p2", "xreq_a1", "xreq_b1", "xreq_a2"])
+        self.assertEqual(run_ab.ids_in(text, "alone_a"), ["xreq_a1", "xreq_a2"])
+        self.assertEqual(run_ab.ids_in(text, "alone_b"), ["xreq_b1"])
+        self.assertEqual(run_ab.paired_ids(text), ["xreq_p1", "xreq_p2"])
+        self.assertEqual(text.count("alone_a:"), 1)
+        self.assertLess(text.index("alone_a:"), text.index("\n---\n"))  # in the front matter
+        self.assertIn("Body mentions --- a dash rule.", text)
+        with self.assertRaises(ValueError):
+            run_ab.with_ids("---\nid: x\n---\n", "alone_a", ["xreq_1"])
+
+    def test_launch_keeps_an_edit_made_to_the_record_meanwhile_and_prints_the_estimate(self):
+        import contextlib
+        import io
+        import tempfile
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as tmp:
+            lab = Path(tmp)
+            (lab / "experiments").mkdir()
+            record = lab / "experiments" / "x.md"
+            record.write_text(self.FILLED)
+            requests = lab / ".runtime" / "requests"
+            requests.mkdir(parents=True)
+            created = iter(["xreq_1", "xreq_2"])
+
+            def fake_run(cmd, capture=True):
+                if "make_request.py" in str(cmd[1]):
+                    for name in ("x-r0.json", "x-r0m.json"):
+                        (requests / name).write_text("{}")
+                    return ""
+                if "--dry-run" in cmd:
+                    return ""
+                batch = next(created)
+                if batch == "xreq_1":  # the agent edits the record while the launch is under way
+                    record.write_text(record.read_text().replace("Real text.", "Edited meanwhile."))
+                return json.dumps({"created": batch, "cost_preview": {"estimated_cost_credits": 1.5}})
+
+            args = mock.Mock(record="x", a="p:v2", b="p:v1", field_set="set", episodes=2)
+            err = io.StringIO()
+            with mock.patch.object(run_ab, "LAB", lab), mock.patch.object(run_ab, "run", fake_run), \
+                    contextlib.redirect_stderr(err):
+                ids = run_ab.launch(args, record)
+            text = record.read_text()
+        self.assertEqual(ids, ["xreq_1", "xreq_2"])
+        self.assertEqual(run_ab.evals_in(text), ["xreq_1", "xreq_2"])
+        self.assertIn("Edited meanwhile.", text)
+        self.assertIn("status: running", text)
+        self.assertIn("launched 2 batches, 4 games; the platform estimates 3.0 credits (0.75 a game)", err.getvalue())
+
+    def test_launched_line_without_an_estimate(self):
+        self.assertEqual(run_ab.estimate({"created": "x"}), 0.0)
+        self.assertEqual(run_ab.launched_line(14, 28, 0.0, "ids are in x.md"),
+                         "launched 14 batches, 28 games; the platform gave no estimate; ids are in x.md")
+
+    def test_the_shipped_template_is_a_placeholder_and_names_no_folders(self):
+        template = (run_ab.LAB / "experiments" / "_template.md").read_text()
+        unfilled = run_ab.placeholders(template)
+        for field_name in ("<policy name>", "<policy:vN>", "<metric>", "<what a run would spend"):
+            self.assertTrue(any(found.startswith(field_name) for found in unfilled), field_name)
+        self.assertEqual(run_ab.artifact_dirs(template, "x"), [run_ab.LAB / ".runtime" / "artifacts" / "x"])
 
 
 class Field(unittest.TestCase):

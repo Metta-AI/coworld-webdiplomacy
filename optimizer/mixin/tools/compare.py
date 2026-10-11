@@ -31,8 +31,7 @@ Metrics:
 Statistics (ab_stats): Welch t for means, Fisher exact for rates, Benjamini-Yekutieli
 across every reported test. A verdict needs adjusted p < 0.05, |z| >= 2 and at least
 30 seats per side; anything else is "no result", which is not evidence of equality.
-Priors: per-seat SD is about 0.12-0.18, so 16 games per arm only detects effects of
-about 0.08 or more. Size a verdict run with tools/sizing.py --separate.
+Size a verdict run with tools/sizing.py --separate before launching it.
 
 Example:
     python3 games/webdiplomacy/tools/compare.py .runtime/artifacts/xreq_base .runtime/artifacts/xreq_cand \\

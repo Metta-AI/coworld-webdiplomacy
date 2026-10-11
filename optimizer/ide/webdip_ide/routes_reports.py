@@ -31,7 +31,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request
 
-from . import episodes, paths, reports_markdown
+from . import episodes, paths, reports_markdown, routes_dashboard, store
 from .server import render
 
 router = APIRouter()
@@ -121,6 +121,12 @@ def _profiled(report: dict) -> set[str]:
     return names or {report["slug"]}
 
 
+def our_policies() -> set[str]:
+    """The policies this lab can name as ours: the one the agent recorded (`ide/ide follow`) and
+    every name with a row in a version log."""
+    return {name for name in (store.followed_policy(), *routes_dashboard.shipped_policies()) if name}
+
+
 def unreadable_episodes() -> int:
     """Episodes on disk whose seats could not be read: their policies are missing from the list."""
     return sum(not row["seats"] for row in episodes.index())
@@ -147,12 +153,15 @@ def reports_page(request: Request, kind: str | None = None):
         raise HTTPException(404, f"no report kind {kind!r}")
     reports = list_reports()
     missing, stale = profile_gaps(reports["opponents"], policies_in_data())
+    ours = our_policies()
     return render(
         request,
         "reports.html",
         kinds={k: v for k, v in KINDS.items() if kind in (None, k)},
         reports=reports,
-        missing=missing if kind in (None, "opponents") else [],
+        # An opponent profile is of somebody else: our own policies are not asked for one.
+        missing=[p for p in missing if p["name"] not in ours] if kind in (None, "opponents") else [],
+        ours=sorted(p["name"] for p in missing if p["name"] in ours),
         stale=stale,
         unreadable=unreadable_episodes(),
         only=kind,

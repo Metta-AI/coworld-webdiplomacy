@@ -1,8 +1,7 @@
 """Press part (d), knowledge: what the agent can remember and look up.
 
-Deliberately unopinionated (the lab's fixed plan.md, per-power profiles and commitment
-ledger are gone; 10 of 30 sampled "broken promise" verdicts there were our own recording
-errors). Three stores:
+The stores hold raw material and impose no structure on it: the code records what was said
+and what was ordered, and never decides whether a promise was kept. Three stores:
 
 - `Notes`: a plain key -> text store. The agent decides what to keep (`notes(key, text)`,
   `read_notes()`). Persisted to a JSON file so it survives a bot restart within a game.

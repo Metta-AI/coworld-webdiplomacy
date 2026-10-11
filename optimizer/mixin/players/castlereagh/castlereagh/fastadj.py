@@ -3,9 +3,7 @@
 Implements Lucas Kruijswijk's "guess and check" resolution (the DATC reference design,
 https://webdiplomacy.net/doc/DATC_v3_0.html section 5) restricted to Hold / Move /
 Support hold / Support move. search_orders.fast_orders approximates convoys before
-calling this. The lab differentially tested it against the `diplomacy` package on
-non-convoy orders (its check_fastadj.py) and kept it as the reference for a Nim port;
-this package uses it directly.
+calling this.
 
 Inputs are province-level: `units` is a list of (country, province, unit_type) and
 `orders` a parallel list of tuples:

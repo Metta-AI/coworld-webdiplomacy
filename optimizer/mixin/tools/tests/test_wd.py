@@ -116,7 +116,7 @@ class LocalRunHelpers(unittest.TestCase):
         self.assertEqual(wd.player_spec("img:1", None, {})["run"], [])
         self.assertEqual(wd.bundled_player(self.MANIFEST, "random")["image"], "img:downloaded")
         with self.assertRaises(wd.SetupError):
-            wd.bundled_player(self.MANIFEST, "dumbbot")
+            wd.bundled_player(self.MANIFEST, "no-such-player")
 
     def test_missing_coworld_cli_explains_install(self):
         with mock.patch.dict(os.environ, {"PATH": "", "COWORLD_CMD": ""}):

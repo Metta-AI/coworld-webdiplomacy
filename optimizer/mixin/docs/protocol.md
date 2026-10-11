@@ -104,8 +104,8 @@ per-pod sidecar at `COWORLD_LLM_ENDPOINT`:
 - The model is set at upload (`--use-llm --llm-model <OpenRouter slug>`) and is
   **fixed for that policy version**. Changing the model means a new upload.
 - About 30 requests per minute per seat. Handle 429 and respect `Retry-After`.
-- `GET /spend` reports spend and limits. Responses carry `usage.cost`; the lab
-  measured the sidecar's spend header about 6% above the summed `usage.cost`, so
+- `GET /spend` reports spend and limits. Responses carry `usage.cost`; the
+  sidecar's spend header has read about 6% above the summed `usage.cost` (2026-10), so
   budget against the header.
 - Per-model parameter quirks can make **every** call fail while the bot keeps
   playing its fallback. See [platform.md](platform.md#llm-sidecar-model-quirks).

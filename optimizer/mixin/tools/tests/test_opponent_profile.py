@@ -370,7 +370,7 @@ class Helpers(unittest.TestCase):
         self.assertIsNone(op._se([("g1", 0.0), ("g1", 1.0)]))
 
     def test_slug_drops_the_version(self):
-        self.assertEqual(op.slug("webdip-Kissinger:v2"), "webdip-kissinger")
+        self.assertEqual(op.slug("Some-Bot:v2"), "some-bot")
 
     def test_named_openings_use_orders_the_tool_can_print(self):
         for power, table in op.OPENINGS.items():

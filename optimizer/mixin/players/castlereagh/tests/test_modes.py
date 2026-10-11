@@ -32,9 +32,9 @@ class ModeTest(unittest.TestCase):
 class OverridesTest(unittest.TestCase):
     def test_types_follow_the_current_value(self):
         with mock.patch.multiple(config, SEARCH_SEEDS=12, SEARCH_RISK=0.0, PRESS_TEMPERATURE=0.4,
-                                 PRESS_SOUL="castlereagh"):
-            bot.apply_overrides("SEARCH_SEEDS=4, SEARCH_RISK=0.5,PRESS_SOUL=bismarck")
-            self.assertEqual((config.SEARCH_SEEDS, config.SEARCH_RISK, config.PRESS_SOUL), (4, 0.5, "bismarck"))
+                                 PRESS_SOUL="default"):
+            bot.apply_overrides("SEARCH_SEEDS=4, SEARCH_RISK=0.5,PRESS_SOUL=mine")
+            self.assertEqual((config.SEARCH_SEEDS, config.SEARCH_RISK, config.PRESS_SOUL), (4, 0.5, "mine"))
 
     def test_unknown_knob_fails(self):
         with self.assertRaises(AttributeError):
@@ -64,12 +64,21 @@ class ModelSettingsTest(unittest.TestCase):
         self.assertEqual(llm.model_settings("deepseek/deepseek-v4.1-flash")[0]["extra_body"],
                          {"reasoning": {"effort": "none"}})
 
-    def test_system_prompt_has_soul_harness_and_skills(self):
-        prompt = llm.system_prompt("castlereagh")
-        self.assertIn("# Castlereagh", prompt)
-        self.assertIn("harness rules", prompt)
-        self.assertIn("- trust:", prompt)
-        self.assertNotIn("Kissinger", prompt)
+    def test_system_prompt_has_the_default_soul_the_harness_rules_and_every_shipped_skill(self):
+        prompt = llm.system_prompt(config.PRESS_SOUL)
+        self.assertEqual(config.PRESS_SOUL, "default")
+        self.assertTrue(prompt.startswith((llm.HERE / "souls" / "default" / "SOUL.md").read_text()))
+        self.assertIn("How the harness works", prompt)
+        skills = sorted(path.parent.name for path in (llm.HERE / "skills").glob("*/SKILL.md"))
+        self.assertEqual(skills, ["agreements", "game-end"])
+        for name in skills:
+            line = next(line for line in prompt.splitlines() if line.startswith(f"- {name}: "))
+            self.assertGreater(len(line), len(f"- {name}: "), "a skill needs a description")
+
+    def test_the_shipped_prompt_names_no_persona(self):
+        prompt = llm.system_prompt(config.PRESS_SOUL)
+        for word in ("Castlereagh", "Kissinger", "statesman"):
+            self.assertNotIn(word, prompt)
 
 
 if __name__ == "__main__":

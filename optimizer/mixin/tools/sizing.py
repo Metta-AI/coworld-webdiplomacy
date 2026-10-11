@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""How many games an A/B needs, from this lab's measured variance.
+"""How many games an A/B needs, from a standard deviation of the score.
 
     python3 games/webdiplomacy/tools/sizing.py --effect 0.04              # paired, press league
     python3 games/webdiplomacy/tools/sizing.py --effect 0.04 --separate   # two separate arms
@@ -11,22 +11,25 @@ true effect of a given size at z = 2 (a coin flip to reach the bar) or at z = 2.
 (about 80% chance to reach it).
 
 Default standard deviations, per league (`--league`, default press):
-- press: 0.15 per seat, the middle of the 0.12 to 0.18 a prior lab measured in hosted press
-  games (2026-10). 0.20 for a paired difference: two hosted runs on 2026-10-10 against one
-  opponent set gave 0.19 (27 games, identical code) and 0.21 (55 games). Before that it was an
-  estimate of 0.23. Check it against your own first paired batch (`paired.py` prints `sd`) and
-  pass --sd.
-- gunboat: 0.34 for a paired difference (three runs of 80 to 84 games gave 0.30 to 0.36) and
-  0.22 per seat for the search, measured hosted on 2026-10-10 against one opponent set.
-Re-measure after a field change and pass --sd. The platform's `coworld
-power-analysis` assumes win/loss ratings and does not fit this score-share game.
+- press: 0.20 for a paired difference, 0.15 per seat.
+- gunboat: 0.34 for a paired difference, 0.22 per seat.
+These are STARTING VALUES, not facts about the game. Each was measured once (hosted games,
+2026-10-10/11, the reference policy against one or two opponent sets), and the spread
+depends on your policy and your field. Replace them with your own as soon as you have a
+batch, and again after a field change:
+
+    python3 games/webdiplomacy/tools/paired.py DIR --a NAME:vN --b NAME:vM    # prints `sd` (paired)
+    python3 games/webdiplomacy/tools/wd.py metrics DIR --policy NAME:vN        # per power: SE x sqrt(n) (per seat)
+
+and pass it with `--sd`. The platform's `coworld power-analysis` assumes win/loss ratings
+and does not fit this score-share game.
 Standard library only.
 """
 
 import argparse
 import math
 
-# league -> (SD of a paired difference, SD per seat). See the module docstring for sources.
+# league -> (SD of a paired difference, SD per seat). Starting values measured once; see the module docstring.
 LEAGUE_SD = {"press": (0.20, 0.15), "gunboat": (0.34, 0.22)}
 Z_EVEN = 2.0      # a true effect here reaches |z| >= 2 half the time
 Z_POWER_80 = 2.8  # ... and here about 80% of the time (2 + 0.84)
@@ -71,6 +74,9 @@ def main(argv=None) -> None:
         print(f"{args.games} {what}, SD {sd}: SE of the difference {se:.3f}; smallest effect at z = 2 is "
               f"{smallest_effect(args.games, sd, args.separate, Z_EVEN):.3f}, at 80% power "
               f"{smallest_effect(args.games, sd, args.separate, Z_POWER_80):.3f}")
+    if not args.sd:
+        print(f"SD {sd} is this tool's starting value for {args.league}, not your field's: "
+              "pass --sd from your own batch (paired.py prints `sd`)")
 
 
 if __name__ == "__main__":

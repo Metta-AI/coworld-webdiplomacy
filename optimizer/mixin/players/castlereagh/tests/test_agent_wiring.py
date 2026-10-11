@@ -27,6 +27,7 @@ class AgentWiringTest(unittest.TestCase):
             [ToolCallPart("notes", {"key": "plan", "text": "hold the line"})],
             [ToolCallPart("connections", {"province": "PAR"}), ToolCallPart("predict", {"power": "FRANCE"})],
             [ToolCallPart("commit_orders", {"policy": {"risk": 0.5}})],
+            [ToolCallPart("read_skill", {"name": "agreements"}), ToolCallPart("read_skill", {"name": "game-end"})],
             [ToolCallPart("send_press", {"to": "FRANCE", "text": "Peace in BUR?"})],
             [TextPart("done")],
         ]
@@ -42,11 +43,12 @@ class AgentWiringTest(unittest.TestCase):
         with mock.patch.multiple(config, PRESS_STATE_DIR="/tmp/castlereagh-test", SEARCH_TIME_BUDGET_S=2.0):
             player = PressPlayer("castlereagh-press", api, 1, lambda **f: events.append(f), agent=False,
                                  clock=clock, sleep=clock.sleep)
-            player.agent = llm.make_agent(FunctionModel(model), "castlereagh", Toolbox(player).all())
+            player.agent = llm.make_agent(FunctionModel(model), config.PRESS_SOUL, Toolbox(player).all())
             player.play(api.context(), bot.play_phase)
         self.assertIn("commit_orders", seen_tools)
         tools = [e["tool"] for e in events if e["event"] == "tool_call"]
-        self.assertEqual(tools, ["notes", "connections", "predict", "commit_orders", "send_press"])
+        self.assertEqual(tools, ["notes", "connections", "predict", "commit_orders", "read_skill", "read_skill",
+                                 "send_press"])
         self.assertEqual(player.notes.data, {"plan": "hold the line"})
         self.assertTrue(any(c[0] == "send" for c in api.calls))
         self.assertEqual(api.calls[-1][:2], ("orders", "Yes"))

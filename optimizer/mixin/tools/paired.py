@@ -20,9 +20,9 @@ Output: n, mean d (A minus B), its standard error, the paired SD (`sd`, the numb
 there; unpaired SE; the table to judge "is the candidate worse as Austria" from), and
 `pair_diff_when_a_plays` is the mean of d over the games where A held that power. The
 second is NOT a per-power effect: B holds a different power in each of those games, so
-identical code can read -0.25 at one power and +0.25 at the next. |z| < 2 is reported as "no result": three
-+0.08 leads at z of about 1.4 vanished on replication in the lab. Pairing removes most
-of the game-to-game variance, so it needs fewer games than separate arms (about 1.7x fewer in hosted gunboat).
+identical code can read far below zero at one power and far above it at the next. |z| < 2 is
+reported as "no result". Pairing removes most of the game-to-game variance, so it needs fewer
+games than separate arms (`sizing.py` with and without `--separate` gives both counts).
 
 Example:
     python3 games/webdiplomacy/tools/paired.py .runtime/artifacts/xreq_abc \\
@@ -140,17 +140,17 @@ def paired_report(seats: list[Seat], a: str, b: str, keep_tainted: bool = False)
         "sd": round(statistics.stdev(values), 4) if n > 1 else None,
         "vs_par_by_power": vs_par_by_power(seats, a, b, keep_tainted),
         # Not a per-power effect: in each game B holds a DIFFERENT power, so a cell is "A vs par
-        # at this power, minus B vs par at whatever B held". Two uploads of identical code read
-        # -0.25 and +0.25 here (|z| 4, hosted 2026-10-10). Use `vs_par_by_power` to judge a power.
+        # at this power, minus B vs par at whatever B held", and identical code can read far
+        # from zero here. Use `vs_par_by_power` to judge a power.
         "pair_diff_when_a_plays": {p: {"n": len(v), "diff": round(statistics.mean(v), 4),
                                        "se": round(statistics.stdev(v) / math.sqrt(len(v)), 4) if len(v) > 1 else None}
                                    for p, v in sorted(by_power.items())},
     }
     if n >= SEAT_ORDER_MIN_GAMES and not SEAT_ORDER_LOW <= a_first / n <= SEAT_ORDER_HIGH:
-        # Measured 2026-10-10 with identical code: under pinned, rotated powers a fixed seat
-        # order alone read +0.11 for the lower slot (84 games, z 2.6).
+        # Under pinned, rotated powers a fixed seat order alone can read as a difference
+        # between two uploads of identical code (see make_request.py).
         report["warning"] = (f"seat order is one-sided: {a} sat in the lower roster slot in {a_first} of {n} games. "
-                             "If powers were pinned, the result includes a seat-position effect of up to about 0.1; "
+                             "If powers were pinned, the result includes a seat-position effect; "
                              "re-run with both seat orders (make_request.py --balanced).")
     return report
 

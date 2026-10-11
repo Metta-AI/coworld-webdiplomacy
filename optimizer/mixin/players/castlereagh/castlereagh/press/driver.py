@@ -1,9 +1,7 @@
 """Press part (c), the press driver: one event-driven wake loop per movement phase.
 
-This is the only part that knows phase timing. It replaces the lab's open / negotiate /
-commit wakes, which left the bot deaf for the last ~75 s of every phase and for 2+ minutes
-once it had used its wakes. Here every wake is the same kind of agent run, started by an
-event:
+This is the only part that knows phase timing. Every wake is the same kind of agent run,
+started by an event, so the agent can answer press for as long as the phase is open:
 
 - `phase_start`: the phase began (so the agent can open negotiations);
 - `press`: new messages from other powers arrived.

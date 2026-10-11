@@ -189,7 +189,7 @@ def reports(since: float | None) -> dict:
 
 @router.get("/")
 def home(request: Request):
-    remembered = request.cookies.get(routes_dashboard.COOKIE, "")
+    remembered = routes_dashboard.remembered_policy(request)
     # The index first: on a first visit it reads two small files per game, and that is quicker
     # before the two calls below have started the readers' threads.
     known = {episodes.policy_name(s["policy"]) for e in episodes.index() for s in e["seats"]}

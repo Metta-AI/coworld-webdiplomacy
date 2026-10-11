@@ -46,3 +46,7 @@
 .experiment-links { margin-bottom: var(--s2); }
 .experiment-links .btn { padding-left: 0; color: var(--navy); text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 3px; }
 .experiment-versions-table td { max-width: 60ch; }
+
+/* A proposed record's request, and the folders a pooled number covers. */
+.experiment-run { margin-top: var(--s2) !important; }
+.experiment-covers { display: block; overflow-wrap: anywhere; }

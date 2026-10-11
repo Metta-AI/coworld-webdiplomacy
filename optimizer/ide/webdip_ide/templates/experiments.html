@@ -18,9 +18,11 @@
   <section aria-labelledby="experiments-h">
     <h2 id="experiments-h">Records</h2>
     {% if rows %}
-    <p class="about">Newest first. “Now” is the lab's <code>tools/paired.py</code> on the games in the record's
-      artifact folder at this moment: the candidate's score minus the baseline's in the same games. The lab calls
-      |z| below 2 no result. A closed record's own Result section is the reading that counts.</p>
+    <p class="about">Newest first. A <strong>proposed</strong> record is an idea written down with the rule it
+      would be judged by; nothing has run and nothing is spent until you ask. “Now” is the lab's
+      <code>tools/paired.py</code> on the games in the record's artifact folders at this moment: the candidate's
+      score minus the baseline's in the same games. The lab calls |z| below 2 no result. A closed record's own
+      Result section is the reading that counts.</p>
     <ol class="experiment-list">
       {% for row in rows %}
       {% set r = row.result %}
@@ -46,13 +48,26 @@
           <dt>Rule</dt>
           <dd title="{{ row.decision_rule }}">{% if row.rule_brief %}a win needs {{ row.rule_brief }}{% else %}{{ row.decision_rule | truncate(140) }}{% endif %}</dd>
           {% endif %}
+          {% if row.status == "proposed" and not r.games_in %}
+          <dt>Cost</dt>
+          <dd>{% if row.cost %}{{ row.cost }}{% elif row.planned %}{{ row.planned }} games, by the rule; the record does not say what they cost{% else %}<span class="muted">the record does not say yet</span>{% endif %}</dd>
+          <dt>Now</dt>
+          <dd><span class="muted">Not run. Nothing has been built or launched for it.</span></dd>
+          {% else %}
           <dt>Now</dt>
           <dd>{% if r.report %}<span class="muted">{{ r.minus }}</span> <span class="num">{{ r.words }}</span>
             <span class="tag {{ r.tone }}">{{ r.verdict }}</span>
             <span class="muted">{{ r.progress }}{% if r.report.dropped_tainted %}, {{ r.report.dropped_tainted }} left out as tainted{% endif %}</span>
             {% elif r.games_in %}<span class="muted">{{ r.progress }}; no game seats both versions{% if not (row.baseline and row.candidate) %} (the record does not name them yet){% endif %}</span>
-            {% else %}<span class="muted">{{ r.progress }}{% if row.status in ("running", "proposed") %}: nothing in <code>.runtime/artifacts/{{ row.batch }}</code>{% endif %}</span>{% endif %}</dd>
+            {% else %}<span class="muted">{{ r.progress }}{% if row.status in ("running", "proposed") %}: nothing in {% for folder in row.artifacts %}<code>.runtime/artifacts/{{ folder }}</code>{{ " or " if not loop.last }}{% endfor %}{% endif %}</span>{% endif %}
+            {% if r.games_in and r.folders | length > 1 %}<span class="muted small experiment-covers">from {{ r.folders | length }} folders: {{ r.covers }}</span>{% endif %}</dd>
+          {% endif %}
         </dl>
+        {% if asks.get(row.id) %}
+        <p class="controls experiment-run">
+          {% for ask in asks[row.id] %}<button type="button" class="small" data-draft="{{ ask.text }}" title="Puts the request in the message box. Nothing is sent until you press Enter.">{{ ask.label }}</button>{% endfor %}
+        </p>
+        {% endif %}
       </li>
       {% endfor %}
     </ol>
@@ -63,7 +78,7 @@
       Then it builds the one change, plays the new version against the old one in the same games, and writes the
       verdict in the same file. Records appear here as soon as the file exists in <code title="{{ folder }}">experiments/</code>.</p>
     <p class="controls">
-      <button type="button" data-draft="Look at our recent games and reports and post up to three idea cards: each one change we could test, with the evidence it rests on. Check closed_levers.md first.">Ask the agent for ideas</button>
+      <button type="button" data-draft="Look at our recent games and reports and post up to three idea cards: each one change we could test, with the evidence it rests on. Check closed_levers.md, open_levers.md and the earlier records in experiments/ first.">Ask the agent for ideas</button>
       <span class="muted small">A click puts the request in the message box; nothing is sent until you press Enter.</span>
     </p>
     {% endif %}
@@ -73,6 +88,22 @@
     <h2 id="closed-h">What is closed</h2>
     <p class="about">The lab's rule is to check these before proposing a change, so an idea that was already
       measured is not measured again. Open an entry for its numbers.</p>
+
+    <h3>Tested, no result yet{% if open_levers %} <span class="count">{{ open_levers | length }}</span>{% endif %}</h3>
+    {% if open_levers %}
+    <ul class="closed-list">
+      {% for lever in open_levers %}
+      <li><details>
+        <summary><span class="closed-name">{{ lever.name }}</span>{% if lever.closed %} <span class="muted small nowrap">tested {{ lever.closed }}</span>{% endif %}
+          {% if lever.killed_by %}<span class="closed-why">{{ lever.killed_by | safe }}</span>{% endif %}</summary>
+        <div class="md">{{ lever.html | safe }}</div>
+      </details></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">Nothing here yet: <code>open_levers.md</code> lists the changes that were measured and ended
+      inconclusive, so the same idea is not proposed again at a size that cannot decide it.</p>
+    {% endif %}
 
     <h3>Refuted levers{% if levers %} <span class="count">{{ levers | length }}</span>{% endif %}</h3>
     {% if levers %}

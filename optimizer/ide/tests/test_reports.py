@@ -102,6 +102,23 @@ class ReportsPages(unittest.TestCase):
         view = self.client.get("/reports/opponents/rival-bot").text
         self.assertIn("rival-bot:v3", view)
         self.assertIn("ask for a refresh", view)
+        # Nothing says which policy is ours yet, so ours is listed too, and the page says why.
+        self.assertIn('aria-label="Ask the agent for a profile of ours"', page)
+        self.assertIn("nothing in this lab says yet", page)
+
+    def test_our_own_policies_are_not_offered_an_opponent_profile(self):
+        from webdip_ide import store
+
+        write_episode(self.lab, "ereq_1", ["rival-bot:v2", "other-bot:v1", "ours:v3", "ours-search:v1"])
+        store.set_followed_policy("ours")  # the agent recorded it
+        log = self.lab / "players" / "castlereagh" / "VERSION_LOG.md"
+        log.parent.mkdir(parents=True)
+        log.write_text("| Version | id |\n|---|---|\n| ours-search:v1 | `x` |\n")  # the lab uploaded it
+        page = self.client.get("/reports").text
+        self.assertIn('aria-label="Ask the agent for a profile of other-bot"', page)
+        for name in ("ours", "ours-search"):
+            self.assertNotIn(f'aria-label="Ask the agent for a profile of {name}"', page)
+        self.assertIn('Left out as ours: <span class="mono">ours, ours-search</span>', page)
 
     def test_unreadable_episodes_are_reported_not_passed_off_as_full_coverage(self):
         broken = self.lab / ".runtime" / "artifacts" / "batch" / "ereq_broken"
@@ -183,7 +200,7 @@ class Markdown(unittest.TestCase):
     def test_inline(self):
         inline = reports_markdown.render_inline
         self.assertEqual(inline("a **b** *c* `d*e*`"), "a <strong>b</strong> <em>c</em> <code>d*e*</code>")
-        self.assertEqual(inline("webdip_kissinger_v2 and 2 * 3 * 4"), "webdip_kissinger_v2 and 2 * 3 * 4")
+        self.assertEqual(inline("some_policy_name_v2 and 2 * 3 * 4"), "some_policy_name_v2 and 2 * 3 * 4")
         self.assertEqual(inline("x < y & z"), "x &lt; y &amp; z")
         self.assertIn('target="_blank" rel="noopener noreferrer"', inline("[site](https://example.com/a?b=1&c=2)"))
         self.assertIn('href="https://example.com/a?b=1&amp;c=2"', inline("[site](https://example.com/a?b=1&c=2)"))
@@ -222,7 +239,7 @@ class Markdown(unittest.TestCase):
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "mixin" / "tools"))
         import opponent_profile
 
-        for name in ("webdip-Kissinger:v2", "My_Bot.press:v10", "plain"):
+        for name in ("House-Bot:v2", "My_Bot.press:v10", "plain"):
             self.assertEqual(routes_reports._slug(name), opponent_profile.slug(name))
 
 

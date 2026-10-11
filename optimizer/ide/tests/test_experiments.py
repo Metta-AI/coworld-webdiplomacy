@@ -20,23 +20,23 @@ from helpers import write_episode  # noqa: E402
 COUNTRIES = [1, 2, 3, 4, 5, 6, 7]
 FIELD = ["rival:v1"] * 5
 RECORD = """---
-id: 2026-10-11-hold-guard
+id: 2030-01-02-example-lever
 policy: mine
 baseline: mine:v1
 candidate: mine:v2
 status: {status}        # proposed | running | confirmed | refuted | inconclusive
 hypothesis: >
-  Refusing a commit that holds more than half of our units (`commit`)
-  leaves the search moving them, so the score rises.
+  Setting EXAMPLE_SETTING (`commit`) changes the orders,
+  so the score rises.
 decision_rule: >
   Pre-committed: a win is a paired difference (v2 minus v1) of +0.08 or more
   with z >= 2 over 28 balanced paired games. Anything else is no result.
 evals: [xreq_aaa, xreq_bbb]               # batch ids, filled as they run
 ---
 
-# Hold guard
+# Example lever
 
-Artifacts: `.runtime/artifacts/2026-10-11-hold-guard`
+Artifacts: `.runtime/artifacts/somewhere-else`
 
 ## Context
 
@@ -50,9 +50,9 @@ VERSION_LOG = """# Version log
 
 | Version | Policy version id | Uploaded (UTC) | The one change (and its mechanism) | Config | Validation | Notes |
 |---|---|---|---|---|---|---|
-| mine:v1 | `aaa` | 2026-10-11 08:27 | Baseline, unchanged | x | unvalidated | |
-| mine:v2 | `bbb` | 2026-10-11 13:14 | HOLD_SHARE=0.5: a commit that holds too much is refused | x | unvalidated | |
-| mine:v9 | `ccc` | 2026-10-11 14:00 | Something else entirely | x | unvalidated | |
+| mine:v1 | `aaa` | 2030-01-02 08:27 | Baseline, unchanged | x | unvalidated | |
+| mine:v2 | `bbb` | 2030-01-02 13:14 | EXAMPLE_SETTING=1: the one change | x | unvalidated | |
+| mine:v9 | `ccc` | 2030-01-02 14:00 | Something else entirely | x | unvalidated | |
 """
 CLOSED = """# Closed levers
 
@@ -60,17 +60,17 @@ Preface text.
 
 ---
 
-## Risk aversion                                      closed 2026-10-07
-**Mechanism:** weight bad outcomes more heavily.
-**Killed by:** −0.055 in the final four-way paired test (48 games).
-**Would reopen if:** losses become more costly.
+## Example refuted lever                              closed 2030-01-05
+**Mechanism:** the synthetic change.
+**Killed by:** −0.111 over 99 synthetic paired games.
+**Would reopen if:** the test fixture changes.
 """
 PRACTICES = """# Best practices
 
 ## Measuring
 
-- `[mixin]` **Treat |z| < 2 as no result.**
-- `[mixin]` **Seat both policies in the same games.**
+- **First practice.** How to do it. *(Evidence: 2030-01-02-example-lever)*
+- **Second practice.** How to do it.
 """
 
 
@@ -91,12 +91,12 @@ class ExperimentsTests(unittest.TestCase):
         episodes._basic.clear()
         self.client = TestClient(server.create_app(), base_url="http://127.0.0.1:8642")
 
-    def record(self, status: str = "running", name: str = "2026-10-11-hold-guard", text: str = RECORD) -> None:
+    def record(self, status: str = "running", name: str = "2030-01-02-example-lever", text: str = RECORD) -> None:
         folder = self.lab / "experiments"
         folder.mkdir(exist_ok=True)
         (folder / f"{name}.md").write_text(text.format(status=status) if "{status}" in text else text)
 
-    def games(self, scores: list[tuple[float, float]], batch: str = "2026-10-11-hold-guard") -> None:
+    def games(self, scores: list[tuple[float, float]], batch: str = "2030-01-02-example-lever") -> None:
         """One game per (candidate's score, baseline's score); the seat order alternates."""
         for number, (candidate, baseline) in enumerate(scores):
             rest = [(1 - candidate - baseline) / 5] * 5
@@ -110,6 +110,8 @@ class ExperimentsTests(unittest.TestCase):
         meta, body = self.experiments.front_matter(template)
         self.assertEqual(meta["status"], "proposed")
         self.assertEqual(meta["evals"], [])
+        self.assertEqual(meta["artifacts"], [])  # empty: the record's own folder
+        self.assertTrue(meta["cost"].startswith("<"))  # a placeholder, shown as not written
         self.assertTrue(meta["hypothesis"].startswith("One sentence: X happens"))
         self.assertIn("Written BEFORE the run.", meta["decision_rule"])
         self.assertTrue(body.lstrip().startswith("# <Experiment title>"))
@@ -136,11 +138,11 @@ class ExperimentsTests(unittest.TestCase):
     def test_template_is_not_a_record_and_an_unfilled_record_says_so(self):
         template = (MIXIN / "experiments" / "_template.md").read_text()
         self.record(name="_template", text=template)
-        self.record(name="2026-10-12-new-idea", text=template)
+        self.record(name="2030-01-04-new-idea", text=template)
         rows = self.client.get("/api/experiments").json()
-        self.assertEqual([row["id"] for row in rows], ["2026-10-12-new-idea"])
+        self.assertEqual([row["id"] for row in rows], ["2030-01-04-new-idea"])
         self.assertEqual((rows[0]["status"], rows[0]["baseline"], rows[0]["hypothesis"]), ("proposed", "", ""))
-        page = self.client.get("/experiments/2026-10-12-new-idea")
+        page = self.client.get("/experiments/2030-01-04-new-idea")
         self.assertEqual(page.status_code, 200)
         self.assertIn("not filled it in yet", page.text)
         self.assertNotIn("&lt;policy", page.text.split("The record</h2>")[0])  # no template text as if it were a value
@@ -153,7 +155,7 @@ class ExperimentsTests(unittest.TestCase):
         import paired
         from webdip_episodes import load_dirs
 
-        seats, _ = load_dirs([self.artifacts / "2026-10-11-hold-guard"])
+        seats, _ = load_dirs([self.artifacts / "2030-01-02-example-lever"])
         expected = paired.paired_report(seats, "mine:v2", "mine:v1")
         self.assertEqual(expected["n"], 4)
 
@@ -161,10 +163,11 @@ class ExperimentsTests(unittest.TestCase):
         self.assertEqual(row["result"]["paired"], expected)  # the tool's report, not a second calculation
         self.assertEqual((row["result"]["games_in"], row["result"]["planned"]), (4, 28))
         self.assertEqual(row["evals"], ["xreq_aaa", "xreq_bbb"])
-        self.assertEqual(row["batch"], "2026-10-11-hold-guard")
+        self.assertEqual(row["batch"], "2030-01-02-example-lever")
+        self.assertEqual(row["artifacts"], ["2030-01-02-example-lever"])  # the body's `Artifacts:` line is not read
 
         page = self.client.get("/experiments").text
-        self.assertIn("Hold guard", page)
+        self.assertIn("Example lever", page)
         self.assertIn("a win needs +0.08 or more, z ≥ 2, 28 games", page)
         self.assertIn("4 of 28 games in", page)
         self.assertIn("2 batches", page)
@@ -178,8 +181,8 @@ class ExperimentsTests(unittest.TestCase):
         self.record()
         page = self.client.get("/experiments").text
         self.assertIn("0 of 28 games in", page)
-        self.assertIn("nothing in <code>.runtime/artifacts/2026-10-11-hold-guard</code>", page)
-        view = self.client.get("/experiments/2026-10-11-hold-guard").text
+        self.assertIn("nothing in <code>.runtime/artifacts/2030-01-02-example-lever</code>", page)
+        view = self.client.get("/experiments/2030-01-02-example-lever").text
         self.assertIn("0 of 28 games in", view)
         self.assertIn("Ask the agent for the result", view)
         self.assertNotIn("Ask for the candidate-alone check", view)
@@ -189,22 +192,22 @@ class ExperimentsTests(unittest.TestCase):
         self.games([(0.30, 0.10), (0.25, 0.20), (0.20, 0.20)])
         (self.lab / "players" / "mine").mkdir(parents=True)
         (self.lab / "players" / "mine" / "VERSION_LOG.md").write_text(VERSION_LOG)
-        page = self.client.get("/experiments/2026-10-11-hold-guard")
+        page = self.client.get("/experiments/2030-01-02-example-lever")
         self.assertEqual(page.status_code, 200)
         text = page.text
-        self.assertIn("<h1>Hold guard</h1>", text)
+        self.assertIn("<h1>Example lever</h1>", text)
         self.assertIn("inconclusive", text)
         self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", text)
         self.assertNotIn("<script>alert(1)", text)
         self.assertIn('href="/replays/ereq_001?phase=3"', text)
         self.assertIn('href="/dashboard?policy=mine&amp;version=v2"', text)
-        self.assertIn('href="/replays?batch=2026-10-11-hold-guard&amp;policy=mine"', text)
+        self.assertIn('href="/replays?batch=2030-01-02-example-lever&amp;policy=mine"', text)
         self.assertIn("3 of 28 games in", text)
         # The version log: the two versions of this record, baseline first, uploaded time in Pacific.
         table = text[text.index("The two versions"):text.index("The record</h2>")]
         self.assertLess(table.index("mine:v1"), table.index("mine:v2"))
-        self.assertIn("Oct 11, 6:14 AM", table)
-        self.assertIn("HOLD_SHARE=0.5", table)
+        self.assertIn("Jan 2, 2030, 5:14 AM", table)
+        self.assertIn("EXAMPLE_SETTING=1", table)
         self.assertNotIn("mine:v9", table)
         # A closed record offers no request to read or close it.
         self.assertNotIn("Ask the agent for the result", text)
@@ -216,12 +219,110 @@ class ExperimentsTests(unittest.TestCase):
         self.games([(0.40, 0.05), (0.38, 0.06), (0.42, 0.04), (0.39, 0.07), (0.41, 0.05), (0.37, 0.06)])
         row = self.client.get("/api/experiments").json()[0]
         self.assertEqual(row["result"]["paired"]["verdict"], "mine:v2 ahead")
-        text = self.client.get("/experiments/2026-10-11-hold-guard").text
+        text = self.client.get("/experiments/2030-01-02-example-lever").text
         for label in ("Ask the agent for the result", "Ask the agent to close this record",
                       "Ask for the candidate-alone check"):
             self.assertIn(label, text)
-        self.assertIn("run_ab.py --record 2026-10-11-hold-guard --alone", text)
-        self.assertIn("links to /experiments/2026-10-11-hold-guard", text)
+        self.assertIn("run_ab.py --record 2030-01-02-example-lever --alone", text)
+        self.assertIn("links to /experiments/2030-01-02-example-lever", text)
+
+    def test_a_record_that_names_two_folders_reads_both(self):
+        """A follow-on record whose rule pools its games with an earlier record's (`artifacts: [a, b]`)."""
+        first = [(0.30, 0.10), (0.25, 0.20), (0.20, 0.20)]
+        more = [(0.35, 0.05), (0.10, 0.30)]
+        self.record(status="inconclusive")
+        self.games(first)
+        pooled = RECORD.replace("id: 2030-01-02-example-lever", "id: 2030-01-03-example-more").replace(
+            "evals: [xreq_aaa, xreq_bbb]",
+            "evals: [xreq_ccc]\nartifacts: [`.runtime/artifacts/2030-01-02-example-lever/`]",  # its own folder is added
+        )
+        self.record(status="inconclusive", name="2030-01-03-example-more", text=pooled)
+        self.games(more, batch="2030-01-03-example-more")
+        import paired
+        from webdip_episodes import load_dirs
+
+        seats, _ = load_dirs([self.artifacts / "2030-01-02-example-lever", self.artifacts / "2030-01-03-example-more"])
+        expected = paired.paired_report(seats, "mine:v2", "mine:v1")
+        self.assertEqual(expected["n"], 5)
+
+        rows = {row["id"]: row for row in self.client.get("/api/experiments").json()}
+        both = rows["2030-01-03-example-more"]
+        self.assertEqual(both["artifacts"], ["2030-01-02-example-lever", "2030-01-03-example-more"])
+        self.assertEqual(both["result"]["folders"], {"2030-01-02-example-lever": 3, "2030-01-03-example-more": 2})
+        self.assertEqual(both["result"]["paired"], expected)  # what `paired.py <a> <b>` prints
+        self.assertEqual(rows["2030-01-02-example-lever"]["result"]["games_in"], 3)  # the first record is unchanged
+        self.assertEqual(rows["2030-01-02-example-lever"]["artifacts"], ["2030-01-02-example-lever"])
+
+        listing = self.client.get("/experiments").text
+        self.assertIn("5 of 28 games in", listing)
+        self.assertIn("from 2 folders: 2030-01-02-example-lever (3), 2030-01-03-example-more (2)", listing)
+        view = self.client.get("/experiments/2030-01-03-example-more").text
+        self.assertIn("<code>.runtime/artifacts/2030-01-02-example-lever</code> (3 games)", view)
+        self.assertIn("<code>.runtime/artifacts/2030-01-03-example-more</code> (2 games)", view)
+        self.assertIn('href="/replays?batch=2030-01-02-example-lever&amp;policy=mine"', view)
+        self.assertIn('href="/replays?batch=2030-01-03-example-more&amp;policy=mine"', view)
+
+    def test_artifact_folders(self):
+        """The same rule as `tools/run_ab.py: artifact_dirs`: the listed folders, then always the record's own."""
+        folders = self.experiments.artifact_folders
+        self.assertEqual(folders(None, "rec"), ["rec"])
+        self.assertEqual(folders([], "rec"), ["rec"])  # empty: the record's own folder alone
+        self.assertEqual(folders(["earlier"], "rec"), ["earlier", "rec"])  # its own folder is appended
+        self.assertEqual(folders(["rec", "later"], "rec"), ["rec", "later"])  # listed first, it stays first
+        self.assertEqual(folders(["a", "`.runtime/artifacts/b/`", "a", "'c'", "../x y"], "rec"), ["a", "b", "c", "rec"])
+        self.assertEqual(folders("a", "rec"), ["rec"])  # not a list: the default
+
+    def test_the_tool_and_the_page_read_the_same_folders(self):
+        import run_ab
+
+        for listed in ("", "artifacts: []\n", "artifacts: [old]\n", "artifacts: [rec, `.runtime/artifacts/b/`, c]\n"):
+            text = f"---\nid: rec\n{listed}---\n\nArtifacts: `.runtime/artifacts/ignored`\n"
+            meta, _ = self.experiments.front_matter(text)
+            self.assertEqual([folder.name for folder in run_ab.artifact_dirs(text, "rec")],
+                             self.experiments.artifact_folders(meta.get("artifacts"), "rec"), listed)
+
+    def test_a_proposed_record_reads_as_an_idea_with_its_cost_and_one_request(self):
+        spend = "28 press games, about 50 credits by the platform's estimate, about 70 minutes"
+        proposed = RECORD.replace("candidate: mine:v2", "candidate: n/a").replace(
+            "evals: [xreq_aaa, xreq_bbb]", f"cost: {spend}\nevals: []")
+        self.record(status="proposed", text=proposed)
+        row = self.client.get("/api/experiments").json()[0]
+        self.assertEqual((row["status"], row["candidate"], row["cost"]),
+                         ("proposed", "", spend))
+        listing = self.client.get("/experiments").text
+        self.assertIn("28 press games, about 50 credits by the platform&#39;s estimate, about 70 minutes", listing)
+        self.assertIn("Not run. Nothing has been built or launched for it.", listing)
+        self.assertIn(">Run this</button>", listing)
+        self.assertNotIn("0 of 28 games in", listing)
+        view = self.client.get("/experiments/2030-01-02-example-lever").text
+        self.assertIn("This is a proposed experiment", view)
+        self.assertIn("Not run yet.", view)
+        self.assertNotIn("0 of 28 games in", view)
+        self.assertIn(">Run this</button>", view)
+        self.assertIn("tools/run_ab.py --record 2030-01-02-example-lever)", view)
+        self.assertIn("tell me what it will cost before you launch", view)
+        self.assertIn("Check closed_levers.md, open_levers.md and the earlier records in experiments/", view)
+        for label in ("Ask the agent for the result", "Ask the agent to close this record"):
+            self.assertNotIn(label, view)
+        # Without a `cost:` the page falls back to the size the rule names.
+        self.record(status="proposed", text=proposed.replace(f"cost: {spend}\n", ""))
+        self.assertIn("28 games, by the rule; the record does not say what they cost",
+                      self.client.get("/experiments").text)
+
+    def test_a_row_written_by_ship_py_is_found_whatever_name_was_uploaded(self):
+        """`tools/ship.py` logs every upload in `players/castlereagh/VERSION_LOG.md`, under the uploaded name."""
+        import ship
+
+        log = self.lab / "players" / "castlereagh" / "VERSION_LOG.md"
+        log.parent.mkdir(parents=True)
+        header = (MIXIN / "players" / "_VERSION_LOG_template.md").read_text()
+        rows = [ship.version_log_row(name, version, "pv", "2030-01-02 13:14", "The change", "press", "", None,
+                                     "tag", "", "ply_1") for name, version in (("mine", 2), ("mine-search", 1))]
+        log.write_text(ship.insert_row(ship.insert_row(header, rows[0]), rows[1]))
+        self.assertEqual(self.dashboard.shipped_policies()[:2], ["mine-search", "mine"])  # newest first
+        found = self.experiments.version_rows(["mine:v2", "mine-search:v1"])
+        self.assertEqual([row["version"] for row in found], ["mine:v2", "mine-search:v1"])
+        self.assertEqual(found[0]["log"], "players/castlereagh/VERSION_LOG.md")
 
     def test_unknown_record_is_a_404_page(self):
         for name in ("nope", "..%2Fsecrets"):
@@ -233,19 +334,38 @@ class ExperimentsTests(unittest.TestCase):
         (self.lab / "closed_levers.md").write_text(CLOSED)
         (self.lab / "best_practices.md").write_text(PRACTICES)
         text = self.client.get("/experiments").text
-        self.assertIn("Risk aversion", text)
-        self.assertIn("closed 2026-10-07", text)
-        self.assertIn("−0.055 in the final four-way paired test (48 games).", text)
+        self.assertIn("Example refuted lever", text)
+        self.assertIn("closed 2030-01-05", text)
+        self.assertIn("−0.111 over 99 synthetic paired games.", text)
         self.assertIn("Measuring", text)
         self.assertIn("2 practices", text)
         self.assertNotIn("Preface text.", text)
+
+    def test_tested_with_no_result_is_a_third_list(self):
+        self.assertIn("Nothing here yet: <code>open_levers.md</code>", self.client.get("/experiments").text)
+        (self.lab / "open_levers.md").write_text(
+            "# Tested, no result yet\n\nPreface.\n\n```\n## <lever name>     tested YYYY-MM-DD\n```\n\n---\n\n"
+            "## Example lever, second dose                     tested 2030-01-06\n"
+            "**Mechanism:** the synthetic change, again.\n"
+            "**Read:** +0.011, SE 0.022, z 0.50 over 99 synthetic paired games.\n"
+            "**Could see:** about 0.05.\n")
+        text = self.client.get("/experiments").text
+        section = text[text.index("Tested, no result yet"):text.index("Refuted levers")]
+        self.assertIn("Example lever, second dose", section)
+        self.assertIn("tested 2030-01-06", section)
+        self.assertIn("+0.011, SE 0.022, z 0.50 over 99 synthetic paired games.", section)
+        self.assertIn('<span class="count">1</span>', section)  # the format example in the preface is not an entry
+        # The request to close a record sends an inconclusive result there.
+        self.record()
+        self.assertIn("or to open_levers.md if it is inconclusive",
+                      self.client.get("/experiments/2030-01-02-example-lever").text)
 
     def test_home_names_a_running_experiment(self):
         self.record()
         self.games([(0.30, 0.10), (0.25, 0.20)])
         text = self.client.get("/").text
         self.assertIn("experiment running:", text)
-        self.assertIn('<a href="/experiments/2026-10-11-hold-guard">Hold guard</a>', text)
+        self.assertIn('<a href="/experiments/2030-01-02-example-lever">Example lever</a>', text)
         self.assertIn("2 of 28 games in", text)
         self.record(status="inconclusive")
         self.assertNotIn("experiment running:", self.client.get("/").text)

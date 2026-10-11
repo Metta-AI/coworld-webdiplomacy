@@ -90,6 +90,13 @@ messages carry the turn they were sent in.
   for a year that never comes?
 - **For LLM seats:** did the LLM run at all (`llm_call` statuses), and did its
   committed orders differ from the search's own choice?
+- **What our seat was told and what it committed, that turn.**
+  `tools/seat_log.py DIR... --game EPISODE_ID --power POWER --when A1902` prints
+  the press in and out, every policy the agent committed (with the orders the
+  search then produced), the wakes and the decision line, in log order. Several
+  commits in a turn show it changing its mind. Do not write a script to walk
+  the log; and do not paste what it prints into a tracked file: it is private
+  press.
 
 ## Tooling
 
@@ -100,7 +107,9 @@ Run from the optimizer root. **Exact flags live in each tool's docstring**.
   bytes-literal logs. Import it in new instruments instead of writing a new
   parser.
 - `python3 games/webdiplomacy/tools/wd.py seats DIR...`: per-seat rows with the
-  center trajectory by year.
+  center trajectory by year. `tools/seat_rows.py` prints them worst first for
+  one policy, with taint and first targets, to choose which games to open.
+- `webdip_episodes.read_log(Path(...))` takes a `Path`, not a string.
 - `python3 games/webdiplomacy/tools/wd.py slim DIR...`: strip map PNGs from
   replays to save disk. `python3 games/webdiplomacy/tools/gzip_replays.py DIR...`
   compresses fetched replays in place (about 20x).
