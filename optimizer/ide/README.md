@@ -62,7 +62,7 @@ one cursor (`agent_cursor`), advanced under a file lock, so a message is deliver
 
 | Route | Reaches | How |
 |---|---|---|
-| **Rewake hook** | an idle session, and a busy one | A hook on `Stop` and `SessionStart` marked `"asyncRewake": true` runs `ide/ide hook Rewake`. Claude Code keeps it in the background; it waits for a message and exits with code 2 and the message on stderr, which wakes the session. The next `Stop` starts a new one. Needs nothing from the agent |
+| **Rewake hook** | an idle session, and a busy one | A hook on `Stop` and `SessionStart` marked `"asyncRewake": true` runs `ide/ide hook Rewake`. Claude Code keeps it in the background; it waits for a message and exits with code 2 and the message on stderr, which wakes the session. The next `Stop` starts a new one. It keeps waiting while the IDE server is down, so a server started or restarted while the session is idle still reaches it. Needs nothing from the agent |
 | **PostToolUse / UserPromptSubmit hooks** | a busy session | Return unread messages as `additionalContext` after the agent's next tool call or the user's next terminal prompt |
 | **Stop hook** | a session about to go idle | Blocks the stop with the unread messages as the reason. When the IDE is open and nothing is waiting (no Rewake hook, no listener), it blocks once and asks the agent to start `ide/ide listen` |
 | **`ide/ide listen`** | an idle session, without the Rewake hook | The agent runs it as a background task; when it exits with the message, Claude Code calls the agent again. The agent restarts it each time |

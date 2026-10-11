@@ -135,10 +135,16 @@ class RewakeTest(HookCase):
             text=True,
         )
 
-    def test_exits_at_once_when_the_ide_is_closed(self):
+    def test_keeps_waiting_while_the_ide_is_closed(self):
+        # The server may be started or restarted while the session is idle; the waiter
+        # must still be there to deliver the first message.
         waiter = self._waiter()
-        self.assertEqual(waiter.wait(timeout=10), 0)
-        waiter.stderr.close()
+        time.sleep(1.5)
+        self.assertIsNone(waiter.poll(), "the waiter must not exit because no server is running")
+        store.post_message("user", "sent after a restart")
+        _, stderr = waiter.communicate(timeout=10)
+        self.assertEqual(waiter.returncode, 2)
+        self.assertIn("sent after a restart", stderr)
 
     def test_exits_2_with_the_message_on_stderr(self):
         fake_server(self)

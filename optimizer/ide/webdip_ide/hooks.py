@@ -295,26 +295,32 @@ def rewake() -> int:
 
     Claude Code runs such a hook in the background and wakes the session when it exits
     with code 2, with stderr as the message. So this waits like `ide listen` and exits 2
-    with the user's message; the next Stop starts a new one. It exits 0 at once when the
-    IDE is not open or another waiter holds the lock, and soon after the IDE server or
-    the session that started it has gone.
+    with the user's message; the next Stop starts a new one. It exits 0 at once when
+    another waiter holds the lock, and soon after the session that started it has gone.
+
+    It keeps waiting while the IDE server is down: the server may be started or restarted
+    later (by the agent, or by the user in another terminal) while this session sits
+    idle, and nothing else could wake the session then. The wait is one `stat` a second.
     """
-    if server_info() is None:
-        return 0
     lock = open(paths.state_dir() / "rewake.lock", "w")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         return 0
     parent = os.getppid()
+    chat = paths.state_dir() / "chat.jsonl"
+    checked_mtime = None
     register_listener()
     try:
-        while server_info() is not None and os.getppid() == parent:
-            if store.has_unread_for_agent():
-                text = take_formatted()
-                if text:
-                    print(text, file=sys.stderr, flush=True)
-                    return 2
+        while os.getppid() == parent:
+            mtime = chat.stat().st_mtime if chat.exists() else None
+            if mtime != checked_mtime:
+                checked_mtime = mtime
+                if store.has_unread_for_agent():
+                    text = take_formatted()
+                    if text:
+                        print(text, file=sys.stderr, flush=True)
+                        return 2
             time.sleep(1.0)
     finally:
         unregister_listener()
