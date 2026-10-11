@@ -149,16 +149,16 @@ class ReplayTests(unittest.TestCase):
         self.assertTrue(any(p.startswith("corrected:") for p in policies), policies)
 
     def test_a_game_that_could_not_be_read_is_marked_and_tried_again_after_a_restart(self):
-        we = self.episodes.tool("webdip_episodes")
-        original = we.load_episode
+        mu = self.episodes.tool("matchups")  # the reader parses a game with `matchups.load_game`
+        original = mu.load_episode
 
         def broken(ep):
             if ep.name == "ereq_press":
                 raise OSError("disk hiccup")
             return original(ep)
 
-        we.load_episode = broken
-        self.addCleanup(setattr, we, "load_episode", original)
+        mu.load_episode = broken
+        self.addCleanup(setattr, mu, "load_episode", original)
         done, total = self.episodes.deepen(wait=True)
         self.assertEqual(done, total)  # it is not retried on every page load
         self.assertIn("disk hiccup", self.row("ereq_press")["index_error"])

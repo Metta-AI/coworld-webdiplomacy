@@ -144,6 +144,7 @@ The server and the agent never talk to each other directly; both use `webdip_ide
 | `webdip_ide/server.py` | The FastAPI app; one `routes_<feature>.py` per feature |
 | `webdip_ide/routes_chat.py` | `/api/chat`, `/api/cards`, `/api/agent/status` |
 | `webdip_ide/routes_home.py` | The home page: headline, games worth opening, what is waiting |
+| `webdip_ide/reader.py` | Parses fetched games for the dashboard and the replay index: worker processes for a large batch, one parse of a game for both |
 | `webdip_ide/dates.py` | The one date format (Pacific, `Oct 11, 2:42 AM`); the Jinja filters `when` and `day` |
 | `webdip_ide/static/app.css` | The shared visual system (tokens and base components) |
 | `webdip_ide/static/chat.js` | The agent panel and `window.ide` |
@@ -162,8 +163,22 @@ Under `<lab>/.runtime/ide/` (git-ignored; delete the directory to reset the IDE)
 | `server.lock` | Locked by the server for as long as it lives. A `server.json` whose lock is free was left by a server that was killed, and is ignored |
 | `listeners/<pid>` | One file per waiting `listen` or Rewake process |
 | `server.log` | Output of a server started by `ide/ide start` |
+| `dashboard_games.pickle`, `episode_index.json` | What was read from each fetched game, so a game is parsed once. Safe to delete: the next page load reads the games again |
 
 Annotations are lab knowledge and are tracked: `<lab>/annotations/<episode id>.json`.
+
+### Reading games
+
+A game is about 10 MB of replay and seat logs and takes about 0.08 s to parse. The first
+page load after new games were fetched starts the read and answers at once with what is
+known; pages show "Still reading games" and fill in. A batch of 16 games or more is parsed
+by up to 8 worker processes (`webdip_ide/reader.py`), so the pages stay quick meanwhile; a
+smaller batch is parsed in a server thread. The workers stop when the batch is done and
+exit with the server, however it ended. A read that was cut short continues at the next start.
+
+Measured on 510 games with nothing saved (14-core Mac, 2026-10-11): every page answered in
+under 0.8 s from the first request, and everything was read 5 to 7 s after it. Before the
+worker processes the first page took 20 s, later ones 6 s each, and the read 65 s.
 
 ## For page authors
 

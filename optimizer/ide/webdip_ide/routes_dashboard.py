@@ -3,7 +3,8 @@
 Pages:
   /dashboard?policy=NAME&version=vN&source=league|xp|local&variant=classic-press&opponent=NAME&alone=1
       Every parameter is optional, so a card can link straight to a view. Without `policy`
-      the page shows the policy picked last time, else the newest policy that has seat logs
+      the page shows the policy picked last time, else the policy this lab shipped last
+      (press first), from players/*/VERSION_LOG.md
       on disk (those are ours). Without `variant` it shows the variant that policy has most
       games in, because press and gunboat are never pooled silently; `variant=all` pools them.
       `refresh=1` forgets everything read so far and reads the artifacts again.
@@ -17,8 +18,8 @@ file only reads episodes once, keeps them, and turns the report into chart geome
 
 Speed: parsing an episode costs about 0.1 s (the replay), so each one is parsed once and kept,
 in memory and in `.runtime/ide/dashboard_games.pickle`, until a file in its directory changes.
-A background thread does the parsing; a page asked for meanwhile shows what is read so far
-and reloads itself.
+A background thread collects the games, which `reader.each_game` parses (in worker processes
+when there are many); a page asked for meanwhile shows what is read so far and reloads itself.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from __future__ import annotations
 import importlib
 import math
 import pickle
+import re
 import threading
 import time
 from pathlib import Path
@@ -34,7 +36,7 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
-from . import dates, paths
+from . import dates, paths, reader
 from .server import render
 
 router = APIRouter()
@@ -42,7 +44,7 @@ NAV = ("Dashboard", "/dashboard")
 
 PARITY = 1 / 7
 CACHE_FORMAT = 1  # bump when Game or Seat changes shape
-WAIT_SECONDS = 6.0  # how long a page waits for the reader before showing a partial view
+WAIT_SECONDS = 0.5  # how long a page waits for the reader before showing a partial view
 SOURCE_LABELS = {"all": "all sources", "league": "league matches", "xp": "experience requests", "local": "local runs"}
 SCALE_MIN_N = 8  # rows with fewer seats do not stretch a chart's axis
 MIN_CELL = 3  # a heatmap cell or power pair with fewer games than this stays blank
@@ -57,18 +59,6 @@ def matchups():
 
 
 # --- reading episodes once ------------------------------------------------------------
-
-
-def _fingerprint(ep: Path) -> tuple:
-    """Changes when any file the loader reads in this episode directory changes."""
-    out = []
-    for folder in (ep, ep / "policy-logs", ep / "logs"):
-        if folder.is_dir():
-            for path in folder.iterdir():
-                if path.is_file():
-                    info = path.stat()
-                    out.append((folder.name if folder != ep else "", path.name, info.st_mtime_ns, info.st_size))
-    return tuple(sorted(out))
 
 
 class GameCache:
@@ -104,15 +94,13 @@ class GameCache:
         temporary.write_bytes(data)
         temporary.replace(self._file())
 
-    def _read(self, todo: list[tuple[Path, tuple]]) -> None:
+    def _read(self, todo: dict[Path, tuple]) -> None:
         mu = matchups()
-        for index, (ep, fingerprint) in enumerate(todo):
-            try:
-                game = mu.load_game(ep)
-            except Exception:  # noqa: BLE001  one unreadable episode must not hide the rest
+        for index, (ep, game, _) in enumerate(reader.each_game(todo)):
+            if game is None:  # one unreadable episode must not hide the rest
                 game = mu.Game(ep.name, "local", "unknown", None, [], True)
             with self.lock:
-                self.games[str(ep)] = (fingerprint, game)
+                self.games[str(ep)] = (todo[ep], game)
                 self.pending = len(todo) - index - 1
                 # Every change is a new generation, so a report made from part of a batch is never
                 # served once more games are in (`sync()` hands out games and generation together).
@@ -134,12 +122,12 @@ class GameCache:
                 found: dict[str, Path] = {}
                 for ep in mu.episode_dirs(root) if root.is_dir() else []:
                     found.setdefault(ep.name, ep)  # the same episode fetched twice counts once
-                current = {str(ep): _fingerprint(ep) for ep in found.values()}
+                current = {str(ep): reader.fingerprint(ep) for ep in found.values()}
                 gone = set(self.games) - set(current)
                 for key in gone:
                     del self.games[key]
-                todo = [(Path(key), fp) for key, fp in current.items()
-                        if key not in self.games or self.games[key][0] != fp]
+                todo = {Path(key): fp for key, fp in current.items()
+                        if key not in self.games or self.games[key][0] != fp}
                 if gone:
                     self.generation += 1
                     self.reports = {}
@@ -169,6 +157,7 @@ class GameCache:
     def forget(self) -> None:
         with self.lock:
             self.root = None
+        reader.forget()
         self._file().unlink(missing_ok=True)
 
 
@@ -178,12 +167,36 @@ CACHE = GameCache()
 # --- choosing what to show ------------------------------------------------------------
 
 
+VERSION_LOG_ROW = re.compile(r"^\| *([\w.-]+):v\d+ *\|", re.M)
+
+
+def shipped_policies() -> list[str]:
+    """Policy names this lab uploaded, newest first: the rows `tools/ship.py` adds to `players/*/VERSION_LOG.md`."""
+    names = []
+    for log in sorted((paths.lab_dir() / "players").glob("*/VERSION_LOG.md")):
+        names += VERSION_LOG_ROW.findall(log.read_text())
+    return list(dict.fromkeys(reversed(names)))
+
+
+def _default_policy(policies: list[dict]) -> dict | None:
+    """The policy to show before the user has picked one.
+
+    A seat log does not mark a policy as ours (a team's lab can read every field bot's log),
+    so prefer what this lab shipped: a press policy first, because the press league is the
+    main one, then the newest upload. Without a version log, the first policy listed.
+    """
+    by_name = {p["name"]: p for p in policies}
+    shipped = [by_name[name] for name in shipped_policies() if name in by_name]
+    press = [p for p in shipped if any("press" in variant for variant in p["variants"])]
+    return (press or shipped or policies or [None])[0]
+
+
 def _choose(policies: list[dict], policy: str, version: str, source: str, variant: str, remembered: str) -> dict:
     """Fill in the filters the request left out. Returns the names the page and the report use."""
     by_name = {p["name"]: p for p in policies}
     if ":v" in policy and not version:  # a card may link with policy=name:v3
         policy, _, version = policy.rpartition(":")
-    chosen = by_name.get(policy) or by_name.get(remembered) or (policies[0] if policies else None)
+    chosen = by_name.get(policy) or by_name.get(remembered) or _default_policy(policies)
     unknown = policy if policy and policy not in by_name else ""
     if chosen is None:
         return {"policy": "", "version": "", "source": "all", "variant": "all", "unknown": unknown, "row": None}
@@ -485,7 +498,7 @@ def _load(policy: str, version: str, source: str, variant: str, opponent: str, r
 def summary(remembered: str = "", wait: float = 0.0) -> dict:
     """What `/dashboard` with no parameters would lead with, for the home page.
 
-    The same choice of policy (the one remembered in the cookie, else the newest with seat logs)
+    The same choice of policy (the one remembered in the cookie, else what this lab shipped last)
     and of variant, the same cached report and the same sentence. With `wait` 0 it never waits
     for the reader: `pending` says how many games are still to be read, and the numbers cover
     the rest.

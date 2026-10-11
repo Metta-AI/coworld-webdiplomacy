@@ -59,7 +59,7 @@
 
   {% if not report %}
   <div class="placeholder">
-    {% if pending %}Nothing is read yet. The first read takes about a tenth of a second per game.
+    {% if pending %}Nothing is read yet. The first read of a few hundred games takes some seconds.
     {% else %}No games are on disk yet. Fetch a batch into <code>{{ lab }}/.runtime/artifacts/</code> (the fetch-artifacts skill for experience requests, <code>tools/fetch_league.py</code> for league matches), then press “Read again”.{% endif %}
   </div>
   {% else %}

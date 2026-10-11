@@ -67,6 +67,14 @@ saw in README.md under "What was verified".
   through for now because `tests/test_reports.py` still uses it.
 - The index (`episodes.py`) and the dashboard cache are shared by request threads and a
   background reader: touch their module-level dictionaries only under their lock.
+- Never parse many games in a server thread: parsing holds the interpreter lock and every
+  page waits (measured: 0.3 s pages took 6 to 20 s). Go through `reader.each_game`, which
+  uses worker processes. Its workers are started by "spawn", so they import the main script
+  again: keep the `if __name__ == "__main__"` line in the `ide` shim, keep `reader.py`'s
+  imports light, and give `reader.load_game` only strings.
+- Hundreds of file checks in a second thread also slow the page being built. A reader
+  thread gets the file stamps from the request that started it (`each_game(todo)`) and does
+  not look at the files again.
 - The replay viewer has three arrangements (pinned, wide, narrow), chosen in
   `static/replay.css` section 3 by a container query on `main`, because the room depends on
   the agent panel as well as the window. `replay.js` reads `--pinned` from the page; do not

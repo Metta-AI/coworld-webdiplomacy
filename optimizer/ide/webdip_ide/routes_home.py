@@ -186,9 +186,11 @@ def reports(since: float | None) -> dict:
 @router.get("/")
 def home(request: Request):
     remembered = request.cookies.get(routes_dashboard.COOKIE, "")
+    # The index first: on a first visit it reads two small files per game, and that is quicker
+    # before the two calls below have started the readers' threads.
+    known = {episodes.policy_name(s["policy"]) for e in episodes.index() for s in e["seats"]}
     summary = routes_dashboard.summary(remembered)
     indexed, total = episodes.deepen()
-    known = {episodes.policy_name(s["policy"]) for e in episodes.index() for s in e["seats"]}
     policy = summary["policy"] or (remembered if remembered in known else "")
     variant = summary["variant"] if summary["headline"] and summary["variant"] != "all" else ""
     since, cookie = _sitting(request.cookies.get(VISIT_COOKIE, ""), time.time())

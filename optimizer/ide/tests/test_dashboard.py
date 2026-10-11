@@ -81,6 +81,14 @@ class DashboardTests(unittest.TestCase):
         self.assertAlmostEqual(data["report"]["overall"]["vs_par"]["mean"], 0.2)
         self.assertEqual([p["name"] for p in data["policies"]][0], "mine")
 
+    def test_default_policy_is_what_the_lab_shipped(self):
+        # Every seat can have a log in a team's lab, so a log does not say which policy is ours.
+        self.lab_with_two_variants()
+        log = self.lab / "players" / "castlereagh" / "VERSION_LOG.md"
+        log.parent.mkdir(parents=True)
+        log.write_text("| Version | Id |\n|---|---|\n| rival-b:v2 | `x` |\n| not-on-disk:v1 | `y` |\n")
+        self.assertEqual(self.api()["filters"]["policy"], "rival-b")
+
     def test_filters(self):
         self.lab_with_two_variants()
         pooled = self.api(policy="mine", variant="all")["report"]

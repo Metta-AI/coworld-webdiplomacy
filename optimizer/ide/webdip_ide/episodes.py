@@ -9,9 +9,11 @@ Two things live here:
      final centres, outcome, variant, date, source, which seats have a log. It is cached in
      memory and rebuilt when one of those files changes.
    - the deep row needs the replay (about 10 MB) and our seat logs (1 to 3 MB each), about a
-     quarter of a second a game: per-seat log taint and centres by year, which the
+     tenth of a second a game: per-seat log taint and centres by year, which the
      `flag_episodes.py` criteria need. A background thread fills these in and saves them to
-     `.runtime/ide/episode_index.json`, so the cost is paid once per episode.
+     `.runtime/ide/episode_index.json`, so the cost is paid once per episode. The parsing itself
+     is `reader.each_game`: worker processes for a large batch, and one parse of a game shared
+     with the dashboard.
 2. The viewer's data (`load_view()`): one compact JSON object per episode (about 150 kB)
    taken from the replay's last frame, plus the chosen seat's private press and `decision`
    lines, plus the press audit when one exists. The raw replay never goes to the browser.
@@ -31,7 +33,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from . import paths, store
+from . import paths, reader, store
 
 PARITY = 1 / 7  # the score of an average seat in a seven-seat game
 PACIFIC = ZoneInfo("America/Los_Angeles")
@@ -196,12 +198,9 @@ def _basic_stamp(ep: Path) -> tuple:
     return (_mtime(ep), _mtime(ep / "results.json"), _mtime(ep / "episode.json"), _mtime(ep / "policy-logs"))
 
 
-def _deep_stamp(ep: Path) -> list[float]:
-    """Changes when any file the loader reads for this episode changes."""
-    we = tool("webdip_episodes")
-    logs = sorted(we.seat_log_paths(ep).values())
-    files = [we.first_existing(ep, we.REPLAY_NAMES), ep / "results.json", ep / "episode.json", ep / "seating.json"]
-    return [_mtime(p) for p in [*files, *logs]]
+def _deep_stamp(ep: Path) -> list[list]:
+    """Changes when any file the loader reads for this episode changes: `reader.fingerprint`, as JSON keeps it."""
+    return [list(item) for item in reader.fingerprint(ep)]
 
 
 def _deep_cache_path() -> Path:
@@ -224,19 +223,14 @@ def _load_deep_cache() -> None:
         _deep_loaded_from = path
 
 
-def _deep_row(ep: Path) -> dict:
-    """The loader's full per-seat records for one episode (reads the replay and the seat logs)."""
-    seats, _ = tool("webdip_episodes").load_episode(ep)
-    return {"stamp": _deep_stamp(ep), "seats": [asdict(seat) for seat in seats]}
-
-
-def _fill_deep(dirs: list[Path]) -> None:
+def _fill_deep(missing: dict[Path, list]) -> None:
+    """The loader's full per-seat records for each episode (`reader` reads the replay and the seat logs)."""
     done = 0
-    for ep in dirs:
-        try:
-            row = _deep_row(ep)
-        except Exception as error:  # one unreadable game must not stop the index
-            row = {"stamp": _deep_stamp(ep), "seats": [], "error": f"{type(error).__name__}: {error}"}
+    for ep, game, error in reader.each_game(missing):
+        # The stamp from before the read: a file that changed meanwhile is then read again.
+        row = {"stamp": missing[ep], "seats": [asdict(seat) for seat in game.seats] if game else []}
+        if error:  # one unreadable game must not stop the index
+            row["error"] = error
         with _lock:
             _deep[str(ep)] = row
         done += 1
@@ -256,9 +250,11 @@ def _save_deep() -> None:
         scratch.replace(path)
 
 
-def _deep_missing(dirs: list[Path]) -> list[Path]:
+def _deep_missing(dirs: list[Path]) -> dict[Path, list]:
+    """The episodes with no deep row for their files as they are now, each with its stamp."""
+    stamps = {ep: _deep_stamp(ep) for ep in dirs}
     with _lock:
-        return [ep for ep in dirs if (_deep.get(str(ep)) or {}).get("stamp") != _deep_stamp(ep)]
+        return {ep: stamp for ep, stamp in stamps.items() if (_deep.get(str(ep)) or {}).get("stamp") != stamp}
 
 
 def deepen(wait: bool = False) -> tuple[int, int]:
@@ -269,7 +265,7 @@ def deepen(wait: bool = False) -> tuple[int, int]:
     missing = _deep_missing(dirs)
     if missing and wait:
         _fill_deep(missing)
-        missing = []
+        missing = {}
     elif missing:
         with _lock:  # two pages asked for at once must not start two readers
             if not (_worker and _worker.is_alive()):
