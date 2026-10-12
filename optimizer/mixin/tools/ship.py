@@ -100,6 +100,8 @@ def main(argv=None) -> None:
     VERSION_LOG.write_text(insert_row(VERSION_LOG.read_text(), row))
     print(json.dumps({"version": f"{args.name}:v{version}", "policy_version_id": version_id,
                       "image": tag, "version_log": str(VERSION_LOG)}, indent=1))
+    print(f"If {args.name} is the policy the IDE's pages should follow, run: ide/ide follow {args.name}",
+          file=sys.stderr)
 
 
 def version_log_row(name: str, version: int, version_id: str, stamp: str, change: str, policy: str,

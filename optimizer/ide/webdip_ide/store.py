@@ -18,6 +18,7 @@ Files, under `paths.state_dir()` unless noted:
   agent_seen      the time (seconds since 1970) the agent side last acted: a chat, card or
                   annotation command, `start`, an MCP tool, or a hook while the IDE is in use.
                   Its presence signal.
+  owner_session   the id of the one agent session the browser chat is delivered to
   agent_ended     the time the agent's session ended (its SessionEnd hook). Newer than
                   `agent_seen` means no session is attached.
   followed_policy the name of the policy the pages follow until the user picks another in
@@ -153,6 +154,25 @@ def agent_ended() -> float | None:
         return float((paths.state_dir() / "agent_ended").read_text())
     except (OSError, ValueError):
         return None
+
+
+def owner_session() -> str | None:
+    """The id of the agent session the browser chat belongs to, or None when no session has it."""
+    try:
+        return (paths.state_dir() / "owner_session").read_text().strip() or None
+    except OSError:
+        return None
+
+
+def set_owner_session(session_id: str | None) -> None:
+    path = paths.state_dir() / "owner_session"
+    if session_id:
+        _write_atomic(path, session_id)
+        return
+    try:
+        path.unlink()
+    except OSError:
+        pass
 
 
 # --- the policy the pages follow ---

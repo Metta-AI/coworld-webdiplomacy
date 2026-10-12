@@ -10,6 +10,7 @@ from unittest import mock
 import _support  # noqa: F401  (import path)
 from castlereagh import bot, config
 from castlereagh.press import llm
+from castlereagh.press.service import check_policy_shape
 
 
 class ModeTest(unittest.TestCase):
@@ -35,6 +36,14 @@ class OverridesTest(unittest.TestCase):
                                  PRESS_SOUL="default"):
             bot.apply_overrides("SEARCH_SEEDS=4, SEARCH_RISK=0.5,PRESS_SOUL=mine")
             self.assertEqual((config.SEARCH_SEEDS, config.SEARCH_RISK, config.PRESS_SOUL), (4, 0.5, "mine"))
+
+    def test_an_on_off_value_can_be_turned_off(self):
+        with mock.patch.object(config, "SWITCH", True, create=True):
+            for text, wanted in (("0", False), ("false", False), ("False", False), ("1", True), ("true", True)):
+                bot.apply_overrides(f"SWITCH={text}")
+                self.assertIs(config.SWITCH, wanted, text)
+            with self.assertRaises(ValueError):
+                bot.apply_overrides("SWITCH=off")
 
     def test_unknown_knob_fails(self):
         with self.assertRaises(AttributeError):
@@ -83,3 +92,29 @@ class ModelSettingsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PolicyShapeTest(unittest.TestCase):
+    """The model writes the policy. A wrong shape must come back as a ValueError it can read."""
+
+    def test_a_well_formed_policy_passes(self):
+        check_policy_shape({"stances": {"FRANCE": "ally"}, "trust": {"FRANCE": 0.7}, "risk": 0.2,
+                            "expected_orders": ["A PAR - BUR"], "forbid_moves_into": [], "center_values": None})
+
+    def test_each_wrong_shape_names_its_field(self):
+        cases = (
+            ({"trust": 0.7}, "trust"),
+            ({"stances": "ally"}, "stances"),
+            ({"center_values": [1]}, "center_values"),
+            ({"expected_orders": "A PAR - BUR"}, "expected_orders"),
+            ({"require_orders": [{"unit": "A PAR"}]}, "require_orders"),
+            ({"forbid_moves_into": {"BUR": True}}, "forbid_moves_into"),
+            ({"trust": {"FRANCE": "high"}}, "trust for FRANCE"),
+            ({"center_values": {"FRANCE": None}}, "center_values for FRANCE"),
+            ({"risk": "low"}, "risk"),
+            ("ally with France", "policy"),
+        )
+        for policy, named in cases:
+            with self.assertRaises(ValueError) as raised:
+                check_policy_shape(policy)
+            self.assertIn(named, str(raised.exception))

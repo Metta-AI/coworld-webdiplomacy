@@ -42,7 +42,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from webdip_episodes import Seat, load_dirs  # noqa: E402
+from webdip_episodes import Seat, load_dirs, other_seat_taint  # noqa: E402
 
 MIN_ABS_Z = 2.0
 # Seat-order balance check: warn when A held the lower roster slot in almost all or almost none
@@ -61,14 +61,14 @@ def power_par(seats: list[Seat], a: str, b: str) -> dict[str, float]:
 
 
 def paired_differences(seats: list[Seat], a: str, b: str, keep_tainted: bool = False):
-    """Return (list of (A's power, d, A sat in the lower roster slot), games dropped for taint)."""
+    """Return (list of (A's power, d, A sat in the lower roster slot), games dropped for taint, ids of games kept)."""
     par = power_par(seats, a, b)
     games: dict[str, dict[str, Seat]] = defaultdict(dict)
     for s in sorted(seats, key=lambda s: (s.episode_id, s.slot)):
         if s.policy in (a, b):
             games[s.episode_id].setdefault(s.policy, s)
-    diffs, dropped = [], 0
-    for by in games.values():
+    diffs, dropped, kept = [], 0, set()
+    for episode, by in games.items():
         if a not in by or b not in by:
             continue
         if not keep_tainted and (by[a].taint or by[b].taint):
@@ -76,7 +76,8 @@ def paired_differences(seats: list[Seat], a: str, b: str, keep_tainted: bool = F
             continue
         d = (by[a].score - par[by[a].power]) - (by[b].score - par[by[b].power])
         diffs.append((by[a].power, d, by[a].slot < by[b].slot))
-    return diffs, dropped
+        kept.add(episode)
+    return diffs, dropped, kept
 
 
 def vs_par_by_power(seats: list[Seat], a: str, b: str, keep_tainted: bool = False) -> dict[str, dict]:
@@ -121,7 +122,8 @@ def verdict(n: int, z: float | None, a: str, b: str) -> str:
 
 
 def paired_report(seats: list[Seat], a: str, b: str, keep_tainted: bool = False) -> dict:
-    diffs, dropped = paired_differences(seats, a, b, keep_tainted)
+    diffs, dropped, kept = paired_differences(seats, a, b, keep_tainted)
+    others = other_seat_taint([s for s in seats if s.episode_id in kept], lambda s: s.policy in (a, b))
     values = [d for _, d, _ in diffs]
     a_first = sum(first for _, _, first in diffs)
     n = len(values)
@@ -133,6 +135,8 @@ def paired_report(seats: list[Seat], a: str, b: str, keep_tainted: bool = False)
         by_power[power].append(d)
     report = {
         "a": a, "b": b, "n": n, "dropped_tainted": dropped,
+        # Games counted here in which a seat of neither policy was tainted (a crashed opponent).
+        "other_seats_tainted": others,
         "diff": round(mean, 4), "se": round(se, 4) if se is not None else None,
         "z": round(z, 2) if z is not None else None,
         "verdict": verdict(n, z, a, b),

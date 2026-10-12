@@ -6,6 +6,7 @@
                                 that one is taken (another lab's IDE), the next free one
     stop                        stop it
     serve [--port N] [--open]   run the server in the foreground (what `start` runs)
+    attach                      give the browser chat to the Claude Code session that runs this
     status [--json]             is the server up, is something waiting for messages, anything unread
     follow [NAME]               record which policy is the user's, so every page follows it
                                 until the user picks another in the browser (no NAME: print it).
@@ -246,6 +247,15 @@ def cmd_stop(args) -> int:
     return 0
 
 
+def cmd_attach(args) -> int:
+    """Nothing to do here: the PostToolUse hook that follows this command gives the chat to the session that ran it."""
+    if not os.environ.get("CLAUDECODE"):
+        print("ide/ide attach does something only when a Claude Code session runs it: its hook takes the chat.")
+        return 0
+    print("The browser chat now belongs to this session (ide/ide status shows the owner).")
+    return 0
+
+
 def cmd_status(args) -> int:
     status = hooks.agent_status()
     if args.json:
@@ -259,6 +269,8 @@ def cmd_status(args) -> int:
     print(f"listener:  {waiting}")
     seen = "never" if status["seen_age"] is None else f"{status['seen_age']:.0f} s ago"
     print(f"agent:     last seen {seen}" + (" (its session has ended)" if status["state"] == "ended" else ""))
+    owner = status["owner"] or "not chosen yet (the first to run a hook, or to run ide/ide attach)"
+    print(f"chat:      delivered to session {owner}")
     print(f"unread:    {status['waiting']} user message(s) not yet delivered")
     print(f"lab:       {paths.lab_dir()}")
     return 0
@@ -423,6 +435,7 @@ def build_parser() -> argparse.ArgumentParser:
         )
         sub.add_argument("--open", action="store_true", help="open the IDE in the default browser")
     add("stop", cmd_stop)
+    add("attach", cmd_attach, help="give the browser chat to the Claude Code session that runs this")
     add("status", cmd_status).add_argument("--json", action="store_true")
     add("url", cmd_url)
     add("follow", cmd_follow).add_argument("name", nargs="?", help="a policy name, the name you upload under")

@@ -230,6 +230,32 @@ class RunAbRecord(unittest.TestCase):
         self.assertIn("status: running", text)
         self.assertIn("launched 2 batches, 4 games; the platform estimates 3.0 credits (0.75 a game)", err.getvalue())
 
+    def test_health_launches_the_asked_number_of_games_and_notes_the_id_outside_evals(self):
+        import contextlib
+        import io
+        import tempfile
+        from unittest import mock
+
+        commands = []
+
+        def fake_run(cmd, capture=True):
+            commands.append([str(part) for part in cmd])
+            return "" if "make_request.py" in str(cmd[1]) else json.dumps({"created": "xreq_h"})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            record = Path(tmp) / "x.md"
+            record.write_text(self.FILLED)
+            args = mock.Mock(record="x", a="p:v2", health="set", health_games=3)
+            with mock.patch.object(run_ab, "LAB", Path(tmp)), mock.patch.object(run_ab, "run", fake_run), \
+                    contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(run_ab.launch_health(args, record), "xreq_h")
+            text = record.read_text()
+        build = commands[0]
+        self.assertEqual(build[build.index("-n") + 1], "3")
+        self.assertEqual(build[build.index("--variant") + 1], "classic-press-short")
+        self.assertIn("Health game: `xreq_h` (3 games,", text)
+        self.assertEqual(run_ab.evals_in(text), [])
+
     def test_launched_line_without_an_estimate(self):
         self.assertEqual(run_ab.estimate({"created": "x"}), 0.0)
         self.assertEqual(run_ab.launched_line(14, 28, 0.0, "ids are in x.md"),

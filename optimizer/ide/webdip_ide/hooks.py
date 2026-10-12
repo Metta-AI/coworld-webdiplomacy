@@ -49,6 +49,8 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import re
+import select
 import sys
 import time
 from datetime import datetime
@@ -70,6 +72,11 @@ REWAKE_TIMEOUT_SECONDS = 7 * 24 * 3600  # the waiter lives as long as the sessio
 # At Stop the Rewake waiter starts at the same moment as the Stop hook. Give it this long
 # to register before deciding that nothing is waiting.
 WAITER_GRACE_SECONDS = 2.0
+# A Bash command that makes the session running it the one the browser chat belongs to.
+CLAIM_COMMAND = re.compile(r"\bide[\"']?\s+(start|attach)\b")
+# The waiter of the owning session can start while another session's waiter still holds the lock
+# (that one lets go within a second of losing the chat). Try for this long before giving up.
+REWAKE_LOCK_WAIT_SECONDS = 4.0
 
 
 # --- who is attached ---
@@ -205,6 +212,7 @@ def agent_status() -> dict:
         "waiting": len(waiting),
         "waiting_age": max(0.0, now - waiting[0]["ts"]) if waiting else None,
         "server": server_info(),
+        "owner": store.owner_session(),
         "now": now,
     }
 
@@ -291,7 +299,37 @@ def session_start_text() -> str:
     )
 
 
+def owns_chat(session_id: str | None) -> bool:
+    """True when this session is the one the browser chat is delivered to.
+
+    Hooks are wired per folder, so every Claude Code session started in the optimizer
+    runs them. Only one may take the user's messages: the session that last ran
+    `ide/ide start` or `ide/ide attach` (see `_hook_output`), or, when no session has
+    done that, the first one whose hook runs while the IDE is in use. A hook run with no
+    session id (by hand, or by an older Claude Code) is let through, as before.
+    """
+    if not session_id:
+        return True
+    owner = store.owner_session()
+    if owner is None:
+        if server_info() is None and not store.has_unread_for_agent():
+            return True  # the IDE is not in use: nothing to own yet
+        store.set_owner_session(session_id)
+        return True
+    return owner == session_id
+
+
+def _claims_chat(event: str, payload: dict) -> bool:
+    if event != "PostToolUse" or payload.get("tool_name") != "Bash":
+        return False
+    command = (payload.get("tool_input") or {}).get("command")
+    return isinstance(command, str) and bool(CLAIM_COMMAND.search(command))
+
+
 def _hook_output(event: str, payload: dict) -> dict | None:
+    session_id = payload.get("session_id")
+    if session_id and _claims_chat(event, payload):
+        store.set_owner_session(session_id)  # also when a sub-agent of this session ran the command
     if payload.get("agent_id"):
         return None  # a sub-agent's tool call: the user's messages are for the main session
     if event == "SessionStart":
@@ -305,11 +343,17 @@ def _hook_output(event: str, payload: dict) -> dict | None:
             }
         }
     if event == "SessionEnd":
+        owner = store.owner_session()
+        if session_id and owner and owner != session_id:
+            return None  # another session has the chat: this one ending changes nothing
+        store.set_owner_session(None)  # the next session to run a hook takes the chat
         if store.agent_seen() is not None:  # only a session the IDE knew about leaves a mark
             store.mark_agent_ended()
         return None
     if server_info() is None and not store.has_unread_for_agent():
         return None  # the IDE is not in use: stay out of the way and leave no presence signal
+    if not owns_chat(session_id):
+        return None  # the chat belongs to another session in this folder
     store.touch_agent_seen()
     if event in ("PostToolUse", "UserPromptSubmit"):
         text = take_formatted()
@@ -345,11 +389,22 @@ def rewake() -> int:
     later (by the agent, or by the user in another terminal) while this session sits
     idle, and nothing else could wake the session then. The wait is one `stat` a second.
     """
+    session_id = _stdin_session_id()
+    owner = store.owner_session()
+    if session_id and owner and owner != session_id:
+        return 0  # the chat belongs to another session in this folder
     lock = open(paths.state_dir() / "rewake.lock", "w")
-    try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        return 0
+    # Only the owner waits for the lock: the waiter of a session that just lost the chat
+    # holds it for up to a second more.
+    deadline = time.time() + (REWAKE_LOCK_WAIT_SECONDS if session_id and owner == session_id else 0.0)
+    while True:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            break
+        except OSError:
+            if time.time() >= deadline:
+                return 0
+            time.sleep(0.2)
     parent = os.getppid()
     if parent == 1:
         # The session ended before this line ran. The waiter now belongs to the system's first
@@ -360,6 +415,9 @@ def rewake() -> int:
     register_listener()
     try:
         while os.getppid() == parent:
+            owner = store.owner_session()
+            if session_id and owner and owner != session_id:
+                return 0  # another session took the chat (it ran `ide/ide start` or `attach`)
             try:
                 info = chat.stat()
                 stamp = (info.st_mtime_ns, info.st_size)  # the size too: some disks keep whole seconds
@@ -367,7 +425,7 @@ def rewake() -> int:
                 stamp = None
             if stamp != checked:
                 checked = stamp
-                if store.has_unread_for_agent():
+                if store.has_unread_for_agent() and owns_chat(session_id):
                     text = take_formatted()
                     if text:
                         print(text, file=sys.stderr, flush=True)
@@ -376,6 +434,28 @@ def rewake() -> int:
     finally:
         unregister_listener()
     return 0
+
+
+def _stdin_session_id() -> str | None:
+    """The `session_id` from the hook's JSON on stdin, or None. Never waits long: a waiter run by hand has no JSON."""
+    try:
+        if sys.stdin is None or sys.stdin.isatty():
+            return None
+        descriptor = sys.stdin.fileno()
+        raw = b""
+        deadline = time.time() + 1.0
+        while time.time() < deadline:
+            ready, _, _ = select.select([descriptor], [], [], max(0.0, deadline - time.time()))
+            if not ready:
+                break
+            chunk = os.read(descriptor, 65536)
+            if not chunk:
+                break
+            raw += chunk
+        session_id = json.loads(raw).get("session_id") if raw.strip() else None
+        return session_id if isinstance(session_id, str) and session_id else None
+    except (OSError, ValueError, AttributeError):
+        return None
 
 
 def _waiter_appears() -> bool:

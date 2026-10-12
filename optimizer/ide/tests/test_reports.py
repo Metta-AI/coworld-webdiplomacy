@@ -236,7 +236,9 @@ class Markdown(unittest.TestCase):
     def test_profile_slug_matches_the_lab_tool(self):
         import sys
 
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "mixin" / "tools"))
+        from lab_source import lab_source
+
+        sys.path.insert(0, str(lab_source() / "tools"))
         import opponent_profile
 
         for name in ("House-Bot:v2", "My_Bot.press:v10", "plain"):

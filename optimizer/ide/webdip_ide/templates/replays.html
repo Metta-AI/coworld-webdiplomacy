@@ -59,7 +59,7 @@
     (parity is <span class="num">{{ "%.3f" | format(parity) }}</span>, one seventh of the pot;
     <span class="num {{ 'good' if mean >= parity else 'bad' }}">{{ "%+.3f" | format(mean - parity) }}</span>).
     This is a raw mean, not adjusted for which powers were played: use the dashboard for comparisons.
-    {% else %}No untainted seats in this selection.{% endif %}
+    {% elif episodes_total %}No untainted seats in this selection.{% endif %}
   </p>
 
   <div class="table-scroll">

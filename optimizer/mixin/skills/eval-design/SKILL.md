@@ -39,7 +39,7 @@ shuffled powers is for a quick field look, a health check or a crash test.
 | **A/B (default: paired)** | Candidate + baseline + **five** field seats in the same games, **each version in each of the two seat positions for half the games** (`tools/make_request.py paired --balanced` writes the 14 bodies). Analyze with `paired.py`. A paired **win** is a screen result only: confirm it with separate arms before promotion (the [ab binding](../ab/SKILL.md) says why) |
 | A/B (separate arms) | Per arm: one candidate seat + **six** field seats, identical field in both arms, both arms in the same window. Analyze with `compare.py` |
 | Field eval | One candidate seat + six field seats |
-| Health check | One `classic-press-short` episode with the candidate (and any new model or prompt). Build it with `tools/make_request.py field … -n 1 --variant classic-press-short`. Then confirm every `llm_call` in our seat logs succeeded and `rejected` is 0: the `telemetry` line of `wd.py metrics DIR --policy NAME:vN` (`llm calls N (0 failed…)`, `rejected 0`, `exceptions 0`) and `press_sent` in the trace. Logs are readable only after the game ends. `run_ab.py --health <six-seat field set>` launches it with the batch and notes its id in the record; it does not fetch or read it. **One game can fail for a reason that is not your build:** the platform can delete our pod mid-game (`wd.py metrics` then says "without our log 1"). When the clock matters, launch two or three health games, not one. A pass shows the build runs; it does not show that a new guard or rule ever fires: read the mechanism from the full batch |
+| Health check | One `classic-press-short` episode with the candidate (and any new model or prompt). Build it with `tools/make_request.py field … -n 1 --variant classic-press-short`. Then confirm every `llm_call` in our seat logs succeeded and `rejected` is 0: the `telemetry` line of `wd.py metrics DIR --policy NAME:vN` (`llm calls N (0 failed…)`, `rejected 0`, `exceptions 0`) and `press_sent` in the trace. Logs are readable only after the game ends. `run_ab.py --health <six-seat field set>` launches it with the batch and notes its id in the record; it does not fetch or read it. **One game can fail for a reason that is not your build:** the platform can delete our pod mid-game (`wd.py metrics` then says "without our log 1"). When the clock matters, launch two or three health games, not one (`run_ab.py --health SET --health-games 2`). A pass shows the build runs; it does not show that a new guard or rule ever fires: read the mechanism from the full batch |
 | Crash test | One short episode, any field. Look only at connect, play every phase, exit |
 
 **Variant:** judge on the league's full variant: `classic-press` for the press
@@ -144,8 +144,8 @@ a two-arm difference is about the per-seat SD × √(2/n).
   queue, stretches it. A `classic-press-short` health game takes about 25
   minutes. A gunboat game runs about 2 minutes, but it has no press. The lab
   manual's "Run one A/B" has the table.
-- Cost (same date): the platform estimates **1.4 to 2.0 credits per full press
-  game** when the request is created and records a `cost_usd` of about
+- Cost (same date): the platform estimates **1.4 to 2.2 credits per press
+  game** (short or full) when the request is created and records a `cost_usd` of about
   **$0.5 per game** afterwards; 0.5 credits per gunboat game. The credits
   actually charged have not been read back
   ([platform.md](../../docs/platform.md#cost-and-duration)).

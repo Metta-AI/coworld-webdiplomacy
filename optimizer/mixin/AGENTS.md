@@ -156,7 +156,7 @@ Also in `tools/`, run the same way; flags are in each docstring.
 | `make_request.py` + `../field_sets.json` | Request bodies from a named opponent set; `--balanced` (powers pinned and rotated; a paired A/B gets both seat orders, 14 bodies), `--pin-a POWER` (our seat fixed to one power), `--no-maps`. `field_sets.json` ships with the format only: list the field with `field.py`, then write your own named, dated sets (a stale id fails at create time with "Policy version … was not found") |
 | `seat_bias.py` | Whether one roster seat outscores another whoever sits there (reads `wd.py seats` on stdin); for same-code checks |
 | `mine_variance.py` | Which measured behaviours go with a policy's own good and bad games (correlations: hypothesis fuel only) |
-| `run_ab.py` | One paired A/B end to end from an experiment record: bodies, dry run, launch, ids into the record, fetch, compress, read (pooled over the record's `artifacts:` folders when it lists them). `--resume` picks up an interrupted run at the fetch; `--health SET` also launches one `classic-press-short` health game and notes its id (it does not read it). `--alone` runs the candidate-alone check (each version alone against a six-seat field), which every paired win needs before promotion; it fetches both arms at once |
+| `run_ab.py` | One paired A/B end to end from an experiment record: bodies, dry run, launch, ids into the record, fetch, compress, read (pooled over the record's `artifacts:` folders when it lists them). `--resume` picks up an interrupted run at the fetch; `--health SET` also launches one `classic-press-short` health game and notes its id (it does not read it); `--health-games N` makes it N games. `--alone` runs the candidate-alone check (each version alone against a six-seat field), which every paired win needs before promotion; it fetches both arms at once |
 | `sizing.py` | Games needed for an effect size, and the smallest effect a number of games can see. Its default SDs are starting values measured once; pass your own with `--sd` (`paired.py` prints `sd`) |
 | `ship.py` | Build, upload, look up the version id and append the VERSION_LOG row in one step |
 | `flag_episodes.py` | Episodes worth opening (reads `wd.py seats` on stdin) |
@@ -229,18 +229,20 @@ uploaded policy name.
 - `--balanced` writes 14 batches: every power and both seat positions equally
   for each version. `-n` is games per batch:
 
-  | `-n` | Games | Platform's estimate at create (1.4 to 2.0 credits a press game) | Recorded `cost_usd` (about $0.5 a press game) | Smallest effect at z = 2, with `sizing.py`'s starting SD |
+  | `-n` | Games | Platform's estimate at create (1.4 to 2.2 credits a press game) | Recorded `cost_usd` (about $0.5 a press game) | Smallest effect at z = 2, with `sizing.py`'s starting SD |
   |---|---|---|---|---|
-  | 1 | 14 | 20 to 28 credits | about $7 | 0.11 |
-  | 2 | 28 | 39 to 56 credits | about $15 | 0.08 |
-  | 6 | 84 | 118 to 168 credits | about $45 | 0.04 |
+  | 1 | 14 | 20 to 31 credits | about $7 | 0.11 |
+  | 2 | 28 | 39 to 62 credits | about $15 | 0.08 |
+  | 6 | 84 | 118 to 187 credits | about $45 | 0.04 |
 
   **What a game costs, and what is not known** (as the platform reported it on
   2026-10-11; `tools/batches.py` prints both numbers for your own batches). The platform
   prints an estimate when a request is created (`cost_preview.estimated_cost_credits`;
   `eval_request.py create` shows it and saves it, and `coworld xp-request get <xreq>
-  --json` returns it later): 1.37 to 1.95 credits per full press game and 0.50 per
-  gunboat game. After a game ends its episode row carries `cost_usd`: $0.51 to $0.61 per
+  --json` returns it later): 1.37 to 2.23 credits per full press game and 0.50 per
+  gunboat game. It moved within that one day, and by the evening a short health game was
+  quoted at the same 2.23 as a full one, so never give the user a figure from this page
+  before a launch: give the one the create step prints. After a game ends its episode row carries `cost_usd`: $0.51 to $0.61 per
   press game, $0.026 per gunboat game, $0.11 to $0.28 for a short health game.
   **Not established:** the credits actually charged (nobody read a balance), and how
   `cost_usd` converts to credits. Quote the platform's estimate, say it is an estimate,

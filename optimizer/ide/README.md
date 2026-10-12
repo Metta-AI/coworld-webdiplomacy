@@ -59,7 +59,8 @@ Needs [uv](https://docs.astral.sh/uv/) (the first start builds `ide/.venv`) and
 |---|---|
 | `start [--port N] [--open]` | Start the server in the background; print the URL. Reuses a running one. Without `--port`: the port this lab used last, else 8642, else the next free one |
 | `serve [--port N] [--open]` | The server in the foreground |
-| `stop`, `status [--json]`, `url` | Close it; what is running; print the URL |
+| `stop`, `status [--json]`, `url` | Close it; what is running and which session has the chat; print the URL |
+| `attach` | Give the browser chat to the Claude Code session that runs this command |
 | `follow [NAME]` | Record which policy is the user's, so Home, Dashboard and Replays follow it until the user picks another in the browser. It replaces a pick the browser made before. No name: print it |
 | `say TEXT` | Agent to user: a chat line (text from stdin when no arguments) |
 | `show --kind idea\|replay\|report\|result\|note --title T [--body MD \| --body-file F] [--link /path]` | Agent to user: a card |
@@ -87,6 +88,23 @@ one cursor (`agent_cursor`), advanced under a file lock, so a message is deliver
 | **`ide/ide inbox`, MCP `inbox`** | on demand | For harnesses with no hooks and no background tasks |
 | **SessionStart hook** | a new session | Says the IDE exists, whether it is open, and where the skill is. Creates `chat.jsonl` when it is missing and asks Claude Code to watch it |
 | **SessionEnd hook** | the page | Records that the session ended (`agent_ended`), so the panel says "The agent session has ended" at once instead of "working" |
+
+### Which session gets the chat
+
+Hooks are wired per folder, so every Claude Code session started in the optimizer root
+runs them. One session has the chat (`owner_session` in the state directory, shown by
+`ide/ide status`), and the hooks and waiter of any other session do nothing:
+
+- The session that runs `ide/ide start` or `ide/ide attach` takes it. The `PostToolUse`
+  hook that follows the command sees it in the Bash tool's input and records that hook's
+  `session_id`; a sub-agent's command claims for its main session.
+- When no session has it, the first session whose hook runs while the IDE is in use
+  takes it.
+- The owner's `SessionEnd` releases it. A session that died without `SessionEnd` keeps
+  it until another session runs `ide/ide attach` or `ide/ide start`.
+- A waiter exits within a second of its session losing the chat, and the new owner's
+  waiter waits up to four seconds for the lock.
+- A hook whose JSON carries no `session_id` is let through, as before this rule.
 
 `optimizer/install.sh` writes the hook entries into `.claude/settings.json` (they come
 from `webdip_ide/hooks.py: hook_settings()`), the `webdip-ide` server into `.mcp.json`,
@@ -193,8 +211,12 @@ the one thing to do.
 - **Delivered is not the same as read.** The cursor moves when the text is handed to
   Claude Code. If the session dies in that instant the message is on disk but marked
   delivered; `ide/ide inbox --recent 5` prints it again.
-- **One agent session per lab.** Two sessions in the same optimizer root share the
-  cursor; each message goes to whichever asks first.
+- **One agent session has the chat.** A second Claude Code session in the same optimizer
+  root no longer takes messages (see "Which session gets the chat"). That rule has unit
+  tests only: it was written after the live checks of 2026-10-11 and has not been run
+  with two real sessions. It relies on two things about Claude Code that were not
+  re-checked: the Rewake hook receives the event's JSON (with `session_id`) on stdin, and
+  `PostToolUse` carries the Bash command in `tool_input.command`.
 - **Sub-agents do not receive messages** (hook input with `agent_id` is skipped); the
   main session gets them at its next step.
 - **Hooks need workspace trust** and Claude Code 2.1.296 or newer (older versions were

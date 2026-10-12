@@ -33,10 +33,20 @@ class Metrics(unittest.TestCase):
         dropped = wd.metrics_report(seats, statuses, policy="field-heuristic-a:v1")
         self.assertEqual(dropped["overall"]["n"], 0)
         self.assertEqual(dropped["taint"], {"target_seat_flags": {"exception": 1}, "episodes_dropped": 1,
-                                            "kept_tainted": False})
+                                            "kept_tainted": False, "other_seat_games": {}})
         kept = wd.metrics_report(seats, statuses, policy="field-heuristic-a:v1", keep_tainted=True)
         self.assertEqual(kept["overall"]["n"], 1)
         self.assertEqual(kept["telemetry"]["exceptions"], 1)
+
+    def test_a_tainted_opponent_seat_is_reported_and_the_game_still_counts(self):
+        seats, statuses = load_dirs([FIXTURES / "hosted"])
+        tainted = next(s for s in seats if s.taint)
+        other = next(s.policy for s in seats if s.policy != tainted.policy)
+        report = wd.metrics_report(seats, statuses, policy=other)
+        self.assertGreater(report["overall"]["n"], 0)
+        self.assertEqual(report["taint"]["episodes_dropped"], 0)
+        self.assertEqual(report["taint"]["other_seat_games"], {tainted.episode_id: sorted(tainted.taint)})
+        self.assertIn("other seats tainted in 1 counted game(s)", wd.render_metrics(report))
 
     def test_slot_target(self):
         seats, statuses = load_dirs([FIXTURES / "local"])

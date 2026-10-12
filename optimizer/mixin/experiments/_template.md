@@ -10,7 +10,7 @@ decision_rule: >
   Pre-committed: ship iff <metric> moves <threshold> at <significance>
   with no significant regression elsewhere. Written BEFORE the run.
 evals: []               # batch ids, filled as they run
-cost: <what a run would spend, e.g. 28 press games, about 50 credits by the platform's estimate, about 70 minutes>
+cost: <what a run would spend, e.g. 28 press games, 62 credits by the platform's estimate, about 70 minutes>
 artifacts: []           # other folders under .runtime/artifacts to read with this record's own; see the note below
 ---
 

@@ -59,6 +59,9 @@
 
   <section aria-labelledby="home-games-h">
     <h3 id="home-games-h">Games worth opening</h3>
+    {% if not work.considered %}
+    <p class="about">No finished games {% if policy %}of {{ policy }} {% endif %}on disk yet. They appear here once the agent has fetched some.</p>
+    {% else %}
     <p class="about">The {{ work.worst | length }} lowest and the {{ work.best | length }} highest scores among
       {% if policy %}{{ policy }}'s{% else %}our{% endif %} last {{ work.considered }} {{ variant }} games
       (parity is {{ "%.3f" | format(parity) }}, one seventh of the pot).
@@ -88,6 +91,7 @@
       </tbody>
       {% endif %}
     </table>
+    {% endif %}
   </section>
 
   <div class="home-foot">

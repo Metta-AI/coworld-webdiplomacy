@@ -137,6 +137,109 @@ class DeliveryHookTest(HookCase):
         self.assertIn("[bad-trust] by user (phase 9, TURKEY): trusted Turkey too long", text)
 
 
+class OwnerTest(HookCase):
+    """Hooks are wired per folder, so a second Claude Code session there runs them too. One session has the chat."""
+
+    def test_the_first_session_to_run_a_hook_takes_the_chat(self):
+        fake_server(self)
+        store.post_message("user", "hello")
+        self.assertIsNone(store.owner_session())
+        self.assertIsNotNone(run_hook("PostToolUse", {"session_id": "a", "tool_name": "Read"}))
+        self.assertEqual(store.owner_session(), "a")
+
+    def test_another_session_gets_nothing_and_leaves_no_mark(self):
+        fake_server(self)
+        store.set_owner_session("a")
+        store.post_message("user", "for the owner")
+        for event in ("PostToolUse", "UserPromptSubmit", "Stop"):
+            self.assertIsNone(run_hook(event, {"session_id": "b", "tool_name": "Read"}), event)
+        self.assertIsNone(store.agent_seen())
+        self.assertTrue(store.has_unread_for_agent())
+        self.assertIn("for the owner", run_hook("Stop", {"session_id": "a"})["reason"])
+
+    def test_the_session_that_runs_start_or_attach_takes_the_chat(self):
+        fake_server(self)
+        store.set_owner_session("a")
+        for command in (
+            "ide/ide start --open",
+            'python3 "$CLAUDE_PROJECT_DIR/ide/ide" attach',
+            "cd x && ide/ide  attach",
+        ):
+            store.set_owner_session("a")
+            run_hook("PostToolUse", {"session_id": "b", "tool_name": "Bash", "tool_input": {"command": command}})
+            self.assertEqual(store.owner_session(), "b", command)
+        for command in ("ide/ide status", "ide/ide say start", "echo side start"):
+            run_hook("PostToolUse", {"session_id": "a", "tool_name": "Bash", "tool_input": {"command": command}})
+            self.assertEqual(store.owner_session(), "b", command)
+
+    def test_a_sub_agent_that_starts_the_ide_claims_for_its_session(self):
+        fake_server(self)
+        payload = {
+            "session_id": "b",
+            "agent_id": "sub",
+            "tool_name": "Bash",
+            "tool_input": {"command": "ide/ide start"},
+        }
+        self.assertIsNone(run_hook("PostToolUse", payload))
+        self.assertEqual(store.owner_session(), "b")
+
+    def test_only_the_owners_session_end_releases_the_chat(self):
+        fake_server(self)
+        store.set_owner_session("a")
+        store.touch_agent_seen()
+        run_hook("SessionEnd", {"session_id": "b"})
+        self.assertEqual(store.owner_session(), "a")
+        self.assertIsNone(store.agent_ended())
+        run_hook("SessionEnd", {"session_id": "a"})
+        self.assertIsNone(store.owner_session())
+        self.assertIsNotNone(store.agent_ended())
+
+    def test_a_hook_with_no_session_id_still_delivers(self):
+        fake_server(self)
+        store.set_owner_session("a")
+        store.post_message("user", "hello")
+        self.assertIsNotNone(run_hook("PostToolUse", {"tool_name": "Read"}))
+
+    def test_an_unused_ide_has_no_owner(self):
+        run_hook("PostToolUse", {"session_id": "a", "tool_name": "Read"})
+        self.assertIsNone(store.owner_session())
+
+    def test_status_names_the_owner(self):
+        store.set_owner_session("a")
+        self.assertEqual(hooks.agent_status()["owner"], "a")
+
+    def test_a_waiter_of_another_session_exits_at_once(self):
+        store.set_owner_session("a")
+        store.post_message("user", "for the owner")
+        done = subprocess.run(
+            [sys.executable, str(IDE), "hook", "Rewake"],
+            input=json.dumps({"session_id": "b"}),
+            capture_output=True,
+            text=True,
+            timeout=20,
+            env={**os.environ, "WEBDIP_LAB": str(self.lab)},
+        )
+        self.assertEqual(done.returncode, 0)
+        self.assertTrue(store.has_unread_for_agent())
+
+    def test_a_waiter_lets_go_when_another_session_takes_the_chat(self):
+        waiter = subprocess.Popen(
+            [sys.executable, str(IDE), "hook", "Rewake"],
+            stdin=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env={**os.environ, "WEBDIP_LAB": str(self.lab)},
+        )
+        self.addCleanup(waiter.kill)
+        waiter.stdin.write(json.dumps({"session_id": "a"}))
+        waiter.stdin.close()
+        time.sleep(1.5)
+        self.assertIsNone(waiter.poll())
+        store.set_owner_session("b")
+        self.assertEqual(waiter.wait(timeout=10), 0)
+        waiter.stderr.close()
+
+
 class RewakeTest(HookCase):
     def _waiter(self) -> subprocess.Popen:
         env = dict(os.environ, WEBDIP_LAB=str(self.lab))

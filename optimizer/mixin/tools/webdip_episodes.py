@@ -396,3 +396,21 @@ def drop_tainted_episodes(seats: list[Seat], is_target) -> tuple[list[Seat], set
     """Remove every seat of an episode whose target seat (or the episode) is tainted."""
     bad = {s.episode_id for s in seats if s.taint and (is_target(s) or set(s.taint) & EPISODE_TAINTS)}
     return [s for s in seats if s.episode_id not in bad], bad
+
+
+def other_seat_taint(seats: list[Seat], is_target) -> dict[str, list[str]]:
+    """Games where a seat that is not the target's is tainted: {episode id: sorted flags}.
+
+    A reader that drops a game only for its own seat's taint still scores games in which an
+    opponent's bot crashed or lost its pod, and such an opponent is easier to beat. Most
+    opponent taints need that seat's log, which is on disk only for policies the account
+    running the tool owns, so an empty answer means "none seen", not "none".
+    `no_decisions` is left out: it is a rule about the starter policy's log lines, and
+    another bot need not write them.
+    """
+    games: dict[str, set[str]] = {}
+    for s in seats:
+        flags = set(s.taint) - EPISODE_TAINTS - {"no_decisions"}
+        if flags and not is_target(s):
+            games.setdefault(s.episode_id, set()).update(flags)
+    return {episode: sorted(flags) for episode, flags in sorted(games.items())}

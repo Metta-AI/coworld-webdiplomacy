@@ -159,12 +159,14 @@ As the platform reported it on 2026-10-10/11. Re-measure on your own batches wit
 
 | Game | Platform's estimate at create (`cost_preview.estimated_cost_credits`) | Episode row's `cost_usd` | Minutes of play |
 |---|---|---|---|
-| Full `classic-press` | 1.37 to 1.95 credits | $0.51 to $0.61 | median 61, longest 75 |
-| `classic-press-short` (health game) | 1.4 to 1.7 credits | $0.11 to $0.28 | 23 to 27 |
+| Full `classic-press` | 1.37 to 2.23 credits | $0.51 to $0.61 | median 61, longest 75 |
+| `classic-press-short` (health game) | 1.4 to 2.23 credits | $0.11 to $0.28 | 23 to 27 |
 | `classic-gunboat` | 0.50 credits | $0.026 | median 2.4 |
 
 - The estimate differed between launches of the same design on the same day; why is
-  not known.
+  not known. On the evening of 2026-10-11 every press request was quoted at 2.232 credits
+  a game, short and full alike, so the estimate does not appear to follow the game's
+  length. Before a launch, quote the figure the create step prints, not this table.
 - **Not established:** the credits actually charged, and how `cost_usd` relates to
   credits. Nobody has read a balance. Quote the platform's estimate as an estimate.
 - LLM spend depends on the model and the policy's prompts: `wd.py costs` prints it per

@@ -27,7 +27,8 @@ lists that record's folder. The IDE's Experiments page reads the same folders
 neither reads a folder named only in the record's text.
 
 `--health SET` also launches one health game, right after the batch's requests are created: `--a` alone against the
-six-seat field set SET on `classic-press-short` (about 25 minutes). Its id is printed and
+six-seat field set SET on `classic-press-short` (about 25 minutes). `--health-games N` makes it N games in
+that one request (one game can fail for a reason that is not the build). Its id is printed and
 written into the record's text as a `Health game:` line, not into `evals:`. Fetch it and read
 `wd.py metrics` for it as the lab manual says; this tool does not wait for it.
 
@@ -200,19 +201,20 @@ def launch(args: argparse.Namespace, record: Path) -> list[str]:
 
 
 def launch_health(args: argparse.Namespace, record: Path) -> str:
-    """Create one short press game with A alone against the six-seat set, and note its id in the record's text."""
+    """Create the short press health game(s), A alone against the six-seat set, and note the id in the record's text."""
     body = LAB / ".runtime" / "requests" / f"{args.record}-health.json"
     run([sys.executable, LAB / "tools" / "make_request.py", "field", "--a", args.a,
-         "--field-set", args.health, "-n", 1, "--variant", "classic-press-short", "--no-maps",
+         "--field-set", args.health, "-n", args.health_games, "--variant", "classic-press-short", "--no-maps",
          "--note", f"{args.record} health game", "--out", body])
     created = json.loads(run([EVAL_REQUEST, "create", body]))
     batch = created["created"]
     text = record.read_text()
+    games = "1 game" if args.health_games == 1 else f"{args.health_games} games"
     record.write_text(text + ("" if text.endswith("\n") else "\n") + f"\nHealth game: `{batch}` "
-                      f"(`classic-press-short`, {args.a} alone; fetch into `.runtime/artifacts/{args.record}-health` "
-                      "and read `wd.py metrics`).\n")
-    print(f"health game {batch} created (estimate {estimate(created):.1f} credits); its id is in {record.name}, "
-          "not in evals", file=sys.stderr)
+                      f"({games}, `classic-press-short`, {args.a} alone; fetch into "
+                      f"`.runtime/artifacts/{args.record}-health` and read `wd.py metrics`).\n")
+    print(f"health request {batch} created, {games} (estimate {estimate(created):.1f} credits); "
+          f"its id is in {record.name}, not in evals", file=sys.stderr)
     return batch
 
 
@@ -281,12 +283,14 @@ def main(argv=None) -> None:
     ap.add_argument("--b-label", help="NAME:vN label for --b when it is an id")
     ap.add_argument("--field-set", required=True)
     ap.add_argument("-n", "--episodes", type=int, default=2,
-                    help="games per body; total = 14 x n (default 2: 28 games, about 50 credits in press "
+                    help="games per body; total = 14 x n (default 2: 28 games, 39 to 62 credits in press "
                          "by the platform's estimate)")
     ap.add_argument("--resume", action="store_true",
                     help="skip launch; fetch and read the batches in the record (with --alone: the two alone arms)")
     ap.add_argument("--health", metavar="SET",
                     help="also launch one classic-press-short health game: --a alone against this six-seat field set")
+    ap.add_argument("--health-games", type=int, default=1, metavar="N",
+                    help="with --health: how many health games (default 1; 2 or 3 when a lost pod would cost time)")
     ap.add_argument("--alone", action="store_true",
                     help="candidate-alone check: A alone and B alone against a six-seat field set")
     args = ap.parse_args(argv)
