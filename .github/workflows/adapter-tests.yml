@@ -104,12 +104,15 @@ jobs:
       # builder, so that the builds `coworld build` and its replay viewer hook run next
       # reuse them. The two slow layers (apt packages, the upstream React build) change
       # only with the submodule or the base image. One group saves the cache.
+      # `load` is what downloads the layers: without an output the cache hits stay
+      # references that only a build with the same cache-from can use.
       - uses: docker/setup-buildx-action@v4
       - uses: docker/bake-action@v7
         with:
           source: .
           files: compose.yaml
           targets: game
+          load: true
           set: |
             game.platform=linux/amd64
             game.cache-from=type=gha,scope=game
