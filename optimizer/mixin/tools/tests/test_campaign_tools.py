@@ -1,6 +1,7 @@
 """Pure-logic tests for the campaign tools: sizing, seat_bias, ship, run_ab, field,
 year_deltas, flag_episodes, mine_variance, gzip_replays. No network, no Docker."""
 
+import argparse
 import contextlib
 import gzip
 import io
@@ -142,6 +143,19 @@ class RunAbRecord(unittest.TestCase):
             with self.assertRaises(SystemExit) as stopped:
                 run_ab.launch(None, record)
         self.assertIn("<what a run would spend", str(stopped.exception))
+
+    def test_screen_stage_ids_are_kept_apart_and_the_variant_reaches_the_request(self):
+        text = run_ab.with_evals(self.FILLED, ["xreq_full", "xreq_short"])
+        text = run_ab.with_ids(text, "screen", ["xreq_short"])
+        self.assertEqual(run_ab.ids_in(text, "screen"), ["xreq_short"])
+        self.assertEqual(run_ab.paired_ids(text), ["xreq_full"])  # a paired --resume leaves the screen out
+
+        args = argparse.Namespace(record="2026-01-01-x", a="p:v2", b="p:v1", field_set="set-5", episodes=1)
+        full = [str(part) for part in run_ab.paired_request(args, Path("x.json"))]
+        short = [str(part) for part in run_ab.paired_request(args, Path("x-screen.json"), "classic-press-short")]
+        self.assertNotIn("--variant", full)
+        self.assertEqual(short[-2:], ["--variant", "classic-press-short"])
+        self.assertIn("2026-01-01-x screen stage on classic-press-short", short)
 
     def test_evals_round_trip_and_status(self):
         self.assertEqual(run_ab.evals_in(self.FILLED), [])

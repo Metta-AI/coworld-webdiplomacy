@@ -169,6 +169,18 @@ a two-arm difference is about the per-seat SD × √(2/n).
   start one ([game.md](../../docs/game.md#leagues)). Never plan evidence around
   a league round.
 
+## Faster first reads (screens, never verdicts)
+
+- **Price before you launch:** `tools/run_ab.py ... --dry-run` builds the bodies, launches
+  nothing and prints the platform's last saved quote for requests of the same kind. The
+  platform cannot price a request without creating it and the price moves, so treat the
+  figure as a floor when the saved quote is more than an hour or two old.
+- **Screen stage on the short variant:** `tools/run_ab.py --record <id> --a … --b … --field-set <set> -n 1
+  --variant classic-press-short` plays the paired, balanced design on the short game (about 25
+  minutes) and prints each version's health lines and `press_behaviour.py` table. Its ids go to
+  the record's `screen:` list and are never pooled with the full run. No score read: the short
+  game ends in 1904.
+
 ## Local runs
 
 Local runs debug; they never judge: the local field is not the hosted one.

@@ -205,6 +205,7 @@ tool takes `--help`); they may shift slightly from what is shown here.
 | `make_request.py`, `run_ab.py` | Build the request bodies for a balanced A/B; run one end to end, and the candidate-alone check | see the lab manual's "Run one A/B" |
 | `seat_bias.py` | Whether one roster seat outscores another whoever sits there: the read for a same-code check | `wd.py seats DIR \| python3 games/webdiplomacy/tools/seat_bias.py` (see docstring) |
 | `sizing.py` | Games needed for an effect, or the smallest effect a run can see | `python3 games/webdiplomacy/tools/sizing.py --effect 0.04` |
+| `press_behaviour.py` | The mechanism check for a prompt or press-guard change: per version, the share of orders fixed, fixed as holds, every unit fixed, stances, messages, and `press_freed_holds` | `python3 games/webdiplomacy/tools/press_behaviour.py DIR... --policy NAME` |
 | `holds.py` | The mechanism check for a change meant to free units: hold share by version beside the field, and any refusal counters the press layer logs | `python3 games/webdiplomacy/tools/holds.py DIR... --policy NAME --variant classic-press` |
 | `batches.py` | What the run cost and how long it took, from the episode rows | `python3 games/webdiplomacy/tools/batches.py DIR...` |
 

@@ -132,6 +132,10 @@ IDE build (2026-10-11), a third drive of the published template and an overnight
   create time (1.4 to 3.3 credits per press game over 2026-10-11 and the night after; it moves) and each episode's recorded
   `cost_usd` (about $0.5); `run_ab.py` prints the estimate when it launches. Neither is the
   bill, their relation is not known, and nobody has read a balance.
+- **`run_ab.py --variant` (the short-game screen stage) has unit tests only**; no screen has
+  been launched hosted. `--dry-run`, `my_versions.py`, `press_behaviour.py`, `ally_losses.py`
+  and `hold_reasons.py` were written and used in one lab's overnight run and have had no
+  second user.
 - **`ship.py` and `build.sh` know one source tree, `players/castlereagh`.** Every upload is
   built from it and logged in its `VERSION_LOG.md`, whatever policy name it is uploaded under
   (the row's first cell carries the name, which is what the IDE reads). A second policy source

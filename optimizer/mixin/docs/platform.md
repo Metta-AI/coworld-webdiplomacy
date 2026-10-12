@@ -136,7 +136,11 @@ set; see the eval-design binding):
   and `episode_player_llm_spend_limit_usd` are accepted. **Dry-run every body**
   (`eval_request.py create body.json --dry-run`) before creating it. The dry run
   checks the body's shape and prints no cost; the estimate comes with the real
-  create (below).
+  create (below). `tools/run_ab.py ... --dry-run` gives the nearest thing to a price
+  ahead of time: the platform's estimate for the last request of the same kind this
+  lab created (same variant, seats, LLM budget and games per request), from the saved
+  create responses, or the range between the nearest sizes when that size was never
+  quoted.
 - **Keep the ids; the listing will not give them back.** `coworld xp-request list
   --mine --json` returns rows under `entries` with a `next_cursor` (follow it: 1,000 rows
   came back with more behind them on 2026-10-11), and a row has no roster, no notes and
@@ -144,7 +148,9 @@ set; see the eval-design binding):
   (`"evidence_state": "sealed"`, `participants: null`), even to the owner. What does
   identify a request is `coworld xp-request get <xreq> --json`: `requested.notes` is
   the note `make_request.py` wrote (what it compares, the field set, the experiment
-  id), and `cost_preview` is the estimate. So write every batch id into the
+  id). Its `cost_preview` came back `null` for requests read on 2026-10-12: the
+  estimate is in the create response and nowhere else, so keep
+  `.runtime/requests/responses/`. So write every batch id into the
   experiment record when it is created (`run_ab.py` does), and use the seed's
   `fetch_artifacts.py` to read a batch, not the CLI listing.
 - **The platform may run an episode again.** The league settings carry

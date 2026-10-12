@@ -138,6 +138,12 @@ Run from the optimizer root; **exact flags live in each tool's docstring**.
   received, sent, committed and decided that turn (private press: terminal only).
 - `holds.py DIR... --policy NAME --variant V`: hold share beside the field and
   what in the committed press policy goes with it.
+- `hold_reasons.py DIR... --policy NAME`: each hold as fixed by the agent or left to the
+  search, and where the unit stood.
+- `press_behaviour.py DIR... --policy NAME`: what the press agent fixes, commits and sends, per
+  version (orders fixed, every unit fixed, stances, messages per phase).
+- `ally_losses.py DIR... --policy NAME [--going-in]`: how often a power the agent called an
+  ally took a centre from us, beside neutral and hostile powers.
 - `board_counts.py DIR... --policy NAME --as POWER --order "…" --owns PROV`: a
   claim about orders or centres counted over every game, the field beside it.
 - `webdip_episodes.py`: the loader for new instruments. Persist new analysis in
