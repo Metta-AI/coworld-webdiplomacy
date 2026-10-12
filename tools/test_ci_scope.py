@@ -19,6 +19,7 @@ class CiScope(unittest.TestCase):
         changed = ["README.md", "docs/replay.md", TEMPLATE, "tools/build_intro_slides.py", "optimizer/install.sh"]
         self.assertEqual(scope(changed, self.template, resynced), dict(images=False, optimizer=True))
         self.assertEqual(scope(["AGENTS.md"], self.template, self.template), dict(images=False, optimizer=False))
+        self.assertEqual(scope(["CHANGELOG.md"], self.template, self.template), dict(images=False, optimizer=True))
 
     def test_image_sources_and_checks_run_the_image_checks(self):
         for path in ("adapter/boot.py", "players/api.py", "php/wdc_start.php", "config/nginx.conf", "webdiplomacy"):
