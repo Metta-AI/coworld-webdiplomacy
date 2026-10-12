@@ -51,8 +51,10 @@ OPEN = ("proposed", "running")  # no verdict yet
 STATUS_TONE = {"running": "warn", "confirmed": "ok", "refuted": "err"}  # the rest stay plain
 SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 # Fields of a record made for the pages, left out of the JSON.
-PAGE_ONLY = ("body", "modified", "rule_brief", "planned", "date", "hypothesis_html", "decision_rule_html")
-ALONE_ARMS = (("-alone-a", "candidate"), ("-alone-b", "baseline"))  # where `run_ab.py --alone` fetches
+PAGE_ONLY = ("body", "modified", "rule_brief", "planned", "date", "hypothesis_html", "decision_rule_html",
+             "alone_launched")
+# Where `run_ab.py --alone` fetches each arm, and the front-matter list it writes the arm's batch ids in.
+ALONE_ARMS = (("-alone-a", "candidate", "alone_a"), ("-alone-b", "baseline", "alone_b"))
 
 _PLACEHOLDER = re.compile(r"<[A-Za-z][^<>]*>")  # the template's `<policy name>`, `<metric>`, `<Experiment title>`
 _COMMENT = re.compile(r"(^|\s)#.*$")
@@ -158,6 +160,8 @@ def read_record(path: Path) -> dict:
         # The folders under `.runtime/artifacts` whose games the result is read from.
         "artifacts": folders,
         "batch": folders[0],  # the first folder; kept for readers of the JSON from before a record could name several
+        # `run_ab.py --alone` has created batches for the candidate-alone check, whether or not a game is in yet.
+        "alone_launched": any(isinstance(meta.get(key), list) and meta[key] for _, _, key in ALONE_ARMS),
         "path": str(path.relative_to(paths.lab_dir())),
         "link": f"/experiments/{path.stem}",
         "body": body,
@@ -197,6 +201,12 @@ def paired():
     return importlib.import_module("paired")
 
 
+def run_ab():
+    """The lab's `tools/run_ab.py`."""
+    paths.use_lab_tools()
+    return importlib.import_module("run_ab")
+
+
 def games_by_batch() -> tuple[dict[str, dict], int]:
     """(the games read so far under each folder of `.runtime/artifacts`, by episode id; games still to be read).
 
@@ -230,6 +240,30 @@ def _short(candidate: str, baseline: str) -> tuple[str, str]:
     return (a_version, b_version) if a_name and a_name == b_name else (candidate, baseline)
 
 
+def alone_check(record: dict, batches: dict[str, dict]) -> list[dict]:
+    """The two arms of the candidate-alone check: [{who, games, progress}], or [] when it was never launched.
+
+    `run_ab.py --alone` names its two folders after the record, whatever the record pools. How
+    many games an arm asked for is the tool's own count (`run_ab.games_requested`, from the saved
+    create responses); a lab that did not launch the arm with the tool has none, and the line
+    then says how many are in so far.
+    """
+    on_disk = {who: len(_finished(batches.get(record["id"] + suffix, {}))) for suffix, who, _ in ALONE_ARMS}
+    if not (record["alone_launched"] or any(on_disk.values())):
+        return []
+    responses = paths.lab_dir() / ".runtime" / "requests" / "responses"
+    arms = []
+    for suffix, who, _ in ALONE_ARMS:
+        games = on_disk[who]
+        asked = run_ab().games_requested(record["id"] + suffix, responses)
+        if asked:
+            progress = f"{games} of {asked} games in"
+        else:
+            progress = f"{_games(games)} in so far" if games else "no games in yet"
+        arms.append({"who": who, "games": games, "progress": progress})
+    return arms
+
+
 def result_so_far(record: dict, batches: dict[str, dict], pending: int) -> dict:
     """What the games on disk say now: how many are in, and `paired.py`'s report (candidate minus
     baseline) when both versions have games. `report` is None until then."""
@@ -248,8 +282,7 @@ def result_so_far(record: dict, batches: dict[str, dict], pending: int) -> dict:
     out = {"games_in": len(games), "planned": record["planned"], "progress": progress, "pending": pending,
            "folders": folders, "covers": ", ".join(f"{f['name']} ({f['games']})" for f in folders),
            "report": None, "words": "", "verdict": "", "tone": "", "win": False,
-           # `run_ab.py --alone` names its two folders after the record, whatever the record pools.
-           "alone": [(who, len(_finished(batches.get(record["id"] + suffix, {})))) for suffix, who in ALONE_ARMS]}
+           "alone": alone_check(record, batches)}
     if not (games and record["candidate"] and record["baseline"]):
         return out
     seats = [seat for game in games for seat in game.seats]
@@ -270,6 +303,12 @@ def result_so_far(record: dict, batches: dict[str, dict], pending: int) -> dict:
         tone={f"{record['candidate']} ahead": "ok", f"{record['baseline']} ahead": "err"}.get(report["verdict"], ""),
     )  # fmt: skip
     return out
+
+
+def statuses() -> dict[str, str]:
+    """Every record's status by id. The agent panel reads it with the cards (`/api/cards`), so an idea
+    card whose record has been run stops offering to run it."""
+    return {record["id"]: record["status"] for record in list_records()}
 
 
 def running() -> list[dict]:
@@ -372,7 +411,7 @@ def asks(record: dict, result: dict) -> list[dict]:
             "decision rule that was written before the run, set its status, add the lever to closed_levers.md if it "
             f"is refuted or to open_levers.md if it is inconclusive, run record.py validate, and {card}."
         )})  # fmt: skip
-    if result["win"]:
+    if result["win"] and not result["alone"]:  # once launched, the page shows its progress and no second launch
         out.append({"label": "Ask for the candidate-alone check", "text": (
             f"Experiment {name} shows a paired win for {record['candidate']}. Run the candidate-alone check before "
             f"any promotion: write its pass mark in the record first, then tools/run_ab.py --record {record['id']} "

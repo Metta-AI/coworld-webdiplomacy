@@ -152,6 +152,17 @@ class ReportsPages(unittest.TestCase):
         self.assertIn("Ask the agent to refresh this report", text)
         self.assertIn("reports/opponents/rival-bot.md", text)
 
+    def test_buttons_that_send_at_once_say_so(self):
+        write_episode(self.lab, "ereq_1", ["rival-bot:v2", "other-bot:v1", "ours:v3"])
+        self.write("opponents", "rival-bot", PROFILE)
+        page = self.client.get("/reports").text
+        self.assertIn("sends its request to the agent at once; nothing waits in the message box", page)
+        self.assertIn('title="Sends the request at once: the agent runs the skill again', page)  # a refresh
+        self.assertIn('title="Sends the request at once: the agent writes an opponent profile of other-bot"', page)
+        self.assertIn("A click sends the request at once.", page)  # beside the matchup button
+        view = self.client.get("/reports/opponents/rival-bot").text
+        self.assertIn("A click sends the request at once; nothing waits in the message box.", view)
+
     def test_report_html_is_escaped_and_bad_links_stay_text(self):
         self.write("opponents", "rival-bot", PROFILE)
         text = self.client.get("/reports/opponents/rival-bot").text

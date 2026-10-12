@@ -2,7 +2,7 @@
 """How much one policy holds, beside the field, and what in its own press policy goes with the holds.
 
     python3 games/webdiplomacy/tools/holds.py DIR... --policy NAME[:vN] [--variant classic-press]
-        [--episodes FILE] [--alone] [--stopped-phases 4] [--json]
+        [--episodes FILE] [--alone] [--ours OTHERNAME]... [--stopped-phases 4] [--json]
 
 A hold is a unit ordered to stay where it is. A policy that holds far more than the other
 seats at the same power is passive, frozen by its own press layer, or dead. This tool counts
@@ -34,7 +34,10 @@ are left out of every share, for the policy and for the field, and counted in th
 field seat's taint is known only when its log is on disk.
 
 `--alone` keeps only games with exactly one seat of the policy (any version): the view for
-"how do we play", without paired runs. `--episodes FILE` reads only the listed games (a saved
+"how do we play", without paired runs. If you also uploaded under another name, give it with
+`--ours OTHERNAME` (repeatable, as in `matchups.py`): `--alone` then also leaves out the games
+that seat it. That is all `--ours` does here; without `--alone` such a seat stays in the field
+rows. `--episodes FILE` reads only the listed games (a saved
 `matchups.py` or `opponent_profile.py` run, or one id per line), so the counts line up with a
 write-up. Press and gunboat are different games: give `--variant`. To compare a press build
 with the same search with press off, run the tool once per variant and policy name.
@@ -135,8 +138,14 @@ def _add(cell: Counter, orders: int, holds: int) -> None:
     cell["holds"] += holds
 
 
-def measure(games: list[Game], policy: str, alone: bool = False, stopped_phases: int = 4) -> dict:
-    is_policy, in_family = policy_matcher(policy), policy_matcher(family(policy))
+def measure(games: list[Game], policy: str, alone: bool = False, stopped_phases: int = 4,
+            also_ours: tuple[str, ...] = ()) -> dict:
+    is_policy = policy_matcher(policy)
+    ours_by_name = [policy_matcher(family(name)) for name in (policy, *also_ours)]
+
+    def in_family(name: str) -> bool:
+        return any(matches(name) for matches in ours_by_name)
+
     mix: dict[tuple[str, str], Counter] = defaultdict(Counter)  # (who, power) -> orders, holds, seats, ...
     by_year: dict[tuple[str, int], Counter] = defaultdict(Counter)
     press: dict[str, dict] = {}
@@ -176,7 +185,8 @@ def measure(games: list[Game], policy: str, alone: bool = False, stopped_phases:
                 if committed:
                     _press_counts(press.setdefault(seat.policy, _empty_press()), rows, committed, guards)
     return {
-        "policy": policy, "alone": alone, "games": used, "stopped_phases": stopped_phases,
+        "policy": policy, "alone": alone, "also_ours": sorted(family(name) for name in also_ours), "games": used,
+        "stopped_phases": stopped_phases,
         "pod_deleted_seats": dict(dead),
         "by_power": [_share_row(who, power, mix[(who, power)]) for who, power in _keys(mix)],
         "overall": [_share_row(who, "all", _total(mix, who)) for who in _groups(mix)],
@@ -249,7 +259,8 @@ def _pct(share: float | None) -> str:
 
 
 def render(r: dict) -> str:
-    lines = [f"# Holds: {r['policy']}, {r['games']} games" + (" with one seat of the policy" if r["alone"] else "")]
+    alone = " with one seat of the policy" + "".join(f" or {name}" for name in r["also_ours"]) if r["alone"] else ""
+    lines = [f"# Holds: {r['policy']}, {r['games']} games{alone}"]
     if r["pod_deleted_seats"]:
         lines.append("seats left out because their pod was deleted: "
                      + ", ".join(f"{who} {n}" for who, n in sorted(r["pod_deleted_seats"].items())))
@@ -301,12 +312,14 @@ def main(argv=None) -> int:
     ap.add_argument("--episodes", metavar="FILE", help="only the episode ids in FILE (a saved matchups.py or "
                     "opponent_profile.py run, or one id per line)")
     ap.add_argument("--alone", action="store_true", help="only games with exactly one seat of the policy")
+    ap.add_argument("--ours", action="append", default=[], metavar="OTHERNAME",
+                    help="another policy name that is also ours (repeatable): --alone leaves out games that seat it")
     ap.add_argument("--stopped-phases", type=int, default=4, metavar="N")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
     only = read_episode_list(Path(args.episodes)) if args.episodes else None
     games, _ = load_games([Path(d) for d in args.dirs], args.variant, only)
-    result = measure(games, args.policy, args.alone, args.stopped_phases)
+    result = measure(games, args.policy, args.alone, args.stopped_phases, tuple(args.ours))
     if not result["games"]:
         print(f"no game seats {args.policy} below the given directories (with these filters)", file=sys.stderr)
         return 2

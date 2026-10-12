@@ -6,10 +6,20 @@
 DIR is `.runtime/artifacts` or any directory of fetched hosted episodes. One row per batch
 (the first directory below DIR, the way `opponent_profile.py` names a game's `source`):
 
-  games        episode rows found, and how many are not `completed`
+  games        episode rows found, and how many are not `completed`. Whether that is the whole
+               batch is a separate question: the fetcher makes a request's folder when its first
+               game arrives, so a batch that is still being fetched looks like a small finished
+               one. With the create responses on disk (`--responses`, see `est. credits`; each
+               holds the request's `episode_count`) the cell reads "30 of 70 in, still arriving"
+               or "70 of 70 in". Without them it reads "30 in, asked for unknown": the table
+               then cannot tell a finished batch from one still arriving, so check before you
+               quote its times or cost. A response belongs to a batch when a game on disk
+               carries its request id, or when its file is named `<batch>-r<N>[m].json` (how
+               `run_ab.py` names them), which also finds requests with no game on disk yet
   launched     the first `created_at` of the batch (Pacific Time)
   finished     the last `completed_at`
-  wall         minutes from the first launch to the last finish: what you waited
+  wall         minutes from the first launch to the last finish: what you waited. Left empty,
+               with `finished`, while a batch is still arriving
   game         minutes one game ran (`running_at` to `completed_at`), median and longest
   wait         minutes one game waited before it ran (`created_at` to `running_at`), median and
                longest. A long wait is a queue (other batches were running) or a game the
@@ -37,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import statistics
 import sys
 from collections import Counter, defaultdict
@@ -74,7 +85,24 @@ def read_estimates(responses: Path) -> dict[str, float]:
     return out
 
 
-def batch_rows(roots: list[Path], estimates: dict[str, float]) -> list[dict]:
+def read_requested(responses: Path) -> dict[str, dict]:
+    """Saved create response file name -> {id, games}: the games each request asked for (`episode_count`)."""
+    out = {}
+    for path in sorted(responses.glob("*.json")) if responses.is_dir() else []:
+        saved = read_json_file(path)
+        if isinstance(saved, dict) and saved.get("id") and isinstance(saved.get("episode_count"), int):
+            out[path.name] = {"id": saved["id"], "games": saved["episode_count"]}
+    return out
+
+
+def games_requested(batch: str, requests: list[str], requested: dict[str, dict]) -> int | None:
+    """The games the batch's requests asked for, or None when a request on disk has no saved response."""
+    asked = {r["id"]: r["games"] for name, r in requested.items()
+             if r["id"] in requests or re.fullmatch(re.escape(batch) + r"-r\d+m?\.json", name)}
+    return sum(asked.values()) if asked and all(r in asked for r in requests) else None
+
+
+def batch_rows(roots: list[Path], estimates: dict[str, float], requested: dict[str, dict] | None = None) -> list[dict]:
     rows_by_batch: dict[str, list[tuple[dict, str]]] = defaultdict(list)
     seen = set()
     for root in roots:
@@ -100,9 +128,13 @@ def batch_rows(roots: list[Path], estimates: dict[str, float]) -> list[dict]:
         costs = [float(e["cost_usd"]) for e in episodes if isinstance(e.get("cost_usd"), (int, float))]
         requests = sorted({e["experience_request_id"] for e in episodes if e.get("experience_request_id")})
         known = [estimates[r] for r in requests if r in estimates]
+        asked = games_requested(batch, requests, requested or {})
         out.append({
             "batch": batch,
             "games": len(episodes),
+            # None: no saved create response says how many games were asked for.
+            "games_requested": asked,
+            "still_arriving": None if asked is None else len(episodes) < asked,
             "not_completed": sum(e.get("status") != "completed" for e in episodes),
             "variants": dict(Counter(variant for _, variant in rows)),
             "requests": len(requests),
@@ -133,20 +165,34 @@ def render(rows: list[dict]) -> str:
              "| wait min (median / max) | cost_usd (per game) | est. credits (per game) |",
              "|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
-        games = str(r["games"]) + (f" ({r['not_completed']} not completed)" if r["not_completed"] else "")
+        arriving = r["still_arriving"]
+        if arriving is None:
+            games = f"{r['games']} in, asked for unknown"
+        else:
+            games = f"{r['games']} of {r['games_requested']} in" + (", still arriving" if arriving else "")
+        games += f" ({r['not_completed']} not completed)" if r["not_completed"] else ""
         cost = f"${r['cost_usd']:.2f} (${r['cost_usd_per_game']:.3f})" if r["cost_usd"] is not None else "-"
         credits = "-"
         if r["estimated_credits"] is not None:
-            credits = f"{r['estimated_credits']:.1f} ({r['estimated_credits'] / r['games']:.2f})"
+            # The estimate is for every game asked for, not only the games in so far.
+            per_game = r["estimated_credits"] / (r["games_requested"] or r["games"])
+            credits = f"{r['estimated_credits']:.1f} ({per_game:.2f})"
             if r["requests_with_estimate"] < r["requests"]:
                 credits += f", {r['requests_with_estimate']} of {r['requests']} requests"
-        wall = f"{r['wall_minutes']:.0f}" if r["wall_minutes"] is not None else "-"
+        # The last finish so far is not the batch's finish, so neither it nor the wall time is printed.
+        wall = f"{r['wall_minutes']:.0f}" if r["wall_minutes"] is not None and not arriving else "-"
         lines.append(f"| {r['batch']} | {games} | {', '.join(r['variants'])} | {_clock(r['launched'])} | "
-                     f"{_clock(r['finished'])} | {wall} | {_spread(r['game_minutes'])} | "
+                     f"{_clock(None if arriving else r['finished'])} | {wall} | {_spread(r['game_minutes'])} | "
                      f"{_spread(r['wait_minutes'])} | {cost} | {credits} |")
     lines.append("")
     lines.append("cost_usd is the platform's per-episode record, in dollars. est. credits is its estimate at "
                  "create time. Neither is a bill: credits charged cannot be read back.")
+    if any(r["still_arriving"] for r in rows):
+        lines.append("A batch marked \"still arriving\" has fewer games on disk than its requests asked for: its "
+                     "game and wait minutes and its cost cover the games in so far.")
+    if any(r["still_arriving"] is None for r in rows):
+        lines.append("\"asked for unknown\": no saved create response covers every request of that batch (league "
+                     "rounds never have one), so the table cannot tell whether all its games are in.")
     return "\n".join(lines)
 
 
@@ -157,7 +203,8 @@ def main(argv=None) -> int:
                     help="saved `eval_request.py create` responses (default: this lab's .runtime/requests/responses)")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
-    rows = batch_rows([Path(d) for d in args.dirs], read_estimates(Path(args.responses)))
+    responses = Path(args.responses)
+    rows = batch_rows([Path(d) for d in args.dirs], read_estimates(responses), read_requested(responses))
     if not rows:
         print("no hosted episode rows (episode.json) below the given directories", file=sys.stderr)
         return 2

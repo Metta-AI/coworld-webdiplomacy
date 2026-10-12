@@ -147,13 +147,20 @@ PYEOF
 # SEED.md says to diff against the recorded seed version, but the seed records only
 # "0.1.0-dev". Record the commit: template copies squash history and drop the seed remote,
 # so this row is the only place the planted seed commit survives.
-python3 - "$TARGET/SEED.md" "$SEED_COMMIT" << 'PYEOF'
+python3 - "$TARGET/SEED.md" "$SEED_COMMIT" "$TODAY" << 'PYEOF'
 import pathlib, sys
-path, commit = pathlib.Path(sys.argv[1]), sys.argv[2]
+path, commit, today = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
 anchor = "| **Upstream** | https://github.com/Metta-AI/optimizer-seed |\n"
+unstamped = "| **Planted** | *(date stamped when a user clones and onboards)* |\n"
 text = path.read_text()
-if anchor not in text:
-    sys.exit(f"error: {path} has no Upstream row; update install.sh for this seed version")
+if anchor not in text or unstamped not in text:
+    sys.exit(f"error: {path} has no Upstream or Planted row; update install.sh for this seed version")
+# The seed leaves "Planted" for onboarding to stamp, and nothing in onboarding does. This date
+# is the day install.sh ran: for a copy made from the published template, the day the template
+# was generated, so say that; the copy's own first commit dates the copy.
+planted = (f"| **Planted** | {today}, by coworld-webdiplomacy `optimizer/install.sh` (a copy made from the "
+           f"published template: see the date of this repository's first commit) |\n")
+text = text.replace(unstamped, planted, 1)
 path.write_text(text.replace(anchor, anchor + f"| **Commit** | {commit} |\n", 1))
 PYEOF
 

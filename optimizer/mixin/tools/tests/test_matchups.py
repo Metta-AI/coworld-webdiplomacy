@@ -182,6 +182,35 @@ class Report(unittest.TestCase):
         self.assertEqual(self.report("mine:v2", alone=True)["games"], 0)
         self.assertEqual(self.report("mine:v2")["paired_games"], 1)
 
+    def test_another_policy_of_ours_is_paired_with_us_and_is_not_an_opponent(self):
+        game(self.root, "a", 0.4)
+        game(self.root, "bb", 0.3, field=["mine-search:v1", *FIELD[1:]])  # our other name in slot 1 (France)
+        plain = self.report(alone=True)
+        self.assertEqual((plain["games"], plain["paired_games"], plain["also_ours"]), (2, 0, []))
+        self.assertIn("mine-search", [row["opponent"] for row in plain["by_opponent"]])
+        named = self.report(alone=True, also_ours=("mine-search",))
+        self.assertEqual((named["games"], named["alone_games"], named["paired_games"]), (1, 1, 1))
+        self.assertEqual(named["episodes"], ["a"])
+        self.assertIn("1 seat one seat of mine or mine-search, 1 seat two or more (left out)", matchups.render(named))
+        both = self.report(also_ours=("mine-search:v1",))  # a version is read as its name
+        self.assertEqual(both["also_ours"], ["mine-search"])
+        self.assertNotIn("mine-search", [row["opponent"] for row in both["by_opponent"]])
+        self.assertEqual(both["par"]["classic-press"]["France"]["n"], 1)  # its seat is not par
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = matchups.main([str(self.root), "--policy", "mine", "--alone", "--ours", "mine-search", "--json"])
+        self.assertEqual((code, json.loads(out.getvalue())["paired_games"]), (0, 1))
+
+    def test_a_source_read_with_none_of_our_games_is_named(self):
+        game(self.root / "league-press", "a", 0.2, ours="rival-d:v1")
+        game(self.root / "xreq_1", "bb", 0.3)
+        r = self.report()
+        self.assertEqual((r["sources"]["league"], r["sources_read"]["league"]), (0, 1))
+        text = matchups.render(r)
+        self.assertIn("no clean game of mine from league matches: 1 such games were read and count toward par only",
+                      text)
+        self.assertNotIn("from experience requests:", text)
+
     def test_sources_and_episode_lists(self):
         game(self.root / "league-press", "a", 0.5)
         game(self.root / "xreq_1", "bb", 0.3)

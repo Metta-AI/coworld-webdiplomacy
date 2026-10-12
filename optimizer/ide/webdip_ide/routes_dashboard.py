@@ -5,8 +5,12 @@ Pages:
       Every parameter is optional, so a card can link straight to a view. Without `policy`
       the page shows the policy picked last time, else the policy this lab shipped last
       (press first), from players/*/VERSION_LOG.md
-      on disk (those are ours). Without `variant` it shows the variant that policy has most
-      games in, because press and gunboat are never pooled silently; `variant=all` pools them.
+      on disk (those are ours). Without `variant` it shows the league's variant (`classic-press`)
+      when the policy has a game there, else the variant it has most games in, because press and
+      gunboat are never pooled silently; `variant=all` pools them. Without `version` it shows the
+      newest version with enough games in the view (`matchups.LOW_N`), because versions are not
+      pooled silently either; `version=all` pools them, and so does a view where no version has
+      enough yet (the page then says so).
       `alone=1` keeps only the games that seat one seat of the policy (`matchups.py --alone`).
       `refresh=1` forgets everything read so far and reads the artifacts again.
 
@@ -54,6 +58,8 @@ SOURCE_LABELS = {"all": "all sources", "league": "league matches", "xp": "experi
 SCALE_MIN_N = 8  # rows with fewer seats do not stretch a chart's axis
 MIN_CELL = 3  # a heatmap cell or power pair with fewer games than this stays blank
 HEATMAP_MIN_GAMES = 8  # an opponent needs this many shared games for a heatmap row
+LEAGUE_VARIANT = "classic-press"  # the variant shown first, whenever the policy has a game in it
+SHORT_SUFFIX = "-short"  # a variant with a low turn limit (`classic-press-short`): the lab's health games
 COOKIE = "dashboard_policy"
 COOKIE_AT = "dashboard_policy_at"  # when COOKIE was set, in seconds since 1970: see `remembered_policy`
 
@@ -249,20 +255,62 @@ def _choose(policies: list[dict], policy: str, version: str, source: str, varian
     chosen = by_name.get(policy) or by_name.get(remembered) or _default_policy(policies)
     unknown = policy if policy and policy not in by_name else ""
     if chosen is None:
-        return {"policy": "", "version": "", "source": "all", "variant": "all", "unknown": unknown, "row": None}
-    if f'{chosen["name"]}:{version}' not in chosen["versions"]:
-        version = ""
+        return {"policy": "", "version": "", "version_default": True, "version_note": "", "source": "all",
+                "variant": "all", "unknown": unknown, "row": None}
+    if version != "all" and f'{chosen["name"]}:{version}' not in chosen["versions"]:
+        version = ""  # none asked for: `_load` picks the newest with enough games
     if source not in ("league", "xp", "local"):
         source = "all"
-    if not variant:  # most games first; ties go to the name that sorts first
+    if not variant and LEAGUE_VARIANT in chosen["variants"]:
+        # A few short health games on a first evening must not be the headline.
+        variant = LEAGUE_VARIANT
+    elif not variant:  # most games first; ties go to the name that sorts first
         variant = sorted(chosen["variants"].items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
-    return {"policy": chosen["name"], "version": version, "source": source, "variant": variant, "unknown": unknown,
-            "row": chosen}
+    return {"policy": chosen["name"], "version": version, "version_default": not version, "version_note": "",
+            "source": source, "variant": variant, "unknown": unknown, "row": chosen}
+
+
+def _default_version(pooled: dict) -> tuple[str, str]:
+    """(the version to lead with when the request names none, a sentence that says why).
+
+    `pooled` is the view's report for every version together. The newest version with enough
+    games for a reading (`matchups.LOW_N`, the floor behind "too few games") is shown by itself:
+    a number pooled over versions describes no policy that exists. "" when no version has enough
+    yet; the view then stays pooled and the sentence names what is in it.
+    """
+    low = report_low_n()
+    rows = [v for v in pooled["by_version"] if v["version"]]  # oldest first
+    counts = [f"{v['version']} ({v['vs_par']['games']} game{'' if v['vs_par']['games'] == 1 else 's'})" for v in rows]
+    enough = [i for i, v in enumerate(rows) if not v["vs_par"]["low_n"]]
+    if not enough:
+        if len(rows) < 2:
+            return "", ""
+        return "", f"No version has {low} games in this view yet, so all {len(rows)} are pooled: {', '.join(counts)}."
+    note = f"{rows[enough[-1]]['version']} is the newest version with at least {low} games in this view."
+    if counts[enough[-1] + 1:]:
+        note += f" Newer, with too few games so far: {', '.join(counts[enough[-1] + 1:])}."
+    return rows[enough[-1]]["version"], note
+
+
+def _short_games(filters: dict) -> list[dict]:
+    """The policy's games in short variants other than the one shown: [{variant, games, link}].
+
+    They are health games (does this version run?), cut off after a few years, so they get a
+    line of their own and are never part of the headline of another variant.
+    """
+    if filters["variant"] == "all":
+        return []
+    return [{"variant": name, "games": games, "link": _link(filters, variant=name)}
+            for name, games in filters["row"]["variants"].items()
+            if name.endswith(SHORT_SUFFIX) and name != filters["variant"]]
 
 
 def _link(filters: dict, **changes) -> str:
     """The dashboard URL for `filters` with some of them changed (empty values are left out)."""
-    query = {k: filters.get(k, "") for k in ("policy", "version", "source", "variant", "opponent", "alone")} | changes
+    query = {k: filters.get(k, "") for k in ("policy", "version", "source", "variant", "opponent", "alone")}
+    if filters.get("version_default"):
+        query["version"] = ""  # the page chose it, so a link keeps "the newest with enough games" and does not pin it
+    query |= changes
     query = {k: v for k, v in query.items() if v and not (k == "source" and v == "all")}
     return "/dashboard?" + urlencode(query)
 
@@ -574,10 +622,15 @@ def _load(policy: str, version: str, source: str, variant: str, opponent: str, r
     filters = _choose(policies, policy, version, source, variant, remembered)
     filters["opponent"] = opponent
     filters["alone"] = "1" if alone else ""  # only games that seat one seat of the policy (matchups.py --alone)
+    filters["short"] = _short_games(filters) if filters["row"] else []
     report = cover = None
     if filters["row"]:
-        name = filters["policy"] + (f':{filters["version"]}' if filters["version"] else "")
-        key = (name, filters["source"], None if filters["variant"] == "all" else filters["variant"], opponent or None)
+        scope = (filters["source"], None if filters["variant"] == "all" else filters["variant"], opponent or None)
+        if filters["version_default"]:
+            pooled = CACHE.report(games, generation, (filters["policy"], *scope, bool(alone)))
+            filters["version"], filters["version_note"] = _default_version(pooled)
+        name = filters["policy"] + (f':{filters["version"]}' if filters["version"] not in ("", "all") else "")
+        key = (name, *scope)
         report = CACHE.report(games, generation, (*key, bool(alone)))
         # The same view without the paired games, for the figure beside the headline (cached like the first).
         apart = CACHE.report(games, generation, (*key, True)) if report["paired_games"] and not alone else None
@@ -588,18 +641,20 @@ def _load(policy: str, version: str, source: str, variant: str, opponent: str, r
 def summary(remembered: str = "", wait: float = 0.0) -> dict:
     """What `/dashboard` with no parameters would lead with, for the home page.
 
-    The same choice of policy (the one remembered in the cookie, else what this lab shipped last)
-    and of variant, the same cached report and the same sentence. With `wait` 0 it does not wait
+    The same choice of policy (the one remembered in the cookie, else what this lab shipped last),
+    of variant and of version, the same cached report and the same sentence. With `wait` 0 it does not wait
     for a large read (a handful of new games is waited for, `SMALL_BATCH_WAIT`): `pending` says
     how many games are still to be read, and the numbers cover the rest.
     """
     games, pending, _, filters, report, cover = _load("", "", "", "", "", remembered, wait)
     return {
         "policy": filters["policy"], "variant": filters["variant"], "pending": pending, "games_on_disk": len(games),
+        "version": filters["version"], "version_note": filters["version_note"], "short": filters["short"],
         "stat": report["overall"]["vs_par"] if report else None,
         "headline": _headline(report) if report else None,
         "cover": cover,
         "link": _link(filters) if report else "/dashboard",
+        "pooled_link": _link(filters, version="all"),
     }  # fmt: skip
 
 

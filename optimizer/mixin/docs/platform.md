@@ -16,7 +16,8 @@ platform changes; re-check anything a decision depends on.
   `softmax login` and `softmax status`. `python3 games/webdiplomacy/tools/check_clis.py`
   (a SessionStart hook under the Claude Code harness) reports a missing or outdated tool with the fix;
   `uv tool install --force <package>` updates one, including a stale install
-  from a local checkout.
+  from a local checkout. Neither CLI has a `--version` option: `uv tool list` prints the
+  installed versions.
 - **Use a private `HOME` per session.** The CLI keeps credentials and the active
   player in `~/.softmax/credentials.yaml`, shared by every session on the
   machine. Another session running `coworld player use` silently switches your

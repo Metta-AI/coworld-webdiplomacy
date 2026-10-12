@@ -4,6 +4,7 @@
 record's artifact folder, with our two versions in slots 0 and 1 of every game.
 """
 
+import json
 import os
 import shutil
 import sys
@@ -226,6 +227,65 @@ class ExperimentsTests(unittest.TestCase):
             self.assertIn(label, text)
         self.assertIn("run_ab.py --record 2030-01-02-example-lever --alone", text)
         self.assertIn("links to /experiments/2030-01-02-example-lever", text)
+        # These buttons only fill the message box, and the page says so.
+        self.assertIn("A click puts the request in the message box; nothing is sent until you press Enter.", text)
+
+    def alone_games(self, arm: str, count: int, version: str) -> None:
+        folder = self.artifacts / f"2030-01-02-example-lever-alone-{arm}" / f"xreq_{arm}"
+        for number in range(count):
+            write_episode(folder / f"ereq_alone{arm}{number:03d}", [0.4] + [0.1] * 6, COUNTRIES, [4] * 7,
+                          seating=[version, "rival:v1", *FIELD])
+        self.dashboard.CACHE.sync(60)
+
+    def test_a_launched_alone_check_shows_its_progress_and_is_not_offered_again(self):
+        win = [(0.40, 0.05), (0.38, 0.06), (0.42, 0.04), (0.39, 0.07), (0.41, 0.05), (0.37, 0.06)]
+        button, url = "Ask for the candidate-alone check", "/experiments/2030-01-02-example-lever"
+        self.record()
+        self.games(win)
+        self.assertIn(button, self.client.get(url).text)
+        # `run_ab.py --alone` has created the two arms: their ids are in the record, no game is in yet.
+        launched = RECORD.replace("evals: [xreq_aaa, xreq_bbb]",
+                                  "evals: [xreq_aaa, xreq_bbb, xreq_a, xreq_b]\nalone_a: [xreq_a]\nalone_b: [xreq_b]")
+        self.record(text=launched)
+        text = " ".join(self.client.get(url).text.split())
+        self.assertNotIn(button, text)
+        self.assertIn("Candidate-alone check, already launched: the candidate playing alone, no games in yet; "
+                      "the baseline playing alone, no games in yet.", text)
+        self.assertIn("Ask the agent for the result", text)  # the other requests stay
+        # Games come in. The tool saved what it asked for in arm A; arm B was launched some other way.
+        responses = self.lab / ".runtime" / "requests" / "responses"
+        responses.mkdir(parents=True)
+        for rotation, asked in enumerate((5, 5)):
+            (responses / f"2030-01-02-example-lever-alone-a-r{rotation}.json").write_text(
+                json.dumps({"id": f"xreq_a{rotation}", "episode_count": asked}))
+        self.alone_games("a", 3, "mine:v2")
+        self.alone_games("b", 1, "mine:v1")
+        text = " ".join(self.client.get(url).text.split())
+        self.assertIn("the candidate playing alone, 3 of 10 games in; the baseline playing alone, 1 game in so far.",
+                      text)
+        self.assertNotIn(button, text)
+        # Games on disk are enough, whatever the record lists.
+        self.record()
+        text = " ".join(self.client.get(url).text.split())
+        self.assertIn("Candidate-alone check, already launched:", text)
+        self.assertNotIn(button, text)
+        self.assertEqual(self.client.get("/api/experiments").json()[0]["result"]["games_in"], len(win))
+
+    def test_the_cards_api_carries_each_records_status_for_the_idea_cards(self):
+        """An idea card links to its record; `chat.js: ideaActions` offers "Test this idea" only while
+        that record is proposed, and a link to the result afterwards."""
+        from webdip_ide import store
+
+        store.post_card("idea", "Example lever", link="/experiments/2030-01-02-example-lever")
+        self.assertEqual(self.client.get("/api/cards").json()["records"], {})  # no record yet: the card asks for one
+        self.record(status="proposed")
+        self.assertEqual(self.client.get("/api/cards").json()["records"], {"2030-01-02-example-lever": "proposed"})
+        self.record(status="inconclusive")
+        answer = self.client.get("/api/cards", params={"after": 1}).json()
+        self.assertEqual((answer["cards"], answer["records"]), ([], {"2030-01-02-example-lever": "inconclusive"}))
+        script = self.client.get("/static/chat.js").text
+        self.assertIn('status !== "proposed"', script)
+        self.assertIn("see the result", script)
 
     def test_a_record_that_names_two_folders_reads_both(self):
         """A follow-on record whose rule pools its games with an earlier record's (`artifacts: [a, b]`)."""

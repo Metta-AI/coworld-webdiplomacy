@@ -37,7 +37,7 @@
   <section class="home-standing" aria-labelledby="home-standing-h">
     {% if summary.headline %}
     {% set stat = summary.stat %}{% set cover = summary.cover %}
-    <p class="eyebrow" id="home-standing-h">Policy we follow · {{ summary.policy }} · {{ "all variants pooled" if summary.variant == "all" else summary.variant }}</p>
+    <p class="eyebrow" id="home-standing-h">Policy we follow · {{ summary.policy }}{% if summary.version not in ("", "all") %}:{{ summary.version }}{% endif %} · {{ "all variants pooled" if summary.variant == "all" else summary.variant }}{% if summary.version_note and not summary.version %} · all versions pooled{% endif %}</p>
     <p class="home-lead"><strong class="{{ {'ok': 'good', 'err': 'bad'}.get(summary.headline.tone, '') }}">{{ summary.headline.lead }}</strong>
       {% if stat.n %}<span class="tag {{ summary.headline.tone }}">{{ stat.verdict }}</span>
       <span class="muted small"{% if cover.paired %} title="{{ cover.tip }}"{% endif %}>{{ cover.text }}, {{ stat.n }} of our seats</span>{% endif %}</p>
@@ -49,6 +49,9 @@
     {% endif %}
     {% if summary.headline.reading %}<p class="about">{{ summary.headline.reading }}
       <a href="{{ summary.link }}">By power, opponent and version on the dashboard</a></p>{% endif %}
+    {% if summary.version_note %}<p class="about">{{ summary.version_note }}{% if summary.version %} <a href="{{ summary.pooled_link }}">All versions, pooled, on the dashboard</a>{% endif %}</p>{% endif %}
+    {% if summary.variant.endswith("-short") %}<p class="about">These are short health games: they show that a version runs, and their scores say little about how it plays a full game.</p>{% endif %}
+    {% for short in summary.short %}<p class="about">{{ short.games }} short health game{{ "" if short.games == 1 else "s" }} ({{ short.variant }}), not scored here. <a href="{{ short.link }}">Show {{ "it" if short.games == 1 else "them" }} on the dashboard</a></p>{% endfor %}
     {% if policy_guessed %}<p class="about">Following {{ summary.policy }} is a guess: it is the first policy in the
       fetched games. Tell the agent which policy is yours, or choose it on the <a href="/dashboard">dashboard</a>.</p>{% endif %}
     {% else %}
@@ -152,10 +155,12 @@
   });
   // The agent's newest ideas that the user has not set aside, each with the two actions the card has
   // in the panel ("Test this idea" drafts the request for an experiment; "Not now" hides the line here).
+  // An idea whose experiment has been run has a link to its result in their place.
   var ideasShown = null;
   function showIdeas(cards) {
     var open = cards.filter(function (card) { return window.ide.ideaActions(card); }).slice(-3).reverse();
-    var key = open.map(function (card) { return card.id; }).join(" ");
+    // The actions' words are in the key, so a line changes when its experiment is run or closed.
+    var key = open.map(function (card) { return card.id + window.ide.ideaActions(card).textContent; }).join(" ");
     if (key === ideasShown) return;  // built once per change, so a poll never takes a button from under the pointer
     ideasShown = key;
     var first = document.getElementById("home-ideas");

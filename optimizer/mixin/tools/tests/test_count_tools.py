@@ -92,6 +92,14 @@ class Holds(unittest.TestCase):
                    [5, 1, 1])
         self.assertEqual((self.measure("rival")["games"], self.measure("rival", alone=True)["games"]), (2, 1))
 
+    def test_alone_also_leaves_out_games_with_another_policy_named_as_ours(self):
+        self.assertEqual(self.measure("ours", alone=True)["games"], 1)
+        named = self.measure("ours", alone=True, also_ours=("filler",))
+        self.assertEqual((named["games"], named["also_ours"]), (0, ["filler"]))
+        self.assertEqual(self.measure("ours", also_ours=("filler",))["games"], 1)  # only --alone uses it
+        code, text = run(holds, [str(self.root), "--policy", "rival", "--alone", "--ours", "nobody"])
+        self.assertIn("1 games with one seat of the policy or nobody", text)
+
     def test_cli_prints_the_tables_and_exits_2_for_an_unknown_policy(self):
         code, text = run(holds, [str(self.root), "--policy", "rival", "--stopped-phases", "2"])
         self.assertEqual(code, 0)
@@ -183,10 +191,23 @@ class SeatRows(unittest.TestCase):
         row = next(r for r in rows if r["episode"] == "ereq_a")
         self.assertEqual(len(row["versus"]), 1)
         theirs = row["versus"][0]
-        self.assertEqual((theirs["power"], theirs["we_finished"], theirs["its_first_hostile_act_on_us"]),
+        self.assertEqual((theirs["power"], theirs["policy_finished"], theirs["other_first_hostile_act_on_policy"]),
                          ("Germany", "behind", "Autumn 1901"))
-        self.assertEqual((theirs["it_took_from_us"], theirs["we_took_from_it"]), (1, 0))
+        self.assertEqual((theirs["other_took_from_policy"], theirs["policy_took_from_other"]), (1, 0))
         self.assertEqual(seat_rows.seat_rows(self.games, "ours", versus="nobody"), [])
+
+    def test_versus_lines_name_both_policies_whichever_way_round_it_is_run(self):
+        # --policy may be ours or an opponent, so the text never says "we" or "it"
+        code, text = run(seat_rows, [str(self.root), "--policy", "ours", "--versus", "rival", "--sort", "episode"])
+        self.assertIn("    rival:v2 Germany: score 0.600, 5 centres; ours finished behind; first hostile act: "
+                      "rival on ours Autumn 1901, ours on rival never; rival took 1 from ours, ours took 0 from rival",
+                      text)
+        code, text = run(seat_rows, [str(self.root), "--policy", "rival", "--versus", "ours", "--sort", "episode"])
+        self.assertIn("    ours:v1 Russia: score 0.100, 1 centres; rival finished ahead; first hostile act: "
+                      "ours on rival never, rival on ours Autumn 1901; ours took 0 from rival, rival took 1 from ours",
+                      text)
+        for word in (" we ", " it ", " us", " its "):
+            self.assertNotIn(word, text)
 
     def test_cli_sorts_worst_first_and_limits(self):
         code, text = run(seat_rows, [str(self.root), "--policy", "rival", "--limit", "1"])

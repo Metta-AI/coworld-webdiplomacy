@@ -70,7 +70,9 @@ up for them and continue the work there:
    repository's `AGENTS.md`, skills and hooks) and have it open
    `docs/getting-started.md`. That guide runs the first session: learn the game and
    the current field, choose a strategy, change the starter policy, and measure the
-   change with hosted games.
+   change with hosted games. If you paste a prepared brief as your first message, type a
+   line of your own with it ("this is my brief, go ahead"): an agent cannot tell pasted
+   text from yours and may stop to ask.
 5. Say **"open the IDE"** to get the browser workbench. It attaches to the running
    agent session; this delivery is built for Claude Code, and other harnesses use the
    `ide/ide listen` task or the IDE's MCP tools.

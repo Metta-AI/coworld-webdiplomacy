@@ -20,7 +20,9 @@ first N, so the default prints the worst games.
 With `--versus OTHER` (a policy name), only games that also seat OTHER are kept, and each row
 adds one line per seat of OTHER: its power and version, its score and final centres, who
 finished ahead, the first hostile act each way with its season, and the centres each took from
-the other. A game with two seats of OTHER gives two lines.
+the other. A game with two seats of OTHER gives two lines. Those lines name the two policies
+(`--policy` and OTHER, without versions) and never say "we" or "it": the tool is run both
+ways round, with our policy as `--policy` and with an opponent as `--policy`.
 
 Every row ends with a replay link (`/replays/<episode id>?seat=<slot>`), which opens the game
 from that seat in the IDE; `opponent_profile.py --game <episode id>` prints it in the terminal.
@@ -37,7 +39,7 @@ import json
 import sys
 from pathlib import Path
 
-from opponent_profile import load_games, mark_replies, policy_matcher, read_episode_list, seat_facts
+from opponent_profile import family, load_games, mark_replies, policy_matcher, read_episode_list, seat_facts
 from press_audit import turn_label
 from webdip_episodes import POWERS
 
@@ -82,16 +84,18 @@ def seat_rows(games, policy: str, power: str | None = None, versus: str | None =
                     if other is seat or not is_other(other.policy):
                         continue
                     theirs, them = facts[other.slot], other.power.upper()
+                    # Keys say "policy" for the --policy seat and "other" for the --versus seat: either
+                    # may be ours, so none says "we" or "it".
                     row["versus"].append({
                         "policy": other.policy, "power": other.power, "score": other.score,
                         "final_centers": other.final_centers,
-                        "we_finished": "ahead" if seat.score > other.score
+                        "policy_finished": "ahead" if seat.score > other.score
                         else "behind" if seat.score < other.score else "level",
-                        "its_first_hostile_act_on_us": _season(theirs["first_hostile"].get(me)),
-                        "our_first_hostile_act_on_it": _season(mine["first_hostile"].get(them)),
-                        "it_took_from_us": theirs["taken_from"].get(me, 0),
-                        "we_took_from_it": mine["taken_from"].get(them, 0),
-                        "its_taint": theirs["taint"],
+                        "other_first_hostile_act_on_policy": _season(theirs["first_hostile"].get(me)),
+                        "policy_first_hostile_act_on_other": _season(mine["first_hostile"].get(them)),
+                        "other_took_from_policy": theirs["taken_from"].get(me, 0),
+                        "policy_took_from_other": mine["taken_from"].get(them, 0),
+                        "other_taint": theirs["taint"],
                     })
             rows.append(row)
     return rows
@@ -113,12 +117,13 @@ def render(rows: list[dict]) -> str:
                      f"(by year {years}); first targets: {targets}" + ("; " + "; ".join(notes) if notes else "")
                      + f" [{r['link']}]")
         for v in r.get("versus", []):
-            lines.append(f"    {v['policy']} {v['power']}: score {v['score']:.3f}, {v['final_centers']} centres; we "
-                         f"finished {v['we_finished']}; first hostile act: it on us "
-                         f"{v['its_first_hostile_act_on_us'] or 'never'}, we on it "
-                         f"{v['our_first_hostile_act_on_it'] or 'never'}; it took {v['it_took_from_us']} from us, "
-                         f"we took {v['we_took_from_it']}"
-                         + (f"; its taint {','.join(v['its_taint'])}" if v["its_taint"] else ""))
+            a, b = family(r["policy"]), family(v["policy"])
+            lines.append(f"    {v['policy']} {v['power']}: score {v['score']:.3f}, {v['final_centers']} centres; {a} "
+                         f"finished {v['policy_finished']}; first hostile act: {b} on {a} "
+                         f"{v['other_first_hostile_act_on_policy'] or 'never'}, {a} on {b} "
+                         f"{v['policy_first_hostile_act_on_other'] or 'never'}; {b} took "
+                         f"{v['other_took_from_policy']} from {a}, {a} took {v['policy_took_from_other']} from {b}"
+                         + (f"; {b} taint {','.join(v['other_taint'])}" if v["other_taint"] else ""))
     return "\n".join(lines)
 
 

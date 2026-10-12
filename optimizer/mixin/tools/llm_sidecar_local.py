@@ -12,6 +12,18 @@ Usage:
     COWORLD_LLM_ENDPOINT=http://host.docker.internal:9177 \\
         python3 games/webdiplomacy/tools/wd.py local --image IMG --use-llm --variant classic-press-short --out DIR
 
+Another provider (`--upstream URL --key-env NAME [--drop FIELD]...`) forwards to any
+OpenAI-compatible chat-completions URL instead, for when no OpenRouter key is at hand:
+
+    OPENAI_API_KEY=... python3 games/webdiplomacy/tools/llm_sidecar_local.py --port 9178 \\
+        --upstream https://api.openai.com/v1/chat/completions --key-env OPENAI_API_KEY \\
+        --drop reasoning --drop temperature
+
+That is NOT the hosted path: a different model family, no `require_parameters`, and the
+dropped fields change the request. Use it to see whether a prompt is followed, and label
+any read from it with the model that produced it. `cost_usd` in the ledger is 0 there
+(only OpenRouter reports `usage.cost`).
+
 Run it outside any command sandbox: a sandboxed process never receives the
 containers' inbound connections.
 
@@ -49,7 +61,21 @@ lock = threading.Lock()
 spend = {"usd": 0.0, "calls": 0}
 
 
-def make_handler(api_key, ledger_path, timeout):
+OPENROUTER = "https://openrouter.ai/api/v1/chat/completions"
+
+
+def upstream_body(payload, upstream=OPENROUTER, drop=()):
+    """The request body sent upstream. For OpenRouter: the hosted sidecar's contract (caller policy
+    fields stripped, `provider.require_parameters` forced). For any other upstream (`--upstream`):
+    the same strip, no `provider` field, and the `--drop` fields removed, because another
+    provider rejects parameters it does not know (OpenRouter's `reasoning`, for one)."""
+    body = {k: v for k, v in payload.items() if k not in CALLER_POLICY_FIELDS and k not in drop}
+    if upstream == OPENROUTER:
+        body["provider"] = {"require_parameters": True}
+    return body
+
+
+def make_handler(api_key, ledger_path, timeout, upstream=OPENROUTER, drop=()):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -82,10 +108,9 @@ def make_handler(api_key, ledger_path, timeout):
             if payload.get("stream") is True:
                 return self._send(400, {"error": {"type": "invalid_request_error", "param": "stream",
                                                   "message": "streaming is not supported by this LLM sidecar"}})
-            body = {k: v for k, v in payload.items() if k not in CALLER_POLICY_FIELDS}
-            body["provider"] = {"require_parameters": True}
+            body = upstream_body(payload, upstream, drop)
             request = urllib.request.Request(
-                "https://openrouter.ai/api/v1/chat/completions", data=json.dumps(body).encode(),
+                upstream, data=json.dumps(body).encode(),
                 headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"})
             started = time.monotonic()
             try:
@@ -123,12 +148,20 @@ def main():
     ap.add_argument("--port", type=int, default=9177)
     ap.add_argument("--ledger", help="append one JSON line per forwarded call")
     ap.add_argument("--timeout", type=float, default=60.0, help="upstream timeout, seconds (hosted: 60)")
+    ap.add_argument("--upstream", default=OPENROUTER,
+                    help="chat-completions URL of another OpenAI-compatible provider (not what hosted games use)")
+    ap.add_argument("--key-env", default="OPENROUTER_API_KEY",
+                    help="environment variable that holds the upstream's key")
+    ap.add_argument("--drop", action="append", default=[], metavar="FIELD",
+                    help="with --upstream: remove this request field (e.g. reasoning, temperature); repeatable")
     args = ap.parse_args()
-    api_key = os.environ.get("OPENROUTER_API_KEY")
+    api_key = os.environ.get(args.key_env)
     if not api_key:
-        raise SystemExit("set OPENROUTER_API_KEY in the environment first")
-    server = ThreadingHTTPServer(("0.0.0.0", args.port), make_handler(api_key, args.ledger, args.timeout))
-    print(f"local LLM sidecar on :{args.port}", flush=True)
+        raise SystemExit(f"set {args.key_env} in the environment first")
+    server = ThreadingHTTPServer(("0.0.0.0", args.port), make_handler(api_key, args.ledger, args.timeout,
+                                                                      args.upstream, tuple(args.drop)))
+    print(f"local LLM sidecar on :{args.port}" + ("" if args.upstream == OPENROUTER else f" -> {args.upstream}"),
+          flush=True)
     server.serve_forever()
 
 

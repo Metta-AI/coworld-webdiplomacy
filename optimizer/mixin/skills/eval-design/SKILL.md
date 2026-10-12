@@ -181,6 +181,15 @@ a two-arm difference is about the per-seat SD × √(2/n).
   minutes) and prints each version's health lines and `press_behaviour.py` table. Its ids go to
   the record's `screen:` list and are never pooled with the full run. No score read: the short
   game ends in 1904.
+- **Wake replay bench:** `tools/wake_bench.py` replays recorded phase-start decisions of our
+  seats under another prompt, model or setting, through the policy's own code, and prints the
+  `press_behaviour.py` table in minutes for cents. It shows whether a prompt changes what the
+  agent does, never whether that scores: one decision has no consequences and no opponent
+  reacts. It needs `tools/llm_sidecar_local.py` running with a working model key; `--scripted`
+  checks the plumbing without one.
+- **A credit limit on a launch:** `tools/run_ab.py ... --max-credits N` stops creating batches
+  when the rest, at the price the platform just quoted, would pass N; `--add-set` launches a
+  further full set into the same record. Plan the sets in the decision rule before the first.
 
 ## Local runs
 

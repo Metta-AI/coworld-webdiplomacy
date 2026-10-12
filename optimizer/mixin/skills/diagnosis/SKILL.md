@@ -94,7 +94,7 @@ failure mode.
    evidence, and they say where the user thinks the loss is.
 3. **Read the worst games at that spot, before ranking any lever.**
    `tools/seat_rows.py --policy <ours> --as <power> --limit 5` lists them; open
-   each at the phase our centres fell (`opponent_profile.py --game … --decisions`
+   each at the phase our centres fell (`opponent_profile.py --game … --decisions --versus <ours>`
    for the orders, `tools/seat_log.py --game … --power … --when …` for what our
    seat was told and committed that turn). An aggregate can point at the wrong
    cause, and the games correct it. Read a good game at the same power too,
@@ -142,8 +142,13 @@ Run from the optimizer root; **exact flags live in each tool's docstring**.
   search, and where the unit stood.
 - `press_behaviour.py DIR... --policy NAME`: what the press agent fixes, commits and sends, per
   version (orders fixed, every unit fixed, stances, messages per phase).
-- `ally_losses.py DIR... --policy NAME [--going-in]`: how often a power the agent called an
-  ally took a centre from us, beside neutral and hostile powers.
+- `centre_losses.py DIR... --policy NAME [--going-in] [--rows]`: every supply centre we lost:
+  which one, who took it, the stance and trust we held toward them beforehand and whether
+  we were talking; and how often a power the agent called an ally took a centre from us,
+  beside neutral and hostile powers.
+- `wake_bench.py`: recorded phase-start decisions replayed under another prompt or setting,
+  for a read of the agent's behaviour in minutes before a hosted run (a screen, never a
+  score; needs a working LLM key).
 - `board_counts.py DIR... --policy NAME --as POWER --order "…" --owns PROV`: a
   claim about orders or centres counted over every game, the field beside it.
 - `webdip_episodes.py`: the loader for new instruments. Persist new analysis in

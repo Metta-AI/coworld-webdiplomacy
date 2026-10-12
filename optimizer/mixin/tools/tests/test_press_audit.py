@@ -1165,6 +1165,65 @@ class Ledger(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "prv-1 claim 1: the quote is not in the message"):
                 pa.main(["check", str(out)])
 
+    def test_a_hold_has_no_result_and_verify_says_why_its_columns_differ_from_check(self):
+        territories = [{"id": 1, "name": "Berlin", "supply": True, "coast": "No"},
+                       {"id": 2, "name": "Prussia", "supply": False, "coast": "No"}]
+        hold = {"countryID": 4, "terrID": 1, "unitType": "Army", "type": "Hold", "toTerrID": None, "fromTerrID": None,
+                "success": False, "dislodged": False}  # upstream marks every hold `success: false`
+        history = [{"turn": turn, "phase": "Diplomacy", "units": [{"countryID": 4, "type": "Army", "terrID": 1}],
+                    "centers": [{"terrID": 1, "countryID": 4}], "orders": [hold]} for turn in (0, 1, 2)]
+        frame = {"variant": {"territories": territories}, "history": {"phases": history}, "messages": {"messages": []}}
+        said = [{"id": turn + 1, "turn": turn, "phase": "Diplomacy", "timeSent": turn, "fromCountryID": 4,
+                 "toCountryID": 7, "message": "BER holds; keep out of PRU"} for turn in (0, 2)]
+        logs = {6: [{"event": "private_press", "archive": {"messages": said}}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            ep = write_episode(Path(tmp) / "ep", [1 / 7] * 7, list(range(1, 8)), [3] * 7, logs=logs)
+            (ep / "replay").write_text(json.dumps([frame]))
+            out = Path(tmp) / "out"
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                pa.main(["extract", str(ep), "--slot", "6", "--out", str(out), "--by-year"])
+            # one file per game year, for a reader that cannot take annotate.json in one read
+            parts = [Path(path) for path in json.loads(printed.getvalue())["annotate_by_year"]]
+            self.assertEqual([path.name for path in parts], ["annotate-1901.json", "annotate-1902.json"])
+            whole = json.loads((out / "annotate.json").read_text())
+            views = [json.loads(path.read_text()) for path in parts]
+            self.assertEqual([turn for view in views for turn in view["turns"]], whole["turns"])
+            self.assertEqual([[turn["turn"] for turn in view["turns"]] for view in views], [[0, 1], [2]])
+            self.assertIn("This file holds 1902 only", views[1]["read_me"])
+            self.assertEqual(views[0]["our_power"], "RUSSIA")
+            claims = [{"kind": "promise", "quote": "BER holds",
+                       "commitment": [{"p": "holds", "power": "GERMANY", "province": "BER"}]},
+                      {"kind": "request", "quote": "keep out of PRU", "commitment": [not_moving_to("RUSSIA", "PRU")]}]
+            (out / "claims.json").write_text(json.dumps({"prv-1": claims, "prv-3": claims}))
+            checked, printed = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(checked):
+                pa.main(["check", str(out)])
+            with contextlib.redirect_stdout(printed):
+                pa.main(["verify", str(out)])
+            shown = json.loads(printed.getvalue())
+            self.assertIn("4 claims", checked.getvalue())
+            self.assertEqual(shown["claims"], 4)  # the number `check` prints
+            germany = shown["powers"]["GERMANY"]
+            self.assertEqual((germany["claims_without_requests"], germany["requests_made"], germany["held"]), (2, 2, 2))
+            self.assertNotIn("claims", germany)
+            self.assertIn("a request is weighed against the power asked", shown["note"])
+            audit = json.loads((out / "audit.json").read_text())
+            self.assertEqual(audit["summary"]["powers"]["GERMANY"]["claims"], 2)  # the file's key is unchanged
+            self.assertEqual([o["success"] for phase in audit["phases"] for o in phase["orders"]], [None] * 3)
+            with contextlib.redirect_stdout(io.StringIO()):
+                pa.main(["report", str(out)])
+            self.assertNotIn("(failed)", (out / "audit.html").read_text())
+
+    def test_a_move_keeps_its_result(self):
+        move = {"countryID": 4, "terrID": 1, "unitType": "Army", "type": "Move", "toTerrID": 2, "fromTerrID": None,
+                "success": False, "dislodged": False}
+        territories = [{"id": 1, "name": "Berlin", "supply": True, "coast": "No"},
+                       {"id": 2, "name": "Prussia", "supply": False, "coast": "No"}]
+        phase = {"turn": 0, "phase": "Diplomacy", "units": [], "centers": [], "orders": [move]}
+        frame = {"variant": {"territories": territories}, "history": {"phases": [phase]}}
+        self.assertIs(pa.movement_phases([frame])[0]["orders"][0]["success"], False)
+
     def test_the_province_table_matches_the_reference_policy(self):
         dipmap = Path(pa.__file__).resolve().parents[1] / "players" / "castlereagh" / "castlereagh" / "dipmap.py"
         if not dipmap.exists():

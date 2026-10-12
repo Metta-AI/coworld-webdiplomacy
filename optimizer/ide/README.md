@@ -5,22 +5,27 @@ the coding agent that is already running in the optimizer root.
 
 - **Agent panel** (every page): chat with the running agent session, and the cards it
   posts (ideas, replays to look at, results, reports).
-- **Home**: where the policy you follow stands (the dashboard's headline number, with what
-  it covers and the alone-runs figure beside it when some games seat two of our seats), the
+- **Home**: where the policy you follow stands (the dashboard's headline number for the
+  version it names, with what it covers and the alone-runs figure beside it when some games
+  seat two of our seats), the
   games worth opening (its lowest and highest recent scores, with flags and who lied to
   us), your notes not yet sent to the agent, and reports written since you were last here.
 - **Replays**: watch any fetched game phase by phase, annotate where it went wrong, send
   the annotations to the agent, overlay the press audit. The board stays in view while you
   read the press beside it; pointing at an order or an audited claim lights it on the board.
-- **Dashboard**: how the policy performs by power, opponent, version and source.
+- **Dashboard**: how the policy performs by power, opponent, version and source. It leads with
+  the league's variant and with one version, the newest that has enough games; pooling all
+  versions is a choice in the Version list.
 - **Experiments**: the improvement loop as the lab records it. Every experiment record with
   its status, hypothesis and decision rule; for a proposed one (an idea not run yet) what it
   would cost and a "Run this" request; for the others how many of their games are in and the
   paired difference of those games; the lab's registers (levers tested with no result, refuted
   levers, recorded practices); and,
   on a record's page, requests to the agent for the result, for closing the record and for
-  the candidate-alone check. An idea card links to its proposed record and has "Test this
-  idea", which drafts the same request as "Run this".
+  the candidate-alone check (once that check is launched the page shows how many of its games
+  are in, and no longer offers it). An idea card links to its proposed record and has "Test
+  this idea", which drafts the same request as "Run this"; once the record is no longer
+  proposed the card has a link to the result in its place.
 - **Reports**: matchup write-ups and opponent profiles the agent's skills produce.
 
 **Prototype (V1, 2026-10-11).** Local only, one user, one agent session per lab.
@@ -273,7 +278,7 @@ The server and the agent never talk to each other directly; both use `webdip_ide
 | `webdip_ide/hooks.py` | The agent side: delivery text, hooks, the Rewake waiter, agent status |
 | `webdip_ide/mcp_server.py` | MCP tools `say`, `show_card`, `inbox`, `annotations`, `annotate`, `status` |
 | `webdip_ide/server.py` | The FastAPI app; one `routes_<feature>.py` per feature |
-| `webdip_ide/routes_chat.py` | `/api/chat`, `/api/cards`, `/api/agent/status` |
+| `webdip_ide/routes_chat.py` | `/api/chat`, `/api/cards` (with each experiment record's status), `/api/agent/status` |
 | `webdip_ide/routes_home.py` | The home page: headline, games worth opening, what is waiting |
 | `webdip_ide/routes_replays.py` | The replay browser and viewer pages, `/api/replays/...`, annotations |
 | `webdip_ide/episodes.py` | The replay index (one row per fetched game) and the viewer's data, press audit included |
@@ -337,8 +342,14 @@ window.ide.renderMarkdown(text)   // safe HTML for a small Markdown subset
 window.ide.safeHref(link)         // the link if it is an IDE path or an http(s) address, else null; use it before setting any href from data
 window.ide.draft(text)            // put text in the message box for the user to edit and send
 window.ide.when(seconds)          // "4:46 AM PDT" (with "Oct 10, " when not today): Pacific, whatever zone the browser is in
-window.ide.ideaActions(card)      // the "Test this idea" and "Not now" buttons for an idea card, or null
+window.ide.ideaActions(card)      // the "Test this idea" and "Not now" buttons for an idea card (a link to the result once its record has been run), or null
 ```
+
+A control that messages the agent says which of two kinds it is. One that fills the message
+box (`draft`: "Run this", "Test this idea", the Home questions, the requests on a record's
+page) says that nothing is sent until Enter, in a line beside it or in its tooltip. One that
+sends at once (`sendToAgent`: a replay's notes and audit request, a report's refresh, a
+profile, a write-up) says so in its label ("Send now"), its tooltip or a line beside it.
 
 Shared pieces live in `static/app.css`, so pages built by different people look like one
 tool: a page's sections are `<section>` with an `<h2>` (a serif heading over one hairline);
@@ -379,10 +390,22 @@ both are given. The other paths a card or a report may link to:
 - `/dashboard?policy=NAME&version=vN&variant=classic-press&source=league|xp|local&opponent=NAME&alone=1`:
   every part optional. `alone=1` keeps only the games that seat one seat of the policy
   (`matchups.py --alone`), which leaves out paired A/B games; `variant=all` pools press
-  and gunboat.
+  and gunboat. Without `variant` the page shows `classic-press`, the league's variant,
+  whenever the policy has a game there (else the variant with most games); games in a
+  `-short` variant are the lab's health games and get one line ("4 short health games, not
+  scored here") with a link. Without `version` it shows the newest version that has
+  `matchups.LOW_N` (16) games in the view and names it; `version=all` pools every version,
+  and so does a view where no version has that many yet, which the page says. Home's
+  headline is the same choice (`routes_dashboard.summary`).
 - `/reports`, `/reports?kind=opponents|matchups`, `/reports/opponents/<slug>`,
   `/reports/matchups/<slug>` (the slug is the report's file name without `.md`).
 - `/experiments`, `/experiments/<id>` (the id is the record's file name without `.md`).
+
+An idea card whose link is `/experiments/<id>` follows that record: `/api/cards` also returns
+`records`, every record's status by id, and while the status is anything but `proposed` the
+card shows "Running now: see the games so far" or "Tested (<status>): see the result", a link
+to the record, where "Test this idea" was. A card with no record, or with a record that is
+still proposed, keeps the two buttons.
 
 "Not now" on an idea card is kept in the browser only (`localStorage`, key `ide.ideasNotNow`,
 a list of card ids): the card stays, its two buttons go, and the server stores nothing.
@@ -427,6 +450,13 @@ balanced paired games"), and is left out when the rule states none. The paired d
 baseline as B, given the seats the dashboard's cache already holds, so the page parses no game
 and the number is the one `paired.py <folder> --a <candidate> --b <baseline>` prints (checked
 on two closed records, 27 and 28 games). The page does not judge: the record's Verdict is the agent's.
+
+The candidate-alone check (`tools/run_ab.py --alone`) counts as launched when the record's
+front matter lists `alone_a` or `alone_b`, or when a finished game is in
+`.runtime/artifacts/<id>-alone-a` or `-alone-b`. The record's page then shows each arm as
+"x of y games in" (y is `run_ab.games_requested`, from the saved create responses in
+`.runtime/requests/responses`; without them, "x games in so far") and leaves out the
+request for the check.
 
 Write routes with `dependencies=[Depends(routes_chat.require_same_origin)]` so another
 web site open in the same browser cannot post to the IDE.

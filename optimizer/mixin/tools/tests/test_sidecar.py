@@ -42,6 +42,14 @@ class Sidecar(unittest.TestCase):
             with error:
                 return error.code, json.loads(error.read()), error.headers
 
+    def test_another_upstream_gets_no_provider_field_and_loses_the_dropped_fields(self):
+        payload = {"model": "m", "messages": [], "reasoning": {"effort": "low"}, "temperature": 0.4, "user": "u"}
+        hosted = sidecar.upstream_body(payload)
+        self.assertEqual(hosted["provider"], {"require_parameters": True})
+        self.assertIn("reasoning", hosted)
+        other = sidecar.upstream_body(payload, "https://example.test/v1/chat/completions", ("reasoning", "temperature"))
+        self.assertEqual(other, {"model": "m", "messages": []})
+
     def test_streaming_is_rejected(self):
         code, body, _ = self.post({"model": "m", "stream": True, "messages": []})
         self.assertEqual(code, 400)

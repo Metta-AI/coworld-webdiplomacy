@@ -19,6 +19,22 @@ def refs(body: dict) -> list[str]:
     return [seat["player"]["policy_ref"] for seat in body["roster"]]
 
 
+class Help(unittest.TestCase):
+    def test_one_help_screen_serves_both_kinds_and_marks_each_option(self):
+        screens = []
+        for kind in ("paired", "field"):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), self.assertRaises(SystemExit):
+                make_request.main([kind, "--help"])
+            screens.append(out.getvalue())
+        self.assertEqual(screens[0], screens[1])
+        text = " ".join(screens[0].split())
+        self.assertIn("One help screen serves both kinds", text)
+        options = text.split("options:", 1)[1]
+        self.assertEqual((options.count("both kinds:"), options.count("paired only"), options.count("field only:")),
+                         (9, 1, 1))
+
+
 class PlainBodies(unittest.TestCase):
     def test_paired_is_one_body_with_free_slots(self):
         bodies = make_request.build_bodies("paired", "me:v2", "me:v1", field(5), "set", 16, note="exp-1")

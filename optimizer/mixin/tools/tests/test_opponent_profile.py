@@ -306,7 +306,7 @@ class Cli(unittest.TestCase):
             code, text = self.run_main([tmp, "--opponent", "rival", "--episodes", str(matchups_json), "--json"])
             self.assertEqual(json.loads(text)["episodes"], ["ereq_late"])
 
-    def test_decisions_come_from_the_shown_seats_own_log_without_press_text(self):
+    def test_decisions_come_from_our_own_seats_log_only_without_press_text(self):
         with tempfile.TemporaryDirectory() as tmp:
             ep = write_game(Path(tmp), "ereq_a", history(EAST), ["rival:v2", "ours:v1", "filler:v1"],
                             [0.6, 0.1, 0.3], [5, 1, 1])
@@ -314,10 +314,22 @@ class Cli(unittest.TestCase):
             row = {"event": "decision", "turn": 1, "phase": "Diplomacy",
                    "press_policy": {"stances": {"GERMANY": "ally"}, "require_orders": ["A WAR H"], "notes": "secret"}}
             (ep / "policy-logs" / "pv.1.log").write_text(json.dumps(row) + "\n")
-            code, text = self.run_main([tmp, "--game", "ereq_a", "--decisions"])
-            self.assertIn('Russia committed (its log): {"stances": {"GERMANY": "ally"}, "require_orders": ["A WAR H"]}',
-                          text)
+            # a rival's log on disk (an account that owns the house bots downloads every seat's)
+            theirs = {**row, "press_policy": {"require_orders": ["F KIE - DEN"]}}
+            (ep / "policy-logs" / "pv.0.log").write_text(json.dumps(theirs) + "\n")
+            ours = 'Russia committed (its log): {"stances": {"GERMANY": "ally"}, "require_orders": ["A WAR H"]}'
+            code, text = self.run_main([tmp, "--game", "ereq_a", "--decisions", "--versus", "ours"])
+            self.assertIn(ours, text)
             self.assertNotIn("secret", text)
+            self.assertNotIn("Germany committed", text)
+            self.assertIn("--decisions: seat logs on disk for Germany were left out (not seats of ours)", text)
+            # without a name for our policy no log line is printed, and the header says why
+            code, text = self.run_main([tmp, "--game", "ereq_a", "--decisions"])
+            self.assertNotIn("committed (its log)", text)
+            self.assertIn("--decisions printed nothing: it reads only our own seats' logs", text)
+            code, text = self.run_main([tmp, "--game", "ereq_a", "--decisions", "--versus", "nobody"])
+            self.assertNotIn("committed (its log)", text)
+            self.assertIn("--decisions printed nothing: no shown seat is a seat of nobody", text)
 
     def test_a_pod_deleted_before_log_collection_is_a_tainted_seat(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -12,15 +12,16 @@
 //   window.ide.onUpdate(fn)                fn({status, presence, messages, cards}) after every poll
 //   window.ide.openPanel()
 //   window.ide.draft(text)                 put text in the message box for the user to edit and send
-//   window.ide.ideaActions(card)           "Test this idea" and "Not now" for an idea card, or null when the
-//                                          card is not an idea or the user chose "Not now" in this browser
+//   window.ide.ideaActions(card)           "Test this idea" and "Not now" for an idea card, or a link to the
+//                                          result when its experiment record is no longer proposed; null when
+//                                          the card is not an idea or the user chose "Not now" in this browser
 //
 // No dependencies, no build step. The page polls the JSON API every two seconds.
 (function () {
   "use strict";
 
   var POLL_MS = 2000;
-  var state = { status: null, presence: "Checking for an agent…", messages: [], cards: [], delivered: 0 };
+  var state = { status: null, presence: "Checking for an agent…", messages: [], cards: [], delivered: 0, records: {} };
   var context = null;
   var contextDismissed = false;  // the user removed the chip: pages stop re-attaching until the next page load
   var listeners = [];
@@ -264,8 +265,12 @@
   // change it first). An idea card normally links to the proposed experiment record the agent wrote
   // with it (/experiments/<id>): then the request is to run that record. A card with no record asks
   // for the record first, so the idea is on the Experiments page before anything is built.
+  function ideaRecord(card) {
+    return /^\/experiments\/([A-Za-z0-9][A-Za-z0-9._-]*)$/.exec(card.link || "");
+  }
+
   function testIdeaText(card) {
-    var record = /^\/experiments\/([A-Za-z0-9][A-Za-z0-9._-]*)$/.exec(card.link || "");
+    var record = ideaRecord(card);
     if (record) {
       return "Run the proposed experiment " + record[1] + " (\u201c" + card.title + "\u201d). Check closed_levers.md, open_levers.md and " +
         "the earlier records in experiments/, and the record's predictions and decision rule once more, tell me what it will cost before you launch, then make the one " +
@@ -284,6 +289,16 @@
     if (card.kind !== "idea" || ideasNotNow().indexOf(card.id) !== -1) return null;
     var row = el("div", "idea-actions");
     row.dataset.idea = card.id;
+    // An idea whose record has left "proposed" has been run: asking again would build, upload and
+    // pay for the same experiment a second time. The record has the games and the verdict.
+    var record = ideaRecord(card);
+    var status = record ? state.records[record[1]] : "";
+    if (status && status !== "proposed") {
+      var result = el("a", "small", status === "running" ? "Running now: see the games so far" : "Tested (" + status + "): see the result");
+      result.href = card.link;
+      row.appendChild(result);
+      return row;
+    }
     var test = el("button", "small", "Test this idea");
     test.type = "button";
     test.title = "Puts a request for an experiment in the message box. Nothing is sent until you press Enter.";
@@ -407,6 +422,16 @@
     updateCardCount();
   }
 
+  // A record's status changed (the agent ran or closed an experiment): draw each idea's actions again.
+  function updateRecords(records) {
+    if (JSON.stringify(records) === JSON.stringify(state.records)) return;
+    state.records = records;
+    document.querySelectorAll("#agent-cards .idea-actions").forEach(function (old) {
+      var card = state.cards.filter(function (c) { return c.id === old.dataset.idea; })[0];
+      if (card) old.replaceWith(ideaActions(card));
+    });
+  }
+
   function updateCardCount() {
     var count = $("agent-cards-count");
     var unseen = state.cards.length - seenCards;
@@ -442,6 +467,7 @@
     ]).then(function (results) {
       state.delivered = results[0].delivered;
       appendMessages(results[0].messages);
+      updateRecords(results[1].records || {});
       appendCards(results[1].cards);
       state.status = results[2];
       if (!$("agent-cards").hidden) markCardsSeen();

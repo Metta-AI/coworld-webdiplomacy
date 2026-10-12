@@ -9,6 +9,7 @@
       record; this page lists and renders them.</span>
     {% if only %}<a class="btn plain small" href="/reports">All reports</a>{% endif %}
   </div>
+  <p class="about">Every “Ask” button on this page sends its request to the agent at once; nothing waits in the message box.</p>
 
   {% for key, kind in kinds.items() %}
   <section class="report-kind" id="{{ key }}">
@@ -41,7 +42,7 @@
           <td class="nowrap">{% if report.date %}<span title="{{ report.date }}">{{ report.date | when }}</span>{% else %}<span class="muted" title="No date in the report; the file last changed {{ report.modified | when(zone=true) }}">file changed {{ report.modified | when }}</span>{% endif %}</td>
           <td class="actions">
             <button class="small" type="button" data-ask="Refresh the {{ kind.one }} “{{ report.title }}” ({{ report.path }}): run the {{ kind.skill }} skill again on the episodes now on disk, rewrite the file and post a card."
-              data-kind="{{ key }}" data-slug="{{ report.slug }}" aria-label="Ask the agent to refresh {{ report.title }}" title="Ask the agent to run the skill again on the episodes now on disk">Ask for a refresh</button>
+              data-kind="{{ key }}" data-slug="{{ report.slug }}" aria-label="Ask the agent to refresh {{ report.title }}" title="Sends the request at once: the agent runs the skill again on the episodes now on disk">Ask for a refresh</button>
           </td>
         </tr>
         {% else %}
@@ -75,7 +76,7 @@
           <td class="nowrap">{{ (policy.latest | when) or "-" }}</td>
           <td class="actions">
             <button class="small" type="button" data-ask="Write an opponent profile of {{ policy.name }} ({{ policy.games }} games on disk; versions {{ policy.versions | join(', ') }}). Use the opponent-profile skill and post a card when the report is written."
-              data-kind="opponents" data-slug="{{ policy.slug }}" aria-label="Ask the agent for a profile of {{ policy.name }}" title="Ask the agent to write an opponent profile of {{ policy.name }}">Ask for a profile</button>
+              data-kind="opponents" data-slug="{{ policy.slug }}" aria-label="Ask the agent for a profile of {{ policy.name }}" title="Sends the request at once: the agent writes an opponent profile of {{ policy.name }}">Ask for a profile</button>
           </td>
         </tr>
         {% endfor %}
@@ -96,7 +97,7 @@
     <p class="controls ask-matchup">
       <button type="button" data-ask="Write a matchup write-up for our current policy against the field: why we win or lose against each opponent. Use the matchup-writeup skill and post a card when the report is written."
         data-kind="matchups" data-slug="">Ask the agent for a matchup write-up</button>
-      <span class="muted small">It will use the episodes on disk; say in the chat which policy or opponent you mean
+      <span class="muted small">A click sends the request at once. It will use the episodes on disk; say in the chat which policy or opponent you mean
         if it should not be the current one.</span>
     </p>
     {% endif %}

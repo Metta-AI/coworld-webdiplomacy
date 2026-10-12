@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Write a hosted eval request body from a named field set.
 
+One help screen serves both kinds: `paired --help` and `field --help` print this same text.
+Each option's help says which kind it applies to.
+
     python3 games/webdiplomacy/tools/make_request.py paired --a NAME:vN --b NAME:vM \\
         --field-set <paired set> -n 16 --note "experiment id" --out .runtime/requests/x.json
     python3 games/webdiplomacy/tools/make_request.py field --a NAME:vN \\
@@ -142,22 +145,29 @@ def build_bodies(kind: str, a: str, b: str | None, field: dict, field_set: str, 
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("kind", choices=sorted(FIELD_SEATS))
-    ap.add_argument("--a", required=True, help="candidate, NAME:vN")
-    ap.add_argument("--b", help="baseline, NAME:vM (paired only)")
-    ap.add_argument("--field-set", required=True)
-    ap.add_argument("-n", "--episodes", type=int, required=True)
-    ap.add_argument("--note", default="")
+    ap.add_argument("kind", choices=sorted(FIELD_SEATS),
+                    help="paired: A and B in the same games plus five field seats; field: A alone plus six")
+    ap.add_argument("--a", required=True, help="both kinds: the candidate, NAME:vN")
+    ap.add_argument("--b", help="paired only (required there): the baseline, NAME:vM")
+    ap.add_argument("--field-set", required=True,
+                    help="both kinds: a set name from field_sets.json, with five seats for paired and six for field")
+    ap.add_argument("-n", "--episodes", type=int, required=True,
+                    help="both kinds: games per body (one body, or one per rotation with --balanced or --pin-a)")
+    ap.add_argument("--note", default="", help="both kinds: text added to the request notes, e.g. the experiment id")
     ap.add_argument("--llm-budget-usd", type=float,
-                    help=f"per-episode LLM budget split over seven seats (0 = no LLM access). Default: "
+                    help=f"both kinds: per-episode LLM budget split over seven seats (0 = no LLM access). Default: "
                          f"{PRESS_LLM_BUDGET_USD:g} for a press set, 0 for a gunboat set")
     ap.add_argument("--balanced", action="store_true",
-                    help="pinned, rotated powers: 7 bodies (field) or 14 mirrored bodies (paired); -n is per body")
-    ap.add_argument("--pin-a", choices=POWERS, help="field kind: A always plays this power; six bodies")
-    ap.add_argument("--no-maps", action="store_true", help="game_config_overrides.render_maps = false")
-    ap.add_argument("--variant", help="use this variant instead of the field set's, e.g. classic-press-short "
-                                      "for a one-game health check")
-    ap.add_argument("--out", required=True)
+                    help="both kinds: pinned, rotated powers: 7 bodies (field) or 14 mirrored bodies (paired); "
+                         "-n is per body")
+    ap.add_argument("--pin-a", choices=POWERS,
+                    help="field only: A always plays this power; six bodies; not with --balanced")
+    ap.add_argument("--no-maps", action="store_true", help="both kinds: game_config_overrides.render_maps = false")
+    ap.add_argument("--variant", help="both kinds: use this variant instead of the field set's, e.g. "
+                                      "classic-press-short for a one-game health check")
+    ap.add_argument("--out", required=True,
+                    help="both kinds: the body's path; with several bodies a suffix goes before .json "
+                         "(-r0, -r0m, -p0)")
     args = ap.parse_args(argv)
 
     sets = load_field_sets()

@@ -41,13 +41,18 @@ From the optimizer root, with these names:
 | `A` | `$L/.runtime/artifacts` |
 | `P` | Our policy: `NAME` for every version, `NAME:vN` for one |
 | `V` | The variant: `classic-press` (the main league) or `classic-gunboat`. One variant per write-up |
+| `O` | Empty, or `--ours <name>` for each other policy name that is also ours (a search-only build, a second lineage: the first column of `players/castlereagh/VERSION_LOG.md` lists every name). The tools know "ours" only by `P` |
 | `S` | A scratch folder for this write-up: `$L/.runtime/matchup-<report file name without .md>`. Create it. A refresh uses a new one (add the time) so the old run stays for comparison |
 
 ### 1. Where the differences are, and whether they are real
 
 ```sh
-python3 $L/tools/matchups.py $A --policy $P --variant $V --out $S/matchups
+python3 $L/tools/matchups.py $A --policy $P --variant $V $O --out $S/matchups
 ```
+
+Pass `$O` on every `matchups.py` and `holds.py` command below. Without it a
+seat of our other policy is counted as a field seat, gets its own row in "By
+opponent", and a game that seats it beside `$P` passes for an alone game.
 
 One read writes `$S/matchups.json` (the record: work from it) and
 `$S/matchups.txt` (the same numbers, to read). The JSON lists the games it
@@ -62,17 +67,23 @@ this does not show", not mixed in. Note the time of the run in the report.
 league matches, from experience requests and local, then how many seat one of
 our seats and how many two or more), the caveats and "By variant and
 source". `xp` rows are our own eval batches; `league` rows are league rounds.
+`$A` holds every fetched folder, `league-press` included, and a folder with
+no seat of our policy adds nothing to our numbers (its field seats still count
+toward par). The tool prints "no clean game of <policy> from league matches:
+N such games were read and count toward par only" when that happens: copy
+that fact into the report, and do not call the write-up a league result.
 If the user asked about league games and there are none (`--source league`
 then answers with the error "no seats for this policy and these filters":
 that is the answer), lead the report with that. "N games seat more than one
 of our seats" means paired runs are mixed in. Then also save the alone view:
 
 ```sh
-python3 $L/tools/matchups.py $A --policy $P --variant $V --episodes $S/matchups.json --alone --out $S/matchups-alone
+python3 $L/tools/matchups.py $A --policy $P --variant $V $O --episodes $S/matchups.json --alone --out $S/matchups-alone
 ```
 
 `--alone` leaves out every game that seats two or more seats of our policy
-(any version), from par too, and its header says how many. Quote our level
+(any version, and any name given with `--ours`), from par too, and its header
+says how many. Quote our level
 and the opponent rows from the alone view, name the paired games as left
 out, and say so when the alone view is too small to decide anything.
 
@@ -98,7 +109,7 @@ When our hold share stands out beside the field's, one more command says
 where it comes from:
 
 ```sh
-python3 $L/tools/holds.py $A --policy $P --variant $V --episodes $S/matchups.json --alone > $S/holds.txt
+python3 $L/tools/holds.py $A --policy $P --variant $V $O --episodes $S/matchups.json --alone > $S/holds.txt
 ```
 
 It gives our hold share by version, power and year beside the field, our seats
@@ -260,13 +271,16 @@ Open each chosen game at its link (`/replays/<episode id>?phase=N` in the
 IDE), or print it:
 
 ```sh
-python3 $L/tools/opponent_profile.py $A --game <episode id> --powers <ours>,<theirs> --decisions
+python3 $L/tools/opponent_profile.py $A --game <episode id> --powers <ours>,<theirs> --decisions --versus $P
 ```
 
 The print has the orders phase by phase with their results, retreats and
 builds, the centres that changed hands, and each seat's centres by year, with
-the same phase numbers as the links. `--decisions` adds, under each phase,
-the stances, trust and required orders our seat's log committed that turn.
+the same phase numbers as the links. `--decisions --versus $P` adds, under
+each phase, the stances, trust and required orders our seat's log committed
+that turn. It prints the log lines of `$P`'s seats only: when other seats'
+logs are on disk the header names them as left out, and they stay out of the
+write-up. For a seat of another policy of ours, run it again with that name.
 `--years 1902-1904` narrows the print; a unique prefix of the episode id is
 enough; leave `--powers` out to see who else was involved (and which policy
 held each power: "takes from Italy" in a tool table names a power, not a

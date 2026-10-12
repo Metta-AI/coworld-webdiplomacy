@@ -7,6 +7,7 @@
 --border:#e4dac8;--border-strong:#d4c9b5;--border-subtle:#f0ebe1;
 --p1:#6d5a9c;--p2:#3f6f9f;--p3:#5d7f3e;--p4:#5f5953;--p5:#a3533a;--p6:#a8862a;--p7:#7d8794;
 --t1:#ddd5ec;--t2:#d3e0ee;--t3:#dbe6cf;--t4:#dedad5;--t5:#efd6cc;--t6:#efe3c2;--t7:#e3e6ea;
+--b1:#a797cf;--b2:#86aed6;--b3:#a3c283;--b4:#a9a199;--b5:#dd9580;--b6:#dcc06a;--b7:#98a2b4;
 --serif:'Merriweather',Georgia,serif;--sans:'Merriweather Sans','Helvetica Neue',sans-serif;--mono:ui-monospace,'SF Mono',Menlo,monospace}
 *{box-sizing:border-box}html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.5;display:flex;flex-direction:column;overflow:hidden}
@@ -59,8 +60,12 @@ table.score{border-collapse:collapse;font-size:14px;width:100%}
 .num{text-align:right!important;font-family:var(--mono);font-feature-settings:"tnum" 1}
 .share{width:38%}.share span{display:block;height:10px;border-radius:2px;min-width:1px}
 .title{text-align:center}.title h2{font-size:84px;margin:10px 0 14px;color:var(--fg)}
-.lede{font-family:var(--serif);font-size:30px;color:var(--ink-navy);margin:0 0 14px}.sub{font-size:19px;color:var(--fg-subtle);margin:0}
-.backdrop{position:absolute;inset:0;opacity:.2;pointer-events:none}.backdrop svg{width:100%;height:100%}
+.lede{font-family:var(--serif);font-size:30px;color:var(--ink-navy);margin:0 0 14px}
+.backdrop{position:absolute;inset:0;opacity:.62;pointer-events:none}.backdrop svg{width:100%;height:100%}
+.backdrop.faint{opacity:.3}
+.card.narrow{width:min(560px,100%)}.card.right{margin:auto 4% auto auto}
+.card{background:rgba(255,253,244,.9);border:1px solid var(--border-strong);border-radius:4px;padding:34px 44px 30px;box-shadow:0 10px 40px rgba(17,24,39,.18)}
+.title{background:radial-gradient(closest-side,rgba(255,253,244,.94) 55%,rgba(255,253,244,0));padding:70px 90px}
 /* map palette over the diplomacy renderer's classes */
 .water{fill:#c3dae6;stroke:#5a5650;stroke-width:1}.nopower{fill:#f5eedf;stroke:#5a5650;stroke-width:1}
 .neutral{fill:#ebe4d4;stroke:#5a5650;stroke-width:1}.impassable{fill:#5f5953;stroke:#3a3633}
@@ -70,6 +75,7 @@ table.score{border-collapse:collapse;font-size:14px;width:100%}
 .labeltext18,.labeltext24{font-family:var(--sans);font-weight:700;font-size:17px;letter-spacing:.04em;fill:#3a3633;text-anchor:middle;
 paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 .labeltext24{font-size:19px;fill:#4d5f74}
+.gal{background:#f0c94a;padding:0 4px;border-radius:2px}
 .centre-ring{fill:none;stroke:#80601f;stroke-width:6}
 @media (max-width:900px){.caption{grid-template-columns:1fr;gap:4px;height:230px}.caption h2{font-size:19px}.caption ul{font-size:14px}
 .stage{flex-direction:column;padding:10px 16px}.press{flex:0 0 40%}.cols,.split{grid-template-columns:1fr;gap:16px}
@@ -78,7 +84,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 <header class="bar"><span class="eyebrow">webDiplomacy</span><h1>How to play Diplomacy</h1>
 <span class="spacer"></span><span class="counter" id="count"></span>
 <button id="prev" aria-label="Previous slide">← Prev</button><button id="next" class="primary" aria-label="Next slide">Next →</button></header>
-<main><section class="slide"><div class="stage"><aside class="legend"><h3>The seven powers</h3><ul><li><span class="dot p1"></span><b>England</b><span>F EDI · F LON · A LVP</span></li><li><span class="dot p2"></span><b>France</b><span>F BRE · A MAR · A PAR</span></li><li><span class="dot p3"></span><b>Italy</b><span>F NAP · A ROM · A VEN</span></li><li><span class="dot p4"></span><b>Germany</b><span>F KIE · A BER · A MUN</span></li><li><span class="dot p5"></span><b>Austria</b><span>A BUD · A VIE · F TRI</span></li><li><span class="dot p6"></span><b>Turkey</b><span>F ANK · A CON · A SMY</span></li><li><span class="dot p7"></span><b>Russia</b><span>A WAR · A MOS · F SEV · F STP/SC</span></li></ul></aside><figure class="panel"><figcaption><b>Spring 1901 · starting position</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="150 110 1540 1160" preserveAspectRatio="xMidYMid meet" role="img">
+<main><section class="slide"><div class="stage"><aside class="legend"><h3>The seven powers</h3><ul><li><span class="dot p1"></span><b>England</b><span>F EDI · F LON · A LVP</span></li><li><span class="dot p2"></span><b>France</b><span>F BRE · A MAR · A PAR</span></li><li><span class="dot p3"></span><b>Italy</b><span>F NAP · A ROM · A VEN</span></li><li><span class="dot p4"></span><b>Germany</b><span>F KIE · A BER · A MUN</span></li><li><span class="dot p5"></span><b>Austria</b><span>A BUD · A VIE · F TRI</span></li><li><span class="dot p6"></span><b>Turkey</b><span>F ANK · A CON · A SMY</span></li><li><span class="dot p7"></span><b>Russia</b><span>A WAR · A MOS · F SEV · F STP/SC</span></li></ul></aside><figure class="panel"><figcaption><b>Spring 1901 · starting position</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m1-root" viewBox="150 110 1540 1160" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -485,7 +491,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure></div><div class="caption"><h2>Europe, 1901</h2><ul><li>Seven powers: England, France, Germany, Italy, Austria, Russia, Turkey.</li><li>Each starts with three units (Russia four). <b>A</b> is an army, <b>F</b> is a fleet.</li><li>No dice. Everyone's orders are revealed and resolved at the same moment.</li></ul></div></section><section class="slide"><div class="stage"><aside class="legend"><h3>The seven powers</h3><ul><li><span class="dot p1"></span><b>England</b><span>F EDI · F LON · A LVP</span></li><li><span class="dot p2"></span><b>France</b><span>F BRE · A MAR · A PAR</span></li><li><span class="dot p3"></span><b>Italy</b><span>F NAP · A ROM · A VEN</span></li><li><span class="dot p4"></span><b>Germany</b><span>F KIE · A BER · A MUN</span></li><li><span class="dot p5"></span><b>Austria</b><span>A BUD · A VIE · F TRI</span></li><li><span class="dot p6"></span><b>Turkey</b><span>F ANK · A CON · A SMY</span></li><li><span class="dot p7"></span><b>Russia</b><span>A WAR · A MOS · F SEV · F STP/SC</span></li></ul></aside><figure class="panel"><figcaption><b>The 34 supply centres · tinted by owner, 12 start neutral</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="150 110 1540 1160" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure></div><div class="caption"><h2>Europe, 1901</h2><ul><li>Seven powers: England, France, Germany, Italy, Austria, Russia, Turkey.</li><li>Each starts with three units (Russia four). <b>A</b> is an army, <b>F</b> is a fleet.</li><li>No dice. Everyone's orders are revealed and resolved at the same moment.</li></ul></div></section><section class="slide"><div class="stage"><aside class="legend"><h3>The seven powers</h3><ul><li><span class="dot p1"></span><b>England</b><span>F EDI · F LON · A LVP</span></li><li><span class="dot p2"></span><b>France</b><span>F BRE · A MAR · A PAR</span></li><li><span class="dot p3"></span><b>Italy</b><span>F NAP · A ROM · A VEN</span></li><li><span class="dot p4"></span><b>Germany</b><span>F KIE · A BER · A MUN</span></li><li><span class="dot p5"></span><b>Austria</b><span>A BUD · A VIE · F TRI</span></li><li><span class="dot p6"></span><b>Turkey</b><span>F ANK · A CON · A SMY</span></li><li><span class="dot p7"></span><b>Russia</b><span>A WAR · A MOS · F SEV · F STP/SC</span></li></ul></aside><figure class="panel"><figcaption><b>The 34 supply centres · tinted by owner, 12 start neutral</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m2-root" viewBox="150 110 1540 1160" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -892,7 +898,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure></div><div class="caption"><h2>The objective: supply centres</h2><ul><li>34 provinces are <b>supply centres</b> (ringed). Each one you own feeds one unit.</li><li>Own <b>18 of the 34</b> and you win outright.</li><li>Most games end before that; then your score comes from how many centres you hold.</li></ul></div></section><section class="slide"><div class="stage"><aside class="press"><h3>Press</h3><ol class="chat"><li class="msg"><span class="avatar p5">A</span><div><div class="msg-head"><b class="p5">Austria</b> <span class="chip chip-private">Private</span> to <b class="p3">Italy</b></div><p>Tyrolia and Venice stay empty this year? I am going south-east.</p></div></li><li class="msg"><span class="avatar p3">I</span><div><div class="msg-head"><b class="p3">Italy</b> <span class="chip chip-private">Private</span> to <b class="p5">Austria</b></div><p>Agreed. No army in Tyrolia. I open west.</p></div></li><li class="msg"><span class="avatar p7">R</span><div><div class="msg-head"><b class="p7">Russia</b> <span class="chip chip-private">Private</span> to <b class="p5">Austria</b></div><p>I am not moving to Galicia. Are you?</p></div></li><li class="msg"><span class="avatar p5">A</span><div><div class="msg-head"><b class="p5">Austria</b> <span class="chip chip-private">Private</span> to <b class="p7">Russia</b></div><p>No. Galicia stays empty.</p></div></li><li class="msg"><span class="avatar p6">T</span><div><div class="msg-head"><b class="p6">Turkey</b> <span class="chip chip-public">Public</span> to everyone</div><p>Peace in the Balkans this spring.</p></div></li></ol></aside><figure class="panel"><figcaption><b>Spring 1901 · before orders</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure></div><div class="caption"><h2>The objective: supply centres</h2><ul><li>34 provinces are <b>supply centres</b> (ringed). Each one you own feeds one unit.</li><li>Own <b>18 of the 34</b> and you win outright.</li><li>Most games end before that; then your score comes from how many centres you hold.</li></ul></div></section><section class="slide"><div class="stage"><aside class="press"><h3>Press</h3><ol class="chat"><li class="msg"><span class="avatar p5">A</span><div><div class="msg-head"><b class="p5">Austria</b> <span class="chip chip-private">Private</span> to <b class="p3">Italy</b></div><p>Tyrolia and Venice stay empty this year? I am going south-east.</p></div></li><li class="msg"><span class="avatar p3">I</span><div><div class="msg-head"><b class="p3">Italy</b> <span class="chip chip-private">Private</span> to <b class="p5">Austria</b></div><p>Agreed. No army in Tyrolia. I open west.</p></div></li><li class="msg"><span class="avatar p7">R</span><div><div class="msg-head"><b class="p7">Russia</b> <span class="chip chip-private">Private</span> to <b class="p5">Austria</b></div><p>I am not moving to Galicia. Are you?</p></div></li><li class="msg"><span class="avatar p5">A</span><div><div class="msg-head"><b class="p5">Austria</b> <span class="chip chip-private">Private</span> to <b class="p7">Russia</b></div><p>No. Galicia stays empty.</p></div></li><li class="msg"><span class="avatar p6">T</span><div><div class="msg-head"><b class="p6">Turkey</b> <span class="chip chip-public">Public</span> to everyone</div><p>Peace in the Balkans this spring.</p></div></li></ol></aside><figure class="panel"><figcaption><b>Spring 1901 · before orders · Austria, Russia and Galicia (GAL) picked out</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m3-root" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img"><style>#m3-root .austria{fill:var(--b5)}#m3-root .russia{fill:var(--b7)}#m3-root #m3-_gal{fill:#f0c94a;stroke:#80601f;stroke-width:5}</style>
 
     
 
@@ -1299,7 +1305,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure></div><div class="caption"><h2>A turn: talk, then order</h2><ul><li>First comes <b>press</b>: private or public messages. Promise, plan, bluff.</li><li>Then every power writes one order for each of its units, in secret.</li><li>Nothing binds anyone to what they said. Austria and Russia both promise to leave Galicia alone…</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>Orders</b><ul class="orders"><li><span class="dot p5"></span>A BUD → SER <em class="ok">✓</em></li><li><span class="dot p5"></span>A VIE → GAL <em class="bad">bounced</em></li><li><span class="dot p5"></span>F TRI holds <em class="ok">✓</em></li><li><span class="dot p7"></span>A WAR → GAL <em class="bad">bounced</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure></div><div class="caption"><h2>A turn: talk, then order</h2><ul><li>First comes <b>press</b>: private or public messages. Promise, plan, bluff.</li><li>Then every power writes one order for each of its units, in secret.</li><li>Nothing binds anyone to what they said. <b class="p5">Austria</b> and <b class="p7">Russia</b> both promise to leave <b class="gal">Galicia</b> alone…</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>Orders</b><ul class="orders"><li><span class="dot p5"></span>A BUD → SER <em class="ok">✓</em></li><li><span class="dot p5"></span>A VIE → GAL <em class="bad">bounced</em></li><li><span class="dot p5"></span>F TRI holds <em class="ok">✓</em></li><li><span class="dot p7"></span>A WAR → GAL <em class="bad">bounced</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m4-root" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -1706,7 +1712,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure><figure class="panel"><figcaption><b>Result</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure><figure class="panel"><figcaption><b>Result</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m5-root" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -2113,7 +2119,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure></div><div class="caption"><h2>Move, hold, bounce</h2><ul><li><b>Move</b> to a neighbouring province, or <b>hold</b>. Every unit has strength 1.</li><li>A move into an empty province works: Budapest takes Serbia.</li><li>Equal strength means a <b>bounce</b>: both went for Galicia, so nobody gets in. So much for promises.</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>Orders</b><ul class="orders"><li><span class="dot p5"></span>A SER → RUM <em class="ok">✓</em></li><li><span class="dot p5"></span>A BUD supports A SER → RUM <em class="ok">✓</em></li><li><span class="dot p5"></span>A GAL holds <em class="ok">✓</em></li><li><span class="dot p7"></span>A RUM holds <em class="bad">dislodged</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure></div><div class="caption"><h2>Move, hold, bounce</h2><ul><li><b>Move</b> to a neighbouring province, or <b>hold</b>. Every unit has strength 1.</li><li>A move into an empty province works: Budapest takes Serbia.</li><li>Equal strength means a <b>bounce</b>: both went for Galicia, so nobody gets in. So much for promises.</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>Orders</b><ul class="orders"><li><span class="dot p5"></span>A SER → RUM <em class="ok">✓</em></li><li><span class="dot p5"></span>A BUD supports A SER → RUM <em class="ok">✓</em></li><li><span class="dot p5"></span>A GAL holds <em class="ok">✓</em></li><li><span class="dot p7"></span>A RUM holds <em class="bad">dislodged</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m6-root" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -2520,7 +2526,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure><figure class="panel"><figcaption><b>Result</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure><figure class="panel"><figcaption><b>Result</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m7-root" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -2927,7 +2933,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure></div><div class="caption"><h2>Support: how attacks win</h2><ul><li>A unit can give up its own move to <b>support</b> a neighbour: each support adds 1.</li><li>Serbia attacks Rumania with Budapest's support: 2 against 1.</li><li>The stronger side wins. The Russian army is <b>dislodged</b>.</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>Retreat order</b><ul class="orders"><li><span class="dot p7"></span>A RUM retreats to UKR <em class="ok">✓</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure></div><div class="caption"><h2>Support: how attacks win</h2><ul><li>A unit can give up its own move to <b>support</b> a neighbour: each support adds 1.</li><li>Serbia attacks Rumania with Budapest's support: 2 against 1.</li><li>The stronger side wins. The Russian army is <b>dislodged</b>.</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>Retreat order</b><ul class="orders"><li><span class="dot p7"></span>A RUM retreats to UKR <em class="ok">✓</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m8-root" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -3334,7 +3340,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure><figure class="panel"><figcaption><b>Result</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure><figure class="panel"><figcaption><b>Result</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m9-root" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -3741,7 +3747,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure></div><div class="caption"><h2>Retreats</h2><ul><li>A dislodged unit must <b>retreat</b> to a free neighbouring province, or be disbanded.</li><li>It cannot go where its attacker came from, into an occupied province, or where a bounce just happened.</li><li>No legal retreat means the unit is destroyed.</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>Support an ally's hold</b><ul class="orders"><li><span class="dot p6"></span>A BUL → SER <em class="bad">bounced</em></li><li><span class="dot p6"></span>A GRE supports A BUL → SER <em class="ok">✓</em></li><li><span class="dot p5"></span>A SER holds <em class="ok">✓</em></li><li><span class="dot p3"></span>A ALB supports A SER <em class="ok">✓</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure></div><div class="caption"><h2>Retreats</h2><ul><li>A dislodged unit must <b>retreat</b> to a free neighbouring province, or be disbanded.</li><li>It cannot go where its attacker came from, into an occupied province, or where a bounce just happened.</li><li>No legal retreat means the unit is destroyed.</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>Support an ally's hold</b><ul class="orders"><li><span class="dot p6"></span>A BUL → SER <em class="bad">bounced</em></li><li><span class="dot p6"></span>A GRE supports A BUL → SER <em class="ok">✓</em></li><li><span class="dot p5"></span>A SER holds <em class="ok">✓</em></li><li><span class="dot p3"></span>A ALB supports A SER <em class="ok">✓</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m10-root" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -4052,7 +4058,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
     </g>
 
     
-    <g id="m10-UnitLayer"><use id="m10-unit_SER" x="933.5" y="1050.0" height="40" width="40" xlink:href="#m10-Army" class="unitaustria"/><use id="m10-unit_ALB" x="906.5" y="1113.0" height="40" width="40" xlink:href="#m10-Army" class="unititaly"/><use id="m10-unit_ION" x="846.5" y="1286.0" height="40" width="40" xlink:href="#m10-Fleet" class="unititaly"/><use id="m10-unit_BUL" x="1048.5" y="1068.0" height="40" width="40" xlink:href="#m10-Army" class="unitturkey"/><use id="m10-unit_GRE" x="966.5" y="1190.0" height="40" width="40" xlink:href="#m10-Army" class="unitturkey"/></g>
+    <g id="m10-UnitLayer"><use id="m10-unit_SER" x="933.5" y="1050.0" height="40" width="40" xlink:href="#m10-Army" class="unitaustria"/><use id="m10-unit_ALB" x="906.5" y="1113.0" height="40" width="40" xlink:href="#m10-Army" class="unititaly"/><use id="m10-unit_BUL" x="1048.5" y="1068.0" height="40" width="40" xlink:href="#m10-Army" class="unitturkey"/><use id="m10-unit_GRE" x="966.5" y="1190.0" height="40" width="40" xlink:href="#m10-Army" class="unitturkey"/></g>
 
     
     <g id="m10-DislodgedUnitLayer"/>
@@ -4148,7 +4154,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure><figure class="panel"><figcaption><b>Or cut the support</b><ul class="orders"><li><span class="dot p6"></span>A BUL → SER <em class="bad">bounced</em></li><li><span class="dot p6"></span>A GRE supports A BUL → SER <em class="bad">support cut</em></li><li><span class="dot p5"></span>A SER holds <em class="ok">✓</em></li><li><span class="dot p3"></span>F ION → GRE <em class="bad">bounced</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure><figure class="panel"><figcaption><b>Or cut the support</b><ul class="orders"><li><span class="dot p6"></span>A BUL → SER <em class="bad">bounced</em></li><li><span class="dot p6"></span>A GRE supports A BUL → SER <em class="bad">support cut</em></li><li><span class="dot p5"></span>A SER holds <em class="ok">✓</em></li><li><span class="dot p3"></span>A ALB → GRE <em class="bad">bounced</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m11-root" viewBox="690 700 760 560" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -4455,11 +4461,11 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
     
     <g id="m11-OrderLayer">
         <g id="m11-Layer2"><g><path class="shadowdash" d="M 986.5,1210.0 C 1068.5,1088.0 1068.5,1088.0 985.12,1074.95"/><path class="supportorder" style="stroke:var(--p6)" marker-end="url(#m11-arrow)" d="M 986.5,1210.0 C 1068.5,1088.0 1068.5,1088.0 985.12,1074.95"/></g></g>
-        <g id="m11-Layer1"><g style="stroke:var(--p5)"><use x="920.2" y="1036.7" height="66.6" width="66.6" xlink:href="#m11-HoldUnit"/></g><g><line x1="866.5" y1="1306.0" x2="961.51" y2="1229.99" class="varwidthshadow" stroke-width="10.0"/><line x1="866.5" y1="1306.0" x2="961.51" y2="1229.99" class="varwidthorder" style="stroke:var(--p3)" stroke-width="6.0" marker-end="url(#m11-arrow)"/></g><g><line x1="1068.5" y1="1088.0" x2="985.12" y2="1074.95" class="varwidthshadow" stroke-width="10.0"/><line x1="1068.5" y1="1088.0" x2="985.12" y2="1074.95" class="varwidthorder" style="stroke:var(--p6)" stroke-width="6.0" marker-end="url(#m11-arrow)"/></g></g>
+        <g id="m11-Layer1"><g style="stroke:var(--p5)"><use x="920.2" y="1036.7" height="66.6" width="66.6" xlink:href="#m11-HoldUnit"/></g><g><line x1="926.5" y1="1133.0" x2="966.83" y2="1184.76" class="varwidthshadow" stroke-width="10.0"/><line x1="926.5" y1="1133.0" x2="966.83" y2="1184.76" class="varwidthorder" style="stroke:var(--p3)" stroke-width="6.0" marker-end="url(#m11-arrow)"/></g><g><line x1="1068.5" y1="1088.0" x2="985.12" y2="1074.95" class="varwidthshadow" stroke-width="10.0"/><line x1="1068.5" y1="1088.0" x2="985.12" y2="1074.95" class="varwidthorder" style="stroke:var(--p6)" stroke-width="6.0" marker-end="url(#m11-arrow)"/></g></g>
     </g>
 
     
-    <g id="m11-UnitLayer"><use id="m11-unit_SER" x="933.5" y="1050.0" height="40" width="40" xlink:href="#m11-Army" class="unitaustria"/><use id="m11-unit_ALB" x="906.5" y="1113.0" height="40" width="40" xlink:href="#m11-Army" class="unititaly"/><use id="m11-unit_ION" x="846.5" y="1286.0" height="40" width="40" xlink:href="#m11-Fleet" class="unititaly"/><use id="m11-unit_BUL" x="1048.5" y="1068.0" height="40" width="40" xlink:href="#m11-Army" class="unitturkey"/><use id="m11-unit_GRE" x="966.5" y="1190.0" height="40" width="40" xlink:href="#m11-Army" class="unitturkey"/></g>
+    <g id="m11-UnitLayer"><use id="m11-unit_SER" x="933.5" y="1050.0" height="40" width="40" xlink:href="#m11-Army" class="unitaustria"/><use id="m11-unit_ALB" x="906.5" y="1113.0" height="40" width="40" xlink:href="#m11-Army" class="unititaly"/><use id="m11-unit_BUL" x="1048.5" y="1068.0" height="40" width="40" xlink:href="#m11-Army" class="unitturkey"/><use id="m11-unit_GRE" x="966.5" y="1190.0" height="40" width="40" xlink:href="#m11-Army" class="unitturkey"/></g>
 
     
     <g id="m11-DislodgedUnitLayer"/>
@@ -4555,7 +4561,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure></div><div class="caption"><h2>Allies, and cutting support</h2><ul><li>You can support <b>another power's</b> unit. That is what alliances are made of.</li><li>Left: Italy supports Serbia to hold. 2 against 2, so the Turkish attack fails.</li><li>Right: Italy attacks the supporting army instead. A unit that is attacked has its support <b>cut</b>.</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>Orders</b><ul class="orders"><li><span class="dot p5"></span>A TRI → APU by convoy <em class="ok">✓</em></li><li><span class="dot p5"></span>F ADR convoys A TRI → APU <em class="ok">✓</em></li><li><span class="dot p5"></span>F GRE → ION <em class="ok">✓</em></li><li><span class="dot p3"></span>A VEN holds <em class="ok">✓</em></li><li><span class="dot p3"></span>A ROM holds <em class="ok">✓</em></li><li><span class="dot p3"></span>F NAP holds <em class="ok">✓</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="640 880 760 470" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure></div><div class="caption"><h2>Allies, and cutting support</h2><ul><li>You can support <b>another power's</b> unit. That is what alliances are made of.</li><li>Left: Italy supports Serbia to hold. 2 against 2, so the Turkish attack fails.</li><li>Right: Italy attacks the supporting army instead. A unit that is attacked has its support <b>cut</b>.</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>Orders</b><ul class="orders"><li><span class="dot p5"></span>A TRI → APU by convoy <em class="ok">✓</em></li><li><span class="dot p5"></span>F ADR convoys A TRI → APU <em class="ok">✓</em></li><li><span class="dot p5"></span>F GRE → ION <em class="ok">✓</em></li><li><span class="dot p3"></span>A VEN holds <em class="ok">✓</em></li><li><span class="dot p3"></span>A ROM holds <em class="ok">✓</em></li><li><span class="dot p3"></span>F NAP holds <em class="ok">✓</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m12-root" viewBox="640 880 760 470" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -4962,7 +4968,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure><figure class="panel"><figcaption><b>Result</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="640 880 760 470" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure><figure class="panel"><figcaption><b>Result</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m13-root" viewBox="640 880 760 470" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -5369,7 +5375,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure></div><div class="caption"><h2>Fleets and convoys</h2><ul><li>Armies move on land. Fleets move on sea and along coasts, and can support into either.</li><li>A fleet at sea can <b>convoy</b> an army across it: Trieste lands in Apulia.</li><li>Dislodge the convoying fleet and the army stays home.</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>Winter 1901 · builds and removals</b><ul class="orders"><li><span class="dot p5"></span>A VIE is built <em class="ok">✓</em></li><li><span class="dot p5"></span>A BUD is built <em class="ok">✓</em></li><li><span class="dot p7"></span>A UKR is removed <em class="ok">✓</em></li><li><span class="dot p6"></span>A SMY is built <em class="ok">✓</em></li><li><span class="dot p6"></span>F ANK is built <em class="ok">✓</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="690 640 900 640" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure></div><div class="caption"><h2>Fleets and convoys</h2><ul><li>Armies move on land. Fleets move on sea and along coasts, and can support into either.</li><li>A fleet at sea can <b>convoy</b> an army across it: Trieste lands in Apulia.</li><li>Dislodge the convoying fleet and the army stays home.</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>Winter 1901 · builds and removals</b><ul class="orders"><li><span class="dot p5"></span>A VIE is built <em class="ok">✓</em></li><li><span class="dot p5"></span>A BUD is built <em class="ok">✓</em></li><li><span class="dot p7"></span>A UKR is removed <em class="ok">✓</em></li><li><span class="dot p6"></span>A SMY is built <em class="ok">✓</em></li><li><span class="dot p6"></span>F ANK is built <em class="ok">✓</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m14-root" viewBox="690 640 900 640" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -5776,7 +5782,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure><figure class="panel"><figcaption><b>Spring 1902</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="690 640 900 640" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure><figure class="panel"><figcaption><b>Spring 1902</b></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m15-root" viewBox="690 640 900 640" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -6183,7 +6189,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure></div><div class="caption"><h2>Winter: builds and removals</h2><ul><li>After each autumn, an occupied supply centre changes hands. Then units must match centres.</li><li>More centres than units: <b>build</b> in your own empty home centres. Austria has 5 and builds two.</li><li>Fewer: <b>remove</b> units. Russia lost Sevastopol, has 3 centres for 4 units, and removes one.</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>A swap fails</b><ul class="orders"><li><span class="dot p5"></span>A VIE → BUD <em class="bad">bounced</em></li><li><span class="dot p5"></span>A BUD → VIE <em class="bad">bounced</em></li><li><span class="dot p5"></span>A TRI holds <em class="ok">✓</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="720 780 420 330" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure></div><div class="caption"><h2>Winter: builds and removals</h2><ul><li>After each autumn, an occupied supply centre changes hands. Then units must match centres.</li><li>More centres than units: <b>build</b> in your own empty home centres. Austria has 5 and builds two.</li><li>Fewer: <b>remove</b> units. Russia lost Sevastopol, has 3 centres for 4 units, and removes one.</li></ul></div></section><section class="slide"><div class="stage"><figure class="panel"><figcaption><b>A swap fails</b><ul class="orders"><li><span class="dot p5"></span>A VIE → BUD <em class="bad">bounced</em></li><li><span class="dot p5"></span>A BUD → VIE <em class="bad">bounced</em></li><li><span class="dot p5"></span>A TRI holds <em class="ok">✓</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m16-root" viewBox="720 780 420 330" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
@@ -6590,7 +6596,7 @@ paint-order:stroke;stroke:#fffdf4;stroke-width:3px;stroke-linejoin:round}
 
     
 
-</svg></div></figure><figure class="panel"><figcaption><b>A rotation works</b><ul class="orders"><li><span class="dot p5"></span>A VIE → BUD <em class="ok">✓</em></li><li><span class="dot p5"></span>A BUD → TRI <em class="ok">✓</em></li><li><span class="dot p5"></span>A TRI → VIE <em class="ok">✓</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" viewBox="720 780 420 330" preserveAspectRatio="xMidYMid meet" role="img">
+</svg></div></figure><figure class="panel"><figcaption><b>A rotation works</b><ul class="orders"><li><span class="dot p5"></span>A VIE → BUD <em class="ok">✓</em></li><li><span class="dot p5"></span>A BUD → TRI <em class="ok">✓</em></li><li><span class="dot p5"></span>A TRI → VIE <em class="ok">✓</em></li></ul></figcaption><div class="mapwrap"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:jdipNS="svg.dtd" color-rendering="optimizeQuality" version="1.0" id="m17-root" viewBox="720 780 420 330" preserveAspectRatio="xMidYMid meet" role="img">
 
     
 
