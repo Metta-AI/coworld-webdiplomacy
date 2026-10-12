@@ -24,6 +24,7 @@
     <button type="button" id="report-refresh"
       data-ask="Refresh the {{ kind.one }} “{{ report.title }}” ({{ report.path }}): run the {{ kind.skill }} skill again on the episodes now on disk, rewrite the file and post a card."
       data-kind="{{ report.kind }}" data-slug="{{ report.slug }}">Ask the agent to refresh this report</button>
+    <span class="muted small">A click sends the request at once; nothing waits in the message box.</span>
     <span class="sent-note small" id="report-ask-status" role="status" aria-live="polite"></span>
   </p>
   <div class="md report-body">

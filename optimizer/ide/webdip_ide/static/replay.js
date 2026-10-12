@@ -785,12 +785,13 @@
       var asked = auditRequested();
       var button = el("button", "small", asked ? "Ask again" : "Ask the agent to audit this game");
       button.type = "button";
+      button.title = "Sends the request to the agent as soon as you click; nothing waits in the message box.";
       button.addEventListener("click", askForAudit);
       row.appendChild(button);
       row.appendChild(el("span", "muted", asked
         ? " Asked at " + window.ide.when(asked / 1000) +
-          ". An audit takes the agent about ten minutes; this page shows it when it is done."
-        : " No press audit yet. The agent reads every message, lists its promises and threats, and checks them against the orders (about ten minutes)."));
+          ". An audit takes the agent about ten minutes; this page shows it when it is done. A click sends the request again at once."
+        : " No press audit yet. The agent reads every message, lists its promises and threats, and checks them against the orders (about ten minutes). A click sends the request at once."));
       box.appendChild(row);
     }
   }
@@ -1061,8 +1062,9 @@
       node.appendChild(head);
       node.appendChild(el("p", "note-text", note.text));
       var actions = el("div", "note-actions");
-      var send = el("button", "small plain", "Send to agent");
+      var send = el("button", "small plain", "Send now");
       send.type = "button";
+      send.title = "Sends this note to the agent as soon as you click; nothing waits in the message box.";
       send.addEventListener("click", function () { sendNotes([note], send); });
       var remove = el("button", "small plain", "Delete");
       remove.type = "button";
@@ -1082,7 +1084,8 @@
 
   function flashNote(id) { var node = $("note-" + id); if (node) flash(node); }
 
-  function sendLabel(count) { return count === 1 ? "Send the note to the agent" : "Send " + count + " notes to the agent"; }
+  // Every label that sends at once says "now": the buttons on other pages that only fill the message box do not.
+  function sendLabel(count) { return count === 1 ? "Send the note to the agent now" : "Send " + count + " notes to the agent now"; }
 
   function hint(text, bad) {
     $("note-hint").textContent = text;

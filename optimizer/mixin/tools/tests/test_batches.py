@@ -51,8 +51,44 @@ class Batches(unittest.TestCase):
         self.assertEqual((row["cost_usd"], row["cost_usd_per_game"]), (1.2, 0.6))
         self.assertEqual((row["estimated_credits"], row["requests_with_estimate"]), (1.7, 1))
         text = batches.render([row])
-        self.assertIn("| ab | 2 (1 not completed) | classic-press | 10-11 06:15 | 10-11 07:55 | 100 |", text)  # Pacific
+        self.assertIn("| ab | 2 in, asked for unknown (1 not completed) | classic-press | 10-11 06:15 | 10-11 07:55 "
+                      "| 100 |", text)  # Pacific
         self.assertIn("$1.20 ($0.600) | 1.7 (0.85), 1 of 2 requests |", text)
+
+    def test_a_batch_with_fewer_games_than_were_asked_for_is_still_arriving(self):
+        # the fetcher makes a request's folder when its first game arrives: 2 of 5 games look like a whole batch
+        (self.responses / "ab-r0.json").write_text(json.dumps(
+            {"id": "xreq_1", "episode_count": 2, "cost_preview": {"estimated_cost_credits": 4.0}}))
+        (self.responses / "ab-r1.json").write_text(json.dumps(
+            {"id": "xreq_2", "episode_count": 2, "cost_preview": {"estimated_cost_credits": 4.0}}))
+        (self.responses / "ab-r2m.json").write_text(json.dumps({"id": "xreq_3", "episode_count": 1}))  # no game yet
+        (self.responses / "abc-r0.json").write_text(json.dumps({"id": "xreq_9", "episode_count": 50}))  # another batch
+        requested = batches.read_requested(self.responses)
+        (row,) = batches.batch_rows([self.root], batches.read_estimates(self.responses), requested)
+        self.assertEqual((row["games"], row["games_requested"], row["still_arriving"]), (2, 5, True))
+        text = batches.render([row])
+        self.assertIn("| ab | 2 of 5 in, still arriving (1 not completed) | classic-press | 10-11 06:15 | - | - |",
+                      text)
+        self.assertIn("8.0 (1.60) |", text)  # the estimate is for the five games asked for
+        self.assertIn('A batch marked "still arriving" has fewer games on disk', text)
+        for name, request in (("ereq_c", "xreq_1"), ("ereq_d", "xreq_2"), ("ereq_e", "xreq_3")):
+            episode(self.root, "ab", request, name, "2026-10-11T13:15:00Z", "2026-10-11T13:17:00Z",
+                    "2026-10-11T14:18:00Z")
+        (row,) = batches.batch_rows([self.root], batches.read_estimates(self.responses), requested)
+        self.assertEqual((row["games_requested"], row["still_arriving"]), (5, False))
+        self.assertIn("| ab | 5 of 5 in (1 not completed) | classic-press | 10-11 06:15 | 10-11 07:55 | 100 |",
+                      batches.render([row]))
+
+    def test_without_a_create_response_completeness_is_unknown_not_assumed(self):
+        (row,) = self.rows()  # no `requested` given
+        self.assertEqual((row["games_requested"], row["still_arriving"]), (None, None))
+        # a response for one of the batch's two requests is not enough to know
+        (self.responses / "ab-r0.json").write_text(json.dumps({"id": "xreq_1", "episode_count": 1}))
+        (row,) = batches.batch_rows([self.root], {}, batches.read_requested(self.responses))
+        self.assertIsNone(row["still_arriving"])
+        text = batches.render([row])
+        self.assertIn("| ab | 2 in, asked for unknown (1 not completed) |", text)
+        self.assertIn('"asked for unknown": no saved create response covers every request', text)
 
     def test_rows_without_times_or_cost_do_not_break_the_table(self):
         ep = self.root / "league-press" / "round-0001" / "ereq_c"
@@ -60,7 +96,7 @@ class Batches(unittest.TestCase):
         (ep / "episode.json").write_text(json.dumps({"id": "ereq_c", "status": "running", "participants": []}))
         row = next(r for r in self.rows() if r["batch"] == "league-press")
         self.assertEqual((row["wall_minutes"], row["cost_usd"], row["estimated_credits"]), (None, None, None))
-        self.assertIn("| league-press | 1 (1 not completed) |", batches.render([row]))
+        self.assertIn("| league-press | 1 in, asked for unknown (1 not completed) |", batches.render([row]))
 
     def test_cli_exits_2_when_there_is_no_hosted_episode(self):
         with tempfile.TemporaryDirectory() as empty, contextlib.redirect_stderr(io.StringIO()):

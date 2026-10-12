@@ -4,7 +4,7 @@
     python3 games/webdiplomacy/tools/opponent_profile.py DIR... --opponent NAME[:vN]
         [--versus OURPOLICY[:vN]] [--variant classic-press] [--out PREFIX] [--episodes FILE] [--json]
     python3 games/webdiplomacy/tools/opponent_profile.py DIR... --game EPISODE_ID [--powers Turkey,Russia]
-        [--years 1901-1903] [--logs] [--decisions]
+        [--years 1901-1903] [--logs] [--decisions --versus OURPOLICY[:vN]]
 
 DIR is any directory holding episodes (see `webdip_episodes.py`). Every power's adjudicated
 orders are public, so a rival can be profiled without its logs. The tool counts; the
@@ -24,10 +24,13 @@ still being fetched; par and the field are then those games only.
 `--game` prints one game's adjudicated orders phase by phase (all powers, or only those named),
 with each order's result, retreats, builds and disbands, the centres that changed hands, each
 seat's centre count by year and, with `--logs`, the path of each seat log on disk: the way to
-read a game without the IDE. EPISODE_ID may be a unique prefix (`ereq_0cd0b789`). `--decisions`
-adds, under each phase, what the shown seats' own logs say they committed that turn: stances,
-trust and required orders from the reference policy's `press_policy` (no press text). Use it
-for our own seats; a search build logs nothing of the kind.
+read a game without the IDE. EPISODE_ID may be a unique prefix (`ereq_0cd0b789`). `--decisions
+--versus OURPOLICY` adds, under each phase, what our own shown seats' logs say they committed
+that turn: stances, trust and required orders from the reference policy's `press_policy` (no
+press text). Only seats of OURPOLICY are printed, whatever logs are on disk (an account that
+owns the house bots downloads every seat's log; a rival's private plan is not ours to read
+into a write-up). The header names the shown seats whose logs were left out. Without
+`--versus` nothing is printed and the header says why. A search build logs nothing of the kind.
 
 A seat is one game of one power. Everything is reported **per power the opponent played**,
 with the number of seats (n) beside it: the seven powers start from different boards, so
@@ -135,7 +138,7 @@ units_at_end, spring_1901 [order text], rival_solo. `replying_to` [POWER] is add
 `table` use "Turkey"; every key written POWER above, and the powers in `game.phases`, are
 upper case ("TURKEY"). `game.phases` is one dict per
 movement phase: `turn`, `label`, `index`, `orders` (each `power`, `unit`, `at`, `type` of hold |
-move | support_move | support_hold | convoy, `to`, `src`, `text`, `success`, `dislodged`), and the
+move | support_move | support_hold | convoy, `to`, `src`, `text`, `success` (null for a hold), `dislodged`), and the
 boards `units` / `centers` at its start and `units_end` / `centers_end` after it (`units` is a
 list of {power, unit, at}; `centers` maps province to owner). `game.logs[slot]` is the path of a
 seat log on disk; `seat.log` is the loader's summary of it, not its rows. `game.between` maps a
@@ -1207,11 +1210,11 @@ def _add(mix: dict) -> float | None:
     return mix["support_move"] + mix["support_hold"]
 
 
-def logged_decisions(game: Game, wanted: set[str]) -> dict[int, list[str]]:
-    """turn -> lines saying what each shown seat's own log committed that movement turn."""
+def logged_decisions(game: Game, wanted: set[str], is_ours) -> dict[int, list[str]]:
+    """turn -> lines saying what each of our shown seats' own logs committed that movement turn."""
     out: dict[int, list[str]] = defaultdict(list)
     for seat in sorted(game.seats, key=lambda s: s.power):
-        if seat.power.upper() not in wanted or seat.slot not in game.logs:
+        if seat.power.upper() not in wanted or seat.slot not in game.logs or not is_ours(seat.policy):
             continue
         for row in read_log(Path(game.logs[seat.slot])):
             policy = row.get("press_policy")
@@ -1224,8 +1227,10 @@ def logged_decisions(game: Game, wanted: set[str]) -> dict[int, list[str]]:
 
 
 def render_game(game: Game, powers: list[str] | None = None, years: tuple[int, int] | None = None,
-                logs: bool = False, decisions: bool = False) -> str:
-    """One game's adjudicated movement orders, phase by phase, with results and centre counts."""
+                logs: bool = False, decisions: bool = False, ours: str | None = None) -> str:
+    """One game's adjudicated movement orders, phase by phase, with results and centre counts.
+
+    `decisions` prints log lines only for the seats of `ours` (a policy name)."""
     seats = sorted(game.seats, key=lambda s: s.power)
     wanted = {p.upper() for p in powers} if powers else {s.power.upper() for s in seats}
     lines = [f"# {game.episode} ({game.variant}, {game.source})", ""]
@@ -1238,7 +1243,20 @@ def render_game(game: Game, powers: list[str] | None = None, years: tuple[int, i
             lines.append(f"         seat log (slot {seat.slot}): {game.logs[seat.slot]}")
     if has_press_audit(game.episode):
         lines.append(f"press audit on disk: .runtime/press/{game.episode}/audit.json")
-    committed = logged_decisions(game, wanted) if decisions else {}
+    committed = {}
+    if decisions and not ours:
+        lines.append("--decisions printed nothing: it reads only our own seats' logs, so name our policy with "
+                     "--versus OURPOLICY")
+    elif decisions:
+        is_ours = policy_matcher(ours)
+        committed = logged_decisions(game, wanted, is_ours)
+        shown = [s for s in seats if s.power.upper() in wanted]
+        if not any(is_ours(s.policy) for s in shown):
+            lines.append(f"--decisions printed nothing: no shown seat is a seat of {ours}")
+        left_out = [s.power for s in shown if s.slot in game.logs and not is_ours(s.policy)]
+        if left_out:
+            lines.append(f"--decisions: seat logs on disk for {', '.join(left_out)} were left out (not seats of "
+                         f"{ours})")
     next_index = [phase["index"] for phase in game.phases[1:]] + [10**6]
     for i, phase in enumerate(game.phases):
         if years and not years[0] <= 1901 + phase["turn"] // 2 <= years[1]:
@@ -1289,12 +1307,14 @@ def main(argv=None) -> int:
     ap.add_argument("--years", help="with --game: only these years, for example 1901-1903 or 1904")
     ap.add_argument("--logs", action="store_true", help="with --game: print each seat's log path when it is on disk")
     ap.add_argument("--decisions", action="store_true",
-                    help="with --game: under each phase, the stances, trust and required orders the shown seats logged")
+                    help="with --game and --versus: under each phase, the stances, trust and required orders our own "
+                         "shown seats logged (other seats' logs are never printed)")
     ap.add_argument("--out", metavar="PREFIX", help="also write PREFIX.md (the text) and PREFIX.json from this read")
     ap.add_argument("--episodes", metavar="FILE", help="only the episode ids in FILE: a PREFIX.json from --out, a "
                     "saved `matchups.py --json`, or one id per line. Repeats a "
                     "run on the same games while more are being fetched")
-    ap.add_argument("--versus", help="our policy, NAME or NAME:vN: how the opponent treated our seats")
+    ap.add_argument("--versus", help="our policy, NAME or NAME:vN: how the opponent treated our seats; with --game "
+                                     "--decisions, the policy whose seat logs are printed")
     ap.add_argument("--variant", help="only this variant, for example classic-press or classic-gunboat")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
@@ -1309,7 +1329,8 @@ def main(argv=None) -> int:
             return 2
         powers = [p.strip().title() for p in args.powers.split(",")] if args.powers else None
         years = [int(y) for y in args.years.split("-")] if args.years else None
-        print(render_game(games[0], powers, (years[0], years[-1]) if years else None, args.logs, args.decisions))
+        print(render_game(games[0], powers, (years[0], years[-1]) if years else None, args.logs, args.decisions,
+                          args.versus))
         return 0
     if not args.opponent:
         ap.error("--opponent NAME or --game EPISODE_ID is required")

@@ -230,6 +230,18 @@ class ReplayTests(unittest.TestCase):
         self.assertIn("No such game", missing.text)
         self.assertEqual(self.client.get("/api/replays/ereq_nope").status_code, 404)
 
+    def test_buttons_that_send_at_once_say_so(self):
+        """Other pages' requests wait in the message box for Enter; a note and an audit request do not."""
+        page = self.client.get("/replays/ereq_press").text
+        at_once = "as soon as you click; nothing waits in the message box."
+        self.assertIn(f'id="send-notes" title="Sends your notes to the agent {at_once}"', page)
+        self.assertIn(f'title="Sends your notes to the agent {at_once}" hidden>Send all now</button>', page)
+        script = self.client.get("/static/replay.js").text
+        for words in ('"Send the note to the agent now"', ' notes to the agent now"', '"Send now"',
+                      "A click sends the request at once."):
+            self.assertIn(words, script)
+        self.assertNotIn('"Send to agent"', script)
+
     # ----- viewer data -----
 
     def test_view_is_compact_and_survives_a_replay_without_coordinates(self):

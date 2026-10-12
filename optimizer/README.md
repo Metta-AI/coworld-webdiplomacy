@@ -138,10 +138,19 @@ IDE build (2026-10-11), a third drive of the published template and an overnight
   create time (1.4 to 3.3 credits per press game over 2026-10-11 and the night after; it moves) and each episode's recorded
   `cost_usd` (about $0.5); `run_ab.py` prints the estimate when it launches. Neither is the
   bill, their relation is not known, and nobody has read a balance.
-- **`run_ab.py --variant` (the short-game screen stage) has unit tests only**; no screen has
-  been launched hosted. `--dry-run`, `my_versions.py`, `press_behaviour.py`, `ally_losses.py`
-  and `hold_reasons.py` were written and used in one lab's overnight run and have had no
-  second user.
+- **`run_ab.py --variant` (the short-game screen stage), `--max-credits` and `--add-set` have
+  unit tests only**; none has been used on a hosted launch. `--dry-run`, `my_versions.py`,
+  `press_behaviour.py`, `centre_losses.py` and `hold_reasons.py` were written and used in one
+  lab's overnight run and have had no second user.
+- **`wake_bench.py` has had two short checks with a real model** (40 and 8 recorded decisions,
+  2026-10-12, the starter's default model). Its behaviour table moved the same way as the
+  hosted games it was sampled from. The count of decisions cut off at a time or call limit has
+  unit tests only. `llm_sidecar_local.py --upstream` has forwarded calls to OpenRouter's own
+  address and relayed another provider's refusal; it has not completed a call with a second
+  provider, and `--drop` is untested against one.
+- **`matchups.py --ours`, `holds.py --ours`, `batches.py`'s "N of M in" and `press_audit.py
+  extract --by-year`** are new (2026-10-12), each checked once against one lab's games. A
+  half-fetched batch was shown only by a synthetic test.
 - **`ship.py` and `build.sh` know one source tree, `players/castlereagh`.** Every upload is
   built from it and logged in its `VERSION_LOG.md`, whatever policy name it is uploaded under
   (the row's first cell carries the name, which is what the IDE reads). A second policy source

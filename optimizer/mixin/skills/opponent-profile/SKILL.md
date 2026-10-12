@@ -190,6 +190,11 @@ python3 $L/tools/seat_rows.py $A --policy <name> --as Russia --variant $V --vers
 `--split-by POWER` answers "only beside one neighbour?", which eval batches
 that replay one seating make the first question to ask.
 
+In the `seat_rows.py --versus` lines the two policies are written by name
+("<name> finished behind; first hostile act: <our policy> on <name> Spring
+1902, …"), so the same line reads the right way round here, where `--policy`
+is the opponent, and in a matchup write-up, where it is ours.
+
 Write a script in `instruments/` only for what those cannot count (a supported
 attack and how the defender answered; a retreat onto a home centre). The
 profile tool's docstring has the import skeleton, the fields of `seat_facts`
@@ -245,7 +250,8 @@ on disk and rewrite the file.
 - End the file with a short "Changes since the profile of <old date, run
   time, game count>" section: which counts moved, and which patterns were
   dropped, added or reversed. If nothing changed but the counts, say that.
-- In `META.md`, edit the lines the old profile wrote; do not add second ones.
+- In `META.md`, edit the lines the old profile wrote; do not add second ones
+  (step 6 says who makes the edit).
 
 ```markdown
 ---
@@ -303,6 +309,14 @@ is wrong in any game with a retreat phase. Never paste private press into the re
 tracked files.
 
 ### 6. Update META.md
+
+**Only the main agent edits `META.md`.** If you are a sub-agent (one profile
+among several being written at the same time), do not open `META.md` for
+writing: several writers of one file overwrite each other. End your reply with
+a "META lines" block instead, holding the row cell and any weak-point line in
+the wording below, each ready to paste, and say that you did not edit the
+file. The main agent places the lines from every profile in one edit after
+the sub-agents have finished.
 
 In `$L/META.md`, set or add the opponent's row in "Who is in the field": the
 "How it plays (and how we know)" cell gets **one sentence and a link**:

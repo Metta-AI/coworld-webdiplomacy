@@ -90,6 +90,84 @@ class DashboardTests(unittest.TestCase):
         log.write_text("| Version | Id |\n|---|---|\n| rival-b:v2 | `x` |\n| not-on-disk:v1 | `y` |\n")
         self.assertEqual(self.api()["filters"]["policy"], "rival-b")
 
+    def test_the_default_variant_is_the_leagues_and_short_games_get_their_own_line(self):
+        played = [{"event": "decision"}]
+        for score in (0.1, 0.2, 0.1, 0.2):  # a first evening: four health games and one league-length game
+            self.game("health", score, variant="Classic press short", logs={0: played})
+        self.game("xreq_press", 0.4, logs={0: played})
+        self.game("xreq_press", 0.2, ours="rival-d:v1")
+        self.assertEqual(self.api()["filters"]["variant"], "classic-press")
+        line = "4 short health games (classic-press-short), not scored here."
+        page = self.client.get("/dashboard").text
+        self.assertIn(line, page)
+        self.assertIn('href="/dashboard?policy=mine&amp;variant=classic-press-short"', page)
+        self.assertIn(line, self.client.get("/").text)
+        # Asked for, the short games are shown as before, and the page says what they are.
+        short = self.client.get("/dashboard", params={"variant": "classic-press-short"}).text
+        self.assertIn("mine, all versions pooled · classic-press-short", short)
+        self.assertIn("These are short health games", short)
+        self.assertNotIn("not scored here", short)
+        self.assertNotIn("These are short health games", page)
+
+    def test_a_policy_with_only_short_games_shows_them_and_says_what_they_are(self):
+        self.game("health", 0.1, variant="Classic press short", logs={0: [{"event": "decision"}]})
+        self.assertEqual(self.api()["filters"]["variant"], "classic-press-short")
+        self.assertIn("These are short health games", self.client.get("/dashboard").text)
+        self.assertIn("These are short health games", self.client.get("/").text)
+
+    def lab_with_three_versions(self):
+        played = [{"event": "decision"}]
+        for version, games in (("v1", 16), ("v2", 16), ("v3", 2)):
+            for _ in range(games):
+                self.game("xreq_press", 0.3, ours=f"mine:{version}", logs={0: played})
+        self.game("xreq_press", 0.2, ours="rival-d:v1")
+
+    def test_the_headline_is_the_newest_version_with_enough_games_and_names_it(self):
+        self.lab_with_three_versions()
+        data = self.api()
+        self.assertEqual((data["filters"]["version"], data["report"]["policy"], data["report"]["games"]),
+                         ("v2", "mine:v2", 16))
+        note = ("v2 is the newest version with at least 16 games in this view. "
+                "Newer, with too few games so far: v3 (2 games).")
+        page = self.client.get("/dashboard").text
+        self.assertIn("mine:v2 · classic-press", page)
+        self.assertIn(note, page)
+        # The page chose the version, so its links do not pin it; pooling is one click away.
+        self.assertIn('href="/dashboard?policy=mine&amp;source=xp&amp;variant=classic-press"', page)
+        self.assertIn('href="/dashboard?policy=mine&amp;version=all&amp;variant=classic-press"', page)
+        self.assertIn('<option value="">newest with 16 games: v2</option>', page)
+        home = self.client.get("/").text
+        self.assertIn("Policy we follow · mine:v2 · classic-press", home)
+        self.assertIn(note, home)
+        self.assertIn("16 games, 16 of our seats", home)
+
+    def test_all_versions_and_one_version_are_shown_when_asked_for(self):
+        self.lab_with_three_versions()
+        pooled = self.api(version="all")
+        self.assertEqual((pooled["filters"]["version"], pooled["report"]["policy"], pooled["report"]["games"]),
+                         ("all", "mine", 34))
+        page = self.client.get("/dashboard", params={"version": "all"}).text
+        self.assertIn("mine, all versions pooled · classic-press", page)
+        self.assertIn('<option value="all" selected>', page)
+        self.assertNotIn("is the newest version with", page)
+        self.assertIn("version=all&amp;source=xp&amp;variant=classic-press", page)  # its links stay pooled
+        one = self.api(version="v3")
+        self.assertEqual((one["filters"]["version"], one["report"]["games"]), ("v3", 2))
+        self.assertIn('<option value="v3" selected>', self.client.get("/dashboard", params={"version": "v3"}).text)
+        self.assertEqual(self.api(policy="mine:v1")["report"]["policy"], "mine:v1")
+
+    def test_versions_are_pooled_and_named_while_none_has_enough_games(self):
+        self.lab_with_two_variants()
+        self.game("xreq_press", 0.3, ours="mine:v3", logs={0: [{"event": "decision"}]})
+        self.assertEqual(self.api()["filters"]["version"], "")
+        note = "No version has 16 games in this view yet, so all 2 are pooled: v1 (3 games), v3 (1 game)."
+        page = self.client.get("/dashboard").text
+        self.assertIn(note, page)
+        self.assertIn("mine, all versions pooled · classic-press", page)
+        home = self.client.get("/").text
+        self.assertIn(note, home)
+        self.assertIn("Policy we follow · mine · classic-press · all versions pooled", home)
+
     def test_filters(self):
         self.lab_with_two_variants()
         pooled = self.api(policy="mine", variant="all")["report"]
@@ -158,6 +236,7 @@ class DashboardTests(unittest.TestCase):
         self.assertIn("Too few games to say", text)  # three seats: no verdict
         self.assertIn('href="/replays?policy=mine&amp;opponent=rival-a&amp;variant=classic-press"', text)
         self.assertIn('data-writeup="rival-a"', text)
+        self.assertIn("Asking for a write-up sends the request at once.", text)
         self.assertIn("None on disk yet for this policy.", text)  # no league press games: the row stays
         self.assertIn("/static/dashboard.js", text)
         self.assertIn("dashboard_policy=mine", response.headers.get("set-cookie", ""))

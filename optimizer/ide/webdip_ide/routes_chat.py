@@ -2,7 +2,8 @@
 
   GET  /api/chat?after=N     chat messages with seq > N, and the agent's delivery cursor
   POST /api/chat             {text, context?}: a user message for the agent
-  GET  /api/cards?after=N    agent cards with seq > N
+  GET  /api/cards?after=N    agent cards with seq > N, and the status of every experiment record
+                             (an idea card links to its record; see `chat.js: ideaActions`)
   GET  /api/agent/status     is an agent attached, is it listening, what is still undelivered
 
 The browser polls these every two seconds. Nothing here talks to the agent directly: a
@@ -17,7 +18,7 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from . import hooks, store
+from . import hooks, routes_experiments, store
 from .server import require_local_host
 
 NAV = None  # the panel is on every page
@@ -67,7 +68,7 @@ def post_chat(post: ChatPost):
 
 @router.get("/api/cards")
 def get_cards(after: int = 0):
-    return {"cards": store.cards(after=after)}
+    return {"cards": store.cards(after=after), "records": routes_experiments.statuses()}
 
 
 @router.get("/api/agent/status")

@@ -1,5 +1,7 @@
 import argparse
+import contextlib
 import gzip
+import io
 import json
 import os
 import statistics
@@ -57,6 +59,26 @@ class Metrics(unittest.TestCase):
     def test_cli_exit_code_without_target(self):
         with mock.patch("sys.stdout"):
             self.assertEqual(wd.main(["metrics", str(FIXTURES / "local"), "--policy", "nobody"]), 2)
+
+    def test_a_bare_name_takes_every_version_and_a_miss_says_what_is_there(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            seating = ["mine:v1", "mine:v2", "mine-search:v1", "rival:v1", "rival:v1", "rival:v1", "rival:v1"]
+            write_episode(Path(tmp) / "ereq_a", [1 / 7] * 7, list(range(1, 8)), [4] * 7, seating=seating)
+            seats, statuses = load_dirs([Path(tmp)])
+            self.assertEqual(wd.metrics_report(seats, statuses, policy="mine")["overall"]["n"], 2)  # not mine-search
+            self.assertEqual(wd.metrics_report(seats, statuses, policy="mine:v2")["overall"]["n"], 1)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(wd.main(["metrics", tmp, "--policy", "mine"]), 0)
+                self.assertEqual(wd.main(["seats", tmp, "--policy", "mine"]), 0)
+            self.assertIn("# mine: 1 episodes", out.getvalue())
+            self.assertEqual(sum(line.startswith("{") for line in out.getvalue().splitlines()), 2)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(wd.main(["metrics", tmp, "--policy", "min"]), 2)
+            error = json.loads(out.getvalue())
+            self.assertEqual(error["error"], f"no seat of policy 'min' below {tmp}")
+            self.assertEqual(error["policies"], ["mine-search:v1", "mine:v1", "mine:v2", "rival:v1"])
 
 
 class Seats(unittest.TestCase):

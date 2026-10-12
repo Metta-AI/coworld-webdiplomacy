@@ -53,10 +53,11 @@
     <p class="empty">{% if record.status == "proposed" %}Not run yet{% else %}{{ result.progress | capitalize }}{% endif %}. {% if result.folders | length == 1 %}<code>tools/run_ab.py</code> fetches this experiment's games into
       <code>.runtime/artifacts/{{ result.folders[0].name }}</code>{% else %}The record reads its games from the {{ result.folders | length }} folders above{% endif %}; the number appears here when both versions have games.</p>
     {% endif %}
-    {% for who, count in result.alone if count %}
-    <p class="about">Candidate-alone check: {{ count }} game{{ "" if count == 1 else "s" }} of the {{ who }} playing alone
-      {{ "is" if count == 1 else "are" }} on disk. Their reading is the agent's (<code>tools/compare.py</code>), in the record below.</p>
-    {% endfor %}
+    {% if result.alone %}
+    <p class="about">Candidate-alone check, already launched:
+      {% for arm in result.alone %}the {{ arm.who }} playing alone, {{ arm.progress }}{{ "; " if not loop.last else "." }}{% endfor %}
+      Their reading is the agent's (<code>tools/compare.py</code>), in the record below.</p>
+    {% endif %}
     <p class="controls experiment-links">
       {% if links.dashboard %}<a class="btn plain" href="{{ links.dashboard }}">{{ record.candidate }} on the dashboard</a>{% endif %}
       {% for folder in result.folders if folder.games %}<a class="btn plain" href="{{ folder.replays }}">{% if result.folders | length == 1 %}These {{ folder.games }} games in Replays{% else %}The {{ folder.games }} games of {{ folder.name }} in Replays{% endif %}</a>{% endfor %}

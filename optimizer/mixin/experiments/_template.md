@@ -21,6 +21,11 @@ and `cost` filled, `candidate: n/a`, nothing built. The IDE's Experiments page l
 a "Run this" request. `tools/run_ab.py` refuses to launch while the front matter still has a
 `<...>` placeholder.)*
 
+*(A survey or a baseline run tests nothing, but its games still need a record so their batch
+ids and cost are kept. Write `hypothesis: "Not a test: a survey of <what>"`, put what you will
+report and what would make you distrust the run into `decision_rule`, `candidate: n/a`, and
+close it `inconclusive` with the numbers in "Result": the status list has no "read" value.)*
+
 *(Where the result is read from: this record's own folder, `.runtime/artifacts/<record id>`,
 which is where `tools/run_ab.py` fetches, and it is always read. `artifacts:` lists any other
 folders under `.runtime/artifacts` to read with it, by name, in the order to read them: an

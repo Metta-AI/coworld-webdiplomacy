@@ -3,7 +3,7 @@
 
     python3 games/webdiplomacy/tools/matchups.py DIR... --policy NAME[:vN] \\
         [--source league|xp|local|all] [--variant classic-press] [--opponent NAME] [--alone]
-        [--episodes FILE] [--out PREFIX] [--json]
+        [--ours OTHERNAME]... [--episodes FILE] [--out PREFIX] [--json]
     python3 games/webdiplomacy/tools/matchups.py DIR... --list [--variant V] [--source S]
                                                           # which policies are in the data (or that slice)
 
@@ -47,6 +47,16 @@ How the numbers are made
   run: its score level is not what one seat gets alone. `alone_games` and `paired_games` count
   both kinds among our clean games. `--alone` leaves the paired games out of everything, par
   included, as if they were not on disk; `paired_games` then says how many were left out.
+- **Our other policies.** The tool knows "ours" only by the name given to `--policy`. If you
+  also uploaded under another name (a search-only build, a second lineage), name it with
+  `--ours OTHERNAME` (repeat it for more): every seat of that name is then treated like a
+  sibling version. It is neither par nor an opponent, and a game that seats it beside the
+  policy is a paired game, which `--alone` leaves out. Without `--ours` such a seat is counted
+  as a field seat and gets an opponent row. `also_ours` in the JSON lists the names given.
+- **Sources read.** `sources` counts our clean games by source; `sources_read` counts every
+  game read. A source with games read and none of ours (league rounds fetched before the
+  policy was entered, for example) gets its own line in the text, so it is not taken for
+  league results of ours. Its field seats still count toward par.
 - **Pinning a run.** `--out PREFIX` also writes PREFIX.json and PREFIX.txt. `--episodes FILE`
   reads only the games listed in FILE: a PREFIX.json from `--out` (its `episodes_read`, so par
   rests on the same games), a JSON that `opponent_profile.py --out` wrote, or one episode id
@@ -56,9 +66,10 @@ JSON shape (`--json`, and `report()`); every `stat` is
 `{n, games, mean, se, z, ci: [lo, hi], low_n, verdict, lean}` (`mean`.. `ci` are null when unknown;
 `lean` is null unless the row is below the floor and leans, see above):
 
-  {policy, version, family, filters: {source, variant, opponent, alone},
+  {policy, version, family, also_ours: [name], filters: {source, variant, opponent, alone},
    games, seats, variants: {variant: games}, mixed_variants, several_of_ours_games, no_par_seats,
-   sources: {league, xp, local: games},  alone_games, paired_games,
+   sources: {league, xp, local: games},  sources_read: {league, xp, local: games read},
+   alone_games, paired_games,
    episodes: [id],          our clean games, the ones every number rests on
    episodes_read: [id],     every game in scope, the field's included: what --episodes reads back
    caveats: [str],
@@ -310,12 +321,14 @@ def _summary(rows: list[Ours]) -> dict:
     return {"vs_par": stat(_obs(rows)), "score": _mean(r.seat.score for r in rows)}
 
 
-def field_pars(games: list[Game], family: str) -> dict[str, dict[str, dict]]:
-    """variant -> power -> {n, score, final_centers, centers_by_year} over the field seats."""
+def field_pars(games: list[Game], families: set[str]) -> dict[str, dict[str, dict]]:
+    """variant -> power -> {n, score, final_centers, centers_by_year} over the field seats.
+
+    `families` are the policy names that are ours: their seats are not field seats."""
     groups: dict[tuple[str, str], list[Seat]] = defaultdict(list)
     for g in games:
         for s in g.seats:
-            if family_of(s.policy) != family:
+            if family_of(s.policy) not in families:
                 groups[(g.variant, s.power)].append(s)
     out: dict[str, dict[str, dict]] = defaultdict(dict)
     for (variant, power), seats in sorted(groups.items()):
@@ -331,10 +344,10 @@ def field_pars(games: list[Game], family: str) -> dict[str, dict[str, dict]]:
     return dict(out)
 
 
-def _opponents(game: Game, family: str) -> dict[str, list[Seat]]:
+def _opponents(game: Game, families: set[str]) -> dict[str, list[Seat]]:
     out: dict[str, list[Seat]] = defaultdict(list)
     for s in game.seats:
-        if family_of(s.policy) != family:
+        if family_of(s.policy) not in families:
             out[family_of(s.policy)].append(s)
     return out
 
@@ -427,18 +440,21 @@ def _cost(rows: list[Ours]) -> dict:
 
 
 def report(games: list[Game], policy: str, source: str = "all", variant: str | None = None,
-           opponent: str | None = None, alone: bool = False) -> dict:
+           opponent: str | None = None, alone: bool = False, also_ours: tuple[str, ...] = ()) -> dict:
     """The whole dashboard for `policy` (`NAME` or `NAME:vN`) over `games`; see the module docstring.
 
-    `alone` leaves out every game that seats two or more seats of the policy's family."""
+    `alone` leaves out every game that seats two or more seats of the policy's family.
+    `also_ours` names other policies that are ours: counted with the family for `alone`, and
+    neither par nor opponents."""
     family = family_of(policy)
     version = policy if policy != family else None
+    our_families = {family, *(family_of(name) for name in also_ours)}
 
     def ours(s: Seat) -> bool:
         return s.policy == version if version else family_of(s.policy) == family
 
     def paired(g: Game) -> bool:
-        return sum(family_of(s.policy) == family for s in g.seats) > 1
+        return sum(family_of(s.policy) in our_families for s in g.seats) > 1
 
     def is_clean(g: Game) -> bool:
         return not any(s.taint and (ours(s) or set(s.taint) & EPISODE_TAINTS) for s in g.seats)
@@ -446,7 +462,7 @@ def report(games: list[Game], policy: str, source: str = "all", variant: str | N
     scope = in_scope(games, source, variant)
     games = [g for g in scope if any(ours(s) for s in g.seats)]
     if opponent:
-        games = [g for g in games if opponent in _opponents(g, family)]
+        games = [g for g in games if opponent in _opponents(g, our_families)]
     # Counted before `alone` narrows the view, so an alone report says how many games it left out.
     seating = Counter("paired" if paired(g) else "alone" for g in games if is_clean(g))
     if alone:
@@ -456,7 +472,7 @@ def report(games: list[Game], policy: str, source: str = "all", variant: str | N
     clean = [g for g in scope if is_clean(g)]
     # Par rests on every clean game in scope, with or without one of our seats and whatever the
     # opponent filter says, so a seat's score vs par does not move when the view is narrowed.
-    pars = field_pars(clean, family)
+    pars = field_pars(clean, our_families)
 
     seen = [s for g in games for s in g.seats if ours(s)]
     flags = Counter(t for s in seen for t in s.taint)
@@ -464,7 +480,7 @@ def report(games: list[Game], policy: str, source: str = "all", variant: str | N
     kept = [g for g in games if id(g) in clean_ids]
     rows = []
     for g in kept:
-        opponents = _opponents(g, family)
+        opponents = _opponents(g, our_families)
         for s in g.seats:
             if ours(s):
                 rows.append(Ours(g, s, pars.get(g.variant, {}).get(s.power, {}).get("score"), opponents))
@@ -514,12 +530,14 @@ def report(games: list[Game], policy: str, source: str = "all", variant: str | N
 
     opponent_names = Counter(name for v in our_games.values() for name in v[0].opponents)
     sources = Counter(g.source for g in kept)
+    sources_read = Counter(g.source for g in scope)
     return {
-        "policy": policy, "version": version, "family": family,
+        "policy": policy, "version": version, "family": family, "also_ours": sorted(our_families - {family}),
         "filters": {"source": source, "variant": variant, "opponent": opponent, "alone": alone},
         "games": len(our_games), "seats": len(rows), "variants": dict(sorted(variants.items())),
         "mixed_variants": len(variants) > 1, "several_of_ours_games": several, "no_par_seats": no_par,
         "sources": {name: sources[name] for name in SOURCES},
+        "sources_read": {name: sources_read[name] for name in SOURCES},
         "alone_games": seating["alone"], "paired_games": seating["paired"],
         "episodes": sorted(our_games), "episodes_read": sorted(g.episode for g in scope),
         "caveats": caveats,
@@ -617,7 +635,8 @@ def render(r: dict) -> str:
     v = o["vs_par"]
     interval = f", 95% interval {_signed(v['ci'][0])} to {_signed(v['ci'][1])}" if v["ci"] else ""
     s = r["sources"]
-    seating = f"{r['alone_games']} seat one seat of {r['family']}, {r['paired_games']} seat two or more"
+    names = " or ".join([r["family"], *r["also_ours"]])
+    seating = f"{r['alone_games']} seat one seat of {names}, {r['paired_games']} seat two or more"
     lines += ["", f"sources: {s['league']} games from league matches, {s['xp']} from experience requests, "
                   f"{s['local']} local | {seating}{' (left out)' if f['alone'] else ''}",
               f"overall: score vs par {_signed(v['mean'])} ± {_plain(v['se'])} SE, z {_signed(v['z'], 2)}, n={v['n']}"
@@ -628,6 +647,11 @@ def render(r: dict) -> str:
               f"eliminated {_pct(o['eliminated'])} | top score {_pct(o['top_score'])}",
               f"taint: {r['taint']['flags'] or 'none'}; games dropped {r['taint']['games_dropped']}, "
               f"missing results {r['taint']['games_missing_results']}"]
+    words = {"league": "league matches", "xp": "experience requests", "local": "local runs"}
+    for source in SOURCES:
+        if r["sources_read"][source] and not s[source]:
+            lines.append(f"no clean game of {r['policy']} from {words[source]}: {r['sources_read'][source]} such games "
+                         "were read and count toward par only")
     c = r["cost"]
     if c["llm_seats"]:
         lines.append(f"LLM cost: ${c['usd_per_seat_game']} per seat-game over {c['llm_seats']} seats "
@@ -677,6 +701,9 @@ def main(argv=None) -> int:
     ap.add_argument("--opponent", help="only games that also seat this opponent policy (NAME)")
     ap.add_argument("--alone", action="store_true",
                     help="leave out games that seat two or more seats of the policy (any version): paired runs")
+    ap.add_argument("--ours", action="append", default=[], metavar="OTHERNAME",
+                    help="another policy name that is also ours (repeatable): not par, not an opponent, and a game "
+                         "that seats it beside the policy is a paired game for --alone")
     ap.add_argument("--episodes", metavar="FILE", help="only the episode ids in FILE: a PREFIX.json from --out (of "
                     "this tool or opponent_profile.py), or one id per line. Repeats a run on the same games")
     ap.add_argument("--out", metavar="PREFIX", help="also write PREFIX.json (the report) and PREFIX.txt (the text)")
@@ -701,7 +728,7 @@ def main(argv=None) -> int:
                 print(f"{p['name']}: {p['games']} games, versions {versions}, {p['seats_with_log']} of "
                       f"{p['seats']} seats with a log, latest {p['latest'] or 'local'}")
         return 0 if args.list else 2
-    result = report(games, args.policy, args.source, args.variant, args.opponent, args.alone)
+    result = report(games, args.policy, args.source, args.variant, args.opponent, args.alone, tuple(args.ours))
     if not result["taint"]["seats_seen"]:
         print(json.dumps({"error": "no seats for this policy and these filters",
                           "policies": [p["name"] for p in policies]}))

@@ -75,6 +75,17 @@ then close the record yourself. `--resume` skips steps 1 to 4 and picks up at
 the fetch, using the ids already in the record (for an interrupted run). The line
 "launched N batches" on stderr also gives the platform's estimate in credits
 (`cost_preview.estimated_cost_credits`, summed); it is an estimate, not the bill.
+
+`--max-credits N` puts a limit on a paired launch. The platform prices a request only when it
+is created, so the tool creates the first batch, reads its quote, and stops there if the whole
+set at that price would pass N; it checks again after every batch, so a price that rises
+mid-launch also stops it. A stopped launch has created some batches (their ids are in the
+record) and prints how many; those do not cover every power and both seat orders. `--add-set`
+launches one more full set into a record that already has batches, for a run sized in steps
+(launch a small set, see its price, add another): the new ids join `evals:`, the games land in
+the same folder, and the read covers every set together. Write the plan for sets into the
+record's decision rule before the first launch; adding a set because a result looked close is
+optional stopping.
 Policies may be `name:vN` or a policy-version id; give `--a-label/--b-label`
 when a ref is an id, because the analysis needs the `name:vN` label.
 Standard library only; needs the `coworld` CLI session the seed scripts use.
@@ -226,30 +237,70 @@ def placeholders(text: str) -> list[str]:
     return found
 
 
+def over_limit(credits: float, last: float, left: int, max_credits: float | None) -> float | None:
+    """The projected total when creating the `left` remaining bodies at the last body's quote would pass
+    `max_credits`; None when it fits, when there is no limit, or when nothing is left to create."""
+    projected = credits + last * left
+    return projected if max_credits is not None and left and projected > max_credits else None
+
+
+def stopped_line(done: int, total: int, games: int, credits: float, projected: float, max_credits: float) -> str:
+    affordable = int(max_credits // (projected / total)) if projected else 0
+    return (f"STOPPED at the credit limit: {done} of {total} batches launched, {games} games, {credits:.1f} credits "
+            f"quoted. All {total} would be about {projected:.1f} at the price just quoted, over the limit of "
+            f"{max_credits:.1f}. Nothing more was launched. The batches launched do not cover every power and "
+            f"both seat orders, so they are not a balanced run by themselves: tell the user, then either raise "
+            f"the limit and launch a full set beside them (--add-set), or read them as a partial run and say so "
+            f"in the record. The limit covers {affordable} of {total} batches at this price.")
+
+
+def add_set_stem(bodies_dir: Path, record_id: str) -> str:
+    """The body-file stem of the next added set: `<record>-add2`, then `-add3`, ..."""
+    used = {int(match.group(1)) for path in bodies_dir.glob(f"{record_id}-add*-r*.json")
+            if (match := re.match(rf"{re.escape(record_id)}-add(\d+)-r", path.name))}
+    return f"{record_id}-add{max(used, default=1) + 1}"
+
+
 def launch(args: argparse.Namespace, record: Path) -> list[str]:
+    """Create the paired bodies and write their ids into the record. Returns every paired id of the record.
+
+    With `--add-set` the record already lists batches and one more full set is created beside them.
+    With `--max-credits` the launch stops as soon as the bodies still to create, at the quote the
+    platform gave for the last one, would take the run past the limit."""
     text = record.read_text()
     unfilled = placeholders(text)
     if unfilled:
         sys.exit(f"{record.name} still has template placeholders in its front matter; fill them first: "
                  + "; ".join(unfilled))
-    if paired_ids(text):
-        sys.exit(f"{record.name} already lists batches; use --resume to fetch and read them")
+    earlier = paired_ids(text)
+    if earlier and not args.add_set:
+        sys.exit(f"{record.name} already lists batches; use --resume to fetch and read them, or --add-set to "
+                 f"launch one more full set into the same record")
+    if args.add_set and not earlier:
+        sys.exit(f"{record.name} lists no batches yet; --add-set adds a set to a record that has been launched")
 
     bodies_dir = LAB / ".runtime" / "requests"
-    stem = bodies_dir / f"{args.record}.json"
-    run(paired_request(args, stem))
-    bodies = sorted(bodies_dir.glob(f"{args.record}-r*.json"))
+    stem = add_set_stem(bodies_dir, args.record) if args.add_set else args.record
+    run(paired_request(args, bodies_dir / f"{stem}.json"))
+    bodies = sorted(bodies_dir.glob(f"{stem}-r*.json"))
     run([EVAL_REQUEST, "create", bodies[0], "--dry-run"])
     ids, credits = [], 0.0
-    for body in bodies:
+    for index, body in enumerate(bodies):
         created = json.loads(run([EVAL_REQUEST, "create", body]))
         ids.append(created["created"])
         credits += estimate(created)
         # Write after every create: an interrupted launch must not leave unrecorded batches.
         # From the file as it is now, so an edit made to the record meanwhile is kept.
-        record.write_text(with_evals(record.read_text(), ids, status="running"))
+        current = record.read_text()
+        record.write_text(with_evals(current, evals_in(current) + [ids[-1]] if args.add_set else ids,
+                                     status="running"))
+        projected = over_limit(credits, estimate(created), len(bodies) - index - 1, args.max_credits)
+        if projected is not None:
+            print(stopped_line(len(ids), len(bodies), len(ids) * args.episodes, credits, projected,
+                               args.max_credits), file=sys.stderr)
+            break
     print(launched_line(len(ids), len(ids) * args.episodes, credits, f"ids are in {record.name}"), file=sys.stderr)
-    return ids
+    return earlier + ids
 
 
 def launch_health(args: argparse.Namespace, record: Path) -> str:
@@ -444,9 +495,10 @@ def quote_line(label: str, bodies: list[dict], quotes: list[dict]) -> tuple[str,
 def games_requested(batch: str, responses: Path) -> int | None:
     """The games this tool asked for in the batch it fetched into the folder `batch`; None when it launched none.
 
-    A launch names its bodies, and so the saved create responses, `<folder>-r<rotation>[m].json`."""
-    saved = [batches.read_json_file(path) for path in sorted(responses.glob(f"{batch}-r*.json"))
-             if re.fullmatch(r"-r\d+m?\.json", path.name[len(batch):])] if responses.is_dir() else []
+    A launch names its bodies, and so the saved create responses, `<folder>-r<rotation>[m].json`,
+    and a set added with `--add-set` `<folder>-add<k>-r<rotation>[m].json`."""
+    saved = [batches.read_json_file(path) for path in sorted(responses.glob(f"{batch}-*.json"))
+             if re.fullmatch(r"(-add\d+)?-r\d+m?\.json", path.name[len(batch):])] if responses.is_dir() else []
     counts = [response.get("episode_count") for response in saved if isinstance(response, dict)]
     return sum(counts) if counts and all(counts) else None
 
@@ -565,6 +617,12 @@ def main(argv=None) -> None:
                          "by the platform's estimate)")
     ap.add_argument("--resume", action="store_true",
                     help="skip launch; fetch and read the batches in the record (with --alone: the two alone arms)")
+    ap.add_argument("--max-credits", type=float, metavar="N",
+                    help="paired launch: stop creating batches as soon as the rest, at the price the platform "
+                         "just quoted, would take this launch past N credits (the price is known only at create)")
+    ap.add_argument("--add-set", action="store_true",
+                    help="launch one more full paired set into a record that already lists batches, and read "
+                         "all of its sets together")
     ap.add_argument("--dry-run", action="store_true",
                     help="launch nothing: build the bodies, check the first against the live schema, and print the "
                          "platform's quoted credits for requests of this kind, beside tonight's finished batches")
@@ -582,6 +640,8 @@ def main(argv=None) -> None:
     record = record_path(args.record)
     if args.alone and args.variant:
         sys.exit("--alone and --variant are two different runs; give one")
+    if (args.add_set or args.max_credits is not None) and (args.alone or args.variant or args.resume):
+        sys.exit("--add-set and --max-credits apply to the paired launch only, not to --alone, --variant or --resume")
     if args.dry_run:
         if args.resume:
             sys.exit("--dry-run prices a launch and --resume skips the launch; give one")

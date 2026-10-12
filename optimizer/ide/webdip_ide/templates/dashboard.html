@@ -72,9 +72,10 @@
       </select>
     </label>
     <label>Version
-      <select name="version"{% if filters.version %} class="set"{% endif %}>
-        <option value="">all versions</option>
-        {% for v in filters.row.versions %}{% set short = v[filters.policy|length + 1:] %}<option value="{{ short }}"{% if short == filters.version %} selected{% endif %}>{{ short }}</option>{% endfor %}
+      <select name="version"{% if filters.version not in ("", "all") %} class="set"{% endif %} title="Versions are pooled only when you ask for it">
+        <option value="">newest with {{ view.low_n }} games{% if filters.version %}: {{ filters.version }}{% endif %}</option>
+        {% for v in filters.row.versions %}{% set short = v[filters.policy|length + 1:] %}<option value="{{ short }}"{% if short == filters.version and not filters.version_default %} selected{% endif %}>{{ short }}</option>{% endfor %}
+        <option value="all"{% if filters.version == "all" %} selected{% endif %}>all versions, pooled</option>
       </select>
     </label>
     <label>Variant
@@ -111,10 +112,13 @@
   {# ---------- headline ---------- #}
   {% set o = report.overall %}
   <section class="dash-headline" aria-labelledby="dash-h">
-    <p class="eyebrow" id="dash-h">{{ filters.policy }}{% if filters.version %}:{{ filters.version }}{% else %}, all versions{% endif %} · {{ "all variants pooled" if filters.variant == "all" else filters.variant }} · {{ source_labels[filters.source] }}</p>
+    <p class="eyebrow" id="dash-h">{{ filters.policy }}{% if filters.version not in ("", "all") %}:{{ filters.version }}{% else %}, all versions pooled{% endif %} · {{ "all variants pooled" if filters.variant == "all" else filters.variant }} · {{ source_labels[filters.source] }}</p>
     <p class="dash-lead {{ view.headline.tone }}">{{ view.headline.lead }}</p>
     {% if o.vs_par.n %}<p class="dash-cover"><span{% if cover.paired %} title="{{ cover.tip }}"{% endif %}>{{ cover.text }}</span>{% if cover.alone %} <span class="sep">·</span> alone runs only: <a href="{{ cover.alone.link }}" title="Show the dashboard for the alone runs: the figure to quote for one seat"><span class="num">{{ cover.alone.mean }}</span> over {{ cover.alone.stat.games }} games</a>, {{ cover.alone.reading }}{% endif %}</p>{% endif %}
     {% if view.headline.reading %}<p class="dash-reading">{{ view.headline.reading }}</p>{% endif %}
+    {% if filters.version_note %}<p class="muted small dash-basis">{{ filters.version_note }}{% if filters.version %} <a href="{{ link(version='all') }}">All versions, pooled</a>{% endif %}</p>{% endif %}
+    {% if filters.variant.endswith("-short") %}<p class="muted small dash-basis">These are short health games: they show that a version runs, and their scores say little about how it plays a full game.</p>{% endif %}
+    {% for short in filters.short %}<p class="muted small dash-basis">{{ short.games }} short health game{{ "" if short.games == 1 else "s" }} ({{ short.variant }}), not scored here. <a href="{{ short.link }}">Show {{ "it" if short.games == 1 else "them" }}</a></p>{% endfor %}
     {% if o.vs_par.n %}
     <p class="muted small dash-basis">{{ o.vs_par.n }} of our seats · SE {{ plain(o.vs_par.se) }}{% if o.vs_par.ci %} · 95% interval {{ signed(o.vs_par.ci[0]) }} to {{ signed(o.vs_par.ci[1]) }}{% endif %}. Par is the field's mean score at the same power in the same variant, so a lucky draw of strong powers does not read as a better policy.</p>
     <dl class="facts dash-facts">
@@ -224,8 +228,9 @@
             </div>
             <p class="dash-more-actions">
               <a class="btn small" href="{{ p.replays }}">Open these games in Replays</a>
-              <button type="button" class="small" data-writeup="{{ p.opponent }}">Ask the agent for a write-up on this opponent</button>
+              <button type="button" class="small" data-writeup="{{ p.opponent }}" title="Sends the request to the agent as soon as you click; nothing waits in the message box.">Ask the agent for a write-up on this opponent</button>
               <a class="btn plain small" href="{{ p.focus }}">Dashboard for these games only</a>
+              <span class="muted small">Asking for a write-up sends the request at once.</span>
             </p>
           </td>
         </tr>

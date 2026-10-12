@@ -3,8 +3,8 @@
 
 Standard-library Python 3.12+. Run from the optimizer root (planted lab) or the mixin root:
 
-    python3 games/webdiplomacy/tools/wd.py metrics DIR... [--policy NAME:vN | --slot K] [--keep-tainted] [--json]
-    python3 games/webdiplomacy/tools/wd.py seats DIR... [--policy NAME:vN]
+    python3 games/webdiplomacy/tools/wd.py metrics DIR... [--policy NAME[:vN] | --slot K] [--keep-tainted] [--json]
+    python3 games/webdiplomacy/tools/wd.py seats DIR... [--policy NAME[:vN]]
     python3 games/webdiplomacy/tools/wd.py costs DIR... [--json]
     python3 games/webdiplomacy/tools/wd.py local --image IMG [--episodes N] [--variant V] --out DIR
     python3 games/webdiplomacy/tools/wd.py arena --image IMG [--candidate-env K=V]... [--field-env K=V]... --out DIR
@@ -20,8 +20,10 @@ metrics
     our telemetry (rejected orders, exceptions, failing LLM calls). Episodes whose
     target seat is tainted, and cancelled or failed episodes, are dropped before any
     mean and counted; `--keep-tainted` keeps them. Target = `--policy NAME:vN`
-    (hosted), a local seating label (`candidate`), or `--slot K`. Without either,
-    every seat is pooled. Exit 0 = parsed, 2 = no target seats.
+    (hosted; a bare `NAME` takes every version of it, as in `matchups.py`), a local
+    seating label (`candidate`), or `--slot K`. Without either, every seat is pooled.
+    Exit 0 = parsed, 2 = no target seats (the error names what was asked for and
+    lists the policies that are there).
     Example: wd.py metrics .runtime/artifacts/xreq_abc --policy my-bot:v3
 
 seats
@@ -97,6 +99,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from opponent_profile import policy_matcher  # noqa: E402
 from webdip_episodes import (  # noqa: E402
     POWERS,
     REPLAY_NAMES,
@@ -157,7 +160,8 @@ def target_predicate(policy, slot):
     if slot is not None:
         return lambda s: s.slot == slot
     if policy is not None:
-        return lambda s: s.policy == policy
+        matches = policy_matcher(policy)  # NAME is every version, NAME:vN one
+        return lambda s: matches(s.policy)
     return lambda s: True
 
 
@@ -270,7 +274,9 @@ def cmd_metrics(args):
     seats, statuses = load_dirs([Path(p) for p in args.dirs])
     report = metrics_report(seats, statuses, args.policy, args.slot, args.keep_tainted)
     if not report["coverage"]["target_seats"]:
-        print(json.dumps({"error": "no target seats", "policies": sorted({s.policy for s in seats})}))
+        asked = f"slot {args.slot}" if args.slot is not None else f"policy {args.policy!r}"
+        print(json.dumps({"error": f"no seat of {asked} below {', '.join(args.dirs)}",
+                          "policies": sorted({s.policy for s in seats})}))
         return 2
     print(json.dumps(report, indent=1) if args.json else render_metrics(report))
     return 0
@@ -278,8 +284,9 @@ def cmd_metrics(args):
 
 def cmd_seats(args):
     seats, _ = load_dirs([Path(p) for p in args.dirs])
+    is_target = target_predicate(args.policy, None)
     for s in seats:
-        if args.policy is None or s.policy == args.policy:
+        if is_target(s):
             print(json.dumps(asdict(s)))
     return 0
 
@@ -688,7 +695,8 @@ def main(argv=None):
 
     m = sub.add_parser("metrics", help="per-power score vs same-batch field par, coverage, telemetry")
     m.add_argument("dirs", nargs="+")
-    m.add_argument("--policy", help="target policy NAME:vN (hosted) or seating label (local)")
+    m.add_argument("--policy", help="target policy: NAME:vN, NAME for every version (hosted), or a seating label "
+                                    "(local)")
     m.add_argument("--slot", type=int, help="target slot instead of a policy")
     m.add_argument("--keep-tainted", action="store_true", help="do not drop tainted episodes")
     m.add_argument("--json", action="store_true")
@@ -696,7 +704,7 @@ def main(argv=None):
 
     s = sub.add_parser("seats", help="one JSON row per seat")
     s.add_argument("dirs", nargs="+")
-    s.add_argument("--policy")
+    s.add_argument("--policy", help="only this policy: NAME:vN, or NAME for every version")
     s.set_defaults(func=cmd_seats)
 
     c = sub.add_parser("costs", help="LLM spend from our seat logs")

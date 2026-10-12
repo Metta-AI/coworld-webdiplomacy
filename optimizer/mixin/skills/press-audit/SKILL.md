@@ -42,7 +42,7 @@ From the optimizer root. `L=games/webdiplomacy`, `EP` is one fetched or local
 episode directory, `OUT=$L/.runtime/press/<episode id>`.
 
 ```sh
-python3 $L/tools/press_audit.py extract $EP --policy <policy>:vN --out $OUT   # --slot N if we hold two seats
+python3 $L/tools/press_audit.py extract $EP --policy <policy>:vN --out $OUT --by-year   # --slot N if we hold two seats
 #   ... annotate $OUT/claims.json (below) ...
 python3 $L/tools/press_audit.py check $OUT         # the annotator's format check: no verdicts shown
 python3 $L/tools/press_audit.py verify $OUT
@@ -52,6 +52,12 @@ python3 $L/tools/press_audit.py report $OUT        # prints the path of audit.ht
 `verify` refuses a `claims.json` that skips a message, breaks the format, or
 has a `quote` that is not in its message, and names the entry. Fix that entry
 and run it again.
+
+`annotate.json` for a full game is longer than an agent can take in one read
+(about 2,000 lines for 100 messages; a full game has 230 to 300). `--by-year`
+also writes the same content as `annotate-1901.json`, `annotate-1902.json`,
+…, one game year a file; `extract` lists them under `annotate_by_year`. The
+annotator reads those in order. `claims.json` stays one file for the game.
 
 **Choosing the games.** An audit costs a sub-agent about ten minutes a game, so
 pick on purpose: `python3 $L/tools/seat_rows.py $L/.runtime/artifacts --policy
@@ -72,7 +78,9 @@ out of your own context, and each game is read in one pass by an agent that
 holds the whole conversation. Give the sub-agent this brief, with the paths
 filled in:
 
-> Read `<OUT>/annotate.json`. It holds one Diplomacy game seen from
+> Read `<OUT>/annotate-1901.json`, then `annotate-1902.json`, and so on to
+> the last year, every file in full (together they are `<OUT>/annotate.json`,
+> which is too long for one read). They hold one Diplomacy game seen from
 > `<our_power>`'s seat, turn by turn: the board at the start of each movement
 > turn (`units_at_start`, `centres_at_start`) and the press that turn
 > (`messages`: sent by us, `direction: out`, or received, `in`). Work through
@@ -262,6 +270,12 @@ Rules that keep annotations checkable:
   as broken. Standing language is open-ended ("no designs on", "respect your
   position", "content to keep the peace", "stays yours"); a reply about this
   turn's moves is one turn. Do not stretch a one-turn claim.
+  **The code does not add those three turns: you write them.** `verify`
+  checks exactly the turns in `turns`, and a claim without `turns` is checked
+  in the one turn it was said in. So an open-ended claim said in turn 4 must
+  carry `"turns": [4, 7]`; left without, a peace broken the next year comes
+  out kept. A range that runs past the game's last turn is fine: the turns
+  that were played are checked.
 - **A statement about the past covers the turns it speaks of.** "Your spring
   holds were appreciated" is last Spring's turn; "thanks for staying out of GRE",
   with no period named, is the turn before the message. Do not stretch it over
@@ -389,7 +403,7 @@ Its layout, so you do not have to probe it:
 | `summary.messages`, `summary.messages_with_claims` | Counts |
 | `summary.powers.<POWER>` | Per speaker (upper-case name): `messages`, `claims`, `held`, `did_not_hold`, `unverifiable`, `held_share`, `asked`, `complied`, `categories` (category to count), `flagged` (the flagged claims, with quotes) and `betrayal_events` |
 | `messages[]` | `id`, `turn`, `sent_in`, `from`, `to`, `direction`, `text`, and `claims[]`: `kind`, `quote`, `commitment`, `turns`, `window`, `condition`, `evidence`, `outcome`, `to`, `relied`, `category` |
-| `phases[]` | Per movement phase: `turn`, `label`, `orders`, `units`, `centers`, `units_end`, `centers_end`, `end_known`, and `belief` (our committed stances, trust, required and expected orders that turn) |
+| `phases[]` | Per movement phase: `turn`, `label`, `orders`, `units`, `centers`, `units_end`, `centers_end`, `end_known`, and `belief` (our committed stances, trust, required and expected orders that turn). An order's `success` is true or false for a move, a support or a convoy and `null` for a hold, which cannot succeed or fail (an `audit.json` written before 2026-10-12 has `false` there: it does not mean the hold failed) |
 
 Outcomes beyond kept / broken / true / false:
 
@@ -444,7 +458,14 @@ when the stance is `ally`;
 `hostile` (or `enemy`) counts as "did not rely" whatever the trust.
 
 `summary.powers` gives, per speaker, its messages, its claims, how many held,
-how often requests made to it were met, and the flagged claims. `betrayal_events` counts the
+how often requests made to it were met, and the flagged claims. A power's
+`claims` leaves out the requests it made: a request is weighed against the
+power asked (`asked`, `complied`), not its sender. So the per-power `claims`
+add up to fewer than the claim count `check` prints. `verify` prints that
+column as `claims_without_requests` beside `requests_made`, and the two add up
+to its `claims` total, which is `check`'s number. `claims_without_requests`
+still includes proposals and claims that came out `unverifiable`; `held` and
+`did_not_hold` are the ones that could be judged. `betrayal_events` counts the
 distinct sets of orders behind a power's `betrayed` and `deceived` claims: a deal
 restated ten times and broken by one order is ten claims and **one** event. Quote the
 events, not the claims, when you say how often a power betrayed us. **"Relied" comes from our policy's own log** (its committed press policy

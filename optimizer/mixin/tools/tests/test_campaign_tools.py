@@ -167,6 +167,27 @@ class RunAbRecord(unittest.TestCase):
         self.assertIn("status: running", more)  # untouched without a status argument
         self.assertIn("Body mentions --- a dash rule.", more)
 
+    def test_credit_limit_stops_when_the_rest_would_pass_it(self):
+        # 14 bodies at 6.7 credits each is 93.8: over 60 after the first, under 100.
+        self.assertAlmostEqual(run_ab.over_limit(6.7, 6.7, 13, 60), 93.8)
+        self.assertIsNone(run_ab.over_limit(6.7, 6.7, 13, 100))
+        self.assertIsNone(run_ab.over_limit(6.7, 6.7, 13, None))   # no limit given
+        self.assertIsNone(run_ab.over_limit(93.8, 6.7, 0, 60))     # nothing left to stop
+        # The price rose mid-launch: seven bodies in at 6.7, the eighth quoted 9.8.
+        self.assertAlmostEqual(run_ab.over_limit(56.7, 9.8, 6, 100), 115.5)
+        line = run_ab.stopped_line(1, 14, 3, 6.7, 93.8, 60)
+        self.assertIn("1 of 14 batches launched, 3 games, 6.7 credits", line)
+        self.assertIn("The limit covers 8 of 14 batches", line)
+
+    def test_added_sets_get_their_own_body_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bodies = Path(tmp)
+            (bodies / "2026-01-01-x-r0.json").write_text("{}")
+            self.assertEqual(run_ab.add_set_stem(bodies, "2026-01-01-x"), "2026-01-01-x-add2")
+            (bodies / "2026-01-01-x-add2-r0.json").write_text("{}")
+            (bodies / "2026-01-01-x-add2-r1.json").write_text("{}")
+            self.assertEqual(run_ab.add_set_stem(bodies, "2026-01-01-x"), "2026-01-01-x-add3")
+
     def test_record_without_an_evals_line_is_an_error(self):
         with self.assertRaises(ValueError):
             run_ab.with_evals("---\nid: x\n---\n", ["xreq_1"])
@@ -232,7 +253,8 @@ class RunAbRecord(unittest.TestCase):
                     record.write_text(record.read_text().replace("Real text.", "Edited meanwhile."))
                 return json.dumps({"created": batch, "cost_preview": {"estimated_cost_credits": 1.5}})
 
-            args = mock.Mock(record="x", a="p:v2", b="p:v1", field_set="set", episodes=2)
+            args = mock.Mock(record="x", a="p:v2", b="p:v1", field_set="set", episodes=2,
+                             add_set=False, max_credits=None)
             err = io.StringIO()
             with mock.patch.object(run_ab, "LAB", lab), mock.patch.object(run_ab, "run", fake_run), \
                     contextlib.redirect_stderr(err):
@@ -243,6 +265,67 @@ class RunAbRecord(unittest.TestCase):
         self.assertIn("Edited meanwhile.", text)
         self.assertIn("status: running", text)
         self.assertIn("launched 2 batches, 4 games; the platform estimates 3.0 credits (0.75 a game)", err.getvalue())
+
+    def launch_in_a_lab(self, record_text, quotes, **options):
+        """Run `run_ab.launch` with three bodies and the platform's quote for each; returns (ids, record, stderr)."""
+        import contextlib
+        import io
+        import tempfile
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as tmp:
+            lab = Path(tmp)
+            (lab / "experiments").mkdir()
+            record = lab / "experiments" / "x.md"
+            record.write_text(record_text)
+            requests = lab / ".runtime" / "requests"
+            requests.mkdir(parents=True)
+            created = iter(enumerate(quotes, start=1))
+
+            def fake_run(cmd, capture=True):
+                if "make_request.py" in str(cmd[1]):
+                    stem = Path(str(cmd[cmd.index("--out") + 1])).stem
+                    for index in range(len(quotes)):
+                        (requests / f"{stem}-r{index}.json").write_text("{}")
+                    return ""
+                if "--dry-run" in cmd:
+                    return ""
+                number, quote = next(created)
+                return json.dumps({"created": f"xreq_new{number}", "cost_preview": {"estimated_cost_credits": quote}})
+
+            args = mock.Mock(record="x", a="p:v2", b="p:v1", field_set="set", episodes=3,
+                             **{"add_set": False, "max_credits": None, **options})
+            err = io.StringIO()
+            with mock.patch.object(run_ab, "LAB", lab), mock.patch.object(run_ab, "run", fake_run), \
+                    contextlib.redirect_stderr(err):
+                ids = run_ab.launch(args, record)
+            return ids, record.read_text(), err.getvalue()
+
+    def test_a_credit_limit_stops_the_launch_after_the_first_quote(self):
+        ids, text, err = self.launch_in_a_lab(self.FILLED, [6.7, 6.7, 6.7], max_credits=15)
+        self.assertEqual(ids, ["xreq_new1"])                       # 3 x 6.7 = 20.1 would pass 15
+        self.assertEqual(run_ab.evals_in(text), ["xreq_new1"])     # what was launched is in the record
+        self.assertIn("STOPPED at the credit limit: 1 of 3 batches launched, 3 games, 6.7 credits", err)
+        ids, _, err = self.launch_in_a_lab(self.FILLED, [6.7, 6.7, 6.7], max_credits=25)
+        self.assertEqual(len(ids), 3)
+        self.assertNotIn("STOPPED", err)
+
+    def test_a_price_that_rises_during_the_launch_stops_it(self):
+        ids, _, err = self.launch_in_a_lab(self.FILLED, [6.7, 9.9, 9.9], max_credits=25)
+        self.assertEqual(ids, ["xreq_new1", "xreq_new2"])          # 6.7 + 9.9 + 9.9 = 26.5 would pass 25
+        self.assertIn("2 of 3 batches launched", err)
+
+    def test_add_set_appends_to_a_launched_record_and_keeps_the_other_lists(self):
+        launched = run_ab.with_ids(run_ab.with_evals(self.FILLED, ["xreq_1", "xreq_alone"], status="running"),
+                                   "alone_a", ["xreq_alone"])
+        ids, text, _ = self.launch_in_a_lab(launched, [6.7, 6.7, 6.7], add_set=True)
+        self.assertEqual(ids, ["xreq_1", "xreq_new1", "xreq_new2", "xreq_new3"])   # every paired id, to fetch
+        self.assertEqual(run_ab.evals_in(text), ["xreq_1", "xreq_alone", "xreq_new1", "xreq_new2", "xreq_new3"])
+        self.assertEqual(run_ab.ids_in(text, "alone_a"), ["xreq_alone"])
+        with self.assertRaises(SystemExit):   # a second plain launch still refuses
+            self.launch_in_a_lab(launched, [6.7])
+        with self.assertRaises(SystemExit):   # and --add-set needs a launched record
+            self.launch_in_a_lab(self.FILLED, [6.7], add_set=True)
 
     def test_health_launches_the_asked_number_of_games_and_notes_the_id_outside_evals(self):
         import contextlib

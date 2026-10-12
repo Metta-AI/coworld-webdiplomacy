@@ -16,12 +16,20 @@ says how, and recommends a sub-agent per game).
    same press with each turn's STARTING board and no orders or results, and `DIR/claims.json`,
    one empty entry per message, for step 2 to fill in (a `claims.json` already there is kept;
    `--force` starts it again). `--slot N` picks the seat when the policy holds more than one.
+   `--by-year` also writes `DIR/annotate-1901.json`, `annotate-1902.json`, ...: the same content
+   as `annotate.json`, one game year per file, for a reader that cannot take a full game's
+   `annotate.json` in one read (they are listed under `annotate_by_year` in the output).
 2. An agent reads `annotate.json` and lists each message's claims in `DIR/claims.json` using the
    small vocabulary below. It records what was SAID; it does not judge whether it came true, and
    it does not see how any turn came out.
 3. `verify` checks every claim against the adjudicated orders and writes `DIR/audit.json`:
    per message, per claim: was the condition met, was the promise kept, the threat carried
-   out, the statement true; and whether we relied on it. `report` renders `DIR/audit.html`,
+   out, the statement true; and whether we relied on it. It prints, per power,
+   `claims_without_requests` (that power's own promises, threats, statements and proposals,
+   those that cannot be checked included) beside `requests_made`; the two add up to the claim
+   count `check` prints. A request is weighed against the power asked (`asked`, `complied`),
+   not the power that made it. In `audit.json` an order's `success` is null for a hold, which
+   cannot succeed or fail. `report` renders `DIR/audit.html`,
    one self-contained page (it holds private press: keep it on your machine).
 
 A claim in `claims.json` (the press-audit skill has the full rules and examples):
@@ -29,7 +37,9 @@ A claim in `claims.json` (the press-audit skill has the full rules and examples)
     {"kind": "promise" | "threat" | "request" | "statement" | "proposal",
      "quote": "I keep PRU/SIL quiet",    # the words in the message
      "turns": [1, 1],                    # first and last game turn covered (0 = Spring 1901);
-                                         # omit for "the turn it was said in"
+                                         # omit for "the turn it was said in". The code adds no
+                                         # turns of its own: an open-ended claim must be written
+                                         # with its range
      "condition": [<predicate>, ...],    # optional: "if you ...". All must hold
      "commitment": [<predicate>, ...],   # what is promised, threatened, asked, asserted or offered
      "asked": "RUSSIA",                  # requests in a public message only: who is asked
@@ -129,6 +139,7 @@ import html
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 from press_report import render_report
@@ -287,7 +298,8 @@ def movement_phases(replay: list) -> list[dict]:
                     "type": ORDER_TYPES[o["type"]],
                     "to": province(name[o["toTerrID"]]) if o.get("toTerrID") else None,
                     "src": province(name[o["fromTerrID"]]) if o.get("fromTerrID") else None,
-                    "success": bool(o.get("success")),
+                    # Upstream marks every hold `success: false`. A hold cannot succeed or fail.
+                    "success": None if ORDER_TYPES[o["type"]] == "hold" else bool(o.get("success")),
                     "dislodged": bool(o.get("dislodged")),
                 }
             )
@@ -456,6 +468,16 @@ def annotator_view(ledger: dict) -> dict:
         "our_power": ledger["our_power"],
         "turns": turns,
     }
+
+
+def annotator_views_by_year(view: dict) -> dict[int, dict]:
+    """`annotator_view` cut into one view per game year, for a reader that cannot take it in one read."""
+    years: dict[int, list[dict]] = {}
+    for turn in view["turns"]:
+        years.setdefault(1901 + turn["turn"] // 2, []).append(turn)
+    return {year: {**view, "read_me": view["read_me"] + f" This file holds {year} only; read the years in order.",
+                   "turns": turns}
+            for year, turns in sorted(years.items())}
 
 
 # ---------- step 3: checking claims ----------
@@ -1399,7 +1421,12 @@ def cmd_extract(args: argparse.Namespace) -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     (out / "ledger.json").write_text(json.dumps(ledger, indent=1) + "\n")
-    (out / "annotate.json").write_text(json.dumps(annotator_view(ledger), indent=1) + "\n")
+    view = annotator_view(ledger)
+    (out / "annotate.json").write_text(json.dumps(view, indent=1) + "\n")
+    by_year = []
+    for year, part in annotator_views_by_year(view).items() if args.by_year else ():
+        by_year.append(str(out / f"annotate-{year}.json"))
+        Path(by_year[-1]).write_text(json.dumps(part, indent=1) + "\n")
     claims_path = out / "claims.json"
     if claims_path.exists() and not args.force:
         print(f"kept the existing {claims_path} (use --force to start it again)", file=sys.stderr)
@@ -1410,6 +1437,7 @@ def cmd_extract(args: argparse.Namespace) -> None:
             {
                 "ledger": str(out / "ledger.json"),
                 "annotate": str(out / "annotate.json"),
+                **({"annotate_by_year": by_year} if by_year else {}),
                 "claims": str(claims_path),
                 "our_power": ledger["our_power"],
                 "messages": len(ledger["messages"]),
@@ -1425,12 +1453,24 @@ def cmd_verify(args: argparse.Namespace) -> None:
     out = Path(args.dir)
     data = audit(json.loads((out / "ledger.json").read_text()), json.loads((out / "claims.json").read_text()))
     (out / "audit.json").write_text(json.dumps(data, indent=1) + "\n")
+    # `summary.powers.<POWER>.claims` leaves requests out (they are weighed against the power asked),
+    # so it is printed under a name that says so, beside the requests that power made.
+    requests = Counter(m["from"] for m in data["messages"] for claim in m["claims"] if claim["kind"] == "request")
+    powers = {}
+    for power, row in data["summary"]["powers"].items():
+        printed = {k: row[k] for k in SUMMARY_KEYS}
+        powers[power] = {"claims_without_requests": printed.pop("claims"), "requests_made": requests[power], **printed}
     print(
         json.dumps(
             {
                 "audit": str(out / "audit.json"),
                 **{k: data["summary"][k] for k in ("messages", "messages_with_claims")},
-                "powers": {p: {k: row[k] for k in SUMMARY_KEYS} for p, row in data["summary"]["powers"].items()},
+                "claims": sum(len(m["claims"]) for m in data["messages"]),
+                "note": "claims is every claim, the number `check` prints. Per power, claims_without_requests "
+                        "counts that power's own promises, threats, statements and proposals, and requests_made "
+                        "its requests: a request is weighed against the power asked (asked, complied), not its "
+                        "sender. The two columns add up to claims.",
+                "powers": powers,
             },
             indent=1,
         )
@@ -1462,6 +1502,8 @@ def main(argv=None) -> None:
     extract.add_argument("--slot", type=int, help="our roster slot, when the policy holds more than one seat")
     extract.add_argument("--out", required=True, help="directory for this game's ledger, claims and audit")
     extract.add_argument("--force", action="store_true", help="overwrite an existing claims.json")
+    extract.add_argument("--by-year", action="store_true",
+                         help="also write annotate-<year>.json, one game year each, for reading in parts")
     extract.set_defaults(run=cmd_extract)
     verify = sub.add_parser("verify", help="check claims.json against the ledger and write audit.json")
     verify.add_argument("dir")
