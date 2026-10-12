@@ -166,11 +166,33 @@ class OwnerTest(HookCase):
             "cd x && ide/ide  attach",
         ):
             store.set_owner_session("a")
+            store.request_claim()  # what the command itself does when it runs
             run_hook("PostToolUse", {"session_id": "b", "tool_name": "Bash", "tool_input": {"command": command}})
             self.assertEqual(store.owner_session(), "b", command)
         for command in ("ide/ide status", "ide/ide say start", "echo side start"):
+            store.request_claim()
             run_hook("PostToolUse", {"session_id": "a", "tool_name": "Bash", "tool_input": {"command": command}})
             self.assertEqual(store.owner_session(), "b", command)
+
+    def test_a_command_that_only_mentions_attach_does_not_take_the_chat(self):
+        # Seen live: a `tmux send-keys` whose text named the command took the chat from its owner.
+        fake_server(self)
+        store.set_owner_session("a")
+        for command in ('tmux send-keys -t lab "ide/ide attach" Enter', "echo ide/ide start", "grep 'ide attach' x"):
+            run_hook("PostToolUse", {"session_id": "b", "tool_name": "Bash", "tool_input": {"command": command}})
+            self.assertEqual(store.owner_session(), "a", command)
+
+    def test_a_claim_is_used_once_and_goes_stale(self):
+        fake_server(self)
+        store.set_owner_session("a")
+        attach = {"tool_name": "Bash", "tool_input": {"command": "ide/ide attach"}}
+        store.request_claim()
+        run_hook("PostToolUse", {"session_id": "b", **attach})
+        run_hook("PostToolUse", {"session_id": "c", **attach})
+        self.assertEqual(store.owner_session(), "b")
+        (paths.state_dir() / "claim_pending").write_text(str(time.time() - store.CLAIM_SECONDS - 1))
+        run_hook("PostToolUse", {"session_id": "c", **attach})
+        self.assertEqual(store.owner_session(), "b")
 
     def test_a_sub_agent_that_starts_the_ide_claims_for_its_session(self):
         fake_server(self)
@@ -180,6 +202,7 @@ class OwnerTest(HookCase):
             "tool_name": "Bash",
             "tool_input": {"command": "ide/ide start"},
         }
+        store.request_claim()
         self.assertIsNone(run_hook("PostToolUse", payload))
         self.assertEqual(store.owner_session(), "b")
 

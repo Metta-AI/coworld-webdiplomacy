@@ -164,6 +164,25 @@ def owner_session() -> str | None:
         return None
 
 
+CLAIM_SECONDS = 60.0
+
+
+def request_claim() -> None:
+    """Note that `ide/ide start` or `attach` has just run inside an agent's shell (see `take_claim`)."""
+    _write_atomic(paths.state_dir() / "claim_pending", str(time.time()))
+
+
+def take_claim() -> bool:
+    """True, once, when `ide/ide start` or `attach` ran in the last minute. Removes the note."""
+    path = paths.state_dir() / "claim_pending"
+    try:
+        asked = float(path.read_text())
+        path.unlink()
+    except (OSError, ValueError):
+        return False
+    return time.time() - asked <= CLAIM_SECONDS
+
+
 def set_owner_session(session_id: str | None) -> None:
     path = paths.state_dir() / "owner_session"
     if session_id:

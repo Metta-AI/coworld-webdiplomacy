@@ -68,7 +68,9 @@ message arrives once:
 Only one Claude Code session in this folder gets the messages: the one that ran
 `ide/ide start`, or the first to act once the IDE was open. `ide/ide status` names it.
 If the user says their messages are going unanswered and another session is open in
-this folder, run `ide/ide attach` in the session that should have the chat.
+this folder, run `ide/ide attach` in the session that should have the chat, as a
+command of its own: it takes effect when the command returns, so check with
+`ide/ide status` in the next command, not the same one.
 
 Every time you receive one:
 

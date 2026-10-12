@@ -95,9 +95,13 @@ Hooks are wired per folder, so every Claude Code session started in the optimize
 runs them. One session has the chat (`owner_session` in the state directory, shown by
 `ide/ide status`), and the hooks and waiter of any other session do nothing:
 
-- The session that runs `ide/ide start` or `ide/ide attach` takes it. The `PostToolUse`
-  hook that follows the command sees it in the Bash tool's input and records that hook's
-  `session_id`; a sub-agent's command claims for its main session.
+- The session that runs `ide/ide start` or `ide/ide attach` takes it. The command, run in an
+  agent's shell, leaves a one-minute note (`claim_pending`); the `PostToolUse` hook that
+  follows sees the command in the Bash tool's input, finds the note, and records that
+  hook's `session_id`. Both are needed: the text alone would let a command that only
+  mentions `ide/ide attach` (an `echo`, a `tmux send-keys`) take the chat. A sub-agent's
+  command claims for its main session. The claim lands when the command returns, so
+  `ide/ide status` in the same command line still shows the old owner.
 - When no session has it, the first session whose hook runs while the IDE is in use
   takes it.
 - The owner's `SessionEnd` releases it. A session that died without `SessionEnd` keeps
@@ -212,11 +216,13 @@ the one thing to do.
   Claude Code. If the session dies in that instant the message is on disk but marked
   delivered; `ide/ide inbox --recent 5` prints it again.
 - **One agent session has the chat.** A second Claude Code session in the same optimizer
-  root no longer takes messages (see "Which session gets the chat"). That rule has unit
-  tests only: it was written after the live checks of 2026-10-11 and has not been run
-  with two real sessions. It relies on two things about Claude Code that were not
-  re-checked: the Rewake hook receives the event's JSON (with `session_id`) on stdin, and
-  `PostToolUse` carries the Bash command in `tool_input.command`.
+  root no longer takes messages (see "Which session gets the chat"). A first
+  version was run with two live sessions on Claude Code 2.1.296 (2026-10-11): `attach`
+  moved the chat, the old owner's waiter exited within a second, and browser messages
+  reached the new owner while the other session kept working. That run also showed the
+  claim being taken by a command that only mentioned `ide/ide attach`; the `claim_pending`
+  note that fixes it has unit tests only. With no owner yet, whichever session next runs
+  a hook takes the chat, which may not be the one the user means: `attach` settles it.
 - **Sub-agents do not receive messages** (hook input with `agent_id` is skipped); the
   main session gets them at its next step.
 - **Hooks need workspace trust** and Claude Code 2.1.296 or newer (older versions were

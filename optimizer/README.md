@@ -114,7 +114,8 @@ IDE build (2026-10-11), a third drive of the published template and an overnight
   (`pod_deleted`); the cause is on the platform side.
 - **IDE: one agent session has the chat, Claude Code only.** Delivery to the running session
   uses Claude Code hooks, tested on 2.1.296. A second session in the same folder is kept
-  out by an owner rule that has unit tests only (`ide/README.md`, "Which session gets the chat"). Other harnesses get the `ide/ide listen`
+  out by an owner rule (`ide/README.md`, "Which session gets the chat"), run once with two
+  live sessions; its last fix has unit tests only. Other harnesses get the `ide/ide listen`
   background task or the MCP tools. The MCP tools were used in a live Claude Code session
   (2026-10-11); nothing was tried under another harness.
 - **No hosted game is known to have run the press player's no-units fix.** (`run_ab.py

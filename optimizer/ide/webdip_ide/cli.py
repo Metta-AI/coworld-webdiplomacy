@@ -185,6 +185,8 @@ def cmd_start(args) -> int:
     running = hooks.server_info()
     if running:
         print(f"IDE already running at {running['url']}")
+        if os.environ.get("CLAUDECODE"):
+            store.request_claim()  # an agent told to open the IDE takes the chat, running or not
         if args.open:
             _open_browser(running["url"])
         return 0
@@ -210,6 +212,7 @@ def cmd_start(args) -> int:
         if info and _healthy(info["url"]):
             if os.environ.get("CLAUDECODE"):  # started by an agent's shell, not by the user in a terminal
                 store.touch_agent_seen()
+                store.request_claim()  # the hook that follows this command gives this session the chat
             print(f"IDE running at {info['url']}")
             print("The user's messages reach this session through its hooks (ide/ide status shows how).")
             if args.open:
@@ -252,7 +255,9 @@ def cmd_attach(args) -> int:
     if not os.environ.get("CLAUDECODE"):
         print("ide/ide attach does something only when a Claude Code session runs it: its hook takes the chat.")
         return 0
-    print("The browser chat now belongs to this session (ide/ide status shows the owner).")
+    store.request_claim()
+    print("This session takes the browser chat when this command returns, not before: "
+          "check with ide/ide status in a separate command.")
     return 0
 
 

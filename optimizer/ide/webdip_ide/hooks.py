@@ -72,7 +72,9 @@ REWAKE_TIMEOUT_SECONDS = 7 * 24 * 3600  # the waiter lives as long as the sessio
 # At Stop the Rewake waiter starts at the same moment as the Stop hook. Give it this long
 # to register before deciding that nothing is waiting.
 WAITER_GRACE_SECONDS = 2.0
-# A Bash command that makes the session running it the one the browser chat belongs to.
+# A Bash command that may make the session running it the one the browser chat belongs to. The
+# text alone is not enough (a command that only mentions it, such as an `echo` or a `tmux
+# send-keys`, matches too): the command must also have run, which `store.take_claim` tells.
 CLAIM_COMMAND = re.compile(r"\bide[\"']?\s+(start|attach)\b")
 # The waiter of the owning session can start while another session's waiter still holds the lock
 # (that one lets go within a second of losing the chat). Try for this long before giving up.
@@ -304,7 +306,7 @@ def owns_chat(session_id: str | None) -> bool:
 
     Hooks are wired per folder, so every Claude Code session started in the optimizer
     runs them. Only one may take the user's messages: the session that last ran
-    `ide/ide start` or `ide/ide attach` (see `_hook_output`), or, when no session has
+    `ide/ide start` or `ide/ide attach` (see `_claims_chat`), or, when no session has
     done that, the first one whose hook runs while the IDE is in use. A hook run with no
     session id (by hand, or by an older Claude Code) is let through, as before.
     """
@@ -323,7 +325,7 @@ def _claims_chat(event: str, payload: dict) -> bool:
     if event != "PostToolUse" or payload.get("tool_name") != "Bash":
         return False
     command = (payload.get("tool_input") or {}).get("command")
-    return isinstance(command, str) and bool(CLAIM_COMMAND.search(command))
+    return isinstance(command, str) and bool(CLAIM_COMMAND.search(command)) and store.take_claim()
 
 
 def _hook_output(event: str, payload: dict) -> dict | None:
