@@ -32,7 +32,7 @@ class Help(unittest.TestCase):
         self.assertIn("One help screen serves both kinds", text)
         options = text.split("options:", 1)[1]
         self.assertEqual((options.count("both kinds:"), options.count("paired only"), options.count("field only:")),
-                         (9, 1, 1))
+                         (10, 1, 1))
 
 
 class PlainBodies(unittest.TestCase):
@@ -57,6 +57,18 @@ class PlainBodies(unittest.TestCase):
             make_request.build_bodies("field", "a", "b", field(6), "set", 1)    # field takes no --b
         with self.assertRaises(ValueError):
             make_request.build_bodies("field", "a", None, field(6), "set", 1, balanced=True, pin_a="Austria")
+
+    def test_config_goes_into_the_overrides_and_the_notes(self):
+        config = make_request.parse_config(["end_year=1903", "phase_minutes=2", "press=Regular"])
+        self.assertEqual(config, {"end_year": 1903, "phase_minutes": 2, "press": "Regular"})
+        (_, body), = make_request.build_bodies("field", "a", None, field(6), "set", 1, no_maps=True, config=config)
+        self.assertEqual(body["game_config_overrides"], {"render_maps": False, **config})
+        self.assertIn('config end_year=1903 phase_minutes=2 press="Regular"', body["notes"])
+        with self.assertRaises(ValueError):
+            make_request.parse_config(["end_year"])
+        with self.assertRaises(ValueError):   # --balanced already sets countries
+            make_request.build_bodies("field", "a", None, field(6), "set", 1, balanced=True,
+                                      config={"countries": [1, 2, 3, 4, 5, 6, 7]})
 
     def test_press_sets_get_an_llm_budget_by_default_and_gunboat_sets_do_not(self):
         # A press game with a zero budget leaves every LLM seat playing its fallback, silently.

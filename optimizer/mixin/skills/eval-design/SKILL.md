@@ -44,7 +44,9 @@ shuffled powers is for a quick field look, a health check or a crash test.
 
 **Variant:** judge on the league's full variant: `classic-press` for the press
 league, `classic-gunboat` for the gunboat league. `classic-press-short` ends in
-1904, which changes the endgame; use it only for health and crash checks.
+1904, which changes the endgame; use it only for health and crash checks. The
+same holds for any game shortened with `game_config_overrides`
+([Faster first reads](#faster-first-reads-screens-never-verdicts)).
 
 **LLM policies:** model × soul (prompt) is the unit under test. The model is
 fixed per uploaded version, so each model is its own version and its own arm.
@@ -181,6 +183,16 @@ a two-arm difference is about the per-seat SD × √(2/n).
   minutes) and prints each version's health lines and `press_behaviour.py` table. Its ids go to
   the record's `screen:` list and are never pooled with the full run. No score read: the short
   game ends in 1904.
+- **A shorter game than the short variant:** `end_year`, `phase_minutes` and
+  `retreat_build_minutes` can be set per request (`make_request.py --config KEY=VALUE`,
+  or `run_ab.py --variant <variant> --config KEY=VALUE` for a screen stage). A press game
+  lasts about 2 × `phase_minutes` per year played, so `--variant classic-press --config
+  end_year=1903 --config phase_minutes=2` is about 12 minutes. Cut `end_year` first: the
+  years played stay the same game. A shorter `phase_minutes` gives every LLM seat, the
+  field's too, less time to negotiate, so it suits a crash or health check and not a read
+  of press behaviour. Never a score read, never pooled with the league's variant.
+  [platform.md, "Shorter games"](../../docs/platform.md#shorter-games) has the settings and
+  their limits.
 - **Wake replay bench:** `tools/wake_bench.py` replays recorded phase-start decisions of our
   seats under another prompt, model or setting, through the policy's own code, and prints the
   `press_behaviour.py` table in minutes for cents. It shows whether a prompt changes what the

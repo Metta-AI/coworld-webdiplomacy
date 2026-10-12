@@ -150,11 +150,12 @@ class RunAbRecord(unittest.TestCase):
         self.assertEqual(run_ab.ids_in(text, "screen"), ["xreq_short"])
         self.assertEqual(run_ab.paired_ids(text), ["xreq_full"])  # a paired --resume leaves the screen out
 
-        args = argparse.Namespace(record="2026-01-01-x", a="p:v2", b="p:v1", field_set="set-5", episodes=1)
+        args = argparse.Namespace(record="2026-01-01-x", a="p:v2", b="p:v1", field_set="set-5", episodes=1,
+                                  config=["end_year=1903"])
         full = [str(part) for part in run_ab.paired_request(args, Path("x.json"))]
         short = [str(part) for part in run_ab.paired_request(args, Path("x-screen.json"), "classic-press-short")]
         self.assertNotIn("--variant", full)
-        self.assertEqual(short[-2:], ["--variant", "classic-press-short"])
+        self.assertEqual(short[-4:], ["--variant", "classic-press-short", "--config", "end_year=1903"])
         self.assertIn("2026-01-01-x screen stage on classic-press-short", short)
 
     def test_evals_round_trip_and_status(self):

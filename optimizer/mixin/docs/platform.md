@@ -129,10 +129,14 @@ set; see the eval-design binding):
 - `episode_player_llm_spend_limit_usd` is the LLM budget **per episode**,
   split evenly over the seven seats. Zero disables LLM access for all seats.
   `make_request.py`'s default for a press set is 14.
-- `game_config_overrides` sets episode config fields (for example `seed`).
+- `game_config_overrides` sets episode config fields on top of the variant's
+  own. The platform checks them against the game's config schema (the
+  `config_schema` in the manifest), so any field in it can be set and an
+  unknown key or a value out of range is refused.
   Pinning powers with `countries` works from webDiplomacy Coworld 0.7.9
   (verified hosted 2026-10-10); see the eval-design binding and
-  `tools/make_request.py --balanced`.
+  `tools/make_request.py --balanced`. To make a game shorter, see
+  [Shorter games](#shorter-games).
 - The allowed body keys are in the optimizer's `docs/platform.md`; `private`
   and `episode_player_llm_spend_limit_usd` are accepted. **Dry-run every body**
   (`eval_request.py create body.json --dry-run`) before creating it. The dry run
@@ -158,6 +162,57 @@ set; see the eval-design binding):
   `fulfillment.retry_times: 2`, and a restarted game finishes about a game's length
   after the others (seen 2026-10-11). The watcher shows only "still waiting". A
   straggler is not a reason to stop the fetch or to read the batch without it.
+
+## Shorter games
+
+Three episode settings decide how long a game takes. Set them in
+`game_config_overrides`: `tools/make_request.py --config KEY=VALUE` writes them,
+and `tools/run_ab.py --variant VARIANT --config KEY=VALUE` passes them to a
+screen stage.
+
+| Setting | What it is | Allowed | `classic-press` | `classic-press-short` | `classic-gunboat` |
+|---|---|---|---|---|---|
+| `end_year` | Last game year played | 1901 to 2000 | 1908 | 1904 | 1910 |
+| `phase_minutes` | Length of a movement phase, whole minutes | 1 to 59 | 4 | 3 | 1 |
+| `retreat_build_minutes` | Length of a retreat or build phase, whole minutes | 1 to 59 | 1 | 1 | 1 |
+
+```json
+"game_config_overrides": {"end_year": 1903, "phase_minutes": 2}
+```
+
+- **How long:** a press game lasts about **2 × `phase_minutes` for each year
+  played**, plus its retreat and build phases, because LLM seats rarely all mark
+  Ready and a movement phase then runs its full length. That gives 64 minutes for
+  `classic-press` and 24 for `classic-press-short`, against the measured 61 and 23
+  to 27 below. One hosted `classic-press` game with `end_year` 1902 and
+  `phase_minutes` 2 (2026-10-12, seven LLM seats) played for 8.1 minutes, as the
+  rule gives, ended with `reason: end_year`, and its row recorded a `cost_usd` of
+  $0.09. By the same rule `end_year` 1903 with `phase_minutes` 2 is about 12
+  minutes; that figure is computed. Take your own games' durations from
+  `tools/batches.py`. A phase ends early only when every seat is Ready, which is
+  why a gunboat game takes two minutes.
+- **Cut `end_year` first.** The years that are played stay the same game: same
+  time to negotiate, same openings. Only the late game is gone, and with it the
+  final score (the game is scored at the cap, and bots are told the cap in
+  `WEBDIP_END_YEAR`).
+- **Cutting `phase_minutes` changes how every seat plays**, the field's seats
+  too. An LLM seat needs time for its model calls: the reference policy allows
+  55 seconds for one call and saves its final orders 12 seconds before the
+  deadline (`PRESS_CALL_TIMEOUT_S`, `PRESS_FINAL_MARGIN_S`), so at one minute it
+  has under 50 seconds a phase, less than one full call. Use a
+  short phase to check that a build connects, orders and exits, or for a change
+  that does not depend on negotiation. Do not read press behaviour from it.
+- **A game with changed settings is not the league's game.** Read it for health
+  and behaviour, never for score, and never pool it with games on the league's
+  variant. `tools/run_ab.py` allows `--config` only on a screen stage for that
+  reason, and `make_request.py` writes the settings into the request notes.
+- **The platform's price estimate has not followed game length** (the table
+  below: a short health game was quoted the same credits as a full one). A
+  shorter game saves time and LLM spend; do not count on it saving credits.
+- That one game is the only hosted check of these settings (the request was
+  written by hand; `countries` and `render_maps` are the overrides this lab's
+  tools have run hosted). Run one shortened game and read its `reason` and
+  length before you plan a batch around it.
 
 ## Cost and duration
 

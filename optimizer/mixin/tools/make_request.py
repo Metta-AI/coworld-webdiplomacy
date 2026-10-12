@@ -33,6 +33,17 @@ therefore the same two board neighbours, in every game.
 replay from about 12 MB to about 10 MB, because the bulk is the cumulative `history` and
 the `variant` map repeated in every frame, not the PNGs.
 
+`--config KEY=VALUE` (repeatable) puts any other episode setting into `game_config_overrides`,
+on top of the variant's own. The platform checks the keys and values against the game's
+config schema. The settings that shorten a game are `end_year` (1901 or later),
+`phase_minutes` (movement phases) and `retreat_build_minutes`, in whole minutes from 1:
+
+    ... --config end_year=1903 --config phase_minutes=2
+
+A press game lasts about 2 x phase_minutes for each year played, plus its retreat and build
+phases. A game with changed settings is not the league's game: read it for health and
+behaviour, not for score (the eval-design binding, "Faster first reads").
+
 `--pin-a POWER` (field kind only) is the role-pinned probe: A plays POWER in every game.
 It writes SIX bodies (`-p0` .. `-p5`), rotating the six field seats through the other six
 powers, so the field's power draw is balanced too. `-n` is episodes per rotation (total =
@@ -80,9 +91,23 @@ def load_field_sets(path: Path | None = None) -> dict:
     return {name: value for name, value in data.items() if not name.startswith("_")}
 
 
+def parse_config(pairs: list[str]) -> dict:
+    """`KEY=VALUE` pairs as a dict; a value is read as JSON, or kept as text when it is not JSON."""
+    config = {}
+    for pair in pairs:
+        key, separator, value = pair.partition("=")
+        if not key or not separator:
+            raise ValueError(f"--config takes KEY=VALUE, not {pair!r}")
+        try:
+            config[key] = json.loads(value)
+        except json.JSONDecodeError:
+            config[key] = value
+    return config
+
+
 def build_bodies(kind: str, a: str, b: str | None, field: dict, field_set: str, episodes: int, note: str = "",
                  llm_budget_usd: float = 0.0, balanced: bool = False, pin_a: str | None = None,
-                 no_maps: bool = False) -> list[tuple[str, dict]]:
+                 no_maps: bool = False, config: dict | None = None) -> list[tuple[str, dict]]:
     """The request bodies for one eval, as (file-name suffix, body) pairs. Raises ValueError on a bad combination."""
     if any(seat["policy_ref"].startswith("<") for seat in field["seats"]):
         raise ValueError(f"set {field_set!r} still has placeholder ids; list the field with tools/field.py and "
@@ -137,6 +162,12 @@ def build_bodies(kind: str, a: str, b: str | None, field: dict, field_set: str, 
             overrides["countries"] = [(slot + rotation) % 7 + 1 for slot in range(7)]
             body["notes"] += f", balanced rotation {rotation}/7" + (", seats mirrored" if mirrored else "")
             suffix = f"-r{rotation}{'m' if mirrored else ''}"
+        if config:
+            if set(config) & set(overrides):
+                raise ValueError(f"--config repeats a setting another option already sets: "
+                                 f"{sorted(set(config) & set(overrides))}")
+            overrides.update(config)
+            body["notes"] += ", config " + " ".join(f"{key}={json.dumps(value)}" for key, value in config.items())
         if overrides:
             body["game_config_overrides"] = overrides
         bodies.append((suffix, body))
@@ -163,6 +194,9 @@ def main(argv=None) -> None:
     ap.add_argument("--pin-a", choices=POWERS,
                     help="field only: A always plays this power; six bodies; not with --balanced")
     ap.add_argument("--no-maps", action="store_true", help="both kinds: game_config_overrides.render_maps = false")
+    ap.add_argument("--config", action="append", default=[], metavar="KEY=VALUE",
+                    help="both kinds: another game_config_overrides setting, JSON-parsed value; "
+                         "end_year=1903 and phase_minutes=2 give a shorter game (no score read)")
     ap.add_argument("--variant", help="both kinds: use this variant instead of the field set's, e.g. "
                                       "classic-press-short for a one-game health check")
     ap.add_argument("--out", required=True,
@@ -177,9 +211,10 @@ def main(argv=None) -> None:
     if args.variant:
         field = {**field, "variant": args.variant}
     try:
+        config = parse_config(args.config)
         bodies = build_bodies(args.kind, args.a, args.b, field, args.field_set, args.episodes, args.note,
                               default_llm_budget(field) if args.llm_budget_usd is None else args.llm_budget_usd,
-                              args.balanced, args.pin_a, args.no_maps)
+                              args.balanced, args.pin_a, args.no_maps, config)
     except ValueError as error:
         sys.exit(str(error))
     out = Path(args.out)

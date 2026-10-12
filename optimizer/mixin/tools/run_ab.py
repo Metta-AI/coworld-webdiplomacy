@@ -42,6 +42,9 @@ record's `evals:` and kept apart in a front-matter list `screen:`, so the paired
 `.runtime/artifacts/<record id>-screen`; the read is each version's health lines
 (`wd.py metrics`) and its behaviour table (`press_behaviour.py`). It can run before the full
 launch or beside it. Write what the screen must show into the record's decision rule first.
+`--config KEY=VALUE` (repeatable, screen stage only) shortens the screen further or shortens
+the league's own variant: `--variant classic-press --config end_year=1903 --config
+phase_minutes=2` is about 12 minutes of play. `make_request.py --help` has the settings.
 
 `--alone` runs the **candidate-alone check** instead: two separate arms, A alone and B
 alone, each with the same six field seats and balanced powers (7 bodies x n per arm; the
@@ -171,7 +174,9 @@ def paired_request(args: argparse.Namespace, stem: Path, variant: str | None = N
     command = [sys.executable, LAB / "tools" / "make_request.py", "paired", "--a", args.a, "--b", args.b,
                "--field-set", args.field_set, "-n", args.episodes, "--balanced", "--no-maps",
                "--note", note, "--out", stem]
-    return command + (["--variant", variant] if variant else [])
+    if variant:
+        command += ["--variant", variant] + [part for pair in args.config for part in ("--config", pair)]
+    return command
 
 
 def alone_request(args: argparse.Namespace, arm: str, ref: str, stem: Path) -> list:
@@ -635,9 +640,15 @@ def main(argv=None) -> None:
     ap.add_argument("--variant", metavar="VARIANT",
                     help="screen stage: play the paired design on this variant (classic-press-short, about 25 "
                          "minutes) and read health and behaviour only; no score verdict")
+    ap.add_argument("--config", action="append", default=[], metavar="KEY=VALUE",
+                    help="with --variant only: a game_config_overrides setting for the screen games, "
+                         "e.g. end_year=1903 or phase_minutes=2 for a shorter game")
     args = ap.parse_args(argv)
 
     record = record_path(args.record)
+    if args.config and not args.variant:
+        sys.exit("--config changes the game, so it is for the screen stage only: give --variant too "
+                 "(--variant classic-press keeps the league's variant)")
     if args.alone and args.variant:
         sys.exit("--alone and --variant are two different runs; give one")
     if (args.add_set or args.max_credits is not None) and (args.alone or args.variant or args.resume):
