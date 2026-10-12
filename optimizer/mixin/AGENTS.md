@@ -35,6 +35,7 @@ kept in the game docs so each fact has one home:
 
 | Need | Go to |
 |---|---|
+| Every tool and every skill, in one index | [Tool and skill index](#tool-and-skill-index) |
 | Rules, scoring, `results.json`, variants, leagues, timing | [docs/game.md](docs/game.md) |
 | The bot contract: image, launcher, environment, HTTP API, LLM sidecar | [docs/protocol.md](docs/protocol.md) |
 | Hosted specifics: XP requests, cost, artifacts, model quirks, credentials | [docs/platform.md](docs/platform.md) |
@@ -109,6 +110,69 @@ version" to the user.
 A log on disk does not mean a seat is ours. An account that owns the house bots (a Softmax
 team account) downloads every seat's log; a normal account gets only its own seats' logs and
 403 for the rest.
+
+## Tool and skill index
+
+Every tool in `tools/` and every skill in `skills/`, each listed once. The tables under
+[Tools](#tools) give each tool's flags and caveats; this index is for finding the right one.
+`tools/tests/test_index.py` fails when a tool or a skill is missing here or a skills cell is stale.
+
+| Tool | For | Skills that use it |
+|---|---|---|
+| **Build and ship** | | |
+| `ship.py` | Build, upload and log one version in one step | `ide` |
+| `build.sh` | Build the starter policy image (called by `ship.py`) | none (this manual only) |
+| `my_versions.py` | Every version we have uploaded, with league entries marked | none (this manual only) |
+| **Run experiments** | | |
+| `run_ab.py` | One paired A/B end to end, from an experiment record | `ab`, `eval-design`, `ide` |
+| `make_request.py` | Write a hosted eval request from a named opponent set | `ab`, `eval-design` |
+| `sizing.py` | How many games an A/B needs | `ab`, `diagnosis`, `eval-design` |
+| `paired.py` | Paired difference between two policies in the same games | `ab`, `eval-design`, `ide` |
+| `compare.py` | A/B of two separate batches, by power | `ab`, `eval-design` |
+| `ab_stats.py` | The statistics library behind `compare.py` | none (this manual only) |
+| `batches.py` | What each batch cost and how long it took | `ab`, `eval-design`, `survey` |
+| **Fetch and survey** | | |
+| `fetch_league.py` | Download a league's own rounds | none (this manual only) |
+| `field.py` | Who is in a league's field, with version ids | `opponent-profile` |
+| `wd.py` | Batch metrics, seat rows, LLM costs, local runs | `ab`, `diagnosis`, `eval-design`, `replay-inspection`, `survey` |
+| `flag_episodes.py` | Which episodes are worth opening | `diagnosis`, `survey` |
+| `gzip_replays.py` | Compress fetched replays, about 20x | `replay-inspection` |
+| `webdip_episodes.py` | The one episode loader every tool uses | `ab`, `diagnosis`, `replay-inspection` |
+| **Performance** | | |
+| `matchups.py` | Score by power, opponent, version and source (the IDE dashboard) | `matchup-writeup`, `opponent-profile`, `survey` |
+| `seat_rows.py` | One row per seat, worst first | `diagnosis`, `matchup-writeup`, `opponent-profile`, `press-audit`, `replay-inspection`, `survey` |
+| `year_deltas.py` | Centre change per game year | `diagnosis`, `survey` |
+| `mine_variance.py` | What goes with a policy's good and bad games | `diagnosis` |
+| `seat_bias.py` | Whether one roster seat outscores another | `ab` |
+| **Diplomacy and behaviour** | | |
+| `press_audit.py` | What was said against what was ordered: who betrayed us, when we broke our word | `ide`, `press-audit`, `replay-inspection` |
+| `press_report.py` | The HTML page for a press audit | `press-audit` |
+| `ally_losses.py` | How often a power we called an ally took a centre from us | `diagnosis` |
+| `press_behaviour.py` | What our press agent does, per version | `ab`, `diagnosis`, `eval-design` |
+| `opponent_profile.py` | How one opponent plays, from public orders; one game phase by phase | `diagnosis`, `matchup-writeup`, `opponent-profile`, `press-audit`, `replay-inspection` |
+| `board_counts.py` | A claim about orders, units or centres counted over every game | `ab`, `diagnosis`, `matchup-writeup`, `opponent-profile` |
+| `holds.py` | How much a policy holds, beside the field | `ab`, `diagnosis`, `matchup-writeup`, `opponent-profile` |
+| `hold_reasons.py` | Why our press build's units hold | `diagnosis` |
+| `seat_log.py` | One of our seats' own log for a turn | `diagnosis`, `matchup-writeup`, `press-audit`, `replay-inspection` |
+| **Environment** | | |
+| `session_env.sh` | Private credentials and active player for this shell | none (this manual only) |
+| `check_clis.py` | Warn when the `coworld` or `softmax` CLI is stale | none (this manual only) |
+| `llm_sidecar_local.py` | Local stand-in for the hosted LLM sidecar | `eval-design` |
+
+| Skill | Use when | Tools it runs |
+|---|---|---|
+| [`ab`](skills/ab/SKILL.md) | Comparing two versions | `batches.py`, `board_counts.py`, `compare.py`, `holds.py`, `make_request.py`, `paired.py`, `press_behaviour.py`, `run_ab.py`, `seat_bias.py`, `sizing.py`, `wd.py`, `webdip_episodes.py` |
+| [`survey`](skills/survey/SKILL.md) | Reading a batch that came back | `batches.py`, `flag_episodes.py`, `matchups.py`, `seat_rows.py`, `wd.py`, `year_deltas.py` |
+| [`replay-inspection`](skills/replay-inspection/SKILL.md) | Reading replays and our own logs | `gzip_replays.py`, `opponent_profile.py`, `press_audit.py`, `seat_log.py`, `seat_rows.py`, `wd.py`, `webdip_episodes.py` |
+| [`eval-design`](skills/eval-design/SKILL.md) | Designing a hosted eval | `batches.py`, `compare.py`, `llm_sidecar_local.py`, `make_request.py`, `paired.py`, `press_behaviour.py`, `run_ab.py`, `sizing.py`, `wd.py` |
+| [`diagnosis`](skills/diagnosis/SKILL.md) | Finding why we lose, before proposing a change | `ally_losses.py`, `board_counts.py`, `flag_episodes.py`, `hold_reasons.py`, `holds.py`, `mine_variance.py`, `opponent_profile.py`, `press_behaviour.py`, `seat_log.py`, `seat_rows.py`, `sizing.py`, `wd.py`, `webdip_episodes.py`, `year_deltas.py` |
+| [`press-audit`](skills/press-audit/SKILL.md) | Who lied, who kept their word, where we were betrayed | `opponent_profile.py`, `press_audit.py`, `press_report.py`, `seat_log.py`, `seat_rows.py` |
+| [`opponent-profile`](skills/opponent-profile/SKILL.md) | How one opponent plays | `board_counts.py`, `field.py`, `holds.py`, `matchups.py`, `opponent_profile.py`, `seat_rows.py` |
+| [`matchup-writeup`](skills/matchup-writeup/SKILL.md) | Why we win or lose against each opponent | `board_counts.py`, `holds.py`, `matchups.py`, `opponent_profile.py`, `seat_log.py`, `seat_rows.py` |
+| [`ide`](skills/ide/SKILL.md) | Showing the user replays, results and ideas in the browser | `paired.py`, `press_audit.py`, `run_ab.py`, `ship.py` |
+
+The first five are the bindings the optimizer's core skills resolve; the other four are this
+lab's own. [MIXIN.md](MIXIN.md) has each skill's full description.
 
 ## Tools
 
