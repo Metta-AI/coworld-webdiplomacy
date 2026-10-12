@@ -160,10 +160,16 @@ All under `tools/`; see the README for which to run when.
 | `player_fixture.py` | Shared fixture: fresh hardened game containers for player checks |
 | `sync_manifest_docs.py` | Copies README and docs into the manifest template |
 | `build_replay_viewer.sh` | `coworld build` hook for the static replay bundle |
+| `ci_scope.py` | Tells CI whether a change needs the image checks and the optimizer job |
 
-CI (`.github/workflows/adapter-tests.yml`) runs unit tests, ruff, the Herald
-episode and most of these checks on each push and pull request; the workflow file
-is the exact list.
+CI (`.github/workflows/adapter-tests.yml`) runs on pull requests and on pushes to
+`main`. The unit tests and ruff always run. The image checks (the Herald episode
+and most of the tools above; the workflow file is the exact list) run only when
+`tools/ci_scope.py` finds a change to something the images or the checks are made
+from. They run as six parallel groups, and each group builds the images from a
+shared layer cache. The optimizer job runs only when `optimizer/` or the
+dependencies change. A manual run (`gh workflow run adapter-tests.yml --ref <branch>`)
+runs everything.
 
 ## Environment variables
 

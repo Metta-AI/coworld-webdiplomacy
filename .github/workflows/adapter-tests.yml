@@ -1,6 +1,30 @@
 name: Adapter tests
-on: [push, pull_request]
+# Pull requests are tested as pull requests, so a branch push is not tested a second time.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  # Decides which of the slower jobs this change needs; tools/ci_scope.py holds the rules.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.scope.outputs.images }}
+      optimizer: ${{ steps.scope.outputs.optimizer }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        # Explicit bash runs with pipefail: a failed script must fail the job, not skip the others.
+        shell: bash
+        run: python3 -m tools.ci_scope "$BASE" | tee -a "$GITHUB_OUTPUT"
   test:
     runs-on: ubuntu-latest
     steps:
@@ -16,30 +40,89 @@ jobs:
       - run: uv run ruff check adapter players tools
       - run: uv run python -m unittest players.test_players -v
       - run: uv run python -m unittest players.test_bridge -v
+      - run: uv run python -m unittest tools.test_ci_scope -v
+  # Each group builds the images itself, from a shared layer cache, and runs on its own
+  # runner. Checks that read another check's output are in the same group.
+  image-checks:
+    needs: changes
+    if: needs.changes.outputs.images == 'true'
+    runs-on: ubuntu-latest
+    name: image checks (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: browser
+            browser: true
+            run: |
+              uv run python -m tools.check_browser coworld-webdiplomacy-game:latest
+          # check_replay reads the replays that the browser scenarios, the press check and
+          # the certification episode leave under tmp/.
+          - name: replay
+            browser: true
+            run: |
+              uv run python -m tools.check_browser_scenarios coworld-webdiplomacy-game:latest
+              uv run python -m tools.check_press coworld-webdiplomacy-game:latest
+              uv run coworld run-episode dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
+              uv run python -m tools.check_replay tmp/episode/replay tmp/p5-*/replay.json tmp/p4-press-*/replay.json
+          - name: episode
+            run: |
+              uv run python -m tools.check_episode coworld-webdiplomacy-game:latest
+          - name: random
+            run: |
+              uv run python -m tools.check_random coworld-webdiplomacy-game:latest
+          - name: orders
+            run: |
+              uv run python -m tools.check_legal_corners coworld-webdiplomacy-game:latest
+              for mode in smoke tactics convoy; do
+                docker run --rm --platform linux/amd64 --cap-drop=ALL --security-opt=no-new-privileges -e WEBDIP_MODE=$mode coworld-webdiplomacy-game:latest
+              done
+              uv run python -m tools.check_bridge coworld-webdiplomacy-game:latest
+              uv run python tools/check_boot.py coworld-webdiplomacy-game:latest
+              uv run python tools/check_boot.py coworld-webdiplomacy-game:latest --crash-service
+          # The Herald image is built FROM the local player image, which only the Docker
+          # daemon's own builder can see.
+          - name: compatibility
+            run: |
+              uv run python -m tools.check_compatibility coworld-webdiplomacy-game:latest
+              docker build --builder default --platform linux/amd64 -t herald:local players/examples
+              uv run coworld run-episode dist/coworld_manifest.json herald:local \
+                --run /opt/.venv/bin/python --run=-m --run players.launcher \
+                --run /opt/.venv/bin/python --run /opt/herald_bot.py \
+                --variant classic-press-short --output-dir tmp/herald --timeout-seconds 120
+              uv run python -m tools.check_herald tmp/herald
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.11.8'
+          python-version: '3.12'
+      - run: uv sync --locked --group dev
+      # Restore the game image's layers from the GitHub Actions cache into this job's
+      # builder, so that the builds `coworld build` and its replay viewer hook run next
+      # reuse them. The two slow layers (apt packages, the upstream React build) change
+      # only with the submodule or the base image. One group saves the cache.
+      # `load` is what downloads the layers: without an output the cache hits stay
+      # references that only a build with the same cache-from can use.
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/bake-action@v7
+        with:
+          source: .
+          files: compose.yaml
+          targets: game
+          load: true
+          set: |
+            game.platform=linux/amd64
+            game.cache-from=type=gha,scope=game
+            ${{ matrix.name == 'episode' && 'game.cache-to=type=gha,scope=game,mode=max,ignore-error=true' || '' }}
       - run: uv run coworld build --version 0.7.9
-      - run: docker build --platform linux/amd64 -t herald:local players/examples
-      - run: >-
-          uv run coworld run-episode dist/coworld_manifest.json herald:local
-          --run /opt/.venv/bin/python --run=-m --run players.launcher
-          --run /opt/.venv/bin/python --run /opt/herald_bot.py
-          --variant classic-press-short --output-dir tmp/herald --timeout-seconds 120
-      - run: uv run python -m tools.check_herald tmp/herald
-      - run: uv run playwright install --with-deps chromium --only-shell
-      - run: uv run python -m tools.check_browser coworld-webdiplomacy-game:latest
-      - run: uv run python -m tools.check_browser_scenarios coworld-webdiplomacy-game:latest
-      - run: uv run python -m tools.check_bridge coworld-webdiplomacy-game:latest
-      - run: uv run python tools/check_boot.py coworld-webdiplomacy-game:latest
-      - run: uv run python tools/check_boot.py coworld-webdiplomacy-game:latest --crash-service
-      - run: uv run python -m tools.check_episode coworld-webdiplomacy-game:latest
-      - run: docker run --rm --platform linux/amd64 --cap-drop=ALL --security-opt=no-new-privileges -e WEBDIP_MODE=smoke coworld-webdiplomacy-game:latest
-      - run: docker run --rm --platform linux/amd64 --cap-drop=ALL --security-opt=no-new-privileges -e WEBDIP_MODE=tactics coworld-webdiplomacy-game:latest
-      - run: docker run --rm --platform linux/amd64 --cap-drop=ALL --security-opt=no-new-privileges -e WEBDIP_MODE=convoy coworld-webdiplomacy-game:latest
-      - run: uv run python -m tools.check_random coworld-webdiplomacy-game:latest
-      - run: uv run python -m tools.check_legal_corners coworld-webdiplomacy-game:latest
-      - run: uv run python -m tools.check_press coworld-webdiplomacy-game:latest
-      - run: uv run python -m tools.check_compatibility coworld-webdiplomacy-game:latest
-      - run: uv run coworld run-episode dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
-      - run: uv run python -m tools.check_replay tmp/episode/replay tmp/p5-*/replay.json tmp/p4-press-*/replay.json
+      - if: matrix.browser
+        run: uv run playwright install --with-deps chromium --only-shell
+      - name: Run ${{ matrix.name }} checks
+        shell: bash -ex {0}
+        run: ${{ matrix.run }}
       # Game container stdout is public by design (see README, Runtime). Never print
       # tmp/*/logs: run-episode player logs there hold private press.
       - name: Print public game logs on failure
@@ -50,6 +133,8 @@ jobs:
             echo "::group::$log"; cat "$log"; echo "::endgroup::"
           done
   optimizer:
+    needs: changes
+    if: needs.changes.outputs.optimizer == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
