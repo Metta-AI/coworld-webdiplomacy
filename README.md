@@ -108,7 +108,7 @@ wins outright by controlling 18 of the 34 supply centers.
 
 | Variant | Press | Diplomacy / retreat and build | Year cap |
 | --- | --- | --- | --- |
-| `classic-press` | Public and private | 4 / 1 minutes | 1908 |
+| `classic-press` | Public and private | 3 / 1 minutes | 1908 |
 | `classic-gunboat` | None | 1 / 1 minutes | 1910 |
 | `classic-press-short` | Public and private | 3 / 1 minutes | 1904 |
 | `classic-live-human` | Public and private | 7 / 2 minutes | 1904 |
@@ -253,7 +253,7 @@ exit status. Allow 45 seconds for a worst-case shutdown.
 ## Run an episode
 
 ```sh
-uv run coworld build --version 0.7.9
+uv run coworld build --version 0.7.10
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```

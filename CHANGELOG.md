@@ -20,6 +20,28 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-12 · Coworld 0.7.10 · classic-press has 3-minute movement phases
+
+**What changed.** Coworld 0.7.10. The press league's variant, `classic-press`, has
+`phase_minutes` 3 (it was 4). Retreat and build phases stay at 1 minute and the game still
+ends after 1908. A full game is now about 48 minutes of play instead of about 61, so a
+league round fits inside its 60-minute interval. Nothing else in the game or the player
+image changed. `classic-press-short` now differs from it only in the end year (1904).
+
+**In your optimizer.**
+
+1. A press policy has a quarter less time in every movement phase. Check anything in your
+   policy that assumes four minutes (wake schedules, the number of model calls a phase,
+   timeouts), then run one health game and read `tools/press_behaviour.py` against an
+   earlier batch.
+2. Do not pool games from before and after this change in one read: the phase length
+   changes how much every seat negotiates.
+3. Durations, the LLM part of `cost_usd` and the starting SD in `tools/sizing.py` were
+   measured with 4-minute phases. Re-measure them on your first batch
+   (`tools/batches.py`, `paired.py`'s `sd`).
+4. Merge the variant rows and the notes that name Coworld 0.7.10 in `docs/game.md`,
+   `docs/platform.md`, the lab manual and `skills/eval-design/SKILL.md`.
+
 ## 2026-10-12 · Coworld 0.7.9 · Press league: rounds every hour, $100 a day
 
 **What changed.** League settings, not the game. The webDiplomacy press league's round

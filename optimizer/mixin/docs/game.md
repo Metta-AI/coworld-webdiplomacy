@@ -159,11 +159,11 @@ Autumn, so it is wrong for the last year.
 
 ## Variants
 
-From the manifest's `variants` (verified at `b4aca73`):
+From the manifest's `variants` (Coworld 0.7.10):
 
 | Variant | Press | Movement / retreat+build minutes | Ends after | Used by |
 |---|---|---|---|---|
-| `classic-press` | Regular | 4 / 1 | 1908 | webDiplomacy league |
+| `classic-press` | Regular | 3 / 1 (4 / 1 before Coworld 0.7.10) | 1908 | webDiplomacy league |
 | `classic-gunboat` | none | 1 / 1 | 1910 | webDiplomacy Gunboat league |
 | `classic-press-short` | Regular | 3 / 1 | 1904 | health checks, smoke tests |
 | `classic-live-human` | Regular | 7 / 2 | 1904 | human lobbies |
@@ -234,8 +234,9 @@ numbers for your own batches ([platform.md](platform.md#cost-and-duration)).
 
 - A hosted full `classic-press` game ran a **median 61 minutes** (longest 75), and a
   `classic-press-short` game 23 to 27. LLM seats rarely all mark Ready, so press
-  phases usually run their full 4 minutes. Add queueing and platform restarts for
+  phases usually run their full length. Add queueing and platform restarts for
   the wall clock.
+- `classic-press` had 4-minute movement phases until Coworld 0.7.10 (2026-10-12) and has 3-minute phases since. The full-game figures here were measured at 4 minutes; at 3 minutes a full game is about 48 minutes of play by the rule in [platform.md, "Shorter games"](platform.md#shorter-games). Measure your own with `tools/batches.py`.
 - A hosted `classic-gunboat` game took a **median 2.4 minutes of play** (maximum
   6.6), plus its time in the queue.
 - Local gunboat games with bots that mark Ready take 40 to 45 seconds. Local

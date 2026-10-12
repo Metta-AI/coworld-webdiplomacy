@@ -33,7 +33,7 @@ written into the record's text as a `Health game:` line, not into `evals:`. Fetc
 `wd.py metrics` for it as the lab manual says; this tool does not wait for it.
 
 `--variant VARIANT` runs a **screen stage** instead: the same paired, balanced design on another
-variant, in practice `classic-press-short` (ends 1904, about 25 minutes against about 75 for a
+variant, in practice `classic-press-short` (ends 1904, about 25 minutes against 50 to 75 for a
 full game). It answers "does the build run, and did the mechanism fire" a game-length sooner,
 and nothing about score: the short game has a different endgame, so its games get no
 `paired.py` read and are never pooled with the full run. Its batch ids are appended to the
