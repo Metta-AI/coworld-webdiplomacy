@@ -16,7 +16,7 @@ may have changed.
 - [Player protocol](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/protocol.md): lifecycle, scoring, `results.json`
 - [Upstream bot API](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/upstream-bot-api.md): routes, orders, votes, with citations into the upstream PHP
 - [Replay format](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/replay.md)
-- [Variants and config](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/coworld_manifest_template.json) (`variants`, `config_schema`)
+- [Variants and config](https://github.com/Metta-AI/coworld-webdiplomacy/blob/main/coworld_manifest_template.json) (`variants`, `config_schema`; on `main`, because the variants changed in Coworld 0.7.10)
 
 You are free to write your own longer references in this lab (for example a
 `docs/map.md` of adjacencies you have verified). Cite where each fact came from.

@@ -41,6 +41,8 @@ image changed. `classic-press-short` now differs from it only in the end year (1
    (`tools/batches.py`, `paired.py`'s `sd`).
 4. Merge the variant rows and the notes that name Coworld 0.7.10 in `docs/game.md`,
    `docs/platform.md`, the lab manual and `skills/eval-design/SKILL.md`.
+5. Copy `tools/wake_bench.py`: the phase length it gives a replayed decision is now
+   180 seconds.
 
 ## 2026-10-12 · Coworld 0.7.9 · Press league: rounds every hour, $100 a day
 
