@@ -1,6 +1,7 @@
 """Check that published configuration and onboarding match the runnable sources."""
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -24,6 +25,12 @@ class ManifestContract(unittest.TestCase):
         guide = next(page for page in game["docs"]["pages"] if page["id"] == "write-a-policy")
         self.assertEqual(guide["content"], {"type": "text", "value": Path("docs/write-a-policy.md").read_text()})
         EpisodeConfig(tokens=list("abcdefg"), **manifest["certification"]["game_config"])
+
+    def test_changelog_names_the_coworld_version_being_built(self):
+        # Optimizers read the changelog to learn about a new version; a bump needs an entry.
+        built = re.search(r"coworld build --version (\S+)", Path("README.md").read_text()).group(1)
+        newest = re.search(r"^## \d{4}-\d{2}-\d{2} · Coworld (\S+) · ", Path("CHANGELOG.md").read_text(), re.M)
+        self.assertEqual(newest.group(1), built)
 
     def test_certification_exercises_all_bundled_players_within_short_fixture(self):
         manifest = json.loads(Path("coworld_manifest_template.json").read_text())

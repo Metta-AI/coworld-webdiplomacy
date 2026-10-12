@@ -18,6 +18,10 @@ platform changes; re-check anything a decision depends on.
   `uv tool install --force <package>` updates one, including a stale install
   from a local checkout. Neither CLI has a `--version` option: `uv tool list` prints the
   installed versions.
+- **Check for game and template changes at session start:**
+  `python3 games/webdiplomacy/tools/check_coworld.py -v` (also a SessionStart hook under
+  Claude Code). It lists changelog entries this lab has not applied and reports the hosted
+  Coworld version; the lab manual's "Keep the lab current" says what to do with them.
 - **Use a private `HOME` per session.** The CLI keeps credentials and the active
   player in `~/.softmax/credentials.yaml`, shared by every session on the
   machine. Another session running `coworld player use` silently switches your
