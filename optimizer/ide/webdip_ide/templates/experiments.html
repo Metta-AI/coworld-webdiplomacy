@@ -52,7 +52,7 @@
           <dt>Cost</dt>
           <dd>{% if row.cost %}{{ row.cost }}{% elif row.planned %}{{ row.planned }} games, by the rule; the record does not say what they cost{% else %}<span class="muted">the record does not say yet</span>{% endif %}</dd>
           <dt>Now</dt>
-          <dd><span class="muted">Not run. Nothing has been built or launched for it.</span></dd>
+          <dd><span class="muted">Not run. {% if row.candidate %}The record names {{ row.candidate }} as the candidate; nothing has been launched for it.{% else %}Nothing has been built or launched for it.{% endif %}</span></dd>
           {% else %}
           <dt>Now</dt>
           <dd>{% if r.report %}<span class="muted">{{ r.minus }}</span> <span class="num">{{ r.words }}</span>

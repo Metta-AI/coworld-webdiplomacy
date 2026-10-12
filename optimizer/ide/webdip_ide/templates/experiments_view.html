@@ -15,7 +15,7 @@
     the decision rule come before anything is run.</p>
   {% elif record.status == "proposed" and not result.games_in %}
   <p class="notice">This is a proposed experiment: an idea written down with the rule it would be judged by.
-    Nothing has been built or launched for it, and nothing is spent until you ask the agent to run it.</p>
+    {% if record.candidate %}The record names {{ record.candidate }} as the candidate; nothing has been launched{% else %}Nothing has been built or launched{% endif %} for it, and nothing is spent until you ask the agent to run it.</p>
   {% endif %}
   <dl class="facts experiment-record">
     <dt>Hypothesis</dt><dd>{% if record.hypothesis %}{{ record.hypothesis_html | safe }}{% else %}<span class="muted">not written yet</span>{% endif %}</dd>
@@ -42,7 +42,7 @@
     <p class="experiment-lead"><strong class="{{ {'ok': 'good', 'err': 'bad'}.get(result.tone, '') }}">{{ result.diff }}</strong>
       <span class="tag {{ result.tone }}">{{ result.verdict }}</span>
       <span class="muted small">{{ p.n }} paired game{{ "" if p.n == 1 else "s" }} · SE {{ plain(p.se) }} · z {{ result.z }}{% if p.sd is not none %} · paired SD {{ plain(p.sd) }}{% endif %}</span></p>
-    <p class="about">{{ result.progress | capitalize }}{% if p.dropped_tainted %}; {{ p.dropped_tainted }} left out because a seat of ours crashed or was cut short{% endif %}.
+    <p class="about">{{ result.progress | capitalize }}{% if p.dropped_tainted %}; {{ p.dropped_tainted }} left out because a seat of ours crashed or was cut short{% endif %}.{% if p.other_seats_tainted %} In {{ p.other_seats_tainted | length }} of the games counted, an opponent's seat crashed or was cut short; those games are in the numbers.{% endif %}
       {{ record.candidate }} sat in the lower seat in {{ p.a_in_lower_slot | replace("/", " of ") }}.
       Computed now by the lab's <code>tools/paired.py</code> from {% for folder in result.folders %}<code>.runtime/artifacts/{{ folder.name }}</code> ({{ folder.games }} game{{ "" if folder.games == 1 else "s" }}){{ ", " if not loop.last }}{% endfor %}; the lab calls |z| below 2 no result.
       {% if not is_open %}The record's own Result and Verdict below are the reading that counts.{% endif %}</p>

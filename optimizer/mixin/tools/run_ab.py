@@ -27,9 +27,21 @@ lists that record's folder. The IDE's Experiments page reads the same folders
 neither reads a folder named only in the record's text.
 
 `--health SET` also launches one health game, right after the batch's requests are created: `--a` alone against the
-six-seat field set SET on `classic-press-short` (about 25 minutes). Its id is printed and
+six-seat field set SET on `classic-press-short` (about 25 minutes). `--health-games N` makes it N games in
+that one request (one game can fail for a reason that is not the build). Its id is printed and
 written into the record's text as a `Health game:` line, not into `evals:`. Fetch it and read
 `wd.py metrics` for it as the lab manual says; this tool does not wait for it.
+
+`--variant VARIANT` runs a **screen stage** instead: the same paired, balanced design on another
+variant, in practice `classic-press-short` (ends 1904, about 25 minutes against about 75 for a
+full game). It answers "does the build run, and did the mechanism fire" a game-length sooner,
+and nothing about score: the short game has a different endgame, so its games get no
+`paired.py` read and are never pooled with the full run. Its batch ids are appended to the
+record's `evals:` and kept apart in a front-matter list `screen:`, so the paired launch and its
+`--resume` leave them out (`--variant ... --resume` fetches them again). Artifacts go to
+`.runtime/artifacts/<record id>-screen`; the read is each version's health lines
+(`wd.py metrics`) and its behaviour table (`press_behaviour.py`). It can run before the full
+launch or beside it. Write what the screen must show into the record's decision rule first.
 
 `--alone` runs the **candidate-alone check** instead: two separate arms, A alone and B
 alone, each with the same six field seats and balanced powers (7 bodies x n per arm; the
@@ -42,6 +54,21 @@ and `alone_b:`, so a later `--resume` of the paired run leaves them out and
 `.runtime/artifacts/<record id>-alone-a` and `-alone-b`, and the read is `compare.py` (B as
 baseline). `compare.py` gives a verdict only from 30 seats a side: `-n 5` (35 games an arm)
 or more, and the tool says so when the size is below that.
+
+`--dry-run` prices the run and launches nothing: it builds the same request bodies (in
+`.runtime/requests/dry-run/`, apart from a launch's), checks the first against the live
+schema, and prints the platform's quoted credits. It works with the paired run, `--alone`,
+`--variant` and `--health`, and does not touch the record. **The platform has no route that
+prices a request without creating it** (the quote exists only in the create response), so
+the number is the platform's own estimate for the last request of the same kind that this
+lab created: same variant, seats, LLM budget and games per request, read from the saved
+create responses in `.runtime/requests/responses`. When no saved request has the same
+games per request it prints the range between the nearest sizes, because the quote per
+game is not the same at every size (2.23 a game at 1 to 3 games a request and 2.82 at 10,
+on 2026-10-11) and it moves with time (3.3 a game five hours later), so a saved quote more than
+an hour or two old can be well short. Its last line sets that beside what `tools/batches.py` reports for the
+finished batches of the last 24 hours on the same variant: the estimate they were quoted
+and the `cost_usd` the platform recorded after they ran.
 
 It does not judge: read the output against the rule you wrote in the record,
 then close the record yourself. `--resume` skips steps 1 to 4 and picks up at
@@ -60,13 +87,18 @@ import json
 import re
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import batches
 
 LAB = Path(__file__).resolve().parent.parent
 ROOT = LAB.parent.parent
 ALONE_MIN_GAMES = 30  # compare.py gives a verdict only from this many seats a side
 EVAL_REQUEST = ROOT / "skills" / "run-eval" / "scripts" / "eval_request.py"
 FETCH = ROOT / "skills" / "fetch-artifacts" / "scripts" / "fetch_artifacts.py"
+RESPONSES = LAB / ".runtime" / "requests" / "responses"  # where `eval_request.py create` saves each response
+TONIGHT_HOURS = 24  # the dry run compares its quote with finished batches launched within this many hours
 PLACEHOLDER = re.compile(r"<[A-Za-z][^<>]*>")  # the record template's `<policy name>`, `<metric>`, ...
 FOLDER_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
@@ -117,9 +149,32 @@ def with_ids(text: str, key: str, ids: list[str]) -> str:
 
 
 def paired_ids(text: str) -> list[str]:
-    """The record's batch ids without the candidate-alone arms: what a paired `--resume` fetches."""
-    alone = set(ids_in(text, "alone_a")) | set(ids_in(text, "alone_b"))
-    return [batch for batch in evals_in(text) if batch not in alone]
+    """The record's batch ids without the alone arms and the screen stage: what a paired `--resume` fetches."""
+    apart = set(ids_in(text, "alone_a")) | set(ids_in(text, "alone_b")) | set(ids_in(text, "screen"))
+    return [batch for batch in evals_in(text) if batch not in apart]
+
+
+def paired_request(args: argparse.Namespace, stem: Path, variant: str | None = None) -> list:
+    """The `make_request.py paired` command for this run; `variant` replaces the field set's own."""
+    note = args.record if variant is None else f"{args.record} screen stage on {variant}"
+    command = [sys.executable, LAB / "tools" / "make_request.py", "paired", "--a", args.a, "--b", args.b,
+               "--field-set", args.field_set, "-n", args.episodes, "--balanced", "--no-maps",
+               "--note", note, "--out", stem]
+    return command + (["--variant", variant] if variant else [])
+
+
+def alone_request(args: argparse.Namespace, arm: str, ref: str, stem: Path) -> list:
+    """The `make_request.py field` command for one arm of the candidate-alone check."""
+    return [sys.executable, LAB / "tools" / "make_request.py", "field", "--a", ref,
+            "--field-set", args.field_set, "-n", args.episodes, "--balanced", "--no-maps",
+            "--note", f"{args.record} candidate-alone check, arm {arm}", "--out", stem]
+
+
+def health_request(args: argparse.Namespace, body: Path) -> list:
+    """The `make_request.py field` command for the one short health game of `--health`."""
+    return [sys.executable, LAB / "tools" / "make_request.py", "field", "--a", args.a,
+            "--field-set", args.health, "-n", args.health_games, "--variant", "classic-press-short", "--no-maps",
+            "--note", f"{args.record} health game", "--out", body]
 
 
 def estimate(created: dict) -> float:
@@ -182,9 +237,7 @@ def launch(args: argparse.Namespace, record: Path) -> list[str]:
 
     bodies_dir = LAB / ".runtime" / "requests"
     stem = bodies_dir / f"{args.record}.json"
-    run([sys.executable, LAB / "tools" / "make_request.py", "paired", "--a", args.a, "--b", args.b,
-         "--field-set", args.field_set, "-n", args.episodes, "--balanced", "--no-maps",
-         "--note", args.record, "--out", stem])
+    run(paired_request(args, stem))
     bodies = sorted(bodies_dir.glob(f"{args.record}-r*.json"))
     run([EVAL_REQUEST, "create", bodies[0], "--dry-run"])
     ids, credits = [], 0.0
@@ -200,20 +253,61 @@ def launch(args: argparse.Namespace, record: Path) -> list[str]:
 
 
 def launch_health(args: argparse.Namespace, record: Path) -> str:
-    """Create one short press game with A alone against the six-seat set, and note its id in the record's text."""
+    """Create the short press health game(s), A alone against the six-seat set, and note the id in the record's text."""
     body = LAB / ".runtime" / "requests" / f"{args.record}-health.json"
-    run([sys.executable, LAB / "tools" / "make_request.py", "field", "--a", args.a,
-         "--field-set", args.health, "-n", 1, "--variant", "classic-press-short", "--no-maps",
-         "--note", f"{args.record} health game", "--out", body])
+    run(health_request(args, body))
     created = json.loads(run([EVAL_REQUEST, "create", body]))
     batch = created["created"]
     text = record.read_text()
+    games = "1 game" if args.health_games == 1 else f"{args.health_games} games"
     record.write_text(text + ("" if text.endswith("\n") else "\n") + f"\nHealth game: `{batch}` "
-                      f"(`classic-press-short`, {args.a} alone; fetch into `.runtime/artifacts/{args.record}-health` "
-                      "and read `wd.py metrics`).\n")
-    print(f"health game {batch} created (estimate {estimate(created):.1f} credits); its id is in {record.name}, "
-          "not in evals", file=sys.stderr)
+                      f"({games}, `classic-press-short`, {args.a} alone; fetch into "
+                      f"`.runtime/artifacts/{args.record}-health` and read `wd.py metrics`).\n")
+    print(f"health request {batch} created, {games} (estimate {estimate(created):.1f} credits); "
+          f"its id is in {record.name}, not in evals", file=sys.stderr)
     return batch
+
+
+def launch_screen(args: argparse.Namespace, record: Path) -> list[str]:
+    """Create the paired games on `--variant` and keep their ids apart, in `evals:` and in `screen:`."""
+    bodies_dir = LAB / ".runtime" / "requests"
+    run(paired_request(args, bodies_dir / f"{args.record}-screen.json", args.variant))
+    bodies = sorted(bodies_dir.glob(f"{args.record}-screen-r*.json"))
+    run([EVAL_REQUEST, "create", bodies[0], "--dry-run"])
+    ids, credits = [], 0.0
+    for body in bodies:
+        created = json.loads(run([EVAL_REQUEST, "create", body]))
+        ids.append(created["created"])
+        credits += estimate(created)
+        current = record.read_text()
+        current = with_evals(current, evals_in(current) + [ids[-1]])
+        # Also apart, so the paired `--resume` leaves these out and `--variant ... --resume` finds them.
+        record.write_text(with_ids(current, "screen", ids))
+    print(launched_line(len(ids), len(ids) * args.episodes, credits,
+                        f"ids appended to {record.name} (evals, screen)"), file=sys.stderr)
+    return ids
+
+
+def run_screen(args: argparse.Namespace, record: Path) -> None:
+    """The screen stage: the paired design on another variant, read for behaviour and health only."""
+    if args.resume:
+        ids = ids_in(record.read_text(), "screen")
+        if not ids:
+            sys.exit(f"{record.name} has no screen list to resume (it is written by --variant)")
+    else:
+        ids = launch_screen(args, record)
+    out = LAB / ".runtime" / "artifacts" / f"{args.record}-screen"
+    run([FETCH, *ids, "--watch", "--out", out], capture=False)
+    run([sys.executable, LAB / "tools" / "gzip_replays.py", out])
+    label_a, label_b = args.a_label or args.a, args.b_label or args.b
+    for label in (label_a, label_b):
+        report = run([sys.executable, LAB / "tools" / "wd.py", "metrics", out, "--policy", label])
+        print("\n".join(line for line in report.splitlines()
+                        if line.startswith(("#", "taint", "telemetry", "coverage"))))
+        print(run([sys.executable, LAB / "tools" / "press_behaviour.py", out, "--policy", label]))
+    print(f"\nScreen stage on {args.variant}: read the health lines and the behaviour table against the mechanism "
+          f"check in {record}. It gives NO score verdict (the variant is not the league's), and its games are "
+          "never pooled with the full run's.", file=sys.stderr)
 
 
 def launch_alone(args: argparse.Namespace, record: Path) -> dict[str, list[str]]:
@@ -223,9 +317,7 @@ def launch_alone(args: argparse.Namespace, record: Path) -> dict[str, list[str]]
     credits = 0.0
     for arm, ref in (("a", args.a), ("b", args.b)):
         stem = bodies_dir / f"{args.record}-alone-{arm}.json"
-        run([sys.executable, LAB / "tools" / "make_request.py", "field", "--a", ref,
-             "--field-set", args.field_set, "-n", args.episodes, "--balanced", "--no-maps",
-             "--note", f"{args.record} candidate-alone check, arm {arm}", "--out", stem])
+        run(alone_request(args, arm, ref, stem))
         bodies = sorted(bodies_dir.glob(f"{args.record}-alone-{arm}-r*.json"))
         if arm == "a":
             run([EVAL_REQUEST, "create", bodies[0], "--dry-run"])
@@ -272,6 +364,194 @@ def run_alone(args: argparse.Namespace, record: Path) -> None:
     print(f"\nRead this against the pass mark in {record}.", file=sys.stderr)
 
 
+def request_kind(variant: str | None, seats: int, llm_limit_per_seat: float | None) -> tuple:
+    """What two requests must share for one's quote to stand for the other's, games per request aside."""
+    return variant, seats, round(llm_limit_per_seat, 4) if llm_limit_per_seat else None
+
+
+def saved_quotes(responses: Path) -> list[dict]:
+    """The platform's estimates in the saved create responses, oldest first: kind, games, credits, when."""
+    quotes = []
+    for path in sorted(responses.glob("*.json")) if responses.is_dir() else []:
+        saved = batches.read_json_file(path)
+        preview = (saved or {}).get("cost_preview") if isinstance(saved, dict) else None
+        games = (saved or {}).get("episode_count") if isinstance(saved, dict) else None
+        if not preview or preview.get("estimated_cost_credits") is None or not games:
+            continue
+        seats = len((saved.get("requested") or {}).get("roster") or [])
+        budget = preview.get("player_pod_llm_spend_limit_usd")
+        quotes.append({"kind": request_kind(saved.get("variant_id"), seats, budget),
+                       "games": games, "credits": float(preview["estimated_cost_credits"]),
+                       "created_at": saved.get("created_at") or "", "file": path.name})
+    return sorted(quotes, key=lambda q: q["created_at"])
+
+
+def quote(body: dict, quotes: list[dict]) -> dict:
+    """The platform's quote for one request like `body`, from the saved quotes of the same kind.
+
+    `basis` is `exact` (a saved request with the same games per request: its newest quote),
+    `between` (none of that size: the per-game quotes of the nearest smaller and larger sizes,
+    as a range), `nearest` (sizes on one side only: that size's per-game quote) or `none`.
+    `low` and `high` are credits for this one request; equal unless the basis is `between`."""
+    seats = len(body.get("roster") or [])
+    limit = body.get("episode_player_llm_spend_limit_usd")
+    kind = request_kind((body.get("target") or {}).get("variant_id"), seats, limit / seats if limit and seats else None)
+    games = body["num_episodes"]
+    same = [q for q in quotes if q["kind"] == kind]
+    if not same:
+        return {"basis": "none", "low": None, "high": None, "from": []}
+    exact = [q for q in same if q["games"] == games]
+    if exact:
+        return {"basis": "exact", "low": exact[-1]["credits"], "high": exact[-1]["credits"], "from": [exact[-1]]}
+    newest_by_size = {q["games"]: q for q in same}  # oldest first, so the newest quote of each size is kept
+    smaller = [size for size in newest_by_size if size < games]
+    larger = [size for size in newest_by_size if size > games]
+    used = [newest_by_size[size] for size in ([max(smaller)] if smaller else []) + ([min(larger)] if larger else [])]
+    amounts = sorted(q["credits"] / q["games"] * games for q in used)
+    return {"basis": "between" if len(used) == 2 else "nearest", "low": amounts[0], "high": amounts[-1], "from": used}
+
+
+def _credits(low: float, high: float, digits: int = 1) -> str:
+    """An amount, or a range when the two ends differ at the precision shown (2 digits for a per-game rate)."""
+    return f"{low:.{digits}f}" if round(high - low, digits) == 0 else f"{low:.{digits}f} to {high:.{digits}f}"
+
+
+def _pacific(iso: str) -> str:
+    return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(batches.PACIFIC).strftime("%m-%d %H:%M")
+
+
+def quote_line(label: str, bodies: list[dict], quotes: list[dict]) -> tuple[str, float | None, float | None]:
+    """One line of the dry run for a set of same-shaped requests, with the low and high total in credits."""
+    games = sum(body["num_episodes"] for body in bodies)
+    size = bodies[0]["num_episodes"]
+    variant = (bodies[0].get("target") or {}).get("variant_id")
+    head = f"{label}: {len(bodies)} request(s) x {size} game(s) = {games} game(s) on {variant}"
+    each = [quote(body, quotes) for body in bodies]
+    if any(q["basis"] == "none" for q in each):
+        return f"{head}; no saved quote for a request of this kind (variant, seats, LLM budget)", None, None
+    low, high = sum(q["low"] for q in each), sum(q["high"] for q in each)
+    first = each[0]
+    sizes = " and ".join(f"{q['credits'] / q['games']:.2f} a game at {q['games']} a request" for q in first["from"])
+    when = ", ".join(sorted({_pacific(q["created_at"]) for q in first["from"] if q["created_at"]}))
+    if first["basis"] == "exact":
+        basis = f"the platform's quote for this same request, {sizes} (quoted {when} PT)"
+    else:
+        basis = f"no saved quote at {size} a request; the platform quoted {sizes} (quoted {when} PT)"
+    a_game = _credits(low / games, high / games, 2)
+    return f"{head}; {_credits(low, high)} credits ({a_game} a game): {basis}", low, high
+
+
+def games_requested(batch: str, responses: Path) -> int | None:
+    """The games this tool asked for in the batch it fetched into the folder `batch`; None when it launched none.
+
+    A launch names its bodies, and so the saved create responses, `<folder>-r<rotation>[m].json`."""
+    saved = [batches.read_json_file(path) for path in sorted(responses.glob(f"{batch}-r*.json"))
+             if re.fullmatch(r"-r\d+m?\.json", path.name[len(batch):])] if responses.is_dir() else []
+    counts = [response.get("episode_count") for response in saved if isinstance(response, dict)]
+    return sum(counts) if counts and all(counts) else None
+
+
+def all_games_in(row: dict, responses: Path) -> bool:
+    """Whether the batch is over: every game on disk completed, and none still to come.
+
+    `fetch_artifacts.py --watch` fills a batch's folder as games end, so a batch that is still
+    playing looks finished by its rows alone. For a batch this tool launched, the games asked
+    for are known (`games_requested`); any other batch is judged by its rows."""
+    if not row["finished"] or row["not_completed"]:
+        return False
+    asked = games_requested(row["batch"], responses)
+    return asked is None or row["games"] == asked
+
+
+def finished_line(variant: str, low: float | None, high: float | None, games: int, artifacts: Path, responses: Path,
+                  now: datetime) -> str:
+    """How this dry run's quote compares with `tools/batches.py`'s rows for recent finished batches on `variant`."""
+    since = now - timedelta(hours=TONIGHT_HOURS)
+    fetched = [artifacts] if artifacts.is_dir() else []  # a lab that has fetched nothing has no folder yet
+    rows = [row for row in batches.batch_rows(fetched, batches.read_estimates(responses))
+            if all_games_in(row, responses) and variant in row["variants"]
+            and row["launched"] and datetime.fromisoformat(row["launched"]) >= since]
+    if not rows:
+        return (f"tools/batches.py: no finished batch on {variant} launched in the last {TONIGHT_HOURS} hours "
+                f"below {artifacts}, so nothing to set this quote beside")
+    played = sum(row["games"] for row in rows)
+    line = (f"tools/batches.py, {len(rows)} finished batch(es) on {variant} in the last {TONIGHT_HOURS} hours, "
+            f"{played} games: ")
+    quoted = [row for row in rows
+              if row["estimated_credits"] is not None and row["requests_with_estimate"] == row["requests"]]
+    if quoted:
+        per_game = sorted(row["estimated_credits"] / row["games"] for row in quoted)
+        line += f"quoted {_credits(per_game[0], per_game[-1], 2)} credits a game at create"
+        if low is not None:
+            mine = (low / games, high / games)
+            where = "the same" if abs(mine[0] - per_game[0]) < 0.05 and abs(mine[1] - per_game[-1]) < 0.05 else \
+                "above" if mine[0] > per_game[-1] + 0.05 else "below" if mine[1] < per_game[0] - 0.05 \
+                else "within that range"
+            line += f" (this dry run: {_credits(*mine, 2)}, {where})"
+    else:
+        line += "no create estimate on disk for them"
+    paid = [row for row in rows if row["cost_usd"] is not None]
+    if paid:
+        dollars = sum(row["cost_usd"] for row in paid) / sum(row["games_with_cost"] for row in paid)
+        line += f"; recorded ${dollars:.2f} a game after they ran (`cost_usd`, dollars, not credits, not a bill)"
+    return line
+
+
+def dry_run_bodies(args: argparse.Namespace) -> list[tuple[str, list[dict]]]:
+    """Build the bodies a launch would create, in a folder apart from a launch's, as (label, bodies) groups.
+
+    The health game, when asked for, is the last group and is labelled "health game"."""
+    bodies_dir = LAB / ".runtime" / "requests" / "dry-run"
+    bodies_dir.mkdir(parents=True, exist_ok=True)
+    groups = []
+    if args.alone:
+        for arm, ref in (("a", args.a), ("b", args.b)):
+            run(alone_request(args, arm, ref, bodies_dir / f"{args.record}-alone-{arm}.json"))
+            groups.append((f"alone, arm {arm} ({ref})", sorted(bodies_dir.glob(f"{args.record}-alone-{arm}-r*.json"))))
+    elif args.variant:
+        run(paired_request(args, bodies_dir / f"{args.record}-screen.json", args.variant))
+        groups.append(("screen stage", sorted(bodies_dir.glob(f"{args.record}-screen-r*.json"))))
+    else:
+        run(paired_request(args, bodies_dir / f"{args.record}.json"))
+        groups.append(("paired", sorted(bodies_dir.glob(f"{args.record}-r*.json"))))
+    if args.health:
+        body = bodies_dir / f"{args.record}-health.json"
+        run(health_request(args, body))
+        groups.append(("health game", [body]))
+    run([EVAL_REQUEST, "create", groups[0][1][0], "--dry-run"])
+    return [(label, [json.loads(path.read_text()) for path in paths]) for label, paths in groups]
+
+
+def dry_run_report(groups: list[tuple[str, list[dict]]], quotes: list[dict], artifacts: Path, responses: Path,
+                   now: datetime) -> str:
+    """The dry run's text: one quote line per group, the total, and the line beside `tools/batches.py`."""
+    lines = ["DRY RUN: nothing launched, no credits spent, the record is not touched."]
+    totals = []
+    for label, bodies in groups:
+        line, low, high = quote_line(label, bodies, quotes)
+        lines.append(line)
+        totals.append((label, low, high, sum(body["num_episodes"] for body in bodies)))
+    priced = all(low is not None for _, low, _, _ in totals)
+    if priced and len(totals) > 1:
+        lines.append(f"total: {_credits(sum(t[1] for t in totals), sum(t[2] for t in totals))} credits")
+    lines.append("These are the platform's estimates for earlier requests of the same kind, not a fresh quote: it has "
+                 "no route that prices a request without creating it. The launch prints the real one.")
+    # The comparison is for the run's own games; the one short health game is left out of it.
+    games = [t for t in totals if t[0] != "health game"]
+    variant = (groups[0][1][0].get("target") or {}).get("variant_id")
+    lines.append(finished_line(variant, sum(t[1] for t in games) if priced else None,
+                               sum(t[2] for t in games) if priced else None, sum(t[3] for t in games),
+                               artifacts, responses, now))
+    return "\n".join(lines)
+
+
+def dry_run(args: argparse.Namespace) -> None:
+    """Price the run from the platform's saved quotes and launch nothing."""
+    groups = dry_run_bodies(args)  # also checks the first body against the live schema
+    print(dry_run_report(groups, saved_quotes(RESPONSES), LAB / ".runtime" / "artifacts", RESPONSES,
+                         datetime.now(timezone.utc)))
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--record", required=True, help="experiment record id (file name without .md)")
@@ -281,19 +561,37 @@ def main(argv=None) -> None:
     ap.add_argument("--b-label", help="NAME:vN label for --b when it is an id")
     ap.add_argument("--field-set", required=True)
     ap.add_argument("-n", "--episodes", type=int, default=2,
-                    help="games per body; total = 14 x n (default 2: 28 games, about 50 credits in press "
+                    help="games per body; total = 14 x n (default 2: 28 games, 39 to 92 credits in press "
                          "by the platform's estimate)")
     ap.add_argument("--resume", action="store_true",
                     help="skip launch; fetch and read the batches in the record (with --alone: the two alone arms)")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="launch nothing: build the bodies, check the first against the live schema, and print the "
+                         "platform's quoted credits for requests of this kind, beside tonight's finished batches")
     ap.add_argument("--health", metavar="SET",
                     help="also launch one classic-press-short health game: --a alone against this six-seat field set")
+    ap.add_argument("--health-games", type=int, default=1, metavar="N",
+                    help="with --health: how many health games (default 1; 2 or 3 when a lost pod would cost time)")
     ap.add_argument("--alone", action="store_true",
                     help="candidate-alone check: A alone and B alone against a six-seat field set")
+    ap.add_argument("--variant", metavar="VARIANT",
+                    help="screen stage: play the paired design on this variant (classic-press-short, about 25 "
+                         "minutes) and read health and behaviour only; no score verdict")
     args = ap.parse_args(argv)
 
     record = record_path(args.record)
+    if args.alone and args.variant:
+        sys.exit("--alone and --variant are two different runs; give one")
+    if args.dry_run:
+        if args.resume:
+            sys.exit("--dry-run prices a launch and --resume skips the launch; give one")
+        dry_run(args)
+        return
     if args.alone:
         run_alone(args, record)
+        return
+    if args.variant:
+        run_screen(args, record)
         return
     ids = paired_ids(record.read_text()) if args.resume else launch(args, record)
     if not ids:

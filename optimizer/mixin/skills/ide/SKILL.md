@@ -60,10 +60,17 @@ message arrives once:
 
 | You are | How it arrives |
 |---|---|
-| Idle at the prompt | A background hook wakes you with the message ("Stop hook feedback") |
+| Idle at the prompt | A background hook wakes you with the message ("Stop hook feedback", or worded as a hook "blocking error": that is how the harness labels a delivery, not a fault) |
 | Busy in a turn | The same, or it is added to your context after your next tool call |
 | About to stop | The Stop hook holds the turn open and gives it to you |
 | Interrupted (the user pressed Esc in the terminal) | The same background hook wakes you: the next message written to the chat file starts it again |
+
+Only one Claude Code session in this folder gets the messages: the one that ran
+`ide/ide start`, or the first to act once the IDE was open. `ide/ide status` names it.
+If the user says their messages are going unanswered and another session is open in
+this folder, run `ide/ide attach` in the session that should have the chat, as a
+command of its own: it takes effect when the command returns, so check with
+`ide/ide status` in the next command, not the same one.
 
 Every time you receive one:
 
@@ -166,7 +173,7 @@ Fill the front matter now: `policy`, `baseline` (the current version),
 `candidate: n/a`, `status: proposed`, the `hypothesis` in one sentence, the
 `decision_rule` with the number of games ("+0.08 or more with z >= 2 over 28
 balanced paired games"), and `cost:` in plain words (games, credits and time,
-for example `28 press games, about 50 credits by the platform's estimate, about 70 minutes`). Write the
+for example `28 press games, 62 credits by the platform's estimate, about 70 minutes`). Write the
 Context (the evidence, with links, and that `closed_levers.md`,
 `open_levers.md` and the earlier records in `experiments/` were checked, with
 the nearest earlier test named)

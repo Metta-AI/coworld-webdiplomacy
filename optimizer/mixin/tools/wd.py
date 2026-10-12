@@ -106,6 +106,7 @@ from webdip_episodes import (  # noqa: E402
     llm_call_cost,
     llm_call_failed,
     load_dirs,
+    other_seat_taint,
     read_log,
     seat_log_paths,
 )
@@ -169,6 +170,7 @@ def metrics_report(seats, statuses, policy=None, slot=None, keep_tainted=False):
         seats, dropped = drop_tainted_episodes(seats, is_target)
     target = [s for s in seats if is_target(s)]
     pooled = policy is None and slot is None
+    others = {} if pooled else other_seat_taint(seats, is_target)
     field = [] if pooled else [s for s in seats if not is_target(s)]
     par = field_par(seats, is_target) if field else {}
     rel = [s.score - par[s.power] for s in target if s.power in par]
@@ -188,6 +190,8 @@ def metrics_report(seats, statuses, policy=None, slot=None, keep_tainted=False):
             "target_seat_flags": dict(sorted(taint_counts.items())),
             "episodes_dropped": len(dropped),
             "kept_tainted": keep_tainted,
+            # Games still counted below in which another policy's seat was tainted.
+            "other_seat_games": others,
         },
         "overall": {
             "n": len(target),
@@ -216,6 +220,16 @@ def metrics_report(seats, statuses, policy=None, slot=None, keep_tainted=False):
     }
 
 
+def other_seat_lines(games: dict) -> list[str]:
+    """One line for the games counted here in which another policy's seat was tainted, or nothing."""
+    if not games:
+        return []
+    flags = Counter(flag for found in games.values() for flag in found)
+    return [f"other seats tainted in {len(games)} counted game(s): {dict(sorted(flags.items()))}. "
+            "These games are in the numbers below; a crashed opponent is easier to beat. "
+            f"Episodes: {', '.join(games)}"]
+
+
 def render_metrics(r):
     o, c, t, tel = r["overall"], r["coverage"], r["taint"], r["telemetry"]
     rel, rel_se = o["score_minus_field_par"], o.get("score_minus_field_par_se")
@@ -228,6 +242,7 @@ def render_metrics(r):
         f"target seats {c['target_seats']}, without our log {c['target_seats_without_log']}",
         f"taint: {t['target_seat_flags'] or 'none'}; episodes dropped {t['episodes_dropped']}"
         + (" (kept: --keep-tainted)" if t["kept_tainted"] else ""),
+        *other_seat_lines(t.get("other_seat_games") or {}),
         f"overall n={o['n']}: score {o['score']}" + vs_par
         + f" | final SCs {o['final_centers']} | survival {o['survival']} | solo {o['solo']}",
         f"failed-order rate {o['failed_order_rate']} | outcomes {o['outcomes']}",

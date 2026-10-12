@@ -59,7 +59,8 @@ Needs [uv](https://docs.astral.sh/uv/) (the first start builds `ide/.venv`) and
 |---|---|
 | `start [--port N] [--open]` | Start the server in the background; print the URL. Reuses a running one. Without `--port`: the port this lab used last, else 8642, else the next free one |
 | `serve [--port N] [--open]` | The server in the foreground |
-| `stop`, `status [--json]`, `url` | Close it; what is running; print the URL |
+| `stop`, `status [--json]`, `url` | Close it; what is running and which session has the chat; print the URL |
+| `attach` | Give the browser chat to the Claude Code session that runs this command |
 | `follow [NAME]` | Record which policy is the user's, so Home, Dashboard and Replays follow it until the user picks another in the browser. It replaces a pick the browser made before. No name: print it |
 | `say TEXT` | Agent to user: a chat line (text from stdin when no arguments) |
 | `show --kind idea\|replay\|report\|result\|note --title T [--body MD \| --body-file F] [--link /path]` | Agent to user: a card |
@@ -87,6 +88,27 @@ one cursor (`agent_cursor`), advanced under a file lock, so a message is deliver
 | **`ide/ide inbox`, MCP `inbox`** | on demand | For harnesses with no hooks and no background tasks |
 | **SessionStart hook** | a new session | Says the IDE exists, whether it is open, and where the skill is. Creates `chat.jsonl` when it is missing and asks Claude Code to watch it |
 | **SessionEnd hook** | the page | Records that the session ended (`agent_ended`), so the panel says "The agent session has ended" at once instead of "working" |
+
+### Which session gets the chat
+
+Hooks are wired per folder, so every Claude Code session started in the optimizer root
+runs them. One session has the chat (`owner_session` in the state directory, shown by
+`ide/ide status`), and the hooks and waiter of any other session do nothing:
+
+- The session that runs `ide/ide start` or `ide/ide attach` takes it. The command, run in an
+  agent's shell, leaves a one-minute note (`claim_pending`); the `PostToolUse` hook that
+  follows sees the command in the Bash tool's input, finds the note, and records that
+  hook's `session_id`. Both are needed: the text alone would let a command that only
+  mentions `ide/ide attach` (an `echo`, a `tmux send-keys`) take the chat. A sub-agent's
+  command claims for its main session. The claim lands when the command returns, so
+  `ide/ide status` in the same command line still shows the old owner.
+- When no session has it, the first session whose hook runs while the IDE is in use
+  takes it.
+- The owner's `SessionEnd` releases it. A session that died without `SessionEnd` keeps
+  it until another session runs `ide/ide attach` or `ide/ide start`.
+- A waiter exits within a second of its session losing the chat, and the new owner's
+  waiter waits up to four seconds for the lock.
+- A hook whose JSON carries no `session_id` is let through, as before this rule.
 
 `optimizer/install.sh` writes the hook entries into `.claude/settings.json` (they come
 from `webdip_ide/hooks.py: hook_settings()`), the `webdip-ide` server into `.mcp.json`,
@@ -193,8 +215,14 @@ the one thing to do.
 - **Delivered is not the same as read.** The cursor moves when the text is handed to
   Claude Code. If the session dies in that instant the message is on disk but marked
   delivered; `ide/ide inbox --recent 5` prints it again.
-- **One agent session per lab.** Two sessions in the same optimizer root share the
-  cursor; each message goes to whichever asks first.
+- **One agent session has the chat.** A second Claude Code session in the same optimizer
+  root no longer takes messages (see "Which session gets the chat"). A first
+  version was run with two live sessions on Claude Code 2.1.296 (2026-10-11): `attach`
+  moved the chat, the old owner's waiter exited within a second, and browser messages
+  reached the new owner while the other session kept working. That run also showed the
+  claim being taken by a command that only mentioned `ide/ide attach`; the `claim_pending`
+  note that fixes it has unit tests only. With no owner yet, whichever session next runs
+  a hook takes the chat, which may not be the one the user means: `attach` settles it.
 - **Sub-agents do not receive messages** (hook input with `agent_id` is skipped); the
   main session gets them at its next step.
 - **Hooks need workspace trust** and Claude Code 2.1.296 or newer (older versions were

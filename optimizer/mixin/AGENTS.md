@@ -128,6 +128,9 @@ docstring**; they may shift slightly from what is shown here.
 | `matchups.py` | One policy's score vs par by power, by opponent (with and without them, head to head, power pairs), by version, by source (league matches or experience requests) and by game year. SE clustered by game; fewer than 16 games is "too few", with a `lean` ("too few games (14 of 16), leaning below par") when |z| >= 2 and the 95% interval excludes par: a lead, never a result. `--alone` leaves out paired games (two or more of our seats). The IDE dashboard shows this report | `matchups.py DIR... --policy NAME[:vN] [--source league\|xp\|local\|all] [--variant V] [--opponent NAME] [--alone] [--episodes FILE] [--out PREFIX] [--json]`; `matchups.py DIR... --list [--variant V] [--source S]` |
 | `opponent_profile.py` | What one policy does, from the public orders: openings by power, first targets (and replies), captures, order mix and trajectory beside the field, dead and stalled seats, how it treats our policy (`--versus`). `--game` prints one game phase by phase (the way to read a game without the IDE) | `opponent_profile.py DIR... --opponent NAME[:vN] [--versus OURS] [--variant classic-press] [--out PREFIX] [--episodes FILE] [--json]`; `opponent_profile.py DIR... --game EPISODE_ID [--powers P,Q] [--years 1901-1903] [--decisions] [--logs]` |
 | `holds.py` | How much one policy holds beside the field at the same power, by version and by game year; seats that stopped moving, with what their log says; and for our press builds, the holds split by what the press layer committed (pinned orders, forbidden provinces, the search floor) with any refusal counters the press layer logs. The mechanism check for any change that should free units | `holds.py DIR... --policy NAME[:vN] [--variant V] [--alone] [--episodes FILE] [--stopped-phases N] [--json]` |
+| `hold_reasons.py` | Why our press build's units hold: each hold as fixed by the agent (`require_orders`) or left to the search and where the unit stood (our own centre, another power's centre, elsewhere), and the hold share by how many provinces the policy forbade and how many allies it named. One column per version. Counts, not causes | `hold_reasons.py DIR... --policy NAME[:vN] [--variant V] [--json]` |
+| `ally_losses.py` | How often a power our press agent called an ally took a centre from us: centres lost and pair-years (one other power in one game year) by our stance toward the taker, one column per version. `--going-in` uses the stance held the year before, which an attack cannot have changed | `ally_losses.py DIR... --policy NAME[:vN] [--variant V] [--going-in] [--json]` |
+| `press_behaviour.py` | What our press agent does, per version, from our own seat logs: share of orders fixed, fixed as holds, every unit fixed, holds, stances, centre values, forbidden provinces, messages per phase, three or more messages to one power, wakes, LLM cost. The mechanism check for any prompt or press-guard change. Counts only, never a score | `press_behaviour.py DIR... [--policy NAME[:vN]] [--json]` |
 | `board_counts.py` | A claim counted over every game, for one policy at one power and for the field beside it: an order given (`"A VEN - TRI"`, `"* - HOL"`), a centre owned after each year, a unit left in a province. Use it instead of writing a script for "it does X in n of m games" | `board_counts.py DIR... --policy NAME[:vN] --as POWER [--order TEXT]... [--owns PROV]... [--unit-at PROV]... [--when S1901-A1902] [--split-by POWER] [--variant V] [--rows] [--episodes FILE] [--json]` |
 | `seat_rows.py` | One row per seat of a policy, worst score first: centres by year, taint (its own and other seats'), first targets, home centre lost; with `--versus`, the other policy's side of each shared game. "Our five worst games as Austria" in one command | `seat_rows.py DIR... --policy NAME[:vN] [--as POWER] [--versus OTHER] [--variant V] [--sort score\|episode] [--limit N] [--episodes FILE] [--json]` |
 | `seat_log.py` | One of our seats' own log for a turn: press received and sent, each policy it committed with the orders that followed, wakes, the decision line, errors. The "why" beside `opponent_profile.py --game`'s "what". Prints private press: terminal only | `seat_log.py DIR... --game EPISODE_ID --power POWER [--when A1902] [--events ...] [--chars N]` |
@@ -156,9 +159,10 @@ Also in `tools/`, run the same way; flags are in each docstring.
 | `make_request.py` + `../field_sets.json` | Request bodies from a named opponent set; `--balanced` (powers pinned and rotated; a paired A/B gets both seat orders, 14 bodies), `--pin-a POWER` (our seat fixed to one power), `--no-maps`. `field_sets.json` ships with the format only: list the field with `field.py`, then write your own named, dated sets (a stale id fails at create time with "Policy version … was not found") |
 | `seat_bias.py` | Whether one roster seat outscores another whoever sits there (reads `wd.py seats` on stdin); for same-code checks |
 | `mine_variance.py` | Which measured behaviours go with a policy's own good and bad games (correlations: hypothesis fuel only) |
-| `run_ab.py` | One paired A/B end to end from an experiment record: bodies, dry run, launch, ids into the record, fetch, compress, read (pooled over the record's `artifacts:` folders when it lists them). `--resume` picks up an interrupted run at the fetch; `--health SET` also launches one `classic-press-short` health game and notes its id (it does not read it). `--alone` runs the candidate-alone check (each version alone against a six-seat field), which every paired win needs before promotion; it fetches both arms at once |
+| `run_ab.py` | One paired A/B end to end from an experiment record: bodies, dry run, launch, ids into the record, fetch, compress, read (pooled over the record's `artifacts:` folders when it lists them). `--dry-run` prices a run and launches nothing: the platform's saved quotes for requests of the same kind this lab created, the total, and a line beside `batches.py`'s finished batches (it works with `--alone`, `--variant` and `--health`); the price moves, so an old quote can be short. `--resume` picks up an interrupted run at the fetch; `--health SET` also launches one `classic-press-short` health game and notes its id (it does not read it); `--health-games N` makes it N games. `--alone` runs the candidate-alone check (each version alone against a six-seat field), which every paired win needs before promotion; it fetches both arms at once. `--variant classic-press-short` runs a screen stage instead: the paired design on the short variant (about 25 minutes), ids kept apart in the record's `screen:` list, read for health and behaviour only, no score verdict |
 | `sizing.py` | Games needed for an effect size, and the smallest effect a number of games can see. Its default SDs are starting values measured once; pass your own with `--sd` (`paired.py` prints `sd`) |
 | `ship.py` | Build, upload, look up the version id and append the VERSION_LOG row in one step |
+| `my_versions.py` | Every version the active player has uploaded, by policy name, newest first, with the versions that hold a league entry now marked `IN LEAGUE` (league, division, `active`, `benched` or `champion`). Reads every page of the platform's lists, so the count is whole. `--policy NAME`, `--in-league`, `--past` (entries that ended), `--json`. Use it before an upload under a name you did not choose yourself, and before saying "nothing of ours is entered" |
 | `flag_episodes.py` | Episodes worth opening (reads `wd.py seats` on stdin) |
 | `year_deltas.py` | Centre change per game year by policy (reads `wd.py seats` on stdin) |
 | `gzip_replays.py` | Compress fetched replays in place, about 20x; the loader reads them |
@@ -229,18 +233,23 @@ uploaded policy name.
 - `--balanced` writes 14 batches: every power and both seat positions equally
   for each version. `-n` is games per batch:
 
-  | `-n` | Games | Platform's estimate at create (1.4 to 2.0 credits a press game) | Recorded `cost_usd` (about $0.5 a press game) | Smallest effect at z = 2, with `sizing.py`'s starting SD |
+  | `-n` | Games | Platform's estimate at create (1.4 to 3.3 credits a press game) | Recorded `cost_usd` (about $0.5 a press game) | Smallest effect at z = 2, with `sizing.py`'s starting SD |
   |---|---|---|---|---|
-  | 1 | 14 | 20 to 28 credits | about $7 | 0.11 |
-  | 2 | 28 | 39 to 56 credits | about $15 | 0.08 |
-  | 6 | 84 | 118 to 168 credits | about $45 | 0.04 |
+  | 1 | 14 | 20 to 46 credits | about $7 | 0.11 |
+  | 2 | 28 | 39 to 92 credits | about $15 | 0.08 |
+  | 6 | 84 | 118 to 277 credits | about $45 | 0.04 |
 
   **What a game costs, and what is not known** (as the platform reported it on
-  2026-10-11; `tools/batches.py` prints both numbers for your own batches). The platform
+  2026-10-11 and the night after; `tools/batches.py` prints both numbers for your own batches). The platform
   prints an estimate when a request is created (`cost_preview.estimated_cost_credits`;
-  `eval_request.py create` shows it and saves it, and `coworld xp-request get <xreq>
-  --json` returns it later): 1.37 to 1.95 credits per full press game and 0.50 per
-  gunboat game. After a game ends its episode row carries `cost_usd`: $0.51 to $0.61 per
+  `eval_request.py create` shows it and saves it; `coworld xp-request get <xreq>
+  --json` returned none for requests made on the night of 2026-10-11): 1.37 to 3.34 credits per full press game and 0.50 per
+  gunboat game. It moves: in one night the same request was quoted at 2.23 credits a game,
+  then 3.24 to 3.34 five hours later, a request of ten games was quoted at 2.82 a game in
+  between, and a short health game costs the same as a full one. Nothing prices a request
+  without creating it. So never give the user a figure from this page before a launch: give
+  the one the create step prints, and when the user has set a credit limit, launch in sets
+  and read each set's estimate before the next. After a game ends its episode row carries `cost_usd`: $0.51 to $0.61 per
   press game, $0.026 per gunboat game, $0.11 to $0.28 for a short health game.
   **Not established:** the credits actually charged (nobody read a balance), and how
   `cost_usd` converts to credits. Quote the platform's estimate, say it is an estimate,

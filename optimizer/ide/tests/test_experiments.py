@@ -12,8 +12,9 @@ import unittest
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from lab_source import lab_source
 
-MIXIN = Path(__file__).resolve().parents[2] / "mixin"
+MIXIN = lab_source()
 sys.path.insert(0, str(MIXIN / "tools" / "tests"))
 from helpers import write_episode  # noqa: E402
 

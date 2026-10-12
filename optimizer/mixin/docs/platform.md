@@ -136,7 +136,11 @@ set; see the eval-design binding):
   and `episode_player_llm_spend_limit_usd` are accepted. **Dry-run every body**
   (`eval_request.py create body.json --dry-run`) before creating it. The dry run
   checks the body's shape and prints no cost; the estimate comes with the real
-  create (below).
+  create (below). `tools/run_ab.py ... --dry-run` gives the nearest thing to a price
+  ahead of time: the platform's estimate for the last request of the same kind this
+  lab created (same variant, seats, LLM budget and games per request), from the saved
+  create responses, or the range between the nearest sizes when that size was never
+  quoted.
 - **Keep the ids; the listing will not give them back.** `coworld xp-request list
   --mine --json` returns rows under `entries` with a `next_cursor` (follow it: 1,000 rows
   came back with more behind them on 2026-10-11), and a row has no roster, no notes and
@@ -144,7 +148,9 @@ set; see the eval-design binding):
   (`"evidence_state": "sealed"`, `participants: null`), even to the owner. What does
   identify a request is `coworld xp-request get <xreq> --json`: `requested.notes` is
   the note `make_request.py` wrote (what it compares, the field set, the experiment
-  id), and `cost_preview` is the estimate. So write every batch id into the
+  id). Its `cost_preview` came back `null` for requests read on 2026-10-12: the
+  estimate is in the create response and nowhere else, so keep
+  `.runtime/requests/responses/`. So write every batch id into the
   experiment record when it is created (`run_ab.py` does), and use the seed's
   `fetch_artifacts.py` to read a batch, not the CLI listing.
 - **The platform may run an episode again.** The league settings carry
@@ -154,17 +160,25 @@ set; see the eval-design binding):
 
 ## Cost and duration
 
-As the platform reported it on 2026-10-10/11. Re-measure on your own batches with
+As the platform reported it from 2026-10-10 to the early hours of 2026-10-12. Re-measure on your own batches with
 `python3 games/webdiplomacy/tools/batches.py <artifact dirs> [--responses DIR]`.
 
 | Game | Platform's estimate at create (`cost_preview.estimated_cost_credits`) | Episode row's `cost_usd` | Minutes of play |
 |---|---|---|---|
-| Full `classic-press` | 1.37 to 1.95 credits | $0.51 to $0.61 | median 61, longest 75 |
-| `classic-press-short` (health game) | 1.4 to 1.7 credits | $0.11 to $0.28 | 23 to 27 |
+| Full `classic-press` | 1.37 to 3.34 credits | $0.51 to $0.61 | median 61, longest 75 |
+| `classic-press-short` (health game) | 1.4 to 3.34 credits | $0.11 to $0.28 | 23 to 27 |
 | `classic-gunboat` | 0.50 credits | $0.026 | median 2.4 |
 
-- The estimate differed between launches of the same design on the same day; why is
-  not known.
+- The estimate moves between launches of the same design, and why is not known. Over one
+  night the quotes per press game were 2.232 (about 21:30 Pacific, requests of one to three
+  games), 2.821 (about 23:50, requests of ten games) and 3.24 to 3.34 (about 02:00, requests
+  of one and three games), short and full games alike. So the estimate does not follow the
+  game's length, and it may depend on the hour, the games per request, or both.
+- No route prices a request without creating it, and `coworld xp-request get` returned no
+  `cost_preview` for requests made that night; the create response is the only place the
+  figure appears, and `eval_request.py create` saves it. Before a launch, quote the figure
+  the create step prints, not this table. Under a credit limit, launch in sets and read
+  each set's estimate before the next.
 - **Not established:** the credits actually charged, and how `cost_usd` relates to
   credits. Nobody has read a balance. Quote the platform's estimate as an estimate.
 - LLM spend depends on the model and the policy's prompts: `wd.py costs` prints it per

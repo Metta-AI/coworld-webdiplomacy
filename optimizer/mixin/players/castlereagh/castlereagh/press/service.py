@@ -26,6 +26,36 @@ from castlereagh.search import SearchBot
 from castlereagh.search_orders import dipmap, fast_orders
 
 DEFAULT_TRUST = 0.7
+POLICY_MAPS = ("stances", "trust", "center_values")
+POLICY_LISTS = ("expected_orders", "require_orders", "forbid_moves_into")
+POLICY_NUMBER_MAPS = ("trust", "center_values")
+
+
+def _is_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def check_policy_shape(policy):
+    """Raise ValueError naming the first field of an LLM policy that has the wrong type.
+
+    The model writes the policy, and the tool guard hands only ValueError back to it as
+    text. A wrong shape that reached the code below (`"trust": 0.7` for a map) raised
+    something else and ended the wake."""
+    if not isinstance(policy, dict):
+        raise ValueError("policy must be an object such as {\"stances\": {\"FRANCE\": \"ally\"}}")
+    for key in POLICY_MAPS:
+        if policy.get(key) is not None and not isinstance(policy[key], dict):
+            raise ValueError(f"{key} must be an object keyed by power, such as {{\"FRANCE\": ...}}")
+    for key in POLICY_LISTS:
+        value = policy.get(key)
+        if value is not None and not (isinstance(value, list) and all(isinstance(item, str) for item in value)):
+            raise ValueError(f"{key} must be a list of strings")
+    for key in POLICY_NUMBER_MAPS:
+        for name, value in (policy.get(key) or {}).items():
+            if not _is_number(value):
+                raise ValueError(f"{key} for {name} must be a number")
+    if policy.get("risk") is not None and not _is_number(policy["risk"]):
+        raise ValueError("risk must be a number from 0 to 1")
 
 
 @contextmanager
@@ -55,6 +85,7 @@ class SearchService:
         """LLM policy -> SearchBot press dict. Raises ValueError naming the bad field."""
         if not policy:
             return None
+        check_policy_shape(policy)
         n, b = self.notation, self.b
 
         def trust_of(cid):
@@ -99,7 +130,10 @@ class SearchService:
                 "center_values": values, "our_provinces": ours}
 
     def _config(self, policy):
-        risk = float((policy or {}).get("risk", config.SEARCH_RISK))
+        if policy:
+            check_policy_shape(policy)
+        risk = (policy or {}).get("risk")
+        risk = float(config.SEARCH_RISK if risk is None else risk)
         return {"SEARCH_RISK": min(max(risk, 0.0), 1.0)}
 
     def _bot(self, policy, rng_key=None):

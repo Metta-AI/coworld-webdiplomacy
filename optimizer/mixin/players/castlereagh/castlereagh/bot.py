@@ -37,7 +37,8 @@ def policy_mode():
 def apply_overrides(text):
     """`KEY=VAL,KEY=VAL` config overrides (CASTLEREAGH_OVERRIDES); `tools/build.sh --overrides` bakes them in.
 
-    Values convert to the existing value's type; list values are JSON (one list per override)."""
+    Values convert to the existing value's type; list values are JSON (one list per override);
+    an on/off value is on for `1` or `true` and off for `0` or `false`."""
     for item in filter(None, (part.strip() for part in text.split(","))):
         key, value = item.split("=", 1)
         current = getattr(config, key)  # AttributeError = unknown knob: fail loudly
@@ -45,6 +46,10 @@ def apply_overrides(text):
             value = None if value == "None" else value
         elif isinstance(current, list):
             value = json.loads(value)
+        elif isinstance(current, bool):  # bool("0") and bool("false") are both True
+            if value.lower() not in ("1", "true", "0", "false"):
+                raise ValueError(f"{key} is on/off: give 1, true, 0 or false, not {value!r}")
+            value = value.lower() in ("1", "true")
         else:
             value = type(current)(value)
         setattr(config, key, value)

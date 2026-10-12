@@ -112,23 +112,30 @@ IDE build (2026-10-11), a third drive of the published template and an overnight
 - **A node lost under a player pod kills that seat for the rest of the game** and the game
   still completes (about 2.5% of press seats on 2026-10-11). The loader taints the seat
   (`pod_deleted`); the cause is on the platform side.
-- **IDE: one agent session per lab, Claude Code only.** Delivery to the running session
-  uses Claude Code hooks, tested on 2.1.296. Other harnesses get the `ide/ide listen`
+- **IDE: one agent session has the chat, Claude Code only.** Delivery to the running session
+  uses Claude Code hooks, tested on 2.1.296. A second session in the same folder is kept
+  out by an owner rule (`ide/README.md`, "Which session gets the chat"), run once with two
+  live sessions; its last fix has unit tests only. Other harnesses get the `ide/ide listen`
   background task or the MCP tools. The MCP tools were used in a live Claude Code session
   (2026-10-11); nothing was tried under another harness.
 - **No hosted game is known to have run the press player's no-units fix.** (`run_ab.py
   --alone`'s two-arm fetch ran hosted on 2026-10-11: 14 games per arm.) `run_ab.py`'s
-  `--health`, `--alone --resume` and its estimate line were added after that run and have
-  unit tests only.
+  `--health` and its estimate line ran hosted later that day in a fresh-install shakedown
+  (one health game; the printed estimate matched the platform's quote). `--alone --resume`
+  and `--health-games` have unit tests only.
 - **Two taint rules have never fired on a hosted game** (about 890 of our seats in the
   second drive): `no_decisions`, and the launcher's nonzero `child_exit` line, which
   taints a seat as `exception`. They have unit tests only.
 - **An installed lab has no ruff config.** This repository's `pyproject.toml` sets the
   rules; a user's `ruff check` in their copy uses ruff's defaults and reports other things.
 - **Credits charged cannot be read back.** `tools/batches.py` prints the platform's estimate at
-  create time (1.4 to 2.0 credits per press game on 2026-10-11) and each episode's recorded
+  create time (1.4 to 3.3 credits per press game over 2026-10-11 and the night after; it moves) and each episode's recorded
   `cost_usd` (about $0.5); `run_ab.py` prints the estimate when it launches. Neither is the
   bill, their relation is not known, and nobody has read a balance.
+- **`run_ab.py --variant` (the short-game screen stage) has unit tests only**; no screen has
+  been launched hosted. `--dry-run`, `my_versions.py`, `press_behaviour.py`, `ally_losses.py`
+  and `hold_reasons.py` were written and used in one lab's overnight run and have had no
+  second user.
 - **`ship.py` and `build.sh` know one source tree, `players/castlereagh`.** Every upload is
   built from it and logged in its `VERSION_LOG.md`, whatever policy name it is uploaded under
   (the row's first cell carries the name, which is what the IDE reads). A second policy source

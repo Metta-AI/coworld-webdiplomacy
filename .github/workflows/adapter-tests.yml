@@ -117,5 +117,7 @@ jobs:
           uv run skills/experiment/scripts/record.py new "$lab" ci-check
           uv run skills/experiment/scripts/record.py validate "$lab"
           (cd "$lab" && python3 -m unittest discover -s tools/tests)
+          # The IDE's tests borrow the lab's helpers and templates: they must find them in an install too.
+          (cd ide && uv run python -m unittest discover -s tests)
           # Nothing but the new record is left for git to pick up: no lock file, cache or virtualenv.
           test "$(git status --porcelain | wc -l)" -eq 1

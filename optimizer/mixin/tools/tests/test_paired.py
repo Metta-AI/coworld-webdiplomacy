@@ -79,6 +79,15 @@ class PairedDifference(unittest.TestCase):
         self.assertEqual(paired.paired_report(seats, "A", "B")["n"], 2)
         self.assertEqual(paired.paired_report(seats, "A", "B", keep_tainted=True)["n"], 3)
 
+    def test_a_tainted_opponent_seat_is_reported_and_the_game_still_counts(self):
+        games = [(["A", "B", *["f"] * 5], [0.2, 0.1, 0.14, 0.14, 0.14, 0.14, 0.14])] * 3
+        logs = {1: {4: [{"event": "exception", "error": "boom"}]}}
+        with tempfile.TemporaryDirectory() as tmp:
+            seats = self.build(tmp, games, logs)
+        report = paired.paired_report(seats, "A", "B")
+        self.assertEqual((report["n"], report["dropped_tainted"]), (3, 0))
+        self.assertEqual(list(report["other_seats_tainted"].values()), [["exception"]])
+
     def test_verdict_wording(self):
         self.assertEqual(paired.verdict(1, None, "A", "B"), "no result (n < 2)")
         self.assertEqual(paired.verdict(40, 1.99, "A", "B"), "no result (|z| < 2)")
