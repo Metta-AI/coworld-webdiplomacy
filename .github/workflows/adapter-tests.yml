@@ -181,7 +181,7 @@ jobs:
           lab=games/webdiplomacy
           for file in open_levers.md closed_levers.md best_practices.md experiments/_template.md \
               tools/holds.py tools/board_counts.py tools/seat_rows.py tools/seat_log.py tools/batches.py \
-              tools/run_ab.py skills/ide/SKILL.md; do
+              tools/run_ab.py tools/check_coworld.py CHANGELOG.md skills/ide/SKILL.md; do
             test -f "$lab/$file" || { echo "missing $lab/$file"; exit 1; }
           done
           test -x ide/ide

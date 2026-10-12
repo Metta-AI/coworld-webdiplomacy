@@ -25,7 +25,8 @@ IMAGE_PATHS = (
 )
 # Under tools/, but neither in an image nor used by a Docker check.
 NOT_IMAGE_PATHS = ("tools/build_intro_slides.py", "tools/sync_manifest_docs.py")
-OPTIMIZER_PATHS = ("optimizer/", "pyproject.toml", "uv.lock", ".github/workflows/")
+# optimizer/install.sh copies the root changelog into the lab.
+OPTIMIZER_PATHS = ("optimizer/", "CHANGELOG.md", "pyproject.toml", "uv.lock", ".github/workflows/")
 
 
 def runtime_manifest(text):

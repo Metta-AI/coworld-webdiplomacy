@@ -40,6 +40,11 @@ first version (2026-10-11). `INSTALL.md` is planned and does not exist yet.
   us". Someone who makes a copy next week would take it as current fact.
 - **`install.sh`** and **`seed.lock`**: the installer and the pinned
   optimizer-seed commit.
+- **The changelog** is [`CHANGELOG.md`](../CHANGELOG.md) at the repository root. `install.sh`
+  copies it into the lab, and the lab's `tools/check_coworld.py` (a SessionStart hook under
+  Claude Code) compares that copy with the current file and with the hosted Coworld
+  version, so a copy of the template learns about later changes. **Every change to
+  `mixin/` or `ide/` that a lab should pick up needs an entry**, with the files to copy.
 - **`ide/`**: a local web IDE, as its own uv project ([ide/README.md](ide/README.md)).
   The coding agent comes first: it starts the IDE (`ide/ide start --open`), and what the
   user types in the browser reaches that running session through Claude Code hooks. The

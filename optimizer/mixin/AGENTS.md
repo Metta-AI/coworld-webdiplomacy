@@ -53,6 +53,7 @@ kept in the game docs so each fact has one home:
 | What already works, what is refuted (both ship empty: they fill from your own records) | [best_practices.md](best_practices.md), [closed_levers.md](closed_levers.md) |
 | What was tested and gave no result (not closed; read it before proposing) | [open_levers.md](open_levers.md), and every record in `experiments/` |
 | Every binding and element, as a manifest | [MIXIN.md](MIXIN.md) |
+| What changed in the game or in this lab's template, and whether this lab has it | [Keep the lab current](#keep-the-lab-current); [CHANGELOG.md](CHANGELOG.md) |
 | Current objective and open threads | [WORKING_CONTEXT.md](WORKING_CONTEXT.md) |
 
 Write your own longer references in `docs/` when you need them (a verified map
@@ -158,6 +159,7 @@ Every tool in `tools/` and every skill in `skills/`, each listed once. The table
 | **Environment** | | |
 | `session_env.sh` | Private credentials and active player for this shell | none (this manual only) |
 | `check_clis.py` | Warn when the `coworld` or `softmax` CLI is stale | none (this manual only) |
+| `check_coworld.py` | Say when the Coworld or the optimizer template has changed since this lab last checked | none (this manual only) |
 | `llm_sidecar_local.py` | Local stand-in for the hosted LLM sidecar | `eval-design` |
 
 | Skill | Use when | Tools it runs |
@@ -206,6 +208,7 @@ docstring**; they may shift slightly from what is shown here.
 | `compare.py` | A/B by power for separate arms | `compare.py BASE_DIR CAND_DIR --baseline NAME:vN --candidate NAME:vM` |
 | `session_env.sh` | Private credentials directory, Docker config and active player for this shell, in one step; `git` and `gh` keep using the real home. In an agent harness pin `WEBDIP_SESSION_HOME` and source it on every command line ([docs/platform.md](docs/platform.md#setup)) | `source games/webdiplomacy/tools/session_env.sh <player id>` |
 | `check_clis.py` | Warns when the `coworld` or `softmax` uv tool is missing or older than PyPI's latest. With the Claude Code harness a SessionStart hook runs it; on other runtimes run it yourself at session start (`-v` also reports when both are current) | `check_clis.py [-v]` |
+| `check_coworld.py` | Compares the lab's `CHANGELOG.md` with the current one in coworld-webdiplomacy and looks up the hosted Coworld version; lists the entries this lab has not applied. A SessionStart hook under Claude Code; on other runtimes run it at session start. See [Keep the lab current](#keep-the-lab-current) | `check_coworld.py [-v] [--show] [--ack]` |
 | `llm_sidecar_local.py` | Local stand-in for the hosted LLM sidecar (needs `OPENROUTER_API_KEY`). `--upstream URL --key-env NAME [--drop FIELD]...` forwards to another OpenAI-compatible provider instead: not the hosted path, so label any read from it with its model | `llm_sidecar_local.py [--port N] [--ledger FILE] [--upstream URL --key-env NAME --drop FIELD]` |
 | `ab_stats.py` | The statistics behind `compare.py` (Welch t, Fisher exact, multiple-test correction) | library |
 
@@ -250,6 +253,50 @@ there, not to the terminal. When they say which policy is theirs, record it with
 `ide/ide follow <name>`. Their replay notes (`annotations/<episode id>.json`, `ide/ide annotations`) are
 evidence for the loop: read them before a diagnosis. The [IDE skill](skills/ide/SKILL.md) has
 the commands; `ide/README.md` explains how delivery works.
+
+## Keep the lab current
+
+The game and this lab's template both change. A lab is a copy: nothing updates it but
+you. So **at the start of every session, before other work, check for changes**:
+
+```sh
+python3 games/webdiplomacy/tools/check_coworld.py -v
+```
+
+(Under Claude Code a SessionStart hook runs it and prints only when something is new.)
+It compares the lab's [CHANGELOG.md](CHANGELOG.md), the copy this lab was last brought
+up to date with, against the current file in coworld-webdiplomacy, and looks up the
+hosted Coworld version. When it lists new entries:
+
+1. **Read them:** `python3 games/webdiplomacy/tools/check_coworld.py --show`. Tell the
+   user what changed before you change anything.
+2. **Get the source:** `git clone --depth 1 https://github.com/Metta-AI/coworld-webdiplomacy
+   <scratch dir>`. The lab's files are under `optimizer/mixin/` there, and `ide/` is
+   `optimizer/ide/`.
+3. **Apply each entry's "In your optimizer" steps, oldest entry first.** For a file the
+   entry says to copy: if this lab never changed it (`git log --oneline -- <file>` shows
+   only the commit that created the lab), take the new file. If the lab changed it, merge
+   the upstream change into the lab's version and keep the lab's own work. Never
+   overwrite `players/`, the registers (`open_levers.md`, `closed_levers.md`,
+   `best_practices.md`), `META.md`, `field_sets.json`, `experiments/` or `reports/`:
+   those are this lab's own.
+4. **Carry a game change through the lab.** When an entry changes what the game does (a
+   config field, an environment variable, a rule, a variant), find every place the lab
+   states the old fact (`grep -rn` the lab for the field or the number) and fix the docs,
+   the skills and your policy's code. Check `PINNED_GAME_REF` in `tools/build.sh` against
+   the entry. Then run one health game before any batch.
+5. **Check and record:** `(cd games/webdiplomacy && python3 -m unittest discover -s
+   tools/tests)`, then `python3 games/webdiplomacy/tools/check_coworld.py --ack`, update
+   the commit in [MIXIN.md](MIXIN.md)'s "Provenance", and commit it all with the entries'
+   titles in the message.
+
+When the tool says the hosted Coworld version is one the changelog does not name, the
+game was released before its entry was written. Read the recent commits of
+coworld-webdiplomacy, and treat every game fact in `docs/` as unchecked until an entry
+arrives or you have verified it.
+
+A new Coworld version can change scores. Do not pool games played on two Coworld
+versions in one read; `coworld xp-request get <xreq>` prints the version a request ran on.
 
 ## How the loop runs here
 

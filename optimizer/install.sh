@@ -91,6 +91,8 @@ git -C "$TARGET" remote rename origin seed
 # --- 2. mixin ---
 LAB="$TARGET/games/webdiplomacy"
 copy_component mixin "$LAB"
+# The lab's copy of the changelog is what tools/check_coworld.py compares with upstream.
+cp "$SOURCE_REPO/CHANGELOG.md" "$LAB/CHANGELOG.md"
 mkdir -p "$LAB/lessons_archive"
 touch "$LAB/lessons_archive/.gitkeep"
 sed -i.bak \
@@ -266,10 +268,17 @@ settings["hooks"]["SessionStart"].append({"matcher": "startup", "hooks": [{
     "command": 'python3 "$CLAUDE_PROJECT_DIR/games/webdiplomacy/tools/check_clis.py"',
     "timeout": 20,
     "statusMessage": "Checking coworld and softmax CLI versions",
+}, {
+    # Prints only when the Coworld or the optimizer template has changed since the lab's
+    # copy of the changelog.
+    "type": "command",
+    "command": 'python3 "$CLAUDE_PROJECT_DIR/games/webdiplomacy/tools/check_coworld.py"',
+    "timeout": 40,
+    "statusMessage": "Checking the webDiplomacy Coworld version and changelog",
 }]})
 path.write_text(json.dumps(settings, indent=2) + "\n")
 PYEOF
-  echo "Hooks: added the webDiplomacy CLI version check to SessionStart."
+  echo "Hooks: added the webDiplomacy CLI and Coworld version checks to SessionStart."
   # Wire the IDE into the session: hooks that hand the user's browser messages to the
   # running agent (the entries come from the IDE itself, ide/webdip_ide/hooks.py), an MCP
   # server with the same actions, and the IDE skill where Claude Code discovers skills.
@@ -319,7 +328,7 @@ hooks were installed, date)*"""
 record = f"""- Claude Code: wired by `optimizer/install.sh` on {today}. `CLAUDE.md` loads `AGENTS.md`
   (and `games/webdiplomacy/CLAUDE.md` the lab manual). Skills are linked in
   `.claude/skills/`; `.claude/settings.json` runs `rotate_lessons.sh` and the lab's
-  `check_clis.py` at SessionStart, and both stop nudges at Stop. The IDE (`ide/`) adds
+  `check_clis.py` and `check_coworld.py` at SessionStart, and both stop nudges at Stop. The IDE (`ide/`) adds
   `ide/ide hook <event>` at SessionStart, UserPromptSubmit, PostToolUse, Stop and SessionEnd
   (they hand the user's browser messages to the session and tell the page when it ends), a
   background waiter (`ide/ide hook Rewake`, marked `asyncRewake`) at the first four and at
