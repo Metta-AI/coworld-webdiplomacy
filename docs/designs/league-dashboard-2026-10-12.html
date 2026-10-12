@@ -413,7 +413,7 @@
 <article id="doc">
 
   <header class="masthead">
-    <span class="eyebrow">Design Proposal · 2026-10-12 · Status: Proposal, revised after review on 2026-10-12, nothing built</span>
+    <span class="eyebrow">Design Proposal · 2026-10-12 · Status: Accepted on 2026-10-12, build starting</span>
     <h1>The League Desk: a local dashboard for running the webDiplomacy leagues</h1>
     <p class="context">One read-only local page for the state of the press and gunboat leagues. By James Boggs with Claude.</p>
   </header>
@@ -635,8 +635,8 @@
 
     <div class="decision">
       <span class="decision-label">Decision 5 (added after review)</span>
-      <p><strong>Ready timing, missed orders and private press counts go to a team-only place, never into <code>results.json</code>.</strong> The platform serves <code>results.json</code> and the game log to anyone with access to the episode, and the game also sends the results to every player when the game ends.<sup class="ref"><a href="#src-21" title="Softmax platform: the game-written trajectory artifact (COGAME_SAVE_TRAJECTORY_URI) is served to team accounts only; results and logs are served to anyone with episode access. Read 2026-10-12 in the coworld CLI docs and the episode-request artifact route.">21</a></sup><sup class="ref"><a href="#src-20" title="adapter/routes.py:119 — results.json is sent to every player in the game_over message.">20</a></sup> Which team-only place to use is open question 8.</p>
-      <p><em>Rejected: publish after the game ends.</em> It tells every rival how each bot behaved.</p>
+      <p><strong>Ready timing and missed orders go to the public game log, in one line that the game writes when the game ends. Private press counts wait for a team-only artifact.</strong> James decided on 2026-10-12 that Ready timing can be public after the game. The line is never written during play, because upstream hides Ready status from the other players while an anonymous game runs. The platform serves <code>results.json</code> and the game log to anyone with access to the episode, and the game also sends the results to every player when the game ends.<sup class="ref"><a href="#src-21" title="Softmax platform: the game-written trajectory artifact (COGAME_SAVE_TRAJECTORY_URI) is served to team accounts only; results and logs are served to anyone with episode access. Read 2026-10-12 in the coworld CLI docs and the episode-request artifact route.">21</a></sup><sup class="ref"><a href="#src-20" title="adapter/routes.py:119 — results.json is sent to every player in the game_over message.">20</a></sup> A dedicated team-only telemetry artifact is requested from the platform team (Asana task 1219425581082710). Press counts are not recorded until it exists.</p>
+      <p><em>Rejected: the trajectory file.</em> It is team-only and needs no platform change, but it exists for training data and its reader does not expect other lines. <em>Rejected: <code>results.json</code>.</em> The game sends it to every player in the last message of the game, and it is the scoring record, not a log.</p>
     </div>
 
     <div class="decision">
@@ -649,7 +649,7 @@
   <section id="instrumentation">
     <h2>7 · Instrumentation the game needs</h2>
     <ul class="key-points">
-      <li>Six changes, listed smallest first. Items 1 to 5 ship together in Coworld 0.7.11.</li>
+      <li>Six changes, listed smallest first. Items 1 to 5 ship together in Coworld 0.7.11. Item 6 is deferred.</li>
       <li>None touches the upstream submodule, and none advances a phase.</li>
     </ul>
     <table class="instr-table">
@@ -659,11 +659,11 @@
         <tr><td>2</td><td>Read upstream's per-key API hit counter at the end of the game.<sup class="ref"><a href="#src-15" title="webdiplomacy/api.php:1364 — upstream counts API hits per key.">15</a></sup></td><td>API requests per seat</td><td><code>php/wdc_state.php</code></td><td>Never log the key. Join by user to slot.</td></tr>
         <tr><td>3</td><td>Store each phase's deadline and the longest gamemaster request per phase.</td><td>Phases ended early. Adjudication time</td><td><code>adapter/episode.py</code></td><td>None.</td></tr>
         <tr><td>4</td><td>Add a <code>timing</code> object to <code>results.json</code> and print one <code>{"event":"timing"}</code> line on stdout at exit.<sup class="ref"><a href="#src-12" title="adapter/boot.py:214-274 — service start-up records no durations.">12</a></sup></td><td>Boot, game creation, connect wait, results writing, shutdown</td><td><code>adapter/boot.py</code>, <code>adapter/episode.py</code></td><td>None.</td></tr>
-        <tr><td>5</td><td>Sample each seat's order status every tick. Record first Ready and first Saved per phase. Write only when the game ends.<sup class="ref"><a href="#src-19" title="php/wdc_state.php:10 — the member query where order status would be added.">19</a></sup></td><td>Time to Ready. Phases never Ready. Phases with no orders</td><td><code>php/wdc_state.php</code>, <code>Episode.tick</code></td><td>Upstream hides this in anonymous games.<sup class="ref"><a href="#src-10" title="webdiplomacy/lib/gamefiles.php:121-127 — upstream hides orderStatus when identities are hidden.">10</a></sup> It must never reach the live spectator stream, replay frames, stdout or <code>results.json</code>. It goes to the team-only record (decision 5).</td></tr>
-        <tr><td>6</td><td>Count private press messages per seat per phase. Counts only, never content.</td><td>Negotiation volume</td><td>End-of-game query</td><td><code>results.json</code> goes to every player.<sup class="ref"><a href="#src-20" title="adapter/routes.py:119 — results.json is sent to every player in the game_over message.">20</a></sup> Counts reveal who talked to whom, so they go to the team-only record (decision 5).</td></tr>
+        <tr><td>5</td><td>Sample each seat's order status every tick. Record first Ready and first Saved per phase. Write only when the game ends.<sup class="ref"><a href="#src-19" title="php/wdc_state.php:10 — the member query where order status would be added.">19</a></sup></td><td>Time to Ready. Phases never Ready. Phases with no orders</td><td><code>php/wdc_state.php</code>, <code>Episode.tick</code></td><td>Upstream hides this in anonymous games.<sup class="ref"><a href="#src-10" title="webdiplomacy/lib/gamefiles.php:121-127 — upstream hides orderStatus when identities are hidden.">10</a></sup> It must never reach the live spectator stream, replay frames or stdout during play. The game writes it as one line of the game log when the game ends (decision 5).</td></tr>
+        <tr><td>6</td><td>Count private press messages per seat per phase. Counts only, never content.</td><td>Negotiation volume</td><td>End-of-game query</td><td><code>results.json</code> goes to every player.<sup class="ref"><a href="#src-20" title="adapter/routes.py:119 — results.json is sent to every player in the game_over message.">20</a></sup> Counts reveal who talked to whom. Deferred until the platform has a team-only telemetry artifact (decision 5).</td></tr>
       </tbody>
     </table>
-    <p>Any new <code>results.json</code> field also needs an update to <code>docs/protocol.md</code>, the manifest sync and a new Coworld version, 0.7.11. Items 5 and 6 carry privacy risk. They write to the team-only record of decision 5 and wait for open question 8.</p>
+    <p>Any new <code>results.json</code> field also needs an update to <code>docs/protocol.md</code>, the manifest sync and a new Coworld version, 0.7.11. Item 5 writes to the game log at the end of the game. Item 6 is deferred (decision 5).</p>
   </section>
 
   <section id="build-order">
@@ -682,16 +682,16 @@
 
   <section id="open-questions">
     <h2>9 · Open questions</h2>
-    <p>James answered the first seven on 2026-10-12. Question 8 is new and is the only one still open.</p>
+    <p>James answered the first seven on 2026-10-12. Question 8 was added after review and is also decided. No question is open.</p>
     <div class="callout callout-open">
       <span class="callout-label">Open 1</span>
       Once Ready timing and missed-order data are recorded, do they go into <code>results.json</code>, which every player in the game receives,<sup class="ref"><a href="#src-20" title="adapter/routes.py:119 — results.json is sent to every player in the game_over message.">20</a></sup> or into a team-only artifact? Publishing them after the game tells rivals how each bot behaved.
-      <br><strong>Decided 2026-10-12:</strong> a team-only artifact. See decision 5 and question 8.
+      <br><strong>Decided 2026-10-12:</strong> the public game log, written when the game ends. See decision 5.
     </div>
     <div class="callout callout-open">
       <span class="callout-label">Open 2</span>
       The same question applies to private press counts. The recommendation is per-seat totals only, or a team-only artifact.
-      <br><strong>Decided 2026-10-12:</strong> a team-only artifact, the same as question 1.
+      <br><strong>Decided 2026-10-12:</strong> a team-only artifact. Deferred until the platform has one (Asana task 1219425581082710).
     </div>
     <div class="callout callout-open">
       <span class="callout-label">Open 3</span>
@@ -721,6 +721,7 @@
     <div class="callout callout-open">
       <span class="callout-label">Open 8 (new)</span>
       Where does the team-only record go? The platform has one team-only file that a game can write today: the trajectory file, which exists to hold training data.<sup class="ref"><a href="#src-21" title="Softmax platform: the game-written trajectory artifact (COGAME_SAVE_TRAJECTORY_URI) is served to team accounts only; results and logs are served to anyone with episode access. Read 2026-10-12 in the coworld CLI docs and the episode-request artifact route.">21</a></sup> The game can write its operations record there with no platform change. The cost is that the file then holds lines that the platform's training-data reader does not expect, which matters only if someone exports training data from webDiplomacy games. The clean alternative is a small platform change: a new team-only artifact for game telemetry. The recommendation is to use the trajectory file now, with every line marked as an operations record, and to ask the platform team for the dedicated artifact.
+      <br><strong>Decided 2026-10-12:</strong> neither file. Ready timing and missed orders go to the game log. The dedicated artifact is requested, and press counts wait for it.
     </div>
   </section>
 
