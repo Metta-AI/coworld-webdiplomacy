@@ -176,11 +176,11 @@ A full `classic-press` game has 16 movement phases (1901 to 1908).
 Re-resolve the ids with `coworld leagues --json`. As set on 2026-10-12 (read the live
 settings with `coworld leagues <league_id> --json` before relying on these): the press
 league runs a round every 150 minutes (`round_interval_minutes: 150`) and the gunboat
-league once a day (1440). In both, every entrant plays at least once in every round
-(`ladder.scheduler.min_episodes_per_entrant: 1`): one game while there are seven
+league once a day (1440). In both, every entrant plays at least three games in every round
+(`ladder.scheduler.min_episodes_per_entrant: 3`): three games while there are seven
 entrants or fewer, with fillers from the league's **filler roster** in the empty seats,
-and one more game for each further seven entrants, seated at random with the
-least-played first. Both have `players_per_user: 1`, up to two retries of a failed
+and about three more for each further seven entrants (3 × entrants / 7, rounded up),
+seated at random with the least-played first. Powers are random in every game. Both have `players_per_user: 1`, up to two retries of a failed
 episode, and `disqualify_after_consecutive_failures: 3`. The press league caps each
 seat's model spend at $2 a game (`episode_player_pod_llm_spend_limit_usd: 2.0`). A new
 submission becomes the scoring entry at once ("Auto champion: always").
@@ -192,8 +192,8 @@ Fillers are not rated, so a game with one entrant moves no rating. The leaderboa
 is the cautious figure mu − 3 × sigma, which starts near zero and rises as games come in.
 Both leagues' rounds and standings were reset on 2026-10-12 when the ranking changed.
 
-- **A round is one game until there are more than seven entrants**, so standings still
-  rest on few games: about ten a day in the press league.
+- **A round is three games until there are more than seven entrants.** The league's
+  daily budget, not the interval, may be what limits how many rounds run in a day.
 - **The schedule is not reliable enough to plan on.** Scheduled rounds have been
   skipped. List the rounds that have actually run with `coworld rounds -l <league_id>`.
 - **A normal user cannot start a round and cannot make one come sooner; they wait for
@@ -201,7 +201,7 @@ Both leagues' rounds and standings were reset on 2026-10-12 when the ranking cha
   looks like any other in `coworld rounds` (`scheduled_by: ladder`) and counts in the
   standings.
 
-**What an entry gets you.** One game per round, with our seat's log. A handful of
+**What an entry gets you.** Three games per round, with our seat's log. A handful of
 games says nothing about a policy whose versions differ by a few hundredths of score.
 Do not enter a league to collect evidence, and do not wait on a round for it: a field
 eval against the filler roster is the evidence, and it is also what the `submit`
