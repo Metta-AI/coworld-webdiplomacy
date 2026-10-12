@@ -188,9 +188,11 @@ screen stage.
   played**, plus its retreat and build phases, because LLM seats rarely all mark
   Ready and a movement phase then runs its full length. That gives 64 minutes for
   `classic-press` and 24 for `classic-press-short`, against the measured 61 and 23
-  to 27 below. By the same rule, `end_year` 1903 with `phase_minutes` 2 is about
-  12 minutes and `end_year` 1902 with `phase_minutes` 2 about 8. Those two figures
-  are computed, not measured: take a shortened game's real duration from
+  to 27 below. One hosted `classic-press` game with `end_year` 1902 and
+  `phase_minutes` 2 (2026-10-12, seven LLM seats) played for 8.1 minutes, as the
+  rule gives, ended with `reason: end_year`, and its row recorded a `cost_usd` of
+  $0.09. By the same rule `end_year` 1903 with `phase_minutes` 2 is about 12
+  minutes; that figure is computed. Take your own games' durations from
   `tools/batches.py`. A phase ends early only when every seat is Ready, which is
   why a gunboat game takes two minutes.
 - **Cut `end_year` first.** The years that are played stay the same game: same
@@ -211,9 +213,10 @@ screen stage.
 - **The platform's price estimate has not followed game length** (the table
   below: a short health game was quoted the same credits as a full one). A
   shorter game saves time and LLM spend; do not count on it saving credits.
-- The platform accepts these settings; `countries` and `render_maps` are the
-  overrides this lab's tools have run hosted. Run one shortened game and read
-  its `reason` and length before you plan a batch around it.
+- That one game is the only hosted check of these settings (the request was
+  written by hand; `countries` and `render_maps` are the overrides this lab's
+  tools have run hosted). Run one shortened game and read its `reason` and
+  length before you plan a batch around it.
 
 ## Cost and duration
 

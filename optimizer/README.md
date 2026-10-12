@@ -145,8 +145,9 @@ IDE build (2026-10-11), a third drive of the published template and an overnight
   bill, their relation is not known, and nobody has read a balance.
 - **`run_ab.py --variant` (the short-game screen stage), `--max-credits` and `--add-set` have
   unit tests only**; none has been used on a hosted launch. The same goes for `--config` on
-  `make_request.py` and `run_ab.py` (a shorter game through `end_year` and `phase_minutes`):
-  the durations in `mixin/docs/platform.md`, "Shorter games", are computed from the phase lengths. `--dry-run`, `my_versions.py`,
+  `make_request.py` and `run_ab.py` (a shorter game through `end_year` and `phase_minutes`).
+  The settings themselves ran hosted once, in a request written by hand (2026-10-12: `end_year`
+  1902, `phase_minutes` 2, 8.1 minutes of play); `mixin/docs/platform.md`, "Shorter games", has it. `--dry-run`, `my_versions.py`,
   `press_behaviour.py`, `centre_losses.py` and `hold_reasons.py` were written and used in one
   lab's overnight run and have had no second user.
 - **`wake_bench.py` has had two short checks with a real model** (40 and 8 recorded decisions,

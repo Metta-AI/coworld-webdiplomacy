@@ -69,6 +69,7 @@ git submodule update --init --recursive
 uv sync --group dev
 uv run python -m unittest discover -s adapter -p 'test_*.py' -v   # adapter unit tests
 uv run python -m unittest players.test_players -v                 # player unit tests
+uv run python -m unittest tools.test_ci_scope -v                  # which CI jobs a change needs
 uv run ruff check adapter players tools optimizer
 (cd optimizer/mixin && python3 -m unittest discover -s tools/tests)   # optimizer tools
 (cd optimizer/ide && uv run python -m unittest discover -s tests)     # optimizer IDE
@@ -82,6 +83,10 @@ DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
 Docker-based checks (`tools/check_*.py`) need the images built first; the README
 lists them and `.github/workflows/adapter-tests.yml` runs them in CI. Use the
 project-local `uv run coworld` and `uv run softmax`, never global installs.
+
+CI builds the images and runs those checks only when `tools/ci_scope.py` says the
+change needs them. If you add a top-level path that goes into an image or that a
+check reads, add it to `IMAGE_PATHS` there, or CI will skip the checks for it.
 
 ## Gotchas
 
