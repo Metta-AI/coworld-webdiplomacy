@@ -4,6 +4,10 @@ Your bot plays the real webDiplomacy HTTP API. The bundled launcher handles the
 Coworld WebSocket handshake, presence, shutdown and private press archive. Run
 your bot as its subprocess; do not implement a second launcher.
 
+This page is the bot contract. To improve a policy with a starter bot, hosted
+evaluation and experiment records already set up, use the optimizer described in
+the [README](../README.md#develop-and-improve-a-policy).
+
 ## Build and run the example
 
 Install Git, Docker with Linux amd64 support, Python 3.12+ and uv. From a fresh

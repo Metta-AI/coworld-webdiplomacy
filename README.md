@@ -25,9 +25,75 @@ certification and publication are separate release steps.
 | [Architecture](docs/architecture.md) | Processes, routes, episode lifecycle, code map, environment variables |
 | [Design and rationale](docs/design.md) | Goals, key decisions, rejected alternatives, upstream updates, risks |
 | [Source bundle](SOURCE_BUNDLE.md) | Reproducible AGPL source archive |
-| [Optimizer (prototype)](optimizer/README.md) | optimizer-seed mixin, IDE and the `webdip-optimizer` template generator |
+| [Develop and improve a policy](#develop-and-improve-a-policy) | Setting up the optimizer: starter policy, hosted evaluation, experiment records, IDE |
+| [Optimizer source (prototype)](optimizer/README.md) | optimizer-seed mixin, IDE and the `webdip-optimizer` template generator |
 
-Coding agents should start with [AGENTS.md](AGENTS.md).
+Coding agents working on this repository should start with [AGENTS.md](AGENTS.md).
+Coding agents asked to build or improve a **player policy** should start with the
+next section instead.
+
+## Develop and improve a policy
+
+Do not develop a policy inside this repository. This repository is the game; policy
+work happens in a **webDiplomacy optimizer**, a separate private repository of your
+own made from the public template
+[Metta-AI/webdip-optimizer](https://github.com/Metta-AI/webdip-optimizer). The
+optimizer holds a working starter policy, the tools that build, upload and evaluate
+it on the hosted platform, the skills a coding agent follows to run experiments, a
+local web IDE for replays and results, and the records of everything you try.
+
+**If you are a coding agent** and the user wants a good webDiplomacy policy, set this
+up for them and continue the work there:
+
+1. Check the prerequisites: Git, the GitHub CLI (`gh`), [uv](https://docs.astral.sh/uv/),
+   and Docker with Linux amd64 support (needed to build and upload a policy; reading
+   and analysis work without it).
+2. Make the user's private copy, outside this checkout:
+
+   ```sh
+   gh repo create my-webdip-optimizer --template Metta-AI/webdip-optimizer --private --clone
+   cd my-webdip-optimizer
+   ```
+
+   From a clone of this repository, `optimizer/install.sh ~/coding/my-webdip-optimizer`
+   produces the same thing from the current source.
+3. Install the Softmax CLIs and sign in. `softmax login` opens a browser, so the user
+   does this step:
+
+   ```sh
+   uv tool install coworld
+   uv tool install softmax-cli
+   softmax login
+   ```
+
+4. Start the coding agent **in the new repository** (a new session, so it loads that
+   repository's `AGENTS.md`, skills and hooks) and have it open
+   `docs/getting-started.md`. That guide runs the first session: learn the game and
+   the current field, choose a strategy, change the starter policy, and measure the
+   change with hosted games.
+5. Say **"open the IDE"** to get the browser workbench. It attaches to the running
+   agent session; this delivery is built for Claude Code, and other harnesses use the
+   `ide/ide listen` task or the IDE's MCP tools.
+
+What to read once inside the optimizer:
+
+| File in the optimizer | For |
+| --- | --- |
+| `AGENTS.md` | The loop every session follows and its rules |
+| `games/webdiplomacy/AGENTS.md` | The webDiplomacy lab manual: tools, commands, credentials |
+| `games/webdiplomacy/MIXIN.md` | Which skills the lab provides and when to use each |
+| `games/webdiplomacy/docs/strategy.md` | What the starter policy does, and where your own findings go |
+| `games/webdiplomacy/players/castlereagh/` | The starter policy: a search core plus an LLM press layer |
+
+The optimizer ships methods and empty records, not conclusions about how to win: its
+lists of what works and what failed start empty and fill from your own games. Hosted
+games cost credits; `games/webdiplomacy/docs/platform.md` gives the current estimate and the
+command that re-measures it.
+
+To write a bot from scratch without the optimizer, see
+[Write your own policy](docs/write-a-policy.md). The optimizer's source lives in
+[optimizer/](optimizer/README.md); it is copied out by `install.sh` and never run
+from here.
 
 ## Game rules and variants
 
