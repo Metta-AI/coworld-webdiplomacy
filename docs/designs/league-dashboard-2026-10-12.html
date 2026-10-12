@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The League Desk — Design Proposal 2026-10-12</title>
+<!--
+  Ink & Print design/plan document template (Softmax house style).
+
+  HOW TO USE (renderer subagent):
+  - Replace everything inside <article id="doc"> with the real document content.
+    The placeholder content below doubles as a component style guide — copy the
+    markup patterns (masthead, TOC, section, figure, table, callout, code,
+    citation) and delete what you don't use.
+  - Do NOT modify anything between the DC-COMMENTS BEGIN/END markers. That block
+    is the tested commenting system; copy it verbatim. The one thing you may fill
+    is the CONTENT of <script id="dc-preload" type="application/json">: a
+    dc-comments/1 `comments` array, each comment optionally carrying
+    `replies: [{author, text, created}]`, so the reader sees their comments and
+    the agent's replies together in the sidebar.
+  - Keep the doc self-contained: inline SVG for figures, no JS deps beyond this
+    file. Google Fonts is the only permitted external fetch.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Merriweather+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============ Ink & Print tokens ============ */
+  :root {
+    --bg: #fffdf4;            /* cream paper */
+    --surface: #fffaf0;
+    --surface-alt: #f8f6ef;
+    --fg: #111827;            /* warm near-black — never pure #000 */
+    --fg-subtle: #555555;
+    --fg-muted: #999999;
+    --ink-navy: #1a3875;
+    --ink-sage: #6e8050;
+    --ink-terracotta: #b36e4e;
+    --ink-gold: #d4a853;
+    --accent: #859ebe;
+    --accent-soft: #eef2f7;
+    --cta: #0e2758;
+    --cta-foreground: #fffdf4;
+    --border: #e4dac8;
+    --border-strong: #d4c9b5;
+    --border-subtle: #f0ebe1;
+    --serif: 'Merriweather', Georgia, serif;
+    --sans: 'Merriweather Sans', 'Helvetica Neue', sans-serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* ============ Page grid: reading column + comment rail ============ */
+  .dc-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 0;
+    max-width: 1240px;
+    margin: 0 auto;
+  }
+  article#doc {
+    max-width: 72ch;
+    margin: 0 auto;
+    padding: 56px 40px 120px;
+    min-width: 0;
+  }
+
+  /* ============ Typography ============ */
+  .eyebrow {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-subtle);
+  }
+  header.masthead { border-bottom: 2px solid var(--border-strong); padding-bottom: 20px; margin-bottom: 32px; }
+  header.masthead h1 {
+    font-family: var(--serif);
+    font-weight: 900;
+    font-size: 34px;
+    line-height: 1.2;
+    margin: 8px 0 10px;
+  }
+  header.masthead .context { color: var(--fg-subtle); font-size: 13.5px; margin: 0; }
+  h2 {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-navy);
+    margin: 48px 0 12px;
+  }
+  h3 { font-family: var(--serif); font-weight: 700; font-size: 16.5px; margin: 32px 0 8px; }
+  p { margin: 0 0 14px; }
+  a { color: var(--ink-navy); text-decoration-color: var(--accent); text-underline-offset: 3px; }
+  a:hover { color: var(--cta); }
+  strong { font-weight: 700; }
+  ul, ol { padding-left: 24px; margin: 0 0 14px; }
+  li { margin-bottom: 4px; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 40px 0; }
+
+  /* Key-points opener: every section starts with scannable bullets */
+  .key-points {
+    list-style: none;
+    padding: 0 0 0 2px;
+    margin: 0 0 18px;
+  }
+  .key-points li { padding-left: 18px; position: relative; margin-bottom: 6px; }
+  .key-points li::before { content: '—'; position: absolute; left: 0; color: var(--ink-gold); font-weight: 700; }
+
+  /* ============ TOC ============ */
+  nav.toc { margin: 28px 0 8px; }
+  nav.toc ol { list-style: none; padding: 0; column-count: 2; column-gap: 40px; margin: 10px 0 0; }
+  nav.toc li { margin-bottom: 5px; break-inside: avoid; }
+  nav.toc a { text-decoration: none; border-bottom: 1px dotted var(--border-strong); }
+  nav.toc .toc-num { font-family: var(--mono); font-size: 12px; color: var(--fg-muted); margin-right: 8px; }
+
+  /* ============ Tables ============ */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 18px 0 22px;
+    font-size: 13.5px;
+  }
+  th {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-subtle);
+    text-align: left;
+    padding: 6px 12px 6px 0;
+    border-bottom: 2px solid var(--border-strong);
+  }
+  td { padding: 7px 12px 7px 0; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
+  td.num, th.num { text-align: right; font-family: var(--mono); font-size: 12.5px; font-feature-settings: 'tnum' 1; }
+
+  /* ============ Figures ============ */
+  figure { margin: 24px 0 28px; }
+  figure svg { max-width: 100%; height: auto; display: block; }
+  figcaption {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--fg-subtle);
+  }
+  figcaption .fig-label {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 10.5px;
+    color: var(--ink-navy);
+    margin-right: 8px;
+  }
+
+  /* ============ Code & citations ============ */
+  code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--surface-alt);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--surface-alt);
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 16px 0 20px;
+  }
+  pre code { background: none; padding: 0; font-size: 12.5px; line-height: 1.6; }
+  .cite {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--fg-subtle);
+    background: var(--surface-alt);
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  /* Superscript source references — body prose never carries raw file paths.
+     Full citation lives in the title (hover) and in the numbered Sources list. */
+  sup.ref { line-height: 0; }
+  sup.ref a {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--ink-navy);
+    text-decoration: none;
+    padding: 0 1px;
+  }
+  sup.ref a:hover { text-decoration: underline; }
+  ol.sources { margin: 12px 0; padding-left: 30px; }
+  ol.sources li {
+    font-size: 13px;
+    padding: 2px 0;
+  }
+  ol.sources li::marker {
+    font-family: var(--mono);
+    font-weight: 700;
+    color: var(--ink-navy);
+  }
+  ol.sources li:target { background: var(--accent-soft); }
+
+  /* ============ Callouts ============ */
+  .callout { padding: 12px 16px; margin: 18px 0; font-size: 13.5px; border-radius: 3px; }
+  .callout .callout-label {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+  }
+  .callout-info { background: var(--accent-soft); }
+  .callout-info .callout-label { color: var(--ink-navy); }
+  .callout-warn { background: rgba(179, 110, 78, 0.08); border-left: 3px solid var(--ink-terracotta); }
+  .callout-warn .callout-label { color: var(--ink-terracotta); }
+  .callout-open { background: rgba(212, 168, 83, 0.10); }
+  .callout-open .callout-label { color: #8a6a1f; }
+
+  /* Decision record */
+  .decision { border-top: 1px solid var(--border); padding: 14px 0 4px; margin: 14px 0; }
+  .decision .decision-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-sage); }
+  .decision p { margin-top: 6px; }
+
+  @media (max-width: 1100px) {
+    .dc-page { grid-template-columns: 1fr; }
+  }
+  @media print {
+    #dc-sidebar, #dc-fab, #dc-toggle { display: none !important; }
+    .dc-page { grid-template-columns: 1fr; }
+  }
+
+  /* ---- additions for this document (outside the DC-COMMENTS blocks) ---- */
+  /* State chips for the metric-source table, modelled on the template's tag styles */
+  .chip {
+    display: inline-block;
+    font-family: var(--sans);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.35;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    padding: 1px 6px;
+  }
+  .chip-api { color: #55663c; background: rgba(110, 128, 80, 0.10); }
+  .chip-snap { color: var(--ink-navy); background: var(--accent-soft); }
+  .chip-sql { color: #8a6a1f; background: rgba(212, 168, 83, 0.12); }
+  .chip-replay { color: var(--fg-subtle); background: var(--surface-alt); }
+  .chip-need { color: #8f5136; background: rgba(179, 110, 78, 0.10); }
+  .chip-note { font-size: 11px; color: var(--fg-subtle); }
+  .metric-table td, .instr-table td { overflow-wrap: anywhere; }
+  .metric-table code, .instr-table code { font-size: 11.5px; }
+  .instr-table { font-size: 12.5px; }
+
+  /* replies rendered under a comment (from the comment's `replies` array) */
+  .dc-replies { margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--border-strong); }
+  .dc-reply-author { font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-navy); }
+  .dc-reply-text { font-size: 12.5px; line-height: 1.5; color: var(--fg); white-space: pre-wrap; margin-top: 2px; }
+  .dc-reply-text a { color: var(--ink-navy); word-break: break-all; }
+
+  /* ================================================================
+     DC-COMMENTS BEGIN — styles (copy verbatim; do not modify)
+     ================================================================ */
+  ::highlight(dc-hl) { background: rgba(212, 168, 83, 0.28); }
+  ::highlight(dc-hl-active) { background: rgba(212, 168, 83, 0.6); }
+
+  #dc-fab {
+    position: absolute;
+    z-index: 40;
+    display: none;
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--cta-foreground);
+    background: var(--cta);
+    border: 1px solid #0a1c42;
+    border-radius: 3px;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  #dc-fab:hover { background: var(--ink-navy); }
+
+  #dc-sidebar {
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    padding: 24px 20px 60px;
+    font-size: 13px;
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    overflow-y: auto;
+  }
+  #dc-sidebar h2.dc-title {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-subtle);
+    margin: 0 0 4px;
+  }
+  .dc-actions { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 18px; }
+  .dc-btn {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    padding: 4px 9px;
+    cursor: pointer;
+  }
+  .dc-btn:hover { background: var(--surface-alt); }
+  .dc-btn:focus-visible, #dc-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .dc-empty { color: var(--fg-muted); font-style: italic; }
+  .dc-item { border-top: 1px solid var(--border-subtle); padding: 12px 0; cursor: pointer; }
+  .dc-item.dc-resolved { opacity: 0.5; }
+  .dc-quote {
+    border-left: 2px solid var(--ink-gold);
+    padding-left: 8px;
+    color: var(--fg-subtle);
+    font-style: italic;
+    font-size: 12px;
+    margin-bottom: 6px;
+    overflow-wrap: break-word;
+  }
+  .dc-orphan-tag {
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-terracotta);
+    background: rgba(179, 110, 78, 0.12);
+    border-radius: 999px;
+    padding: 1px 7px;
+    margin-left: 6px;
+  }
+  .dc-text { white-space: pre-wrap; overflow-wrap: break-word; }
+  .dc-item textarea {
+    width: 100%;
+    min-height: 64px;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--fg);
+    background: var(--bg);
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    padding: 6px 8px;
+    resize: vertical;
+  }
+  .dc-item textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .dc-meta { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 11px; color: var(--fg-muted); }
+  .dc-meta label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .dc-meta .dc-del { margin-left: auto; color: var(--ink-terracotta); background: none; border: none; font-size: 11px; cursor: pointer; padding: 0; }
+  .dc-meta .dc-del:hover { text-decoration: underline; }
+  #dc-status { font-size: 11px; color: var(--ink-sage); min-height: 16px; margin-top: 8px; }
+
+  #dc-toggle { display: none; }
+  @media (max-width: 1100px) {
+    #dc-sidebar {
+      position: fixed;
+      right: 0;
+      top: 0;
+      width: 320px;
+      max-width: 90vw;
+      transform: translateX(100%);
+      transition: transform 200ms ease-out;
+      z-index: 50;
+      box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
+    }
+    #dc-sidebar.dc-open { transform: translateX(0); }
+    #dc-toggle {
+      display: block;
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 51;
+      font-family: var(--sans);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--cta-foreground);
+      background: var(--cta);
+      border: 1px solid #0a1c42;
+      border-radius: 999px;
+      padding: 9px 15px;
+      cursor: pointer;
+    }
+  }
+  /* ============ DC-COMMENTS END — styles ============ */
+</style>
+</head>
+<body>
+<div class="dc-page">
+<article id="doc">
+
+  <header class="masthead">
+    <span class="eyebrow">Design Proposal · 2026-10-12 · Status: Proposal, nothing built</span>
+    <h1>The League Desk: a local dashboard for running the webDiplomacy leagues</h1>
+    <p class="context">One read-only local page for the state of the press and gunboat leagues. By James Boggs with Claude.</p>
+  </header>
+
+  <section id="summary">
+    <h2>Executive Summary</h2>
+    <p>James runs two webDiplomacy leagues on the Softmax platform: the press league (Game of the Week, variant <code>classic-press</code>) and the gunboat league. Today the state of a league is spread over a dozen CLI commands and team-only API routes. Three settings changed on 2026-10-12 alone, and no single place shows what those changes did. This document proposes <strong>The League Desk</strong>: one dense, read-only page that runs on his machine and reads the Softmax API.</p>
+    <p>The design has three local parts, all synchronous Python: a collector that polls the API into a SQLite file, a metrics layer over that file, and one server-rendered page. A survey of the API on 2026-10-12 found a route for all but two of the platform metrics.<sup class="ref"><a href="#src-1" title="Softmax API: memberships, submissions, leaderboards, rounds and round episodes routes — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">1</a></sup> Board metrics come from the public files each game already writes.<sup class="ref"><a href="#src-2" title="adapter/episode.py:198-210 — writes results.json (scores, countries, members, outcome, reason).">2</a></sup> Three metrics need small changes to the game, planned for Coworld 0.7.11. The most consequential decision is to keep a local cache, because the platform stores no rating history.</p>
+  </section>
+
+  <div class="callout callout-info">
+    <span class="callout-label">Mock-up</span>
+    <a href="league-dashboard-mockup-2026-10-12.html"><strong>Open the mock-up of the page: league-dashboard-mockup-2026-10-12.html</strong></a>. Every number in the mock-up is invented.
+  </div>
+
+  <nav class="toc">
+    <span class="eyebrow">Contents</span>
+    <ol>
+      <li><span class="toc-num">1</span><a href="#problem">Problem and goals</a></li>
+      <li><span class="toc-num">2</span><a href="#page">The page</a></li>
+      <li><span class="toc-num">3</span><a href="#metrics">Where each metric comes from</a></li>
+      <li><span class="toc-num">4</span><a href="#survey">What the API survey found</a></li>
+      <li><span class="toc-num">5</span><a href="#architecture">Architecture</a></li>
+      <li><span class="toc-num">6</span><a href="#decisions">Decisions and rejected alternatives</a></li>
+      <li><span class="toc-num">7</span><a href="#instrumentation">Instrumentation the game needs</a></li>
+      <li><span class="toc-num">8</span><a href="#build-order">Build order</a></li>
+      <li><span class="toc-num">9</span><a href="#open-questions">Open questions</a></li>
+      <li><span class="toc-num">10</span><a href="#sources">Sources</a></li>
+    </ol>
+  </nav>
+
+  <section id="problem">
+    <h2>1 · Problem and goals</h2>
+    <ul class="key-points">
+      <li>League state is spread over a dozen CLI commands and team-only API routes.</li>
+      <li>The goal is one local, read-only page that answers seven questions in order.</li>
+    </ul>
+    <p>Three settings changed on 2026-10-12: the round interval (150 to 60 minutes), the daily budget ($15 to $100) and the game (Coworld 0.7.10, with 3-minute phases). There is no single place to see the effect.</p>
+    <p>The page answers, in order: does anything need action now, who is competing and how sure are the ratings, is the league keeping its schedule, what does it cost, how are players using LLMs and experience requests, who beats whom, and what happens on the board. Every panel states its finding in a sentence above the chart and names its data source. The dashboard never changes league settings.</p>
+    <p>Three things are out of scope. The page is not public, because it shows other users' private experience requests, email addresses and spend. It does not replace the Observatory site or the optimizer IDE, which is one player's view of one policy. It is not real-time, because a round takes about an hour and a refresh every minute or two is enough.</p>
+  </section>
+
+  <section id="page">
+    <h2>2 · The page</h2>
+    <ul class="key-points">
+      <li>One dense page on a 12-column grid in the Softmax Ink &amp; Print house style, with six sections.</li>
+      <li>Nine items go beyond the original request and are stated here as proposals.</li>
+    </ul>
+    <p>The masthead controls are League (Press or Gunboat), Range (24 hours, 7 days, 30 days or All), Coworld version (All, 0.7.10 or 0.7.9) and Refresh. A new version can change game length, and therefore ratings, durations and cost, so every time chart marks the point where the version changed.</p>
+    <table>
+      <thead><tr><th style="width:27%">Section</th><th>Panels</th></tr></thead>
+      <tbody>
+        <tr><td>1. Now</td><td>A ruled strip, not tiles: the current round and when it is due, the next round slot, today's budget with a meter and a projection to the reset, the canonical Coworld version, and games, retries and failures in the last 24 hours. Beside it, a "Needs attention" list: a policy one failure from disqualification, a model whose calls fail, a seat hitting its LLM cap, mixed-version data.</td></tr>
+        <tr><td>2. Standings and rating</td><td>One table row per competing player: policy version, model, MMR, the rating interval on one shared scale, a 20-round sparkline, 24-hour change, games, mean score against par, submissions in 24 hours and 7 days, and LLM spend per game. Then MMR over time (top three labelled, the rest grey), submissions per day, and membership and exposure: active, benched and disqualified policies, the filler share of seats, the time from submission to first league game, and games per player per round.</td></tr>
+        <tr><td>3. Rounds, games and time</td><td>Round duration against the round interval. Game duration, as median and p90 (the value that 90% of games finish under). Games per day and how games ended. One full-width bar showing where an episode's time goes: queue, pod start, boot, connect wait, movement phases, retreats and builds, adjudication, results and upload.</td></tr>
+        <tr><td>4. Money and model use</td><td>Daily spend against budget, split into compute and LLM. League spend against experience-request spend. LLM spend per seat per game against the cap. Models in use, with policies, players, calls, failed calls and spend. Cost per round and per game.</td></tr>
+        <tr><td>5. Experience requests</td><td>Requests per day by requester. Queue and play time by variant. Common config overrides.</td></tr>
+        <tr><td>6. Matchups and the board</td><td>Head-to-head grid by player. Score by power for all players, with intervals. Most and least contested provinces. Score by policy and power. Phase timing. Time to Ready per policy. Seat health: phases with no orders, rejected orders, lost pods, early exits.</td></tr>
+      </tbody>
+    </table>
+    <p>MMR is the rating the leaderboard ranks by. The league uses OpenSkill, a rating system that keeps two numbers per player: mu, its estimate of skill, and sigma, its uncertainty about that estimate. The rating interval in the standings table is mu plus or minus three sigma.</p>
+    <p>The design rules are fixed. The finding comes first and the chart second. Each chart has one y-axis. A reference line appears wherever a limit exists: the round interval, the budget, the seat cap and the par score of 0.143. A cell with fewer than five games is drawn empty and dashed, never coloured. Colour follows the entity. Terracotta marks a problem and is never reused for a data series.</p>
+    <p>The proposed additions beyond the original list are the "Needs attention" list, version markers and the version filter, league spend against experience-request spend, membership and exposure, filler share, time from submission to first game, phase timing, seat health, and a data-source tag on every panel.</p>
+  </section>
+
+  <section id="metrics">
+    <h2>3 · Where each metric comes from</h2>
+    <ul class="key-points">
+      <li>Most metrics are ready today from an existing API route.</li>
+      <li>Board metrics come from each game's public <code>results.json</code> and replay.</li>
+    </ul>
+    <p>This table is the core of the proposal. Three rows need new instrumentation in the game, described in section 7.</p>
+    <table class="metric-table">
+      <thead><tr><th style="width:31%">Metric</th><th>Source</th><th style="width:21%">State</th></tr></thead>
+      <tbody>
+        <tr><td>Players with competing policies. Active, benched, disqualified</td><td><code>GET /v2/league-policy-memberships</code><sup class="ref"><a href="#src-1" title="Softmax API: memberships, submissions, leaderboards, rounds and round episodes routes — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">1</a></sup></td><td><span class="chip chip-api">Ready (API)</span></td></tr>
+        <tr><td>Submissions in 24 hours and 7 days, per player</td><td><code>GET /v2/league-submissions</code>. It has no time filter, so the collector counts client-side.<sup class="ref"><a href="#src-1" title="Softmax API: memberships, submissions, leaderboards, rounds and round episodes routes — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">1</a></sup></td><td><span class="chip chip-api">Ready (API)</span></td></tr>
+        <tr><td>Current MMR, mu, sigma (confidence interval)</td><td><code>GET /v2/divisions/{id}/leaderboards</code> returns <code>mu</code>, <code>sigma</code> and <code>rating</code>, which is mu − 3 sigma.<sup class="ref"><a href="#src-1" title="Softmax API: memberships, submissions, leaderboards, rounds and round episodes routes — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">1</a></sup></td><td><span class="chip chip-api">Ready (API)</span></td></tr>
+        <tr><td>MMR over time</td><td>No history route exists.<sup class="ref"><a href="#src-1" title="Softmax API: memberships, submissions, leaderboards, rounds and round episodes routes — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">1</a></sup> Snapshot the leaderboard after each round. Backfill by replaying OpenSkill over round episodes.</td><td><span class="chip chip-snap">Ready with local snapshots</span></td></tr>
+        <tr><td>Games run. Game, queue and round time</td><td><code>GET /v2/rounds</code> and <code>GET /v2/rounds/{id}/episodes</code>, using <code>created_at</code>, <code>dispatched_at</code>, <code>running_at</code> and <code>completed_at</code>.<sup class="ref"><a href="#src-1" title="Softmax API: memberships, submissions, leaderboards, rounds and round episodes routes — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">1</a></sup></td><td><span class="chip chip-api">Ready (API)</span></td></tr>
+        <tr><td>Daily budget, spend today, 7-day spend, projection</td><td><code>GET /v2/budgets</code><sup class="ref"><a href="#src-3" title="Softmax API: budget and cost routes (/v2/budgets, /admin/costs/...) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">3</a></sup></td><td><span class="chip chip-api">Ready (API)</span></td></tr>
+        <tr><td>Cost per round and per episode. Compute against LLM</td><td><code>GET /admin/costs/coworlds/{id}</code>, <code>/admin/costs/rounds/{id}</code> and <code>/admin/costs/leagues</code><sup class="ref"><a href="#src-3" title="Softmax API: budget and cost routes (/v2/budgets, /admin/costs/...) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">3</a></sup></td><td><span class="chip chip-api">Ready (API)</span></td></tr>
+        <tr><td>LLM calls, tokens, spend, errors and latency by model, policy and player</td><td><code>GET /admin/llm-coworld-usage</code> and <code>/timeseries</code><sup class="ref"><a href="#src-4" title="Softmax API: LLM usage routes (/admin/llm-coworld-usage, /v2/episode-requests/{id}/llm-calls) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">4</a></sup></td><td><span class="chip chip-api">Ready (API)</span></td></tr>
+        <tr><td>Which policies use an LLM and which model</td><td>The uploaded model is stored encrypted and has no read route. Use the model observed in usage rows.<sup class="ref"><a href="#src-4" title="Softmax API: LLM usage routes (/admin/llm-coworld-usage, /v2/episode-requests/{id}/llm-calls) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">4</a></sup></td><td><span class="chip chip-api">Ready (API)</span><br><span class="chip-note">observed, not configured</span></td></tr>
+        <tr><td>LLM spend per seat per game against the cap</td><td>The <code>episode_llm_usage</code> table,<sup class="ref"><a href="#src-5" title="Softmax API: SQL route (/sql/tables, /sql/query) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">5</a></sup> or <code>GET /v2/episode-requests/{id}/llm-calls</code>, which is capped at 500 calls.<sup class="ref"><a href="#src-4" title="Softmax API: LLM usage routes (/admin/llm-coworld-usage, /v2/episode-requests/{id}/llm-calls) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">4</a></sup></td><td><span class="chip chip-sql">Ready via SQL route</span></td></tr>
+        <tr><td>Experience requests over time and by requester. Durations</td><td><code>GET /v2/experience-requests</code> and <code>/summary</code>. The team sees all users' requests.<sup class="ref"><a href="#src-6" title="Softmax API: experience request routes (/v2/experience-requests, /summary) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">6</a></sup></td><td><span class="chip chip-api">Ready (API)</span></td></tr>
+        <tr><td>Common config overrides in experience requests</td><td><code>experience_requests.request_spec</code>.<sup class="ref"><a href="#src-5" title="Softmax API: SQL route (/sql/tables, /sql/query) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">5</a></sup> The API response omits <code>game_config_overrides</code>.<sup class="ref"><a href="#src-6" title="Softmax API: experience request routes (/v2/experience-requests, /summary) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">6</a></sup></td><td><span class="chip chip-sql">Ready via SQL route</span></td></tr>
+        <tr><td>Head-to-head by player</td><td><code>participants[]</code> and <code>participant_scores[]</code> on round episodes. The platform's own matchup routes are per policy version.<sup class="ref"><a href="#src-1" title="Softmax API: memberships, submissions, leaderboards, rounds and round episodes routes — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">1</a></sup></td><td><span class="chip chip-api">Ready (API)</span></td></tr>
+        <tr><td>Score and win rate by power (per policy, per player, all)</td><td><code>results.json</code>: <code>scores</code>, <code>countries</code>, <code>members</code>, <code>reason</code><sup class="ref"><a href="#src-2" title="adapter/episode.py:198-210 — writes results.json (scores, countries, members, outcome, reason).">2</a></sup></td><td><span class="chip chip-replay">From replays and results</span></td></tr>
+        <tr><td>Most and least contested provinces</td><td>Replay <code>history.phases[]</code>:<sup class="ref"><a href="#src-7" title="adapter/episode.py:128-177 — replay frames copied from upstream public files; the last snapshot per phase is kept.">7</a></sup> adjudicated orders with <code>success</code> and <code>dislodged</code>,<sup class="ref"><a href="#src-8" title="webdiplomacy/doc/gamedata/02-spec.md:154-165 — adjudicated orders with success and dislodged.">8</a></sup> and <code>centers</code> per phase</td><td><span class="chip chip-replay">From replays and results</span></td></tr>
+        <tr><td>How games ended, draw size, elimination year</td><td><code>results.json</code>: <code>reason</code>, <code>outcome</code>, <code>members</code><sup class="ref"><a href="#src-2" title="adapter/episode.py:198-210 — writes results.json (scores, countries, members, outcome, reason).">2</a></sup></td><td><span class="chip chip-replay">From replays and results</span></td></tr>
+        <tr><td>Phase length against configured. Share ended early</td><td><code>results.transitions[]</code><sup class="ref"><a href="#src-9" title="adapter/episode.py:116-126 — results.transitions[] with elapsed_seconds and unix_time.">9</a></sup> and each frame's <code>processTime</code><sup class="ref"><a href="#src-7" title="adapter/episode.py:128-177 — replay frames copied from upstream public files; the last snapshot per phase is kept.">7</a></sup></td><td><span class="chip chip-replay">From replays and results</span></td></tr>
+        <tr><td>Time to Ready. Phases never Ready. Phases with no orders</td><td>Upstream hides <code>orderStatus</code> in anonymous games,<sup class="ref"><a href="#src-10" title="webdiplomacy/lib/gamefiles.php:121-127 — upstream hides orderStatus when identities are hidden.">10</a></sup> and every variant is anonymous.<sup class="ref"><a href="#src-11" title="adapter/config.py:16 — every variant runs anonymous: true.">11</a></sup></td><td><span class="chip chip-need">Needs instrumentation</span></td></tr>
+        <tr><td>Coworld timing profile (boot, connect wait, adjudication, upload)</td><td>The adapter records no durations for these.<sup class="ref"><a href="#src-12" title="adapter/boot.py:214-274 — service start-up records no durations.">12</a></sup></td><td><span class="chip chip-need">Needs instrumentation</span></td></tr>
+        <tr><td>Platform timing profile (node, pod, image pull, container start)</td><td>Datadog <code>job-lifecycle</code> trace spans.<sup class="ref"><a href="#src-13" title="observatory_execution/job_lifecycle_trace.py — job lifecycle trace spans. Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">13</a></sup> <code>k8s_pod_timings</code> through SQL.<sup class="ref"><a href="#src-5" title="Softmax API: SQL route (/sql/tables, /sql/query) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">5</a></sup></td><td><span class="chip chip-sql">Ready via SQL route</span><br><span class="chip-note">or Datadog</span></td></tr>
+        <tr><td>Connects, disconnects and API request counts per seat</td><td>Not recorded.<sup class="ref"><a href="#src-14" title="adapter/routes.py:76-77,142-147 — connects and disconnects are not logged.">14</a></sup> Upstream already counts API hits per key.<sup class="ref"><a href="#src-15" title="webdiplomacy/api.php:1364 — upstream counts API hits per key.">15</a></sup></td><td><span class="chip chip-need">Needs instrumentation</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="survey">
+    <h2>4 · What the API survey found</h2>
+    <ul class="key-points">
+      <li>Two platform gaps: per-round rating history, and the LLM model a policy was uploaded with.</li>
+      <li>Experience requests cost about 130 times what the press league cost in the week read.</li>
+    </ul>
+    <p>These facts were read on 2026-10-12. All but two of the platform metrics have a route.<sup class="ref"><a href="#src-1" title="Softmax API: memberships, submissions, leaderboards, rounds and round episodes routes — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">1</a></sup></p>
+    <p>A team-only, read-only SQL route exists, <code>POST /sql/query</code>.<sup class="ref"><a href="#src-5" title="Softmax API: SQL route (/sql/tables, /sql/query) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">5</a></sup> It has a 20-second timeout and returns at most 1,000 rows, cut off silently. It is the only way to get LLM spend per seat in bulk and the stored request spec of experience requests.</p>
+    <p>Only rounds 7 to 9 are visible in the press league, because earlier rounds were hidden when rounds were reset on 2026-10-12.<sup class="ref"><a href="#src-1" title="Softmax API: memberships, submissions, leaderboards, rounds and round episodes routes — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">1</a></sup> History charts start there. Rate limits are generous for one user: 1,500 requests a minute and 12,500 an hour. The admin cost and usage routes are unpaginated scans, so the collector polls them slowly.<sup class="ref"><a href="#src-3" title="Softmax API: budget and cost routes (/v2/budgets, /admin/costs/...) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">3</a></sup> Experience-request rows carry the requester's email address.<sup class="ref"><a href="#src-6" title="Softmax API: experience request routes (/v2/experience-requests, /summary) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">6</a></sup></p>
+    <div class="callout callout-warn">
+      <span class="callout-label">Finding</span>
+      For the week read on 2026-10-12, the press league's tournament spend was about $10.83, and experience-request spend on the same Coworld was about $1,422.<sup class="ref"><a href="#src-3" title="Softmax API: budget and cost routes (/v2/budgets, /admin/costs/...) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">3</a></sup> The daily league budget of $100 counts tournament spend only. This is why the page sets league spend against experience-request spend.
+    </div>
+    <div class="callout callout-warn">
+      <span class="callout-label">Unverified</span>
+      The per-episode <code>cost_usd</code> field is compute only, and LLM spend is attributed separately. The round cost route reported $0.00 of LLM spend for a round whose league shows LLM spend for the same week.<sup class="ref"><a href="#src-3" title="Softmax API: budget and cost routes (/v2/budgets, /admin/costs/...) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">3</a></sup> Treat per-round LLM cost as unverified.
+    </div>
+  </section>
+
+  <section id="architecture">
+    <h2>5 · Architecture</h2>
+    <ul class="key-points">
+      <li>Three local parts: a collector, a metrics layer and a page. All are synchronous Python.</li>
+      <li>A page load reads only the local cache and never calls the API.</li>
+    </ul>
+    <figure>
+      <svg viewBox="0 0 720 330" role="img" aria-label="Data flow: the Softmax API and game artifacts feed a collector and a SQLite cache, which feeds the metrics layer and then the page" style="width:100%; height:auto">
+        <defs>
+          <marker id="lf-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8" fill="none" stroke="#859ebe" stroke-width="1.2"/>
+          </marker>
+        </defs>
+        <rect x="20" y="20" width="190" height="64" rx="3" fill="#fffaf0" stroke="#d4c9b5"/>
+        <text x="115" y="47" text-anchor="middle" font-family="Merriweather Sans, sans-serif" font-size="14" font-weight="600" fill="#111827">Softmax API</text>
+        <text x="115" y="67" text-anchor="middle" font-family="Merriweather Sans, sans-serif" font-size="12" fill="#555555">routes and SQL route</text>
+
+        <rect x="265" y="20" width="150" height="64" rx="3" fill="#eef2f7" stroke="#859ebe"/>
+        <text x="340" y="47" text-anchor="middle" font-family="Merriweather Sans, sans-serif" font-size="14" font-weight="600" fill="#1a3875">Collector</text>
+        <text x="340" y="67" text-anchor="middle" font-family="Merriweather Sans, sans-serif" font-size="12" fill="#555555">polls incrementally</text>
+
+        <rect x="20" y="140" width="190" height="64" rx="3" fill="#fffaf0" stroke="#d4c9b5"/>
+        <text x="115" y="167" text-anchor="middle" font-family="Merriweather Sans, sans-serif" font-size="14" font-weight="600" fill="#111827">Game artifacts</text>
+        <text x="115" y="187" text-anchor="middle" font-family="Merriweather Sans, sans-serif" font-size="12" fill="#555555">results.json, replay</text>
+
+        <rect x="500" y="76" width="200" height="72" rx="3" fill="#eef2f7" stroke="#859ebe"/>
+        <text x="600" y="107" text-anchor="middle" font-family="Merriweather Sans, sans-serif" font-size="14" font-weight="600" fill="#1a3875">SQLite cache</text>
+        <text x="600" y="127" text-anchor="middle" font-family="Merriweather Sans, sans-serif" font-size="12" fill="#555555">rows, rating snapshots</text>
+
+        <rect x="500" y="236" width="200" height="64" rx="3" fill="#eef2f7" stroke="#859ebe"/>
+        <text x="600" y="263" text-anchor="middle" font-family="Merriweather Sans, sans-serif" font-size="14" font-weight="600" fill="#1a3875">Metrics</text>
+        <text x="600" y="283" text-anchor="middle" font-family="Merriweather Sans, sans-serif" font-size="12" fill="#555555">SQL views, Python functions</text>
+
+        <rect x="235" y="236" width="180" height="64" rx="3" fill="#fffaf0" stroke="#d4c9b5"/>
+        <text x="325" y="263" text-anchor="middle" font-family="Merriweather Sans, sans-serif" font-size="14" font-weight="600" fill="#111827">Page</text>
+        <text x="325" y="283" text-anchor="middle" font-family="Merriweather Sans, sans-serif" font-size="12" fill="#555555">FastAPI and Jinja</text>
+        <text x="325" y="320" text-anchor="middle" font-family="Merriweather Sans, sans-serif" font-size="12" fill="#555555">localhost only</text>
+
+        <line x1="210" y1="52" x2="263" y2="52" stroke="#859ebe" stroke-width="1.5" marker-end="url(#lf-arrow)"/>
+        <path d="M415,52 H457 V98 H498" fill="none" stroke="#859ebe" stroke-width="1.5" marker-end="url(#lf-arrow)"/>
+        <path d="M210,172 H457 V126 H498" fill="none" stroke="#859ebe" stroke-width="1.5" marker-end="url(#lf-arrow)"/>
+        <line x1="600" y1="148" x2="600" y2="234" stroke="#859ebe" stroke-width="1.5" marker-end="url(#lf-arrow)"/>
+        <line x1="500" y1="268" x2="417" y2="268" stroke="#859ebe" stroke-width="1.5" marker-end="url(#lf-arrow)"/>
+      </svg>
+      <figcaption><span class="fig-label">Figure 1</span>Data flow. The metrics layer and the page read only the local SQLite file.</figcaption>
+    </figure>
+    <p><strong>Collector.</strong> It polls the API with James's own login and the elevated-privileges header, and writes rows to a local SQLite file. It asks only for rounds, episodes and requests newer than what it holds. It takes the rating snapshot after each completed round, and it downloads <code>results.json</code> and the replay of each finished league game, which the optimizer's <code>fetch_league.py</code> already does.<sup class="ref"><a href="#src-16" title="optimizer/mixin/tools/webdip_episodes.py, matchups.py, board_counts.py, batches.py, fetch_league.py — existing loader and analysis tools to reuse.">16</a></sup></p>
+    <p><strong>Metrics.</strong> SQL views and small Python functions over the SQLite file. Board metrics reuse the optimizer lab's loader and tools (<code>webdip_episodes.py</code>, <code>matchups.py</code>, <code>board_counts.py</code> and <code>batches.py</code>) instead of new parsers.<sup class="ref"><a href="#src-16" title="optimizer/mixin/tools/webdip_episodes.py, matchups.py, board_counts.py, batches.py, fetch_league.py — existing loader and analysis tools to reuse.">16</a></sup></p>
+    <p><strong>Page.</strong> One server-rendered page from a small FastAPI and Jinja app, the same stack the optimizer IDE in this repository already uses.<sup class="ref"><a href="#src-17" title="optimizer/ide/pyproject.toml — the FastAPI, uvicorn and Jinja stack already used in this repository.">17</a></sup></p>
+    <table>
+      <thead><tr><th>Data</th><th class="num">Suggested polling interval</th></tr></thead>
+      <tbody>
+        <tr><td>League health, budget and the current round</td><td class="num">every 60 seconds</td></tr>
+        <tr><td>Memberships, submissions, leaderboard and experience requests</td><td class="num">every 5 minutes</td></tr>
+        <tr><td>Cost and LLM usage scans</td><td class="num">every 15 minutes</td></tr>
+        <tr><td>Artifacts (<code>results.json</code> and replay)</td><td class="num">once per finished game</td></tr>
+      </tbody>
+    </table>
+    <p>The code lives in <code>ops/league-desk/</code> in this repository as its own uv project, like <code>optimizer/ide</code>. It is not part of the optimizer template, because players cannot call the team-only routes. The SQLite file and the downloaded artifacts stay in an ignored directory. The app prints no tokens and binds to localhost only.</p>
+  </section>
+
+  <section id="decisions">
+    <h2>6 · Decisions and rejected alternatives</h2>
+    <ul class="key-points">
+      <li>Four decisions, each with the alternatives that lost.</li>
+      <li>Five existing dashboard tools were surveyed on 2026-10-12 before choosing a small custom page.</li>
+    </ul>
+
+    <div class="decision">
+      <span class="decision-label">Decision 1</span>
+      <p><strong>The dashboard keeps a local SQLite cache.</strong> Rating history does not exist on the platform, so something must store snapshots anyway.<sup class="ref"><a href="#src-1" title="Softmax API: memberships, submissions, leaderboards, rounds and round episodes routes — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">1</a></sup> The cost routes are slow scans.<sup class="ref"><a href="#src-3" title="Softmax API: budget and cost routes (/v2/budgets, /admin/costs/...) — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">3</a></sup> Artifacts must be downloaded once and parsed.</p>
+      <p><em>Rejected: query the API on every page load.</em> It is slow, it loses rating history, and it repeats the cost scans.</p>
+    </div>
+
+    <div class="decision">
+      <span class="decision-label">Decision 2</span>
+      <p><strong>The page is a FastAPI and Jinja app that reuses the pattern of the optimizer IDE.</strong> That stack is already in this repository, with the same dependencies and the same test style.<sup class="ref"><a href="#src-17" title="optimizer/ide/pyproject.toml — the FastAPI, uvicorn and Jinja stack already used in this repository.">17</a></sup> It gives full control of a dense single page in the house style and stays synchronous.</p>
+      <p><em>Rejected: Streamlit</em> (the most popular Python dashboard tool, Apache-2.0, released 2026-10-02).<sup class="ref"><a href="#src-18" title="Tool survey (GitHub, read 2026-10-12) — Streamlit 1.65.0 (2026-10-02), Grafana v13.2.3 (2026-09-29), Evidence 40.1.8 (2026-02-06), Observable Framework v1.13.4 (2026-03-02; last push 2026-05-15), marimo 0.25.1 (2026-10-01), Observable Plot v0.6.17 (2025-02-14; last push 2026-09-01).">18</a></sup> It is the fastest route to a first version, but a dense 12-column page with custom table cells, shared-scale interval bars and the house style fights its layout model. It is the right choice if speed matters more than the single-page design.</p>
+      <p><em>Rejected: Grafana</em> (AGPL-3.0, very active).<sup class="ref"><a href="#src-18" title="Tool survey (GitHub, read 2026-10-12) — Streamlit 1.65.0 (2026-10-02), Grafana v13.2.3 (2026-09-29), Evidence 40.1.8 (2026-02-06), Observable Framework v1.13.4 (2026-03-02; last push 2026-05-15), marimo 0.25.1 (2026-10-01), Observable Plot v0.6.17 (2025-02-14; last push 2026-09-01).">18</a></sup> It is strong for time series and alerts, and weak for the standings table, the matchup grid and board charts. It also means running a server and a data-source plugin for a one-person tool.</p>
+      <p><em>Rejected: Evidence</em> (MIT, reports from SQL and Markdown) <em>and Observable Framework</em> (ISC, last push 2026-05-15).<sup class="ref"><a href="#src-18" title="Tool survey (GitHub, read 2026-10-12) — Streamlit 1.65.0 (2026-10-02), Grafana v13.2.3 (2026-09-29), Evidence 40.1.8 (2026-02-06), Observable Framework v1.13.4 (2026-03-02; last push 2026-05-15), marimo 0.25.1 (2026-10-01), Observable Plot v0.6.17 (2025-02-14; last push 2026-09-01).">18</a></sup> Both are static-site builders that fit the data. Each adds a Node toolchain to a Python repository, and Observable Framework's activity has slowed.</p>
+      <p><em>Rejected: marimo</em> (Apache-2.0, active).<sup class="ref"><a href="#src-18" title="Tool survey (GitHub, read 2026-10-12) — Streamlit 1.65.0 (2026-10-02), Grafana v13.2.3 (2026-09-29), Evidence 40.1.8 (2026-02-06), Observable Framework v1.13.4 (2026-03-02; last push 2026-05-15), marimo 0.25.1 (2026-10-01), Observable Plot v0.6.17 (2025-02-14; last push 2026-09-01).">18</a></sup> It is a notebook, which is good for exploration and not for a fixed operations page.</p>
+    </div>
+
+    <div class="decision">
+      <span class="decision-label">Decision 3</span>
+      <p><strong>One charting library draws every chart, and the recommendation is Observable Plot</strong> (ISC). It draws SVG that the page's CSS can style, and it handles dot-and-interval, cell and line marks directly. Its release pace is slow: the latest release is dated 2025-02-14 and the last push 2026-09-01.<sup class="ref"><a href="#src-18" title="Tool survey (GitHub, read 2026-10-12) — Streamlit 1.65.0 (2026-10-02), Grafana v13.2.3 (2026-09-29), Evidence 40.1.8 (2026-02-06), Observable Framework v1.13.4 (2026-03-02; last push 2026-05-15), marimo 0.25.1 (2026-10-01), Observable Plot v0.6.17 (2025-02-14; last push 2026-09-01).">18</a></sup> Apache ECharts is the fallback for that reason.</p>
+      <p><em>Rejected: hand-drawn SVG.</em> The mock-up's charts are hand-drawn only because it is a static mock-up.</p>
+    </div>
+
+    <div class="decision">
+      <span class="decision-label">Decision 4</span>
+      <p><strong>Board metrics are read from each game's public files.</strong> The <code>results.json</code> file and the replay already hold scores by power, adjudicated orders and phase transitions.<sup class="ref"><a href="#src-2" title="adapter/episode.py:198-210 — writes results.json (scores, countries, members, outcome, reason).">2</a></sup><sup class="ref"><a href="#src-9" title="adapter/episode.py:116-126 — results.transitions[] with elapsed_seconds and unix_time.">9</a></sup><sup class="ref"><a href="#src-8" title="webdiplomacy/doc/gamedata/02-spec.md:154-165 — adjudicated orders with success and dislodged.">8</a></sup></p>
+      <p><em>Rejected: new platform features.</em> They are not needed, because the public files already hold this data.</p>
+    </div>
+  </section>
+
+  <section id="instrumentation">
+    <h2>7 · Instrumentation the game needs</h2>
+    <ul class="key-points">
+      <li>Six changes, listed smallest first. Items 1 to 5 ship together in Coworld 0.7.11.</li>
+      <li>None touches the upstream submodule, and none advances a phase.</li>
+    </ul>
+    <table class="instr-table">
+      <thead><tr><th>#</th><th style="width:30%">Change</th><th>Gives</th><th>Where</th><th style="width:27%">Privacy note</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Record connection events: connect, disconnect and reconnect per slot, with elapsed time.<sup class="ref"><a href="#src-14" title="adapter/routes.py:76-77,142-147 — connects and disconnects are not logged.">14</a></sup></td><td>Seat health</td><td><code>adapter/routes.py</code></td><td>None. Slot-level only.</td></tr>
+        <tr><td>2</td><td>Read upstream's per-key API hit counter at the end of the game.<sup class="ref"><a href="#src-15" title="webdiplomacy/api.php:1364 — upstream counts API hits per key.">15</a></sup></td><td>API requests per seat</td><td><code>php/wdc_state.php</code></td><td>Never log the key. Join by user to slot.</td></tr>
+        <tr><td>3</td><td>Store each phase's deadline and the longest gamemaster request per phase.</td><td>Phases ended early. Adjudication time</td><td><code>adapter/episode.py</code></td><td>None.</td></tr>
+        <tr><td>4</td><td>Add a <code>timing</code> object to <code>results.json</code> and print one <code>{"event":"timing"}</code> line on stdout at exit.<sup class="ref"><a href="#src-12" title="adapter/boot.py:214-274 — service start-up records no durations.">12</a></sup></td><td>Boot, game creation, connect wait, results writing, shutdown</td><td><code>adapter/boot.py</code>, <code>adapter/episode.py</code></td><td>None.</td></tr>
+        <tr><td>5</td><td>Sample each seat's order status every tick. Record first Ready and first Saved per phase. Write only when the game ends.<sup class="ref"><a href="#src-19" title="php/wdc_state.php:10 — the member query where order status would be added.">19</a></sup></td><td>Time to Ready. Phases never Ready. Phases with no orders</td><td><code>php/wdc_state.php</code>, <code>Episode.tick</code></td><td>Upstream hides this in anonymous games.<sup class="ref"><a href="#src-10" title="webdiplomacy/lib/gamefiles.php:121-127 — upstream hides orderStatus when identities are hidden.">10</a></sup> It must never reach the live spectator stream, replay frames or stdout during play.</td></tr>
+        <tr><td>6</td><td>Count private press messages per seat per phase. Counts only, never content.</td><td>Negotiation volume</td><td>End-of-game query</td><td><code>results.json</code> goes to every player.<sup class="ref"><a href="#src-20" title="adapter/routes.py:119 — results.json is sent to every player in the game_over message.">20</a></sup> Counts reveal who talked to whom.</td></tr>
+      </tbody>
+    </table>
+    <p>Any new <code>results.json</code> field also needs an update to <code>docs/protocol.md</code>, the manifest sync and a new Coworld version, 0.7.11. Items 5 and 6 carry privacy risk and depend on open questions 1 and 2.</p>
+  </section>
+
+  <section id="build-order">
+    <h2>8 · Build order</h2>
+    <ul class="key-points">
+      <li>Step 1 needs no game change and delivers most of the page.</li>
+      <li>Each later step adds one data source.</li>
+    </ul>
+    <ol>
+      <li><strong>API-only page.</strong> Sections 1 to 5 of the page and the head-to-head grid. No game change is needed.</li>
+      <li><strong>Artifact ingest.</strong> Score by power, contested provinces, end reasons and phase timing.</li>
+      <li><strong>Coworld 0.7.11</strong> with instrumentation items 1 to 5. This adds the timing profile, time to Ready and seat health.</li>
+      <li><strong>Platform timing split</strong> from Datadog job traces, joined to the game's timing record.<sup class="ref"><a href="#src-13" title="observatory_execution/job_lifecycle_trace.py — job lifecycle trace spans. Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">13</a></sup></li>
+    </ol>
+  </section>
+
+  <section id="open-questions">
+    <h2>9 · Open questions</h2>
+    <p>All seven are for James.</p>
+    <div class="callout callout-open">
+      <span class="callout-label">Open 1</span>
+      Once Ready timing and missed-order data are recorded, do they go into <code>results.json</code>, which every player in the game receives,<sup class="ref"><a href="#src-20" title="adapter/routes.py:119 — results.json is sent to every player in the game_over message.">20</a></sup> or into a team-only artifact? Publishing them after the game tells rivals how each bot behaved.
+    </div>
+    <div class="callout callout-open">
+      <span class="callout-label">Open 2</span>
+      The same question applies to private press counts. The recommendation is per-seat totals only, or a team-only artifact.
+    </div>
+    <div class="callout callout-open">
+      <span class="callout-label">Open 3</span>
+      Rating history: is "history starts when the dashboard first runs" acceptable, or do we also backfill by replaying OpenSkill, which may not match the platform's numbers exactly?
+    </div>
+    <div class="callout callout-open">
+      <span class="callout-label">Open 4</span>
+      The SQL route is an internal team tool and could change. Is it acceptable for per-seat spend and request overrides to depend on it, or do we ask the platform team for proper routes?
+    </div>
+    <div class="callout callout-open">
+      <span class="callout-label">Open 5</span>
+      Experience-request spend is about 130 times league spend this week and has no budget. Is that intended? The dashboard shows it either way.
+    </div>
+    <div class="callout callout-open">
+      <span class="callout-label">Open 6</span>
+      Will anyone besides James use this? It shows email addresses and private requests.
+    </div>
+    <div class="callout callout-open">
+      <span class="callout-label">Open 7</span>
+      Charting library: Observable Plot or Apache ECharts?
+    </div>
+  </section>
+
+  <section id="sources">
+    <h2>10 · Sources</h2>
+    <p>Repository paths are in the webDiplomacy Coworld repository.</p>
+    <ol class="sources">
+      <li id="src-1"><span class="cite" style="white-space:normal">Softmax API: memberships, submissions, leaderboards, rounds and round episodes routes</span> — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.</li>
+      <li id="src-2"><span class="cite" style="white-space:normal">adapter/episode.py:198-210</span> — writes results.json (scores, countries, members, outcome, reason).</li>
+      <li id="src-3"><span class="cite" style="white-space:normal">Softmax API: budget and cost routes (/v2/budgets, /admin/costs/...)</span> — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.</li>
+      <li id="src-4"><span class="cite" style="white-space:normal">Softmax API: LLM usage routes (/admin/llm-coworld-usage, /v2/episode-requests/{id}/llm-calls)</span> — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.</li>
+      <li id="src-5"><span class="cite" style="white-space:normal">Softmax API: SQL route (/sql/tables, /sql/query)</span> — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.</li>
+      <li id="src-6"><span class="cite" style="white-space:normal">Softmax API: experience request routes (/v2/experience-requests, /summary)</span> — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.</li>
+      <li id="src-7"><span class="cite" style="white-space:normal">adapter/episode.py:128-177</span> — replay frames copied from upstream public files; the last snapshot per phase is kept.</li>
+      <li id="src-8"><span class="cite" style="white-space:normal">webdiplomacy/doc/gamedata/02-spec.md:154-165</span> — adjudicated orders with success and dislodged.</li>
+      <li id="src-9"><span class="cite" style="white-space:normal">adapter/episode.py:116-126</span> — results.transitions[] with elapsed_seconds and unix_time.</li>
+      <li id="src-10"><span class="cite" style="white-space:normal">webdiplomacy/lib/gamefiles.php:121-127</span> — upstream hides orderStatus when identities are hidden.</li>
+      <li id="src-11"><span class="cite" style="white-space:normal">adapter/config.py:16</span> — every variant runs anonymous: true.</li>
+      <li id="src-12"><span class="cite" style="white-space:normal">adapter/boot.py:214-274</span> — service start-up records no durations.</li>
+      <li id="src-13"><span class="cite" style="white-space:normal">observatory_execution/job_lifecycle_trace.py</span> — job lifecycle trace spans. Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.</li>
+      <li id="src-14"><span class="cite" style="white-space:normal">adapter/routes.py:76-77,142-147</span> — connects and disconnects are not logged.</li>
+      <li id="src-15"><span class="cite" style="white-space:normal">webdiplomacy/api.php:1364</span> — upstream counts API hits per key.</li>
+      <li id="src-16"><span class="cite" style="white-space:normal">optimizer/mixin/tools/webdip_episodes.py, matchups.py, board_counts.py, batches.py, fetch_league.py</span> — existing loader and analysis tools to reuse.</li>
+      <li id="src-17"><span class="cite" style="white-space:normal">optimizer/ide/pyproject.toml</span> — the FastAPI, uvicorn and Jinja stack already used in this repository.</li>
+      <li id="src-18"><span class="cite" style="white-space:normal">Tool survey (GitHub, read 2026-10-12)</span> — Streamlit 1.65.0 (2026-10-02), Grafana v13.2.3 (2026-09-29), Evidence 40.1.8 (2026-02-06), Observable Framework v1.13.4 (2026-03-02; last push 2026-05-15), marimo 0.25.1 (2026-10-01), Observable Plot v0.6.17 (2025-02-14; last push 2026-09-01).</li>
+      <li id="src-19"><span class="cite" style="white-space:normal">php/wdc_state.php:10</span> — the member query where order status would be added.</li>
+      <li id="src-20"><span class="cite" style="white-space:normal">adapter/routes.py:119</span> — results.json is sent to every player in the game_over message.</li>
+    </ol>
+  </section>
+
+</article>
+
+<!-- ================================================================
+     DC-COMMENTS BEGIN — markup + script (copy verbatim; do not modify)
+     ================================================================ -->
+<aside id="dc-sidebar" aria-label="Comments">
+  <h2 class="dc-title">Comments <span id="dc-count"></span></h2>
+  <div class="dc-actions">
+    <button class="dc-btn" id="dc-export">Export JSON</button>
+    <button class="dc-btn" id="dc-copy">Copy JSON</button>
+    <button class="dc-btn" id="dc-import">Import…</button>
+    <input type="file" id="dc-file" accept=".json,application/json" hidden>
+  </div>
+  <div id="dc-status" role="status"></div>
+  <div id="dc-list"><p class="dc-empty">No comments yet. Select text in the document to add one.</p></div>
+</aside>
+<button id="dc-fab" type="button">+ Comment</button>
+<button id="dc-toggle" type="button">Comments</button>
+<!-- Preload slot: a renderer may put a dc-comments/1 `comments` array here (each comment optionally carrying `replies`). Merged by id into the stored comments on load. Leave empty otherwise. -->
+<script id="dc-preload" type="application/json"></script>
+
+<script>
+(() => {
+  'use strict';
+  const FORMAT = 'dc-comments/1';
+  const CTX = 32; // prefix/suffix context length, chars
+  const doc = document.getElementById('doc');
+  const fab = document.getElementById('dc-fab');
+  const listEl = document.getElementById('dc-list');
+  const countEl = document.getElementById('dc-count');
+  const statusEl = document.getElementById('dc-status');
+  const sidebar = document.getElementById('dc-sidebar');
+  const storeKey = 'dc:' + document.title;
+
+  let comments = []; // {id, exact, prefix, suffix, text, created, resolved}
+  let ranges = new Map(); // id -> Range (null if orphaned)
+  let seq = 0;
+
+  // ---- text indexing: one global string over #doc's text nodes ----
+  function docText() {
+    const r = document.createRange();
+    r.selectNodeContents(doc);
+    return r.toString();
+  }
+  function globalOffset(container, offset) {
+    const r = document.createRange();
+    r.setStart(doc, 0);
+    r.setEnd(container, offset);
+    return r.toString().length;
+  }
+  function offsetsToRange(start, end) {
+    const walker = document.createTreeWalker(doc, NodeFilter.SHOW_TEXT);
+    let pos = 0, range = document.createRange(), haveStart = false;
+    while (walker.nextNode()) {
+      const node = walker.currentNode, len = node.data.length;
+      if (!haveStart && pos + len >= start) {
+        range.setStart(node, start - pos);
+        haveStart = true;
+      }
+      if (haveStart && pos + len >= end) {
+        range.setEnd(node, end - pos);
+        return range;
+      }
+      pos += len;
+    }
+    return null;
+  }
+
+  // ---- anchoring: TextQuoteSelector-style exact + prefix/suffix ----
+  function selectorFromRange(range) {
+    const text = docText();
+    const start = globalOffset(range.startContainer, range.startOffset);
+    const end = globalOffset(range.endContainer, range.endOffset);
+    return {
+      exact: text.slice(start, end),
+      prefix: text.slice(Math.max(0, start - CTX), start),
+      suffix: text.slice(end, end + CTX),
+    };
+  }
+  function locate(c) {
+    const text = docText();
+    let i = text.indexOf(c.prefix + c.exact + c.suffix);
+    if (i >= 0) return offsetsToRange(i + c.prefix.length, i + c.prefix.length + c.exact.length);
+    i = text.indexOf(c.exact);
+    if (i >= 0) return offsetsToRange(i, i + c.exact.length);
+    return null;
+  }
+  function reanchorAll() {
+    ranges = new Map(comments.map(c => [c.id, locate(c)]));
+    paint();
+  }
+
+  // ---- painting via CSS Custom Highlight API ----
+  const hl = typeof Highlight !== 'undefined' ? new Highlight() : null;
+  const hlActive = typeof Highlight !== 'undefined' ? new Highlight() : null;
+  if (hl) { CSS.highlights.set('dc-hl', hl); CSS.highlights.set('dc-hl-active', hlActive); }
+  function paint(activeId) {
+    if (!hl) return;
+    hl.clear(); hlActive.clear();
+    for (const [id, r] of ranges) {
+      if (!r) continue;
+      (id === activeId ? hlActive : hl).add(r);
+    }
+  }
+
+  // ---- persistence (best-effort; file:// storage varies by browser) ----
+  function save() {
+    try { localStorage.setItem(storeKey, JSON.stringify(comments)); } catch (e) { /* unavailable on some file:// setups */ }
+  }
+  function load() {
+    try {
+      const raw = localStorage.getItem(storeKey);
+      if (raw) comments = JSON.parse(raw);
+    } catch (e) { /* ignore */ }
+  }
+
+  // ---- sidebar rendering ----
+  function flash(msg) {
+    statusEl.textContent = msg;
+    setTimeout(() => { if (statusEl.textContent === msg) statusEl.textContent = ''; }, 2500);
+  }
+  function sortedComments() {
+    const pos = c => {
+      const r = ranges.get(c.id);
+      return r ? globalOffset(r.startContainer, r.startOffset) : Infinity; // orphans last
+    };
+    return [...comments].sort((a, b) => pos(a) - pos(b));
+  }
+  function render(editingId) {
+    countEl.textContent = comments.length ? '(' + comments.length + ')' : '';
+    listEl.textContent = '';
+    if (!comments.length) {
+      const p = document.createElement('p');
+      p.className = 'dc-empty';
+      p.textContent = 'No comments yet. Select text in the document to add one.';
+      listEl.appendChild(p);
+      return;
+    }
+    for (const c of sortedComments()) {
+      const item = document.createElement('div');
+      item.className = 'dc-item' + (c.resolved ? ' dc-resolved' : '');
+      item.dataset.id = c.id;
+
+      const quote = document.createElement('div');
+      quote.className = 'dc-quote';
+      quote.textContent = c.exact.length > 90 ? c.exact.slice(0, 90) + '…' : c.exact;
+      if (!ranges.get(c.id)) {
+        const tag = document.createElement('span');
+        tag.className = 'dc-orphan-tag';
+        tag.textContent = 'orphaned';
+        quote.appendChild(tag);
+      }
+      item.appendChild(quote);
+
+      if (c.id === editingId) {
+        const ta = document.createElement('textarea');
+        ta.value = c.text;
+        ta.placeholder = 'Write a comment… (⌘/Ctrl+Enter to save, Esc to cancel)';
+        ta.addEventListener('keydown', e => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') commit();
+          if (e.key === 'Escape') cancel();
+        });
+        ta.addEventListener('click', e => e.stopPropagation());
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'dc-btn';
+        saveBtn.textContent = 'Save';
+        saveBtn.style.marginTop = '6px';
+        saveBtn.addEventListener('click', e => { e.stopPropagation(); commit(); });
+        function commit() {
+          c.text = ta.value.trim();
+          if (!c.text) return cancel();
+          save(); render();
+        }
+        function cancel() {
+          if (!c.text) { comments = comments.filter(x => x.id !== c.id); ranges.delete(c.id); paint(); }
+          save(); render();
+        }
+        item.appendChild(ta);
+        item.appendChild(saveBtn);
+        listEl.appendChild(item);
+        requestAnimationFrame(() => ta.focus());
+        continue;
+      }
+
+      const text = document.createElement('div');
+      text.className = 'dc-text';
+      text.textContent = c.text;
+      item.appendChild(text);
+
+      if (Array.isArray(c.replies) && c.replies.length) {
+        const box = document.createElement('div');
+        box.className = 'dc-replies';
+        for (const r of c.replies) {
+          const who = document.createElement('div');
+          who.className = 'dc-reply-author';
+          who.textContent = 'Reply from ' + (r.author || 'agent') + (r.created ? ' · ' + String(r.created).slice(0, 10) : '');
+          const body = document.createElement('div');
+          body.className = 'dc-reply-text';
+          for (const part of String(r.text || '').split(/(https?:\/\/[^\s)]+)/g)) {
+            if (/^https?:\/\//.test(part)) {
+              const a = document.createElement('a');
+              a.href = part; a.target = '_blank'; a.rel = 'noopener';
+              a.textContent = part;
+              a.addEventListener('click', e => e.stopPropagation());
+              body.appendChild(a);
+            } else body.appendChild(document.createTextNode(part));
+          }
+          box.append(who, body);
+        }
+        item.appendChild(box);
+      }
+
+      const meta = document.createElement('div');
+      meta.className = 'dc-meta';
+      const when = document.createElement('span');
+      when.textContent = c.created.slice(0, 10);
+      const resolved = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!c.resolved;
+      cb.addEventListener('click', e => e.stopPropagation());
+      cb.addEventListener('change', () => { c.resolved = cb.checked; save(); render(); });
+      resolved.append(cb, 'resolved');
+      const del = document.createElement('button');
+      del.className = 'dc-del';
+      del.textContent = 'delete';
+      del.addEventListener('click', e => {
+        e.stopPropagation();
+        comments = comments.filter(x => x.id !== c.id);
+        ranges.delete(c.id);
+        paint(); save(); render();
+      });
+      meta.append(when, resolved, del);
+      item.appendChild(meta);
+
+      item.addEventListener('click', () => {
+        const r = ranges.get(c.id);
+        if (!r) return flash('Anchor not found in this version of the document.');
+        const rect = r.getBoundingClientRect();
+        window.scrollTo({ top: window.scrollY + rect.top - 160, behavior: 'smooth' });
+        paint(c.id);
+        setTimeout(() => paint(), 2000);
+      });
+      // double-click text to edit
+      text.addEventListener('dblclick', e => { e.stopPropagation(); render(c.id); });
+      listEl.appendChild(item);
+    }
+  }
+
+  // ---- selection -> floating Comment button ----
+  document.addEventListener('mouseup', e => {
+    if (fab.contains(e.target)) return;
+    setTimeout(() => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.rangeCount) { fab.style.display = 'none'; return; }
+      const range = sel.getRangeAt(0);
+      if (!doc.contains(range.commonAncestorContainer) || !range.toString().trim()) {
+        fab.style.display = 'none';
+        return;
+      }
+      const rect = range.getBoundingClientRect();
+      fab.style.display = 'block';
+      fab.style.left = Math.min(rect.right + 8 + window.scrollX, window.scrollX + document.documentElement.clientWidth - 120) + 'px';
+      fab.style.top = (rect.top + window.scrollY - 4) + 'px';
+      fab.dataset.pending = '1';
+    }, 0);
+  });
+  fab.addEventListener('click', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    const c = Object.assign({ id: 'c' + Date.now().toString(36) + (seq++), text: '', created: new Date().toISOString(), resolved: false }, selectorFromRange(range));
+    comments.push(c);
+    ranges.set(c.id, range.cloneRange());
+    paint(c.id);
+    sel.removeAllRanges();
+    fab.style.display = 'none';
+    sidebar.classList.add('dc-open');
+    render(c.id);
+  });
+
+  // ---- export / import ----
+  function payload() {
+    return JSON.stringify({
+      format: FORMAT,
+      doc: document.title,
+      exported: new Date().toISOString(),
+      comments: comments,
+    }, null, 2);
+  }
+  document.getElementById('dc-export').addEventListener('click', () => {
+    const blob = new Blob([payload()], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (document.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'doc') + '.comments.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    flash('Downloaded.');
+  });
+  document.getElementById('dc-copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(payload()); flash('Copied to clipboard.'); }
+    catch (e) { flash('Clipboard blocked — use Export instead.'); }
+  });
+  document.getElementById('dc-import').addEventListener('click', () => document.getElementById('dc-file').click());
+  document.getElementById('dc-file').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    file.text().then(raw => {
+      const data = JSON.parse(raw);
+      if (data.format !== FORMAT || !Array.isArray(data.comments)) { flash('Not a dc-comments file.'); return; }
+      const byId = new Map(comments.map(c => [c.id, c]));
+      for (const c of data.comments) byId.set(c.id, c);
+      comments = [...byId.values()];
+      reanchorAll(); save(); render();
+      flash('Imported ' + data.comments.length + ' comment(s).');
+    }).catch(() => flash('Could not parse that file.'));
+    e.target.value = '';
+  });
+
+  document.getElementById('dc-toggle').addEventListener('click', () => sidebar.classList.toggle('dc-open'));
+
+  // ---- init ----
+  load();
+  // Merge the renderer's preloaded comments (with replies) by id: a stored
+  // comment keeps its own text/resolved state and takes the preloaded replies.
+  try {
+    const pre = document.getElementById('dc-preload');
+    const preloaded = pre && pre.textContent.trim() ? JSON.parse(pre.textContent) : [];
+    if (Array.isArray(preloaded) && preloaded.length) {
+      const byId = new Map(comments.map(c => [c.id, c]));
+      for (const c of preloaded) {
+        const existing = byId.get(c.id);
+        if (existing) { if (c.replies) existing.replies = c.replies; }
+        else byId.set(c.id, c);
+      }
+      comments = [...byId.values()];
+      save();
+    }
+  } catch (e) { /* malformed preload: ignore */ }
+  reanchorAll();
+  render();
+})();
+</script>
+<!-- ============ DC-COMMENTS END ============ -->
+</div>
+</body>
+</html>
