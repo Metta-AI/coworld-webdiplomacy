@@ -1,0 +1,12 @@
+ARG RUNNER_IMAGE
+ARG GAME_IMAGE
+FROM ${RUNNER_IMAGE} AS runner
+FROM ${GAME_IMAGE}
+COPY --from=runner /usr/local/bin/node /usr/local/bin/node
+COPY --from=runner /opt/worlds/server.mjs /opt/worlds/server.mjs
+COPY adapter/conductor.py /opt/adapter/conductor.py
+COPY adapter/participation/ /opt/adapter/participation/
+COPY php/wdc_press.php php/wdc_messages.php /opt/php/
+COPY adapter/conductor-entry.py /opt/conductor-host.py
+RUN cp -a /var/lib/mysql /opt/webdip-seed
+ENTRYPOINT ["node", "/opt/worlds/server.mjs"]

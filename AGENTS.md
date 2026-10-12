@@ -4,7 +4,8 @@ This repository packages the **unmodified** upstream webDiplomacy server
 (`webdiplomacy/` submodule) as a Softmax Coworld: one game container per
 seven-seat episode, one player container per seat. Players are ordinary
 webDiplomacy API bots; the Coworld layer only creates, starts, ends and records
-the game.
+the game. The Conductor host also exposes private seat observations and actions through an attempt-owned Unix socket.
+Read [participation](docs/participation.md) and its [contract](adapter/participation/.contracts/001-private-actions/CONTRACT.md).
 
 ## Where to look
 
@@ -34,7 +35,7 @@ the game.
   [design](docs/design.md#updating-upstream)). Generated upstream files exist only
   inside the image.
 - **The adapter never advances phases or applies votes.** Upstream's gamemaster
-  loop does that. The adapter only uses `php/wdc_*.php` at game start and end.
+  loop does that. PHP helpers may initialize/end a game and read/send authorized seat press; order submission uses the upstream API. Helpers must not implement adjudication.
 - **Replay, spectator stream and game stdout carry public data only.** Never
   record player contexts, private press, tokens or draft orders there. Private
   press goes only to each seat's player log and artifact.

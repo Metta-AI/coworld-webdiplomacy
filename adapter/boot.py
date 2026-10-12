@@ -141,7 +141,7 @@ def prepare():
         SSE_PORT="/run/webdip/sse.sock",
         SSE_SECRET=settings["sseSecret"],
         REDIS_HOST="127.0.0.1",
-        GAMEMASTER_URL="http://127.0.0.1:8080/gamemaster.php",
+        GAMEMASTER_URL=f"http://127.0.0.1:{http_port()}/gamemaster.php",
         GAMEMASTER_SECRET=settings["gameMasterSecret"],
     )
     (APP / "sse-server/.env").write_text("".join(f"{key}={value}\n" for key, value in env.items()))
@@ -160,9 +160,16 @@ def tcp_ready(port):
         return False
 
 
+def http_port():
+    port = int(os.environ.get("WEBDIP_HTTP_PORT", "8080"))
+    if port not in (8080, 8081):
+        raise ValueError("Invalid upstream HTTP port")
+    return port
+
+
 def api_ready():
     try:
-        with urlopen("http://127.0.0.1:8080/api.php", timeout=0.5):
+        with urlopen(f"http://127.0.0.1:{http_port()}/api.php", timeout=0.5):
             return False
     except HTTPError as error:
         return error.code == 400 and error.read().strip() == b"No route provided."
@@ -202,7 +209,7 @@ def bake(supervisor, settings):
     sql("ALTER USER 'webdiplomacy'@'127.0.0.1' IDENTIFIED BY '' ACCOUNT LOCK;")
 
 
-def main():
+def main(*, on_ready=None):
     supervisor = Supervisor()
     for number in (signal.SIGTERM, signal.SIGINT):
         signal.signal(number, lambda *_: supervisor.stopping.set())
@@ -266,11 +273,15 @@ def main():
                 "php-fpm", ["php-fpm8.4", "--allow-to-run-as-root", "--fpm-config", "/opt/config/php-fpm.conf"]
             )
             supervisor.wait_for(lambda: tcp_ready(9000), "php-fpm")
-            supervisor.start("nginx", ["nginx", "-c", "/opt/config/nginx.conf"])
+            nginx = (CONFIG / "nginx.conf").read_text().replace("listen 8080;", f"listen {http_port()};")
+            (RUN / "nginx.conf").write_text(nginx)
+            supervisor.start("nginx", ["nginx", "-c", str(RUN / "nginx.conf")])
             supervisor.wait_for(api_ready, "webDiplomacy API")
             supervisor.start("sse", ["node", "server.js"], cwd=APP / "sse-server")
             supervisor.wait_for(lambda: (RUN / "sse.sock").exists(), "sse")
             supervisor.ready = True
+            if on_ready:
+                on_ready(episode)
             print("webDiplomacy services ready", flush=True)
             if mode:
                 with (RUN / "logs/scenario.log").open("ab") as log:
