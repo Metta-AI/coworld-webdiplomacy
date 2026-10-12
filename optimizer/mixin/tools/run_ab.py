@@ -283,7 +283,7 @@ def main(argv=None) -> None:
     ap.add_argument("--b-label", help="NAME:vN label for --b when it is an id")
     ap.add_argument("--field-set", required=True)
     ap.add_argument("-n", "--episodes", type=int, default=2,
-                    help="games per body; total = 14 x n (default 2: 28 games, 39 to 62 credits in press "
+                    help="games per body; total = 14 x n (default 2: 28 games, 39 to 92 credits in press "
                          "by the platform's estimate)")
     ap.add_argument("--resume", action="store_true",
                     help="skip launch; fetch and read the batches in the record (with --alone: the two alone arms)")

@@ -229,20 +229,23 @@ uploaded policy name.
 - `--balanced` writes 14 batches: every power and both seat positions equally
   for each version. `-n` is games per batch:
 
-  | `-n` | Games | Platform's estimate at create (1.4 to 2.2 credits a press game) | Recorded `cost_usd` (about $0.5 a press game) | Smallest effect at z = 2, with `sizing.py`'s starting SD |
+  | `-n` | Games | Platform's estimate at create (1.4 to 3.3 credits a press game) | Recorded `cost_usd` (about $0.5 a press game) | Smallest effect at z = 2, with `sizing.py`'s starting SD |
   |---|---|---|---|---|
-  | 1 | 14 | 20 to 31 credits | about $7 | 0.11 |
-  | 2 | 28 | 39 to 62 credits | about $15 | 0.08 |
-  | 6 | 84 | 118 to 187 credits | about $45 | 0.04 |
+  | 1 | 14 | 20 to 46 credits | about $7 | 0.11 |
+  | 2 | 28 | 39 to 92 credits | about $15 | 0.08 |
+  | 6 | 84 | 118 to 277 credits | about $45 | 0.04 |
 
   **What a game costs, and what is not known** (as the platform reported it on
-  2026-10-11; `tools/batches.py` prints both numbers for your own batches). The platform
+  2026-10-11 and the night after; `tools/batches.py` prints both numbers for your own batches). The platform
   prints an estimate when a request is created (`cost_preview.estimated_cost_credits`;
-  `eval_request.py create` shows it and saves it, and `coworld xp-request get <xreq>
-  --json` returns it later): 1.37 to 2.23 credits per full press game and 0.50 per
-  gunboat game. It moved within that one day, and by the evening a short health game was
-  quoted at the same 2.23 as a full one, so never give the user a figure from this page
-  before a launch: give the one the create step prints. After a game ends its episode row carries `cost_usd`: $0.51 to $0.61 per
+  `eval_request.py create` shows it and saves it; `coworld xp-request get <xreq>
+  --json` returned none for requests made on the night of 2026-10-11): 1.37 to 3.34 credits per full press game and 0.50 per
+  gunboat game. It moves: in one night the same request was quoted at 2.23 credits a game,
+  then 3.24 to 3.34 five hours later, a request of ten games was quoted at 2.82 a game in
+  between, and a short health game costs the same as a full one. Nothing prices a request
+  without creating it. So never give the user a figure from this page before a launch: give
+  the one the create step prints, and when the user has set a credit limit, launch in sets
+  and read each set's estimate before the next. After a game ends its episode row carries `cost_usd`: $0.51 to $0.61 per
   press game, $0.026 per gunboat game, $0.11 to $0.28 for a short health game.
   **Not established:** the credits actually charged (nobody read a balance), and how
   `cost_usd` converts to credits. Quote the platform's estimate, say it is an estimate,

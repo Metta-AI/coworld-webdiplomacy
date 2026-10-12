@@ -129,7 +129,7 @@ IDE build (2026-10-11), a third drive of the published template and an overnight
 - **An installed lab has no ruff config.** This repository's `pyproject.toml` sets the
   rules; a user's `ruff check` in their copy uses ruff's defaults and reports other things.
 - **Credits charged cannot be read back.** `tools/batches.py` prints the platform's estimate at
-  create time (1.4 to 2.2 credits per press game on 2026-10-11) and each episode's recorded
+  create time (1.4 to 3.3 credits per press game over 2026-10-11 and the night after; it moves) and each episode's recorded
   `cost_usd` (about $0.5); `run_ab.py` prints the estimate when it launches. Neither is the
   bill, their relation is not known, and nobody has read a balance.
 - **`ship.py` and `build.sh` know one source tree, `players/castlereagh`.** Every upload is

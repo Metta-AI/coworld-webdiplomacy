@@ -144,8 +144,8 @@ a two-arm difference is about the per-seat SD × √(2/n).
   queue, stretches it. A `classic-press-short` health game takes about 25
   minutes. A gunboat game runs about 2 minutes, but it has no press. The lab
   manual's "Run one A/B" has the table.
-- Cost (same date): the platform estimates **1.4 to 2.2 credits per press
-  game** (short or full) when the request is created and records a `cost_usd` of about
+- Cost: the platform estimates **1.4 to 3.3 credits per press
+  game** (short or full; it rose by half within one night) when the request is created and records a `cost_usd` of about
   **$0.5 per game** afterwards; 0.5 credits per gunboat game. The credits
   actually charged have not been read back
   ([platform.md](../../docs/platform.md#cost-and-duration)).

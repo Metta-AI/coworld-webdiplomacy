@@ -154,19 +154,25 @@ set; see the eval-design binding):
 
 ## Cost and duration
 
-As the platform reported it on 2026-10-10/11. Re-measure on your own batches with
+As the platform reported it from 2026-10-10 to the early hours of 2026-10-12. Re-measure on your own batches with
 `python3 games/webdiplomacy/tools/batches.py <artifact dirs> [--responses DIR]`.
 
 | Game | Platform's estimate at create (`cost_preview.estimated_cost_credits`) | Episode row's `cost_usd` | Minutes of play |
 |---|---|---|---|
-| Full `classic-press` | 1.37 to 2.23 credits | $0.51 to $0.61 | median 61, longest 75 |
-| `classic-press-short` (health game) | 1.4 to 2.23 credits | $0.11 to $0.28 | 23 to 27 |
+| Full `classic-press` | 1.37 to 3.34 credits | $0.51 to $0.61 | median 61, longest 75 |
+| `classic-press-short` (health game) | 1.4 to 3.34 credits | $0.11 to $0.28 | 23 to 27 |
 | `classic-gunboat` | 0.50 credits | $0.026 | median 2.4 |
 
-- The estimate differed between launches of the same design on the same day; why is
-  not known. On the evening of 2026-10-11 every press request was quoted at 2.232 credits
-  a game, short and full alike, so the estimate does not appear to follow the game's
-  length. Before a launch, quote the figure the create step prints, not this table.
+- The estimate moves between launches of the same design, and why is not known. Over one
+  night the quotes per press game were 2.232 (about 21:30 Pacific, requests of one to three
+  games), 2.821 (about 23:50, requests of ten games) and 3.24 to 3.34 (about 02:00, requests
+  of one and three games), short and full games alike. So the estimate does not follow the
+  game's length, and it may depend on the hour, the games per request, or both.
+- No route prices a request without creating it, and `coworld xp-request get` returned no
+  `cost_preview` for requests made that night; the create response is the only place the
+  figure appears, and `eval_request.py create` saves it. Before a launch, quote the figure
+  the create step prints, not this table. Under a credit limit, launch in sets and read
+  each set's estimate before the next.
 - **Not established:** the credits actually charged, and how `cost_usd` relates to
   credits. Nobody has read a balance. Quote the platform's estimate as an estimate.
 - LLM spend depends on the model and the policy's prompts: `wd.py costs` prints it per
