@@ -97,7 +97,7 @@ import webdip_episodes as we  # noqa: E402
 
 POLICY_SOURCE = Path(__file__).resolve().parents[1] / "players" / "castlereagh"
 POWER_IDS = {name.upper(): cid for cid, name in we.POWERS.items()}
-PHASE_SECONDS = 240.0  # a classic-press movement phase, as the recorded briefings show it
+PHASE_SECONDS = 180.0  # a classic-press movement phase (240 before webDiplomacy Coworld 0.7.10)
 BENCH_EXTRA = [
     ("cases", "cases"),
     ("wake_ok", "wakes that ended ok"),

@@ -16,7 +16,7 @@ may have changed.
 - [Player protocol](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/protocol.md): lifecycle, scoring, `results.json`
 - [Upstream bot API](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/upstream-bot-api.md): routes, orders, votes, with citations into the upstream PHP
 - [Replay format](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/replay.md)
-- [Variants and config](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/coworld_manifest_template.json) (`variants`, `config_schema`)
+- [Variants and config](https://github.com/Metta-AI/coworld-webdiplomacy/blob/main/coworld_manifest_template.json) (`variants`, `config_schema`; on `main`, because the variants changed in Coworld 0.7.10)
 
 You are free to write your own longer references in this lab (for example a
 `docs/map.md` of adjacencies you have verified). Cite where each fact came from.
@@ -159,11 +159,11 @@ Autumn, so it is wrong for the last year.
 
 ## Variants
 
-From the manifest's `variants` (verified at `b4aca73`):
+From the manifest's `variants` (Coworld 0.7.10):
 
 | Variant | Press | Movement / retreat+build minutes | Ends after | Used by |
 |---|---|---|---|---|
-| `classic-press` | Regular | 4 / 1 | 1908 | webDiplomacy league |
+| `classic-press` | Regular | 3 / 1 (4 / 1 before Coworld 0.7.10) | 1908 | webDiplomacy league |
 | `classic-gunboat` | none | 1 / 1 | 1910 | webDiplomacy Gunboat league |
 | `classic-press-short` | Regular | 3 / 1 | 1904 | health checks, smoke tests |
 | `classic-live-human` | Regular | 7 / 2 | 1904 | human lobbies |
@@ -183,8 +183,11 @@ health and behaviour checks, not for score.
 
 Re-resolve the ids with `coworld leagues --json`. As set on 2026-10-12 (read the live
 settings with `coworld leagues <league_id> --json` before relying on these): the press
-league runs a round every 150 minutes (`round_interval_minutes: 150`) and the gunboat
-league once a day (1440). In both, every entrant plays at least three games in every round
+league's round interval is 60 minutes (`round_interval_minutes: 60`; it was 150 until that
+afternoon) and the gunboat league's is a day (1440). The interval is a minimum: a round
+starts on the league's fixed grid of slots, and only when the round before it has finished.
+A press round took 62 minutes (round 7, 2026-10-12), which is longer than the interval, so
+press rounds start 60 to 120 minutes apart. In both, every entrant plays at least three games in every round
 (`ladder.scheduler.min_episodes_per_entrant: 3`): three games while there are seven
 entrants or fewer, with fillers from the league's **filler roster** in the empty seats,
 and about three more for each further seven entrants (3 × entrants / 7, rounded up),
@@ -231,8 +234,9 @@ numbers for your own batches ([platform.md](platform.md#cost-and-duration)).
 
 - A hosted full `classic-press` game ran a **median 61 minutes** (longest 75), and a
   `classic-press-short` game 23 to 27. LLM seats rarely all mark Ready, so press
-  phases usually run their full 4 minutes. Add queueing and platform restarts for
+  phases usually run their full length. Add queueing and platform restarts for
   the wall clock.
+- `classic-press` had 4-minute movement phases until Coworld 0.7.10 (2026-10-12) and has 3-minute phases since. The full-game figures here were measured at 4 minutes; at 3 minutes a full game is about 48 minutes of play by the rule in [platform.md, "Shorter games"](platform.md#shorter-games). Measure your own with `tools/batches.py`.
 - A hosted `classic-gunboat` game took a **median 2.4 minutes of play** (maximum
   6.6), plus its time in the queue.
 - Local gunboat games with bots that mark Ready take 40 to 45 seconds. Local

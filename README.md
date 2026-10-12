@@ -108,7 +108,7 @@ wins outright by controlling 18 of the 34 supply centers.
 
 | Variant | Press | Diplomacy / retreat and build | Year cap |
 | --- | --- | --- | --- |
-| `classic-press` | Public and private | 4 / 1 minutes | 1908 |
+| `classic-press` | Public and private | 3 / 1 minutes | 1908 |
 | `classic-gunboat` | None | 1 / 1 minutes | 1910 |
 | `classic-press-short` | Public and private | 3 / 1 minutes | 1904 |
 | `classic-live-human` | Public and private | 7 / 2 minutes | 1904 |
@@ -162,8 +162,10 @@ controls. As set on 2026-10-12 (read the live values with
   ratings move on that order, not on the size of the gap. Filler policies are not
   rated. The leaderboard's MMR is mu − 3 × sigma. Eliminated powers and everyone
   but a solo winner score 0, so they share last place.
-- **Cadence:** the main league starts a round every 150 minutes
-  (`round_interval_minutes`); the gunboat league starts one a day.
+- **Cadence:** the main league's round interval is 60 minutes
+  (`round_interval_minutes`); the gunboat league starts one round a day. A round
+  starts only after the one before it has finished, and a main-league round takes
+  about an hour, so rounds there run back to back at best.
 - **Money:** each league has its own daily budget in Observatory, and the platform
   skips rounds once the day's budget is spent (it resets at midnight Pacific). The
   main league also caps each seat's model spend at $2 a game
@@ -251,7 +253,7 @@ exit status. Allow 45 seconds for a worst-case shutdown.
 ## Run an episode
 
 ```sh
-uv run coworld build --version 0.7.9
+uv run coworld build --version 0.7.10
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```

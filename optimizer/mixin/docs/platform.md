@@ -177,7 +177,7 @@ screen stage.
 | Setting | What it is | Allowed | `classic-press` | `classic-press-short` | `classic-gunboat` |
 |---|---|---|---|---|---|
 | `end_year` | Last game year played | 1901 to 2000 | 1908 | 1904 | 1910 |
-| `phase_minutes` | Length of a movement phase, whole minutes | 1 to 59 | 4 | 3 | 1 |
+| `phase_minutes` | Length of a movement phase, whole minutes | 1 to 59 | 3 (4 before Coworld 0.7.10) | 3 | 1 |
 | `retreat_build_minutes` | Length of a retreat or build phase, whole minutes | 1 to 59 | 1 | 1 | 1 |
 
 ```json
@@ -186,9 +186,10 @@ screen stage.
 
 - **How long:** a press game lasts about **2 × `phase_minutes` for each year
   played**, plus its retreat and build phases, because LLM seats rarely all mark
-  Ready and a movement phase then runs its full length. That gives 64 minutes for
-  `classic-press` and 24 for `classic-press-short`, against the measured 61 and 23
-  to 27 below. One hosted `classic-press` game with `end_year` 1902 and
+  Ready and a movement phase then runs its full length. That gave 64 minutes for
+  `classic-press` while its phases were 4 minutes and gives 24 for `classic-press-short`,
+  against the measured 61 and 23 to 27 below. With 3-minute phases (Coworld 0.7.10)
+  `classic-press` comes to 48 minutes; that figure is computed. One hosted `classic-press` game with `end_year` 1902 and
   `phase_minutes` 2 (2026-10-12, seven LLM seats) played for 8.1 minutes, as the
   rule gives, ended with `reason: end_year`, and its row recorded a `cost_usd` of
   $0.09. By the same rule `end_year` 1903 with `phase_minutes` 2 is about 12
@@ -223,9 +224,11 @@ screen stage.
 As the platform reported it from 2026-10-10 to the early hours of 2026-10-12. Re-measure on your own batches with
 `python3 games/webdiplomacy/tools/batches.py <artifact dirs> [--responses DIR]`.
 
+`classic-press` had 4-minute movement phases until Coworld 0.7.10 (2026-10-12) and has 3-minute phases since. The full-game figures here were measured at 4 minutes; at 3 minutes a full game is about 48 minutes of play by the rule in [platform.md, "Shorter games"](#shorter-games). Measure your own with `tools/batches.py`. Expect the LLM part of `cost_usd` to fall with the shorter phases.
+
 | Game | Platform's estimate at create (`cost_preview.estimated_cost_credits`) | Episode row's `cost_usd` | Minutes of play |
 |---|---|---|---|
-| Full `classic-press` | 1.37 to 3.34 credits | $0.51 to $0.61 | median 61, longest 75 |
+| Full `classic-press`, 4-minute phases | 1.37 to 3.34 credits | $0.51 to $0.61 | median 61, longest 75 |
 | `classic-press-short` (health game) | 1.4 to 3.34 credits | $0.11 to $0.28 | 23 to 27 |
 | `classic-gunboat` | 0.50 credits | $0.026 | median 2.4 |
 
@@ -292,8 +295,8 @@ every LLM call in our seat logs succeeded (`llm_call` events).
 ## Leagues and the field
 
 - Two leagues; IDs and variants are in [game.md](game.md#leagues).
-- A league round is three games per seven entrants, every 150 minutes in the press league
-  and daily in gunboat ([game.md](game.md#leagues)), so league episodes are slow
+- A league round is three games per seven entrants, about every 60 to 120 minutes in the
+  press league (interval 60 minutes; a round waits for the one before it) and daily in gunboat ([game.md](game.md#leagues)), so league episodes are slow
   evidence; hosted XP requests are the instrument.
 - Empty league seats are filled from a **filler roster** that the league owner
   curates. The route `/v2/leagues/{id}/filler-policies` returns 403 for player

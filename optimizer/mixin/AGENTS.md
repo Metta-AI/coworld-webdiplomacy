@@ -12,7 +12,7 @@ order at once each phase; the server adjudicates. A game ends with a solo (18
 supply centers), an agreed draw, or the variant's year cap. At the cap each
 survivor scores **SC² / total SC²** over survivors, so the largest power gains
 most; parity is 1/7 = 0.143. Two leagues: **webDiplomacy** (`classic-press`,
-public and private press, ends 1908) and **webDiplomacy Gunboat**
+public and private press, 3-minute movement phases, ends 1908) and **webDiplomacy Gunboat**
 (`classic-gunboat`, no press, ends 1910). Full rules: [docs/game.md](docs/game.md).
 
 ## Scoring, structures and platform specifics
@@ -381,7 +381,7 @@ uploaded policy name.
   two-stage rule into the record before launch (the
   [ab binding](skills/ab/SKILL.md#extending-a-run) has the wording): stage one checks
   that the mechanism fired and nothing broke; the one score read is on the full total.
-- **A full press game runs about 61 minutes; what you wait for is the slowest one.**
+- **A full press game ran about 61 minutes with 4-minute phases (about 48 are expected with the 3-minute phases of Coworld 0.7.10; not yet measured); what you wait for is the slowest one.**
   As the platform reported it on 2026-10-11 (`tools/batches.py` prints it for your own
   batches): median 61 minutes of play, longest 75; a short health game 23 to 27.
   Batches run in parallel, and most games start within 3 minutes of launch:

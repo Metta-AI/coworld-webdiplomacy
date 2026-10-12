@@ -181,8 +181,8 @@ This optimizer already has its game: the webDiplomacy lab is installed in
 Show the two webDiplomacy leagues with one plain line each: the main league plays
 with press (negotiation), the Gunboat league without. **Work in the main (press)
 league** unless the user asks for Gunboat: the reference policy builds in press
-mode by default. Say early that a hosted press game runs about an hour and a batch
-comes back 70 to 130 minutes after launch (the lab manual's "Run one A/B" has the
+mode by default. Say early that a hosted press game runs about 50 minutes and a batch
+comes back an hour or two after launch (the lab manual's "Run one A/B" has the
 dated numbers), so the first evaluation will finish after a one-hour session;
 launch it before the wrap and read it next time. The league IDs
 and the standings commands are under "Leagues" in `games/webdiplomacy/docs/game.md`; plain
