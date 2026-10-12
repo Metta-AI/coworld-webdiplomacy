@@ -170,6 +170,10 @@ From the manifest's `variants` (verified at `b4aca73`):
 
 A full `classic-press` game has 16 movement phases (1901 to 1908).
 
+A hosted request can change `end_year` and the phase lengths for its own games
+([platform.md, "Shorter games"](platform.md#shorter-games)); such a game is for
+health and behaviour checks, not for score.
+
 ## Leagues
 
 | League | ID | Variant |
