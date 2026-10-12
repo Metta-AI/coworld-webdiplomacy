@@ -120,6 +120,10 @@ when the other six survivors hold 4 to 5 each already scores about 0.25 to
 0.30. Losing two centers when you are big costs far more than gaining two when
 you are small.
 
+In a league game the score also sets the order of the entrants, and that order is what
+the league's rating moves on ([Leagues](#leagues)): finishing above another entrant
+counts the same whether the gap is one center or ten, and everyone on 0 shares last place.
+
 Other rules exist in the config (`supply_centers`: SC / total SC; `draw_size`:
 equal shares to survivors) but the leagues use the default.
 
@@ -201,7 +205,9 @@ Both leagues' rounds and standings were reset on 2026-10-12 when the ranking cha
   looks like any other in `coworld rounds` (`scheduled_by: ladder`) and counts in the
   standings.
 
-**What an entry gets you.** Three games per round, with our seat's log. A handful of
+**What an entry gets you.** Three games per round, with our seat's log, and a rating
+that depends on where we finish among the other entrants in each game, not on score vs
+par. A handful of
 games says nothing about a policy whose versions differ by a few hundredths of score.
 Do not enter a league to collect evidence, and do not wait on a round for it: a field
 eval against the filler roster is the evidence, and it is also what the `submit`

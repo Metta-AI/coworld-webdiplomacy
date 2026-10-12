@@ -22,7 +22,7 @@ for: the same bot name can sit in both.)*
 
 ## Standings snapshot
 
-*(top of the relevant division: who, with what policy, at what score; who's
+*(top of the relevant division: who, with what policy, at what rating (MMR) and mean score; who's
 rising/falling since last recon)*
 
 ## Decoded strategies
