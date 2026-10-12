@@ -20,6 +20,18 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-12 · Coworld 0.7.9 · Press league: rounds every hour, $100 a day
+
+**What changed.** League settings, not the game. The webDiplomacy press league's round
+interval went from 150 to 60 minutes and its daily budget from $15 to $100. A round still
+waits for the one before it, and a press round takes about an hour, so rounds start 60 to
+120 minutes apart. The gunboat league is unchanged (one round a day, $15).
+
+**In your optimizer.** In `docs/game.md`, "Leagues", and `docs/platform.md`, "Leagues and
+the field", replace "every 150 minutes" with the text in this repository's
+`optimizer/mixin/` copies. League results now arrive about twice as often; an entry is
+still not an eval.
+
 ## 2026-10-12 · Coworld 0.7.9 · Changelog and update check
 
 **What changed.** This file exists. An optimizer keeps the copy it was last brought

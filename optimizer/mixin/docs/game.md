@@ -183,8 +183,11 @@ health and behaviour checks, not for score.
 
 Re-resolve the ids with `coworld leagues --json`. As set on 2026-10-12 (read the live
 settings with `coworld leagues <league_id> --json` before relying on these): the press
-league runs a round every 150 minutes (`round_interval_minutes: 150`) and the gunboat
-league once a day (1440). In both, every entrant plays at least three games in every round
+league's round interval is 60 minutes (`round_interval_minutes: 60`; it was 150 until that
+afternoon) and the gunboat league's is a day (1440). The interval is a minimum: a round
+starts on the league's fixed grid of slots, and only when the round before it has finished.
+A press round took 62 minutes (round 7, 2026-10-12), which is longer than the interval, so
+press rounds start 60 to 120 minutes apart. In both, every entrant plays at least three games in every round
 (`ladder.scheduler.min_episodes_per_entrant: 3`): three games while there are seven
 entrants or fewer, with fillers from the league's **filler roster** in the empty seats,
 and about three more for each further seven entrants (3 × entrants / 7, rounded up),
