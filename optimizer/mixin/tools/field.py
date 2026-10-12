@@ -12,8 +12,8 @@ Output: one row per policy version with its version id (paste into a roster as
 `policy_ref`), filler or entrant, owner, rounds seen, and mean league score; then the
 seating of each round (who sat, how many seats each), which is what a field set copies.
 "Entrant" is as of the round: a policy whose membership was retired since still shows.
-A league round is ONE game, so these means rest on a handful of games; they
-say who is present, not who is strong. Standard library only; needs the
+A league round is a few games (how many is a league setting), so these means rest on a
+handful of games; they say who is present, not who is strong. Standard library only; needs the
 `coworld` CLI on PATH and an authenticated session.
 """
 

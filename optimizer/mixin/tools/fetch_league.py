@@ -23,7 +23,8 @@ the episodes that seat that policy:
 `episode_source` reads both. The `league_round` block this tool adds says which league and
 which round number, which the platform's row does not.
 
-A league round is one game and rounds are at most daily, so expect a handful of episodes.
+A league round is a few games (how many, and how often, are league settings: read them with
+`coworld leagues <league_id> --json`), so expect a few episodes per round.
 Run `tools/gzip_replays.py` on the output afterwards. Re-running is safe: an episode still
 running is skipped and picked up next time. It acts as the identity the `coworld` CLI is
 using (`softmax get-token`), so our own seat logs arrive only when that identity owns the

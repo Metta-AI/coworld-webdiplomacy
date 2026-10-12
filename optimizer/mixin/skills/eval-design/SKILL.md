@@ -165,7 +165,8 @@ a two-arm difference is about the per-seat SD × √(2/n).
 - The candidate-alone check may be launched with the paired run instead of
   after it (`run_ab.py --alone`, once the paired ids are in the record), at
   the cost of its games if the paired run is null.
-- **A league entry is not an eval.** A round is one game and a player cannot
+- **A league entry is not an eval.** A round is a few games against whoever is
+  entered, it is rated on finishing order, not on score vs par, and a player cannot
   start one ([game.md](../../docs/game.md#leagues)). Never plan evidence around
   a league round.
 

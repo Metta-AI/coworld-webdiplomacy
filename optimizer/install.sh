@@ -114,7 +114,7 @@ fi
 # --- 4. active games ---
 WORKING_CONTEXT="$TARGET/WORKING_CONTEXT.md"
 PLACEHOLDER='*(none installed — `tools/add_game.sh <mixin-repo-url>`)*'
-ENTRY="- \`games/webdiplomacy/\`: webDiplomacy, installed $TODAY by coworld-webdiplomacy \`optimizer/install.sh\`"
+ENTRY="- \`games/webdiplomacy/\`: webDiplomacy, installed $TODAY by coworld-webdiplomacy \`optimizer/install.sh\`. Every tool and skill of the lab is listed under \"Tool and skill index\" in \`games/webdiplomacy/AGENTS.md\`"
 if grep -qF "$PLACEHOLDER" "$WORKING_CONTEXT"; then
   python3 - "$WORKING_CONTEXT" "$PLACEHOLDER" "$ENTRY" << 'PYEOF'
 import pathlib, sys
@@ -124,6 +124,24 @@ PYEOF
 else
   echo "warning: WORKING_CONTEXT.md has no 'Active games' placeholder; add the lab by hand" >&2
 fi
+
+# --- 4-index. where the lab's tools and skills are listed ---
+# The seed's AGENTS.md says to read a lab's AGENTS.md and MIXIN.md. Name the one section that
+# lists every tool and skill, so an agent finds it from the root file.
+python3 - "$TARGET/AGENTS.md" << 'PYEOF'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+anchor = "Core skills never contain game conditionals; mixins never modify core files.\n"
+pointer = """**webDiplomacy lab:** every tool and every skill of the lab is listed once, with the
+skills that use each tool, under "Tool and skill index" in `games/webdiplomacy/AGENTS.md`.
+Look there before writing an analysis script.
+
+"""
+text = path.read_text()
+if text.count(anchor) != 1:
+    sys.exit(f"error: {path} has no 'Working in a game lab' closing line; update install.sh for this seed version")
+path.write_text(text.replace(anchor, pointer + anchor, 1))
+PYEOF
 
 # --- 4a. seed provenance ---
 # SEED.md says to diff against the recorded seed version, but the seed records only
@@ -221,6 +239,14 @@ mv "$README.new" "$README"
 # --- 5. harness ---
 if [[ "$HARNESS" == "claude-code" ]]; then
   "$TARGET/harness/claude-code/install.sh"
+  # Claude Code loads CLAUDE.md, not AGENTS.md. The seed ships none, so the root rules (and
+  # the pointer to the lab's tool and skill index) would not be in a session's context.
+  if [[ -e "$TARGET/CLAUDE.md" ]]; then
+    echo "error: the seed now ships CLAUDE.md; update install.sh for this seed version" >&2
+    exit 1
+  fi
+  printf '@AGENTS.md\n' > "$TARGET/CLAUDE.md"
+  echo "CLAUDE.md: loads AGENTS.md at the root; games/webdiplomacy/CLAUDE.md loads the lab manual."
   # Add the lab's CLI version check to SessionStart. It prints only when the coworld or
   # softmax uv tool is missing or older than PyPI's latest, and never fails the session.
   python3 - "$TARGET/.claude/settings.json" << 'PYEOF'
@@ -283,7 +309,8 @@ import pathlib, sys
 path, today = pathlib.Path(sys.argv[1]), sys.argv[2]
 placeholder = """*(recorded by the self-wiring step during onboarding: which runtime, which
 hooks were installed, date)*"""
-record = f"""- Claude Code: wired by `optimizer/install.sh` on {today}. Skills are linked in
+record = f"""- Claude Code: wired by `optimizer/install.sh` on {today}. `CLAUDE.md` loads `AGENTS.md`
+  (and `games/webdiplomacy/CLAUDE.md` the lab manual). Skills are linked in
   `.claude/skills/`; `.claude/settings.json` runs `rotate_lessons.sh` and the lab's
   `check_clis.py` at SessionStart, and both stop nudges at Stop. The IDE (`ide/`) adds
   `ide/ide hook <event>` at SessionStart, UserPromptSubmit, PostToolUse, Stop and SessionEnd

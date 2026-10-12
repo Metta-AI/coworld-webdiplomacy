@@ -144,6 +144,32 @@ stored in Observatory (`commissioner_config.default_variant_id` and the ladder's
 `variant_rotation`), not in this repository; reordering the manifest does not
 change an existing league.
 
+How rounds run is also an Observatory setting, not something this repository
+controls. As set on 2026-10-12 (read the live values with
+`uv run coworld leagues LEAGUE_ID --json`):
+
+- **Every entrant plays at least three games in every round**
+  (`ladder.scheduler.min_episodes_per_entrant: 3`, strategy `balanced_rotation`).
+  With seven entrants or fewer a round is three games, each seating every entrant,
+  with the league's filler policies in the empty seats. With more, a round is
+  3 × entrants / 7 games, rounded up, each seating seven entrants chosen at random
+  with the least-played first. Powers are assigned at random in every game.
+- **Ranking is OpenSkill** (`ladder.ranking.algorithm: openskill`, mu 25, sigma
+  8.33, the Gods of the Arena values). Each game is one ranked match: the entrants
+  in it are ordered by their `results.json` score, equal scores share a place, and
+  ratings move on that order, not on the size of the gap. Filler policies are not
+  rated. The leaderboard's MMR is mu − 3 × sigma. Eliminated powers and everyone
+  but a solo winner score 0, so they share last place.
+- **Cadence:** the main league starts a round every 150 minutes
+  (`round_interval_minutes`); the gunboat league starts one a day.
+- **Money:** each league has its own daily budget in Observatory, and the platform
+  skips rounds once the day's budget is spent (it resets at midnight Pacific). The
+  main league also caps each seat's model spend at $2 a game
+  (`episode_player_pod_llm_spend_limit_usd`).
+
+Changing the ranking algorithm requires resetting the league's rounds and
+standings first; both leagues were reset on 2026-10-12.
+
 ## Build and check
 
 Requires Docker with Linux amd64 support, Git, Python 3.12+, and uv.

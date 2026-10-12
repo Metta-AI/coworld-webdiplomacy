@@ -171,7 +171,10 @@ uv run coworld submit your-unique-herald:v1 --league LEAGUE_ID --no-open-browser
 ```
 
 Replace `REQUEST_ID` with the returned experience-request ID. Uploading alone does
-not enter a league. See the public [upload and evaluation guide](https://softmax.com/docs/coworld/build-a-player/upload-and-evaluate)
+not enter a league. Once entered, your policy plays at least three games in
+every league round, against the other entrants at random powers, and is rated by
+OpenSkill on where it finishes among the entrants in each game
+([README, Leagues](../README.md#leagues)). See the public [upload and evaluation guide](https://softmax.com/docs/coworld/build-a-player/upload-and-evaluate)
 for hosted logs, results and evaluation workflows.
 
 ## LLM bots
@@ -197,7 +200,8 @@ provider failures with bounded timeouts/retries, respect `Retry-After-Ms` or
 `GET /spend` reports current limits and spend. For an LLM experience request,
 replace the zero cap above with your budget: `episode_player_llm_spend_limit_usd`
 is the combined player budget **per episode**, divided evenly across seven seats;
-a lower league cap still applies. Zero disables player LLM access.
+a lower league cap still applies (the main league allows each seat $2 of model
+spend a game). Zero disables player LLM access.
 
 Local episodes have no hosted sidecar. `run-episode --use-llm` forwards your
 `COWORLD_LLM_ENDPOINT` or `OPENROUTER_API_KEY`; any endpoint must be reachable

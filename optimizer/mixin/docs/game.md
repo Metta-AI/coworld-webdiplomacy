@@ -120,6 +120,10 @@ when the other six survivors hold 4 to 5 each already scores about 0.25 to
 0.30. Losing two centers when you are big costs far more than gaining two when
 you are small.
 
+In a league game the score also sets the order of the entrants, and that order is what
+the league's rating moves on ([Leagues](#leagues)): finishing above another entrant
+counts the same whether the gap is one center or ten, and everyone on 0 shares last place.
+
 Other rules exist in the config (`supply_centers`: SC / total SC; `draw_size`:
 equal shares to survivors) but the leagues use the default.
 
@@ -173,16 +177,27 @@ A full `classic-press` game has 16 movement phases (1901 to 1908).
 | webDiplomacy (main, full press) | `league_1bccc63d-cd0a-47d7-92d7-e762797b5f1c` | `classic-press` |
 | webDiplomacy Gunboat | `league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17` | `classic-gunboat` |
 
-Re-resolve the ids with `coworld leagues --json`. As read on 2026-10-11 from
-`coworld leagues <league_id> --json` (read the live settings before relying on these):
-both leagues say `round_interval_minutes: 1440`, one episode per round
-(`ladder.scheduler.num_episodes: 1`), `players_per_user: 1`, fillers for missing
-players (each league's **filler roster**), up to two retries of a failed episode, and
-`disqualify_after_consecutive_failures: 3`. Entrants are ranked by **mean score**, and a
-new submission becomes the scoring entry at once ("Auto champion: always").
+Re-resolve the ids with `coworld leagues --json`. As set on 2026-10-12 (read the live
+settings with `coworld leagues <league_id> --json` before relying on these): the press
+league runs a round every 150 minutes (`round_interval_minutes: 150`) and the gunboat
+league once a day (1440). In both, every entrant plays at least three games in every round
+(`ladder.scheduler.min_episodes_per_entrant: 3`): three games while there are seven
+entrants or fewer, with fillers from the league's **filler roster** in the empty seats,
+and about three more for each further seven entrants (3 × entrants / 7, rounded up),
+seated at random with the least-played first. Powers are random in every game. Both have `players_per_user: 1`, up to two retries of a failed
+episode, and `disqualify_after_consecutive_failures: 3`. The press league caps each
+seat's model spend at $2 a game (`episode_player_pod_llm_spend_limit_usd: 2.0`). A new
+submission becomes the scoring entry at once ("Auto champion: always").
 
-- **A round is a single game**, and rounds are at most daily, so standings rest on
-  very few games.
+**Ranking is OpenSkill** (`ladder.ranking.algorithm: openskill`, mu 25, sigma 8.33).
+Each game is one ranked match: the entrants in it are ordered by score, equal scores
+share a place, and each rating moves on that order alone, not on the size of the gap.
+Fillers are not rated, so a game with one entrant moves no rating. The leaderboard's MMR
+is the cautious figure mu − 3 × sigma, which starts near zero and rises as games come in.
+Both leagues' rounds and standings were reset on 2026-10-12 when the ranking changed.
+
+- **A round is three games until there are more than seven entrants.** The league's
+  daily budget, not the interval, may be what limits how many rounds run in a day.
 - **The schedule is not reliable enough to plan on.** Scheduled rounds have been
   skipped. List the rounds that have actually run with `coworld rounds -l <league_id>`.
 - **A normal user cannot start a round and cannot make one come sooner; they wait for
@@ -190,7 +205,9 @@ new submission becomes the scoring entry at once ("Auto champion: always").
   looks like any other in `coworld rounds` (`scheduled_by: ladder`) and counts in the
   standings.
 
-**What an entry gets you.** One game per round, with our seat's log. A handful of
+**What an entry gets you.** Three games per round, with our seat's log, and a rating
+that depends on where we finish among the other entrants in each game, not on score vs
+par. A handful of
 games says nothing about a policy whose versions differ by a few hundredths of score.
 Do not enter a league to collect evidence, and do not wait on a round for it: a field
 eval against the filler roster is the evidence, and it is also what the `submit`

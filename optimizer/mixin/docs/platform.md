@@ -232,8 +232,9 @@ every LLM call in our seat logs succeeded (`llm_call` events).
 ## Leagues and the field
 
 - Two leagues; IDs and variants are in [game.md](game.md#leagues).
-- A league round is one game, at most one a day ([game.md](game.md#leagues)), so
-  league episodes are slow evidence; hosted XP requests are the instrument.
+- A league round is three games per seven entrants, every 150 minutes in the press league
+  and daily in gunboat ([game.md](game.md#leagues)), so league episodes are slow
+  evidence; hosted XP requests are the instrument.
 - Empty league seats are filled from a **filler roster** that the league owner
   curates. The route `/v2/leagues/{id}/filler-policies` returns 403 for player
   credentials (verified 2026-10-10), but **`coworld leagues <league_id> --json` lists

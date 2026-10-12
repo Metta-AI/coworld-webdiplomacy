@@ -20,7 +20,7 @@ One observation is **one seat of our policy in one episode**.
 | Metric | Type | Direction | Why it matters |
 |---|---|---|---|
 | **Score vs par** | mean | higher | The headline. Our seat's score minus the **same-batch field par**: the mean score of every non-target seat at the **same power** in the same set of episodes. Removes power luck: the powers do not start equal, and a shuffle assigns them |
-| Raw score | mean | higher | What the league ranks (mean score). Report it, but never judge on it alone |
+| Raw score | mean | higher | What decides a seat's place among the entrants in a league game (the league's OpenSkill rating moves on that order). Report it, but never judge on it alone |
 | Final supply centers | mean | higher | Drives the SC² score. From `results.json` `members[].supplyCenterNo` (strings), **not** the replay's `Finished` entry |
 | Survival rate | rate | higher | Eliminated powers score 0 |
 | Solo rate (ours) | rate | higher | A solo scores 1. Rare in mixed fields |

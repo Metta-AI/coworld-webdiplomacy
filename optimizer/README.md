@@ -27,6 +27,12 @@ first version (2026-10-11). `INSTALL.md` is planned and does not exist yet.
   `tools/build.sh`. The reference policy is a search core plus an LLM press layer
   (`CASTLEREAGH_POLICY=press|search`, default `press`).
 
+  Every tool and skill is listed once, with the skills that use each tool, under "Tool and
+  skill index" in [mixin/AGENTS.md](mixin/AGENTS.md#tool-and-skill-index); `mixin/tools/tests/test_index.py`
+  keeps that index complete. `mixin/CLAUDE.md` loads the lab manual in Claude Code, and
+  `install.sh` writes a root `CLAUDE.md` that loads the seed's `AGENTS.md`, which it also
+  points at the index.
+
   **The mixin ships methods, not field knowledge.** Rules, the bot contract, platform facts
   (dated, with the command that re-measures them), tools and skills belong in it. Anything
   true of one field of opponents, one lab's experiments or one night's data does not: no
@@ -210,8 +216,10 @@ webdip-optimizer/          its own git repository, cloned from seed.lock
   records the seed commit in `SEED.md`, because template copies squash history
   and drop the `seed` remote. It replaces the onboarding's "pick a game" beat in
   `docs/getting-started.md`, which would otherwise send the agent to
-  `add_game.sh` for a game that is already installed. With the Claude Code
-  harness it adds a SessionStart hook running the lab's `tools/check_clis.py`,
+  `add_game.sh` for a game that is already installed. It names the lab's "Tool and skill
+  index" in the root `AGENTS.md` and in the "Active games" entry. With the Claude Code
+  harness it writes a root `CLAUDE.md` that loads `AGENTS.md` (the seed ships none, and
+  Claude Code does not read `AGENTS.md` by itself), and adds a SessionStart hook running the lab's `tools/check_clis.py`,
   the IDE's hooks and `.mcp.json` entry, and links to the lab's own skills
   (`press-audit`, `opponent-profile`, `matchup-writeup`, `ide`) in `.claude/skills/`,
   where Claude Code discovers skills; it records the wiring under "Harness wiring"
