@@ -21,8 +21,10 @@ The optimizer's core skills look for these three topics in this file. They are
 kept in the game docs so each fact has one home:
 
 - **Scoring and what actually ranks:** [docs/game.md, "Scoring"](docs/game.md#scoring)
-  and ["Leagues"](docs/game.md#leagues). Leagues rank by mean score, and a
-  round is one game, so score per game is the number to move.
+  and ["Leagues"](docs/game.md#leagues). Leagues rank by OpenSkill: each game
+  orders the entrants in it by score and ratings move on that order, so finishing above
+  the other entrants is what ranks. Score per game is still the number an experiment
+  moves, because a higher score is how a seat places higher.
 - **Structures and semantics** (slots and countries, `results.json`, replay
   frames): [docs/game.md](docs/game.md#slots-and-countries) and the
   [replay-inspection binding](skills/replay-inspection/SKILL.md).
