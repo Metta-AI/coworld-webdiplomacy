@@ -41,6 +41,12 @@ jobs:
       - run: uv run python -m unittest players.test_players -v
       - run: uv run python -m unittest players.test_bridge -v
       - run: uv run python -m unittest tools.test_ci_scope -v
+      - name: League Desk tests and lint
+        working-directory: ops/league-desk
+        run: |
+          uv sync --locked --group dev
+          uv run --locked python -m unittest discover -s tests -v
+          uv run --locked ruff check league_desk tests
   # Each group builds the images itself, from a shared layer cache, and runs on its own
   # runner. Checks that read another check's output are in the same group.
   image-checks:

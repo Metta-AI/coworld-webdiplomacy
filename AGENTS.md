@@ -10,6 +10,7 @@ the game.
 
 | Question | Start at |
 | --- | --- |
+| Local league operations dashboard (not shipped in optimizers) | [ops/league-desk/README.md](ops/league-desk/README.md) |
 | What runs where, which file does what | [docs/architecture.md](docs/architecture.md) |
 | Why it is built this way | [docs/design.md](docs/design.md) |
 | Player WebSocket, `results.json`, browser tunnel, config | [docs/protocol.md](docs/protocol.md) |

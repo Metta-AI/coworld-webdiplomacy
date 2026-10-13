@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The League Desk</title><link rel="stylesheet" href="/static/desk.css">
+  <script defer src="/static/vendor/d3-7.9.0.min.js"></script>
+  <script defer src="/static/vendor/plot-0.6.17.min.js"></script>
+  <script defer src="/static/charts.js"></script>
+  <script defer src="/static/refresh.js"></script>
+</head>
+<body><main class="wrap">
+  <header class="masthead">
+    <div><span class="eyebrow">League operations · webDiplomacy · {{ time }}</span><h1>The League Desk</h1></div>
+    <form class="controls" method="get" id="filters">
+      <label class="seglabel" for="league">League</label>
+      <select name="league" id="league">
+        <option value="press" {% if league_key == 'press' %}selected{% endif %}>Press</option>
+        <option value="gunboat" {% if league_key == 'gunboat' %}selected{% endif %}>Gunboat</option>
+      </select>
+      <label class="seglabel" for="range">Range</label><select name="range" id="range">
+        {% for key, value in ranges.items() %}<option value="{{ key }}" {% if range_key == key %}selected{% endif %}>{{ value[1] }}</option>{% endfor %}
+      </select>
+      <label class="seglabel" for="version">Version</label><select name="version" id="version">
+        <option value="all">All versions</option>{% for key, label in versions.items() %}
+        <option value="{{ key }}" {% if version_key == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select><button class="refresh" type="submit">Refresh</button>
+      <button type="button" id="pause" aria-pressed="false">Pause</button>
+      <span id="refresh-status" class="note" role="status">Automatic refresh every 60 s</span>
+    </form>
+  </header>
+  {% include "fragments.html" %}
+</main></body></html>
