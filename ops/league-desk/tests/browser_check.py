@@ -28,7 +28,9 @@ with sync_playwright() as p:
     assert page.locator('.panel').count() == 24
     assert page.locator('[data-swap="Daily spend against budget"] .plot rect').count() >= 6
     assert page.locator('[data-swap="League against experience requests"] .plot circle').count() >= 6
-    assert page.locator('[data-swap="Models in use"] .model-label').count() == 2
+    pie = page.locator('[data-swap="Models in use"] .pie')
+    assert pie.locator('path').count() >= 1
+    assert pie.locator('path').count() == pie.locator('.chart-legend span').count()
     assert 'invented/model-Ada' in page.locator('[data-swap="Competing players"]').inner_text()
     first_alert = page.locator('button[data-dismiss="true"]').first
     fingerprint = first_alert.get_attribute('data-alert')

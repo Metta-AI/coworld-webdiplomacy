@@ -97,7 +97,7 @@ def attributed_models(data, attempt_data, games, start, now, version, scope=""):
         for key in ("attempts", "not_ok", "refused"):
             group[key] += row[key]
         group["requested"].add(row["model"] or "Unknown requested model")
-    rows, chart, player_models = [], [], defaultdict(set)
+    rows, chart, player_models = [], defaultdict(float), defaultdict(set)
     for (player, policy), group in sorted(groups.items(), key=lambda pair: (-pair[1]["usd"], pair[0][1])):
         label = group["label"]
         observed = ", ".join(sorted(group["models"])) or "No provider calls observed"
@@ -108,8 +108,8 @@ def attributed_models(data, attempt_data, games, start, now, version, scope=""):
                      f"{group['not_ok']/group['attempts']:.1%}" if group["attempts"] else
                      "no attempts observed" if attempt_data else "unknown",
                      group["refused"] if attempt_data else "unknown", money(group["usd"])])
-        chart += [{"policy": policy, "label": label, "model": model, "value": usd}
-                  for model, usd in group["models"].items()]
+        for model, usd in group["models"].items():
+            chart[model] += usd
     alerts = model_alerts(data.get("rows", []), attempt_data.get("rows", []), scope)
     result = panel(alerts[0]["message"] if alerts else
                    f"No provider calls observed across {len(groups)} player/policy versions with covered league seats."
@@ -128,7 +128,9 @@ def attributed_models(data, attempt_data, games, start, now, version, scope=""):
                    "No provider calls observed does not prove a model-free policy; "
                    "raw events can arrive late or expire. "
                    f"{unmatched} attempt model rows lack a provider-seat policy match and are omitted.",
-                   {"kind": "policy-models", "label": "Provider billed USD", "data": chart})
+                   {"kind": "pie", "label": "Provider billed USD",
+                    "data": [{"label": model, "value": usd}
+                             for model, usd in sorted(chart.items(), key=lambda item: -item[1])]})
     for row in selected:
         if row["player_id"]:
             models = player_models[row["player_id"]]

@@ -1,6 +1,8 @@
 """Panel refresh contracts, independent of retry deadlines."""
 
-from .config import COMPETITION_SECONDS, POLL_SECONDS, RECONCILE_SECONDS, SLOW_SECONDS
+import math
+
+from .config import COMPETITION_SECONDS, POLL_SECONDS, RECONCILE_SECONDS, SEAT_BATCH, SLOW_SECONDS
 
 
 def age_label(seconds):
@@ -38,6 +40,12 @@ def annotate(panel, dependencies, now, cadence=COMPETITION_SECONDS):
         }.get(name, COMPETITION_SECONDS)
         if name in ("episodes", "request_detail", "detail") and source.get("fetched_at") is not None:
             interval = max(interval, source["next_due"] - source["fetched_at"])
+        if name == "detail" and (source.get("data") or {}).get("completed_at") is not None:
+            interval = RECONCILE_SECONDS  # A finished game's cost is only re-read daily for late usage.
+        if name == "seats":
+            # Seats rotate through eligible games one batch per pass; the oldest check is a full rotation old.
+            batches = math.ceil((source.get("data") or {}).get("eligible", 0) / SEAT_BATCH)
+            interval = SLOW_SECONDS * max(1, batches)
         age = max(0, int(now - fetched(source))) if fetched(source) is not None else None
         threshold = 2 * max(cadence, interval)
         if name == "requests":

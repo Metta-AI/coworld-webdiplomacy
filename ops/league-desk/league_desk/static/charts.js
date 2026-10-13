@@ -12,6 +12,18 @@
     let hash = 0; for (const c of key) hash = ((hash * 31) + c.charCodeAt(0)) >>> 0;
     return [navy, "#4576aa", "#5573a0", "#6e527d", "#706387", "#527878"][hash % 6];
   }
+  // Validated categorical order (dataviz reference palette, checked against the paper surface).
+  const series = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
+  function seriesColors(names) { return names.map((_, i) => series[i % series.length]); }
+  // Hover text for one stacked segment: the whole stack's breakdown and total for that x value.
+  function breakdown(data, x, format) {
+    const stacks = d3.group(data, d => d[x]);
+    return d => {
+      const rows = stacks.get(d[x]);
+      return [`${d[x]} · total ${format(d3.sum(rows, r => r.value))}`,
+        ...rows.map(r => `${r === d ? '▸ ' : '  '}${r.series}: ${format(r.value)}`)].join('\n');
+    };
+  }
   function clean(plot) { plot.querySelectorAll("style").forEach(style => style.remove()); return plot; }
   function legend(labels,colors) {
     const result=document.createElement('p');result.className='chart-legend';
@@ -20,7 +32,8 @@
       swatch.setAttribute('width','10');swatch.setAttribute('height','10');
       const square=document.createElementNS('http://www.w3.org/2000/svg','rect');
       square.setAttribute('width','10');square.setAttribute('height','10');square.setAttribute('fill',colors[i]);
-      swatch.append(square);result.append(swatch,document.createTextNode(' '+label+' · '));
+      swatch.append(square);const item=document.createElement('span');
+      item.append(swatch,document.createTextNode(' '+label));result.append(item);
     });return result;
   }
   function draw(node) {
@@ -56,7 +69,7 @@
         range:[navy,'#7d97b6']};
       if (chart.kind==='daily-spend') {
         options.marks = [Plot.barY(data,{x:'day',y:'value',fill:'series',
-          title:d=>`${d.day} · ${d.series}: $${d.value.toFixed(3)}`})];
+          title:breakdown(data,'day',v=>`$${v.toFixed(3)}`)})];
         const budgets = chart.budgets || [];
         const dailyBudgets = [...new Set(data.map(d=>d.day))].map(day=>({day,value:budgets.find(d=>d.day===day)?.value}));
         options.marks.push(Plot.lineY(dailyBudgets,{x:'day',y:'value',stroke:navy,strokeDasharray:'4,3'}),
@@ -65,27 +78,39 @@
           textAnchor:'end',dy:-8,fill:navy}));
       } else options.marks = [Plot.lineY(data,{x:'day',y:'value',stroke:'series'}),
         Plot.dot(data,{x:'day',y:'value',stroke:'series',title:d=>`${d.day} · ${d.series}: $${d.value.toFixed(3)}`})];
-    } else if (chart.kind === "policy-models") {
-      const container=document.createElement('div'), models=[...new Set(data.map(d=>d.model))];
-      const colors=models.map((_,i)=>[navy,'#7d97b6','#6e527d','#4576aa','#aaa49a','#6f8372','#ad925a','#524d63'][i%8]);
-      container.append(legend(models,colors));
-      const groups=[...d3.group(data,d=>d.policy).values()], max=d3.max(groups,rows=>d3.sum(rows,d=>d.value));
-      for (let i=0;i<groups.length;i++) {
-        const rows=groups[i],label=document.createElement('p'),last=i===groups.length-1;
-        label.className='model-label';label.textContent=rows[0].label;
-        container.append(label,clean(Plot.plot({width,height:last?50:28,marginLeft:40,marginTop:5,marginBottom:last?22:3,
-          x:{domain:[0,max],label:null,ticks:4,axis:last?'bottom':null},y:{axis:null},
-          color:{domain:models,range:colors},marks:[Plot.barX(rows,{x:'value',y:()=>rows[0].policy,fill:'model',
-            title:d=>`${d.model}: $${d.value.toFixed(3)}`})],className:'desk-plot'})));
-      }
-      node.replaceChildren(container);return;
+    } else if (chart.kind === "pie") {
+      // Share of the whole: a donut in the fixed categorical order, with a legend carrying each value and share.
+      const rows = data.filter(d => d.value > 0), total = d3.sum(rows, d => d.value);
+      const colors = seriesColors(rows.map(d => d.label)), size = Math.min(220, width);
+      const svg = d3.create('svg').attr('width', size).attr('height', size).attr('viewBox', [-size/2, -size/2, size, size])
+        .attr('class', 'desk-plot').attr('role', 'img').attr('aria-label', chart.label);
+      const arc = d3.arc().innerRadius(size * .27).outerRadius(size / 2 - 2).padAngle(.012);
+      svg.selectAll('path').data(d3.pie().sort(null).value(d => d.value)(rows)).join('path')
+        .attr('d', arc).attr('fill', (_, i) => colors[i]).attr('stroke', 'var(--bg)').attr('stroke-width', 2)
+        .append('title').text(d => `${d.data.label}: $${d.data.value.toFixed(3)} (${(100*d.data.value/total).toFixed(1)}%)`);
+      svg.append('text').attr('text-anchor', 'middle').attr('dy', '.35em').attr('fill', navy)
+        .attr('font-weight', 600).text(`$${total.toFixed(2)}`);
+      const container = document.createElement('div'); container.className = 'pie';
+      const key = legend(rows.map(d => `${d.label} $${d.value.toFixed(2)} (${(100*d.value/total).toFixed(0)}%)`), colors);
+      container.append(svg.node(), key); node.replaceChildren(container); return;
     } else if (chart.kind === "bars") {
       options.x = {type: "band", label: chart.x_label || "Pacific day"};
       const days = [...new Set(data.map(d=>d.day))];
       const inset = Math.max(0, ((width - 72) / Math.max(1,days.length) * .9 - 44) / 2);
       options.y.zero = true;
+      const stacked = !chart.counts && data.some(d => d.key);
+      // Eight hues at most: the largest seven series keep their own colour, the rest share "Other" (hover names them).
+      const totals = d3.rollups(data, rows => d3.sum(rows, d => d.value), d => d.series).sort((a, b) => b[1] - a[1]);
+      const named = totals.length > 8 ? totals.slice(0, 7).map(t => t[0]) : totals.map(t => t[0]);
+      const group = d => named.includes(d.series) ? d.series : "Other";
+      if (stacked) {
+        const names = named.length < totals.length ? [...named, "Other"] : named;
+        options.color = {domain: names, range: [...seriesColors(named), grey].slice(0, names.length)};
+        options.legendNames = names;
+      }
       options.marks = [Plot.barY(data, {x: "day", y: "value", insetLeft:inset, insetRight:inset,
-        fill: d => chart.counts || !d.key ? navy : entityColor(d.key), title: d => `${d.series}: ${d.value}`})];
+        fill: stacked ? group : navy,
+        title: stacked ? breakdown(data, "day", String) : d => `${d.series}: ${d.value}`})];
       if (chart.counts && days.length <= 7) options.marks.push(Plot.text(
         d3.rollups(data, rows=>d3.sum(rows,d=>d.value), d=>d.day).map(([day,value])=>({day,value})),
         {x:'day',y:'value',text:d=>String(d.value),dy:-9,fill:navy}));
@@ -115,11 +140,13 @@
       const top = [...latest.values()].sort((a,b) => b.value-a.value).slice(0,3);
       const color = d => top.some(r => r.player_id === d.player_id) ? entityColor(d.player_id) : grey;
       options.x = timeAxis(data); options.marginRight = 80;
-      options.y = {label:'Cumulative rating', grid:true};
+      // Scale to the MMR lines, not the μ ± 3σ bands: the wide bands would squeeze the lines together.
+      const [lo, hi] = d3.extent(valid, d => d.value), pad = Math.max(.5, (hi - lo) * .08);
+      options.y = {label:'Cumulative rating', grid:true, domain:[lo - pad, hi + pad]};
       const mark = {x:d=>new Date(d.time*1000), y:'value', z:d=>d.plot_series || d.series, stroke:color};
       options.marks = [...d3.group(data, d=>d.player_id)].map(([id, rows]) =>
         Plot.areaY(rows, {...mark, y1:'low', y2:'high', fill:entityColor(id), fillOpacity:.14,
-          ariaLabel:()=>`interval ${id}`}));
+          ariaLabel:()=>`interval ${id}`, clip:true}));
       options.marks.push(Plot.line(valid, mark), Plot.dot(valid, {...mark, r:2,
         title:d=>`${d.player}: ${d.value.toFixed(2)}`}),
         Plot.text(top, {...mark, text:d=>d.player.length>18 ? d.player.slice(0,17)+'…' : d.player, title:'player', textAnchor:'start', dx:5, fill:color, stroke:null}),
@@ -229,6 +256,7 @@
       options.marks.push(Plot.ruleX(markers,{x:d=>temporal ? new Date(d.time*1000) : date(d.time), stroke:grey,
         strokeDasharray:'2,3', title:'label'}));
     }
+    const stackLegend = Boolean(options.legendNames); delete options.legendNames;
     const plot = Plot.plot({...options, className: "desk-plot"});
     // Plot injects a default stylesheet. Our external CSS supplies it under the page's strict CSP.
     clean(plot);
@@ -241,7 +269,7 @@
       plot.addEventListener('pointerleave',()=>selectBand(chart.selected));
     }
     node.replaceChildren(plot);
-    if (chart.kind==='daily-spend' || chart.kind==='source-days')
+    if (chart.kind==='daily-spend' || chart.kind==='source-days' || stackLegend)
       node.prepend(legend(options.color.domain,options.color.range));
   }
   function drawAll() {

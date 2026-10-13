@@ -48,10 +48,10 @@ def powers_panel(seats):
                  {"kind": "power-scores", "data": points, "reference": PAR, "minimum": MIN_SHARED_GAMES})
 
 
-def policy_panel(seats, labels):
+def policy_panel(seats, labels, current):
     groups = defaultdict(list)
     for seat in seats:
-        if seat["policy_id"]:
+        if seat["policy_id"] in current:
             groups[seat["policy_id"], seat["power"]].append(seat)
     points = []
     for policy_id in sorted({key[0] for key in groups}):
@@ -61,12 +61,14 @@ def policy_panel(seats, labels):
             points.append({"policy_id": policy_id, "policy": labels.get(policy_id, "Unlisted policy"),
                            "power": power, **value})
     count = sum(r["games"] >= MIN_SHARED_GAMES for r in points)
-    return panel(f"{count} policy/power cells have at least five distinct games.",
+    return panel(f"{count} policy/power cells have at least five distinct games." if points else
+                 "No scored games for the currently competing policies in this selection.",
                  ["Policy version", "Power", "Games", "Mean score − par", "95% interval"],
                  [[r["policy"], r["power"], r["games"], fmt(r["mean"]),
                    " – ".join(fmt(v) for v in r["ci"]) if r["ci"] else "unavailable"] for r in points],
-                 "Stable policy-version IDs join API seats; labels come from memberships or recorded API participants. "
-                 "Mean deviation from 1/7; includes filler seats with policy identity. "
+                 "One row per player: the policy version currently competing for them. "
+                 "Stable policy-version IDs join API seats; seats they filled in other players' games count too. "
+                 "Mean deviation from 1/7. "
                  "Dashed cells have fewer than five games. Intervals account for game clustering.",
                  {"kind": "policy-power", "data": points, "minimum": MIN_SHARED_GAMES})
 
@@ -117,11 +119,13 @@ def board_panels(snapshot, league, competition, now, start, version):
     labels = {s["policy_id"]: s["policy_label"] for g in games.values() for s in g["seats"]
               if s.get("policy_label")}
     labels.update({m["policy_id"]: f"{m['player']} · {m['policy']} v{m['version']}" for m in members})
+    # The champion is each player's one current entry; benched older versions also read "competing".
+    current = {m["policy_id"] for m in members if m["status"] == "competing" and m.get("champion")}
     comparable = [replays[key] for key in replays if key in results and score_facts(games[key], results[key])]
     panels = {"Score by power, all players": powers_panel(seats),
-              "Score by policy and power": policy_panel(seats, labels),
+              "Score by policy and power": policy_panel(seats, labels, current),
               "Contested provinces": contests_panel(comparable)}
-    panels.update(instrumentation_panels(games, results, logs, labels))
+    panels.update(instrumentation_panels(games, results, logs, labels, current))
     eligible = sum(supported(g.get("version")) for g in games.values())
     coverage = (f"Results {len(results)}/{len(games)}; replay {len(replays)}/{len(games)}; "
                 f"game log {len(logs)}/{eligible} eligible 0.7.12+ games. "

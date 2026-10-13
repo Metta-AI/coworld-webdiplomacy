@@ -474,3 +474,47 @@ class FreshnessScheduleTests(DeskTest):
         with patch("league_desk.spending.details", return_value=game):
             collect_spending(self.collector, {"coworld_id": "cow_demo", "leagues": []})
         self.assertEqual(self.store.source("detail", game["id"])["next_due"], self.now + 86400)
+
+    def test_finished_detail_from_old_schedule_is_not_stale(self):
+        # Rows fetched under the old 15-minute schedule keep that next_due until re-read.
+        source = {"name": "detail", "data": {"completed_at": self.now - 60}, "fetched_at": self.now,
+                  "next_due": self.now + 900}
+        panel = {}
+        annotate(panel, [source], self.now + 18000)
+        self.assertFalse(panel["stale"])
+        source["data"]["completed_at"] = None
+        annotate(panel, [source], self.now + 18000)
+        self.assertTrue(panel["stale"])
+
+    def test_seat_rotation_length_sets_the_threshold(self):
+        source = {"name": "seats", "fetched_at": self.now,
+                  "data": {"eligible": 102, "checked_at": {GAME: self.now - 2827}}}
+        panel = {}
+        annotate(panel, [source], self.now)
+        self.assertFalse(panel["stale"])  # Three 50-game batches at 15 minutes: stale after 90 minutes.
+        self.assertEqual(panel["sources"][0]["threshold"], 5400)
+        source["data"]["checked_at"][GAME] = self.now - 5401
+        annotate(panel, [source], self.now)
+        self.assertTrue(panel["stale"])
+
+    def test_detail_schedule_follows_the_fetched_game_and_unfinished_games_go_first(self):
+        from league_desk.config import DETAILS_PER_POLL
+        from league_desk.spending import collect_spending
+
+        listed = {**episode(raw_game(self.now)), "completed_at": None}
+        finished = {**listed, "completed_at": self.now - 1}
+        old = [{**finished, "id": f"old_{n}"} for n in range(DETAILS_PER_POLL)]
+        self.store.success("episodes", "round_demo", {"rows": [listed, *old]}, self.now)
+        for row in old:
+            self.store.success("detail", row["id"], row, self.now - 90000, cadence=86400)
+        fetched = []
+
+        def fetch(api, key):
+            fetched.append(key)
+            return finished if key == listed["id"] else next(r for r in old if r["id"] == key)
+
+        with patch("league_desk.spending.details", side_effect=fetch):
+            collect_spending(self.collector, {"coworld_id": "cow_demo", "leagues": []})
+        self.assertEqual(fetched[0], listed["id"])  # Unfetched ahead of daily re-reads.
+        # Listed as running, fetched as finished: the fetched data picks the daily schedule.
+        self.assertEqual(self.store.source("detail", listed["id"])["next_due"], self.now + 86400)

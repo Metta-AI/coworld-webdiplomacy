@@ -9,6 +9,7 @@ from .config import (
     DETAILS_PER_POLL,
     POLL_SECONDS,
     RECONCILE_SECONDS,
+    SEAT_BATCH,
     SLOW_SECONDS,
     XP_VERSIONS_PER_POLL,
 )
@@ -252,15 +253,19 @@ def collect_spending(collector, discovery):
     for (name, _), state in snapshot.items():
         if name == "request_detail" and state["data"]:
             ids.update(state["data"]["episode_ids"])
-    due = [
-        (snapshot.get(("detail", key), {}).get("fetched_at") or 0, key)
-        for key in ids
-        if now >= snapshot.get(("detail", key), {}).get("next_due", 0)
-    ]
-    for _, key in sorted(due)[:DETAILS_PER_POLL]:
-        previous = snapshot.get(("detail", key), {}).get("data") or games.get(key, {})
-        cadence = RECONCILE_SECONDS if previous.get("completed_at") is not None else SLOW_SECONDS
-        poll("detail", key, lambda: details(api, key), cadence=cadence)
+
+    def detail_cadence(data):
+        return RECONCILE_SECONDS if data["completed_at"] is not None else SLOW_SECONDS
+
+    def priority(key):
+        # Unfetched and unfinished games first; daily re-reads of finished games must not starve them.
+        state = snapshot.get(("detail", key), {})
+        finished = (state.get("data") or {}).get("completed_at") is not None
+        return finished, state.get("fetched_at") or 0, key
+
+    due = [key for key in ids if now >= snapshot.get(("detail", key), {}).get("next_due", 0)]
+    for key in sorted(due, key=priority)[:DETAILS_PER_POLL]:
+        poll("detail", key, lambda: details(api, key), cadence=detail_cadence)
     from .attribution import collect_attribution
 
     collect_attribution(collector, discovery["leagues"])
@@ -275,7 +280,7 @@ def collect_spending(collector, discovery):
         )
         old = (store.source("seats", league["id"]) or {}).get("data") or {}
         # Rotate bounded chunks; each chunk replaces its prior rows to pick up delayed usage.
-        batch = eligible[old.get("offset", 0) : old.get("offset", 0) + 50] or eligible[:50]
+        batch = eligible[old.get("offset", 0) : old.get("offset", 0) + SEAT_BATCH] or eligible[:SEAT_BATCH]
         if batch:
 
             def fetch_seats():

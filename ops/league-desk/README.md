@@ -7,10 +7,12 @@ fields to SQLite. The page reads that cache, never the platform.
 **API and public-artifact page:** current memberships, cumulative ratings and
 local rating history, submissions, round/game timing, exposure, throughput and
 player head-to-head are available alongside the health strip. Charts use local
-Observable Plot and D3 bundles. League-only daily source costs, stable player/policy model attribution, SQL seat
+Observable Plot and D3 bundles. Stacked bars carry a legend and list the whole stack on hover; past eight
+series the smallest share one grey "Other" colour. MMR over time scales to the
+rating lines, clipping the wider μ ± 3σ band. Timing and seat-health panels sit last. League-only daily source costs, stable player/policy model attribution, SQL seat
 spend, compute unit costs and experience-request history are
 available with explicit scope/coverage. Public results and replay facts provide power/policy scores, province contests,
-end reasons and observed phase timings. Public 0.7.12 instrumentation adds Ready/Saved timing, seat health and container stages. There is no rating backfill. Range/version filters, local house fonts, rating
+end reasons and observed phase timings. Public 0.7.12 instrumentation adds Ready timing, seat health and container stages. There is no rating backfill. Range/version filters, local house fonts, rating
 bands and automatic fragment refresh are available.
 
 ## Run
@@ -102,6 +104,8 @@ root's CLI pins and lockfile are independent.
 - **Coworld** means the current canonical version discovered through the game
   record. Its observation time is not the release time, and does not establish
   which version a version-locked league or an older running game uses.
+- **Policies** counts active competing memberships and every submission listed
+  in the last 24 hours (all versions). It goes stale after ten minutes.
 - **Last 24 h** counts observed completed/failed episodes by completion time and
   shows round/episode coverage. These are retained-listing counts, not proof of
   all games ever requested. Retry attempts remain unknown.
@@ -124,9 +128,12 @@ root's CLI pins and lockfile are independent.
   source contributes; stale means older than 600 seconds, not 523. Round-duration
   data retains its minute cadence. Failures always mark the panel stale.
   Slow panels use a 30-minute stale threshold, retaining old seat/query timestamps.
+  Per-seat spend rotates through eligible games 50 at a time, one batch per
+  15-minute pass, so its threshold is two full rotations.
   Immutable request overrides use the newest pass age and selected-request inspection
   coverage instead; old inspected chunks do not expire. Missing inspections remain visible.
-  Finished game details follow their daily schedule (stale after two intervals).
+  Finished game details follow their daily schedule (stale after two intervals);
+  a detail's schedule follows the game state it just fetched.
   Request lists use their version rotation interval, while the canonical list stays
   strict at ten minutes, including on slow panels. Errors always remain visible.
 - All display dates use America/Los_Angeles with PDT/PST, including API reset times.
@@ -213,7 +220,8 @@ remain visible even when some values are available.
 - Models in use is now league-only, keyed by episode/slot, policy-version and
   player IDs. A row summarizes one player/policy version, lists resolved provider
   models and requested attempt models separately, and shows both failure rates.
-  The chart stacks provider billed USD by resolved model under each policy label.
+  The chart is a donut of provider billed USD by resolved model across all
+  covered seats; the per-policy breakdown stays in View values.
   Labels never join identities; duplicate names cannot merge policies. No-call
   seats remain in the cohort. No observed calls does not prove model-free code.
 - The provider and attempt queries cover tournament games created in the last
@@ -284,9 +292,12 @@ only compact derived facts from SQLite. Optional replay `episode.players` is ign
   denominator is selected terminal games by completion time and Coworld version;
   older versions remain uncovered, never inferred zero. Stable policy-version IDs
   join slot-ordered facts to API seats, including fillers with known policy IDs.
+- Score by policy and power and Time to Ready show one row per player: the
+  champion membership (the version currently competing). Benched older versions
+  are omitted.
 - Time to Ready separates Movement (upstream Diplomacy) and Retreat/build. It
-  shows first-Saved and first-Ready shares of the observed deadline minus phase
-  start. Each game's median share contributes once to the across-game median.
+  shows first-Ready shares of the observed deadline minus phase start (first
+  Saved stays in the game log but is not shown). Each game's median share contributes once to the across-game median.
   Never-Ready is the share of due seat-phases with a null first-Ready time. Null
   seats have no orders due. Missing deadlines do not supply timing denominators.
   Final Finished-bound and incomplete phases are censored, so adapter time/year
@@ -441,7 +452,8 @@ in 30-day creation windows back to the version's creation time, then refreshing
 seven-day windows. Cursors keep their fixed window bounds across retries. Last
 recent-window time remains visible while older windows backfill. The detail loop
 reads two due requests per pass, reserving one for a known unfinished request when
-available, and eight episode details; large caches therefore need bounded catch-up.
+available, and eight episode details, unfetched and unfinished games first;
+large caches therefore need bounded catch-up.
 Request episodes use a separate paginated ID listing, not the unpaginated detail's
 embedded episode array. Request details can refresh outside the creation window.
 Known finished episode details use the daily reconciliation cadence; unfinished or

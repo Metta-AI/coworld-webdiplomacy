@@ -25,7 +25,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:"Merriweather San
 .refresh{font:inherit;font-size:11px;font-weight:600;background:var(--cta);color:#fffdf4;border:1px solid #0a1c42;border-radius:3px;padding:5px 12px;cursor:pointer}
 .refresh:hover{background:var(--ink-navy)}
 .top{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:28px;padding:14px 0 6px;border-bottom:1px solid var(--border)}
-.now{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0}
+.now{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0}
 .now>section{padding:2px 16px 10px;border-left:1px solid var(--border-subtle)}.now>section:first-child{padding-left:0;border-left:0}
 .now p{margin:4px 0 0;color:var(--fg-subtle)}.now b{color:var(--fg);font-size:14px}
 .meter{display:block;height:5px;background:var(--border-subtle);border-radius:999px;margin:5px 0}.meter i{display:block;height:100%;background:var(--ink-navy);border-radius:999px}
@@ -99,6 +99,10 @@ meter::-moz-meter-bar{background:var(--meter-fill)}
 .model-label { margin: 4px 0 0; overflow-wrap: anywhere; font-size: 12px; }
 
 .plot .chart-legend svg { width:10px; height:10px; display:inline-block; }
+.plot .chart-legend span { margin-right: 12px; white-space: nowrap; display: inline-block; }
+.pie svg { width: 200px; height: 200px; flex: none; }
+.pie { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.pie .chart-legend span { display: block; margin: 2px 0; }
 
 .dismissed-alerts { font-size: .85rem; }
 .dismissed-alerts summary, .alerts .dismissed-alerts li { color: var(--fg-muted); }
