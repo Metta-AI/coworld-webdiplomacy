@@ -19,10 +19,11 @@
     </form>
   </header>
   <p class="note">Current league health and competition; game panels cover the last seven days, all versions. Collection runs every 60 seconds; reload to read the cache.
-    Money, requests and artifact panels await later collection phases.</p>
+    Cost scans run at most every 15 minutes; artifacts await a later phase.
+    {% if slow_next_due %}All current slow groups are eligible again by {{ slow_next_due | when }}.{% endif %}</p>
   <p class="note" role="status">
-    {% if age is not none %}Oldest collected source: {{ age }} seconds old at page load.{% else %}No data collected yet.{% endif %}
-    {{ missing }} health sources missing; {{ missing_panels }} competition/game panels missing sources, {{ stale_panels }} stale. {% if league %}{{ league.name }}{% else %}League discovery pending.{% endif %}
+    {% if age is not none %}Oldest collected source: {{ age | age_label }} at page load.{% else %}No data collected yet.{% endif %}
+    {{ missing }} health sources missing; {{ missing_panels }} panels missing sources, {{ stale_panels }} stale. {% if league %}{{ league.name }}{% else %}League discovery pending.{% endif %}
   </p>
   <section aria-label="Now" class="top">
     <div><h2>Now</h2><div class="now">
@@ -41,7 +42,7 @@
       {% if alerts %}<ul>{% for alert in alerts %}<li class="bad">{{ alert }}</li>{% endfor %}</ul>
       {% elif budget_available %}<p>No breaches in the available budget data.</p>
       {% else %}<p>Budget checks await collection.</p>{% endif %}
-      <p class="note">Model errors, seat caps and retries are not yet checked; failure streaks require a current policy match.</p>
+      <p class="note">Model errors use family-wide data. Cap comparisons use the current reference; retries remain unknown.</p>
     </aside>
   </section>
   <div class="grid">
@@ -53,20 +54,15 @@
         {% set content = panel_data.get(name) %}
         {% if content %}
           <p class="reading">{{ content.sentence }}</p>
-          <p class="note {% if content.stale or content.missing %}bad{% endif %}">
-            {% if content.age is not none %}Oldest dependency fetched {{ content.age }} seconds ago.{% endif %}
-            {{ content.missing }} sources missing. {% if content.stale %}Stale or failed source; last good data retained.{% endif %}
-            {{ content.coverage }}
-          </p>
+          <p class="note {% if content.stale %}bad{% endif %}">{{ source }} · {{ content.age | age_label }}{% if content.stale %} · stale or failed{% endif %}</p>
           {% if content.chart and content.chart.data %}
             <div class="plot" data-chart='{{ content.chart | tojson }}' aria-label="{{ name }} chart"></div>
           {% endif %}
-          {% if content.rows %}
             <details {% if name == 'Competing players' %}open{% endif %}><summary>View values</summary>
-            <div class="table-scroll"><table><thead><tr>{% for column in content.columns %}<th>{{ column }}</th>{% endfor %}</tr></thead>
-            <tbody>{% for row in content.rows %}<tr>{% for value in row %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+            <p class="note">{{ content.coverage }} {{ content.missing }} sources missing. {{ content.freshness_detail }}</p>
+            {% if content.rows %}<div class="table-scroll"><table><thead><tr>{% for column in content.columns %}<th>{{ column }}</th>{% endfor %}</tr></thead>
+            <tbody>{% for row in content.rows %}<tr>{% for value in row %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>{% endif %}
             </details>
-          {% endif %}
           <p class="note">{{ content.note }}</p>
         {% else %}<p class="reading">{{ empty }}</p><p class="note">No data yet.</p>{% endif %}
       </section>

@@ -7,8 +7,14 @@ currently authorized phase.
 
 - Keep Python synchronous. Only collector code calls the platform; page handlers
   read SQLite only. Use `CoworldApiClient.from_login` with elevated User access.
-- Allowlisted GET requests only. Never mutate the platform. Future SQL
-  support must accept only fixed, scoped SELECT templates.
+- Allowlisted GETs and fixed, scoped SELECT templates through `POST /sql/query`
+  only. Never accept SQL text from a caller or mutate the platform.
+- Slow cost/model/SQL attempts reserve their 15-minute floor before network I/O.
+  Do not bypass that floor on errors, restarts or manual refreshes.
+- SQL seat facts are unique by episode/slot/hour/provider; aggregate once at seat
+  grain and replace snapshots. Missing rows are unknown, not zero usage.
+- Model scans cover the entire family; costs cover league-attributed sources.
+  Keep these scope exceptions visible and do not join identity by display label.
 - Cache selected fields, not raw responses or manifests. Keep credentials,
   requester information, real policy names and operational values out of fixtures,
   docs, logs and commits. Tests use invented fixtures and deny network access.

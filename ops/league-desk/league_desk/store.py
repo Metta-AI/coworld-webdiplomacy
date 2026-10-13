@@ -77,6 +77,14 @@ class Store:
                 (name, scope, encoded, now, now, now + cadence),
             )
 
+    def reserve(self, name, scope, now, cadence):
+        """Persist the slow-poll floor before I/O, including crashes and manual refreshes."""
+        with self.connection() as db:
+            db.execute(
+                "INSERT INTO sources(name, scope, attempted_at, next_due) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(name, scope) DO UPDATE SET attempted_at=excluded.attempted_at, "
+                "next_due=excluded.next_due", (name, scope, now, now + cadence))
+
     def failure(self, name, scope, message, now, delay):
         with self.connection() as db:
             db.execute(

@@ -42,7 +42,7 @@ SECTIONS = [
 
 def competition_panels(snapshot, league, now):
     from .competition_metrics import exposure, histories, rating_history, standings, submission_series
-    from .config import FAILURE_MARGIN
+    from .config import COMPETITION_SECONDS, FAILURE_MARGIN, POLL_SECONDS
     from .game_metrics import episode_timing, game_durations, head_to_head, round_durations, throughput
 
     scope = league["id"] if league else ""
@@ -90,12 +90,8 @@ def competition_panels(snapshot, league, now):
                 "retained hidden rounds stay in local history.")
     for name, panel in panels.items():
         deps = dependencies.get(name, game_dependencies)
-        ages = [max(0, int(now - d["fetched_at"])) for d in deps if d.get("fetched_at") is not None]
-        panel["age"] = max(ages) if ages else None
-        panel["missing"] = sum(d.get("data") is None for d in deps)
-        panel["stale"] = any(d.get("error") or d.get("fetched_at") is not None and
-                             now > d["next_due"] + (d["next_due"] - d["fetched_at"])
-                             for d in deps)
+        from .freshness import annotate
+        annotate(panel, deps, now, cadence=POLL_SECONDS if name == "Round duration" else COMPETITION_SECONDS)
         panel["coverage"] = coverage if name not in ("Policy submissions", "MMR over time",
                                                     "Rating interval over time") else ""
         if panel["missing"]:

@@ -9,6 +9,10 @@ import httpx
 from .config import MAX_PAGES, PAGE_SIZE, SERVER
 
 GET_PATHS = (
+    r"/v2/coworlds/summaries", r"/v2/experience-requests", r"/v2/episode-requests",
+    r"/v2/episode-requests/ereq_[A-Za-z0-9-]+", r"/v2/experience-requests/xreq_[A-Za-z0-9-]+",
+    r"/admin/costs/leagues", r"/admin/llm-coworld-usage",
+    r"/sql/tables/(episode_llm_usage|experience_requests)/schema",
     r"/v2/league-policy-memberships", r"/v2/league-submissions",
     r"/v2/leagues/league_[A-Za-z0-9-]+/commissioner-state",
     r"/v2/divisions/div_[A-Za-z0-9-]+/(leaderboards|leaderboard/summary)",
@@ -38,8 +42,11 @@ class Api:
     def get(self, path, params=None):
         if not any(re.fullmatch(pattern, path) for pattern in GET_PATHS):
             raise ApiError("Route is not allowed")
+        return self._request("GET", path, params=params)
+
+    def _request(self, method, path, **kwargs):
         try:
-            response = self.request("GET", path, params=params)
+            response = self.request(method, path, **kwargs)
         except httpx.HTTPError:
             raise ApiError("Network request failed") from None
         if response.status_code == 429:
@@ -59,6 +66,12 @@ class Api:
             return response.json(), response.headers
         except ValueError:
             raise ApiError("API returned invalid JSON") from None
+
+    def select(self, kind, ids, after=None):
+        # The only POST surface accepts a named fixed SELECT, never caller-supplied SQL.
+        from .sql import query
+        statement = query(kind, ids, after)
+        return self._request("POST", "/sql/query", json={"query": statement})[0]
 
     def json(self, path, params=None):
         return self.get(path, params)[0]

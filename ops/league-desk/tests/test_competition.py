@@ -33,7 +33,7 @@ def iso(epoch):
     return datetime.fromtimestamp(epoch, timezone.utc).isoformat()
 
 
-def raw_game(now, game_id="ereq_example"):
+def raw_game(now, game_id="ereq_00000000-0000-0000-0000-000000000001"):
     return {"id": game_id, "episode_id": "ep_example", "coworld_id": "cow_demo", "coworld_version": "9.9.1",
             "variant_name": "classic-press", "status": "completed", "error_type": None,
             "created_at": iso(now - 600), "dispatched_at": iso(now - 540),
@@ -60,6 +60,11 @@ class CompetitionTests(DeskTest):
             round_config={"entrant_attributions": [{"subject_type": "player", "subject_id": name}
                                                    for name in ("Ada", "Bert", "Cleo")]})
         self.responses["/v2/rounds/round_demo/episodes"]["entries"] = [raw_game(self.now)]
+        self.responses["/v2/episode-requests/" + raw_game(self.now)["id"]] = {
+            **raw_game(self.now), "cost_usd": 1.0, "experience_request_id": None}
+        self.responses["/sql/tables/episode_llm_usage/schema"] = {"columns": [{"name": name} for name in (
+            "episode_request_id", "slot", "bucket_start", "source_system", "role", "invocations",
+            "estimated_cost_usd", "spend_limit_rejections")]}
         self.responses["/v2/league-policy-memberships"] = [{
             "id": "member_demo", "player": {"id": "Ada", "name": "Ada"},
             "policy_version": {"id": "pv_Ada", "policy": {"name": "Invented Policy"}, "version": 1},
@@ -90,7 +95,7 @@ class CompetitionTests(DeskTest):
         store.initialize()
         Collector(store, self.api, clock=lambda: self.now).once()
         self.assertEqual(len(store.snapshot(True)["ratings", "league_demo"]["history"]), 1)
-        self.assertTrue(all(c[0] == "GET" for c in self.calls))
+        self.assertTrue(all(c[0] == "GET" or c[1] == "/sql/query" for c in self.calls))
 
     def test_chart_labels_are_escaped_and_page_reads_only_cache(self):
         from fastapi.testclient import TestClient

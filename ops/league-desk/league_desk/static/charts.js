@@ -1,6 +1,13 @@
 /* Plot owns every chart; chart data is escaped JSON from the same panel metrics as the reading. */
 (() => {
   const navy = "#1a3875", gold = "#80601f", grey = "#aaa49a";
+  function timeAxis(data) {
+    const times = data.map(d => d.time).filter(Number.isFinite);
+    const short = Math.max(...times) - Math.min(...times) < 2 * 86400;
+    return {type: "time", label: "Pacific time", tickFormat: d => short
+      ? d.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"})
+      : d.toLocaleDateString("en-US", {timeZone: "America/Los_Angeles"})};
+  }
   function draw(node) {
     const chart = JSON.parse(node.dataset.chart), data = chart.data;
     const width = Math.max(260, node.clientWidth);
@@ -15,7 +22,7 @@
         title: d => `${d.series}: median ${d.value.toFixed(2)}, p90 ${d.p90.toFixed(2)} min; n=${d.n}`}),
         Plot.tickY(data, {x: "day", y: "p90", stroke: "series"})];
     } else if (chart.kind === "dots") {
-      options.x = {type: "time", label: "Completion time", tickFormat: d => d.toLocaleDateString("en-US", {timeZone: "America/Los_Angeles"})};
+      options.x = timeAxis(data);
       options.marks = [Plot.dot(data, {x: d => new Date(d.time * 1000), y: "value", fill: navy,
         title: d => `${d.value.toFixed(2)} minutes`}), Plot.dot(data.filter(d => d.reference !== null),
         {x: d => new Date(d.time * 1000), y: "reference", symbol: "cross", stroke: gold})];
@@ -29,7 +36,7 @@
       valid.forEach(d => latest.set(d.player_id, d));
       const top = [...latest.values()].sort((a, b) => b.value - a.value).slice(0, 3).map(d => d.player_id);
       const color = d => top.includes(d.player_id) ? [navy, gold, "#5573a0"][top.indexOf(d.player_id)] : grey;
-      options.x = {type: "time", label: "Observed (Pacific)", tickFormat: d => d.toLocaleDateString("en-US", {timeZone: "America/Los_Angeles"})};
+      options.x = timeAxis(data);
       options.y = {label: "Cumulative rating", grid: true};
       const mark = {x: d => new Date(d.time * 1000), y: "value", z: "series", stroke: color};
       options.marks = [Plot.line(valid, mark), Plot.dot(valid, {...mark, r: 2,
@@ -48,7 +55,9 @@
       options.marks = [Plot.cell(data.filter(d => d.a !== d.b && d.share === null),
         {x: "opponent", y: "player", fill: "none", stroke: grey, strokeDasharray: "3,3"}),
         Plot.cell(data.filter(d => d.share !== null), {x: "opponent", y: "player", fill: "share", inset: 1,
-          title: d => `${d.player} ahead of ${d.opponent}: ${(100 * d.share).toFixed(1)}%; ${d.n} games, ${d.ties} ties`})];
+          title: d => `${d.player} ahead of ${d.opponent}: ${(100 * d.share).toFixed(1)}%; ${d.n} games, ${d.ties} ties`}),
+        Plot.text(data.filter(d => d.share !== null), {x: "opponent", y: "player",
+          text: d => `${Math.round(d.share * 100)}%`, fill: d => d.share > .75 || d.share < .25 ? "#fffdf4" : navy})];
     }
     const plot = Plot.plot({...options, className: "desk-plot"});
     // Plot injects a default stylesheet. Our external CSS supplies it under the page's strict CSP.

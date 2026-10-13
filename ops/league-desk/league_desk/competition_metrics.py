@@ -56,11 +56,12 @@ def standings(members, ratings, points, submissions, games, now, submission_comp
     scores = defaultdict(list)
     for row in player_scores(games):
         scores[row["player_id"]].append(row["score"])
-    rows, intervals, sparks, changes = [], [], [], []
+    rows, intervals, sparks, changes, player_ids = [], [], [], [], []
     for key, policies in sorted(competing.items(), key=lambda item: (
             -(rated.get(item[0], {}).get("rating") if rated.get(item[0], {}).get("rating") is not None
               else float('-inf')), item[0])):
         division, player_id = key
+        player_ids.append(player_id)
         rating = rated.get(key, {})
         name = policies[0]["player"]
         mu, sigma = rating.get("mu"), rating.get("sigma")
@@ -89,9 +90,10 @@ def standings(members, ratings, points, submissions, games, now, submission_comp
     result = panel(sentence, ["Player", "Competing policies", "MMR", "μ ± 3σ", "24 h change", "Scored games (7d)",
                              f"Mean score (par {PAR:.3f})", "Submissions 24h / 7d", "Model", "LLM/game"], rows,
                    "Current memberships; all versions. Scores average owned non-filler seats once per game. "
-                   "MMR is cumulative across versions. Model and cost attribution await collection.",
+                   "MMR is cumulative across versions. Model labels lack a verified player identity join.",
                    {"kind": "intervals", "data": intervals})
     result["sparks"] = sparks
+    result["player_ids"] = player_ids
     return result
 
 

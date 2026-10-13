@@ -78,17 +78,21 @@ class Collector:
     def __init__(self, store, api, clock=time.time):
         self.store, self.api, self.clock = store, api, clock
 
-    def poll(self, name, scope, fetch, observed=False, cadence=POLL_SECONDS, force=False):
+    def poll(self, name, scope, fetch, observed=False, cadence=POLL_SECONDS, force=False, floor=0):
         now = self.clock()
         previous = self.store.source(name, scope)
         if now < self.store.retry_not_before() or previous and now < previous["next_due"] and not force:
             return
+        if previous and floor and now < (previous["attempted_at"] or 0) + floor:
+            return
+        if floor:
+            self.store.reserve(name, scope, now, floor)
         try:
             data = fetch()
         except (ApiError, ValueError, KeyError, TypeError, IndexError, AttributeError) as error:
             message = str(error) if isinstance(error, ApiError) else "Unexpected response shape; last data retained"
             failures = previous["failures"] if previous else 0
-            delay = min(900, POLL_SECONDS * 2 ** min(failures, 4)) + random.uniform(0, 1)
+            delay = max(floor, min(900, POLL_SECONDS * 2 ** min(failures, 4)) + random.uniform(0, 1))
             if isinstance(error, ApiError) and error.retry_after:
                 delay = max(delay, error.retry_after)
                 self.store.defer(self.clock() + error.retry_after)
@@ -108,6 +112,8 @@ class Collector:
             for name, fetch in (("settings", settings), ("health", health), ("round", latest_round)):
                 self.poll(name, league["id"], lambda: fetch(self.api, league["id"]), observed=name == "settings")
             self.competition(league["id"], data["coworld_id"])
+        from .spending import collect_spending
+        collect_spending(self, data)
 
     def competition(self, league_id, canonical_id):
         def cached(name):
