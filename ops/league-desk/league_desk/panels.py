@@ -40,7 +40,8 @@ SECTIONS = [
 ]
 
 
-def competition_panels(snapshot, league, now):
+def competition_panels(snapshot, league, now, start=None, version="all"):
+    start = now - 7 * 86400 if start is None else start
     from .competition_metrics import exposure, histories, rating_history, standings, submission_series
     from .config import COMPETITION_SECONDS, FAILURE_MARGIN, POLL_SECONDS
     from .game_metrics import episode_timing, game_durations, head_to_head, round_durations, throughput
@@ -57,25 +58,42 @@ def competition_panels(snapshot, league, now):
     episode_sources = {key[1]: value for key, value in snapshot.items() if key[0] == "episodes" and
                        (value.get("data") or {}).get("league_id") == scope}
     all_games = {g["id"]: g for s in episode_sources.values() for g in s["data"]["rows"]}
-    games = [g for g in all_games.values() if any(t is not None and now - 7 * 86400 <= t <= now
+    selected_games = [g for g in all_games.values() if version == "all" or g["coworld_id"] == version]
+    matched_rounds = {key for key, state in episode_sources.items()
+                      if any(g["coworld_id"] == version for g in state["data"]["rows"])}
+    games = [g for g in selected_games if any(t is not None and start <= t <= now
              for t in (g["created_at"], g["completed_at"]))]
-    finished = [g for g in games if g["completed_at"] is not None and now - 7 * 86400 <= g["completed_at"] <= now]
-    recent_rounds = [r for r in rounds if r["completed_at"] is None or now - 7 * 86400 <= r["completed_at"] <= now]
+    finished = [g for g in games if g["completed_at"] is not None and start <= g["completed_at"] <= now]
+    recent_rounds = [r for r in rounds if (version == "all" or r["id"] in matched_rounds)
+                     and (r["completed_at"] is None or start <= r["completed_at"] <= now)]
     members, ratings = data("memberships").get("rows", []), data("ratings").get("rows", [])
     submissions = data("submissions").get("rows", [])
     points = rating_history(source("ratings").get("history", []))
+    history_points = [p for p in points if start <= p["time"] <= now and
+                      (version == "all" or p["canonical_id"] == version or p["last_round_id"] in matched_rounds)]
     complete = data("submissions").get("complete", False)
     recent_submissions = [s for s in submissions if s["created_at"] is not None
-                          and now - 7 * 86400 <= s["created_at"] <= now]
+                          and start <= s["created_at"] <= now]
     panels = {
         "Competing players": standings(members, ratings, points, submissions, finished, now, complete),
-        **histories(points), "Policy submissions": submission_series(submissions, now, complete),
+        **histories(history_points), "Policy submissions": submission_series(submissions, now, complete, start),
         "Membership and exposure": exposure(members, games, recent_rounds, episode_sources, recent_submissions, now,
                                              data("settings").get("game_target")),
         "Round duration": round_durations(recent_rounds, source("settings").get("history", []), now),
         "Game duration": game_durations(finished), "Games per day and how they ended": throughput(finished),
         "Where an episode's time goes": episode_timing(finished), "Head to head": head_to_head(finished),
     }
+    panels["Competing players"]["columns"][5] = "Scored games (selection)"
+    panels["Competing players"]["note"] += " Score and cost cells use the selection; submissions stay 24h/7d."
+    panels["Membership and exposure"]["note"] += " Round exposure uses whole matching rounds, possibly mixed versions."
+    panels["Round duration"]["note"] += (
+        " Version selection matches observed games; round duration is not version-isolated.")
+    markers = [{"time": o["observed_at"], "label": "Canonical observed: " + o["data"]["version"]}
+               for o in snapshot.get(("canonical", "all"), {}).get("history", [])
+               if start <= o["observed_at"] <= now]
+    for result in panels.values():
+        if result.get("chart"):
+            result["chart"]["markers"] = markers
     game_dependencies = [source("rounds")] + [episode_sources.get(r["id"], {}) for r in recent_rounds]
     dependencies = {
         "Competing players": [source(n) for n in ("memberships", "ratings", "submissions")] + game_dependencies,
@@ -117,7 +135,7 @@ def competition_panels(snapshot, league, now):
         alerts.append("Competition or game sources are stale or incomplete; inspect panel coverage.")
     last_day = [g for g in all_games.values() if g["completed_at"] is not None
                 and now - 86400 <= g["completed_at"] <= now]
-    return {"panel_data": panels, "competition_alerts": alerts,
+    return {"version_markers": markers, "panel_data": panels, "competition_alerts": alerts,
             "day_games": {status: sum(g["status"] == status for g in last_day) for status in ("completed", "failed")},
             "game_coverage": coverage, "episode_sources": episode_sources,
             "competition_age": max((p["age"] for p in panels.values() if p["age"] is not None), default=None),

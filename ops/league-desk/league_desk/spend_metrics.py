@@ -36,7 +36,7 @@ def source_spend(data):
                 {"day": r["source"], "series": "Combined estimate", "value": r["combined_estimated_cost_usd"]}
                 for r in rows
             ],
-            "label": "USD",
+            "label": "USD", "x_label": "Attributed source",
         },
     )
 
@@ -72,6 +72,9 @@ def model_usage(data):
         "Entire webDiplomacy family, both leagues and experience requests, all versions; native API week. "
         "Display labels are not stable policy identities. No configured-model or model-free-policy inference.",
     )
+    result["chart"] = {"kind": "amounts", "label": "Estimated USD", "data": [
+        {"label": f"{model} · {role} · {source}", "value": group["spend"]}
+        for (model, role, source), group in sorted(groups.items())]}
     return result, alerts
 
 
@@ -114,6 +117,9 @@ def seat_spend(data, games, cap):
         f"{data.get('eligible', 0)} eligible games queried; no-row seats remain unknown. "
         "Cap is today's reference, not the historical game cap. Estimates at a cap do not prove rejection.",
     )
+    result["chart"] = {"kind": "amounts", "label": "Estimated USD / seat-game", "reference": cap,
+                       "data": [{"label": f"Seat-game {i + 1}", "value": value}
+                                for i, value in enumerate(amounts)]}
     return result, keyed, [sentence] if rejections else []
 
 
@@ -130,7 +136,7 @@ def unit_costs(games, details, rounds, episode_sources):
         ids = {g["id"] for g in source["data"]["rows"]} if source and source.get("data") else set()
         if rd["status"] == "completed" and ids and ids <= covered.keys():
             round_costs.append(sum(covered[key] for key in ids))
-    return panel(
+    result = panel(
         f"Compute {money(mean(round_costs) if round_costs else None)}/round and "
         f"{money(mean(covered.values()) if covered else None)}/game over covered completed games.",
         ["Measure", "Value"],
@@ -141,10 +147,15 @@ def unit_costs(games, details, rounds, episode_sources):
         ]
         if covered
         else [],
-        "Detail API compute only; game denominator includes cost-covered completions in seven days. "
+        "Detail API compute only; game denominator includes cost-covered completions in the selected window. "
         "Round means require every listed game covered and completed in that window. "
         "Per-round LLM is not reconciled and stays unknown.",
     )
+
+    result["chart"] = {"kind": "amounts", "label": "Mean compute USD", "data": [
+        {"label": label, "value": mean(values)} for label, values in
+        (("Covered round", round_costs), ("Covered game", list(covered.values()))) if values]}
+    return result
 
 
 def request_series(requests, complete):
@@ -156,11 +167,11 @@ def request_series(requests, complete):
         + (" Version/window coverage incomplete." if not complete else ""),
         ["Pacific creation day", "Requester (local only)", "Requests"],
         rows,
-        "Selected variant, all discovered versions, seven-day creation window. Today is partial. "
+        "Selected variant, versions and creation window. Today is partial. "
         "Private requesters stay in this localhost cache; request counts are not episode counts.",
         {
             "kind": "bars",
-            "data": [{"day": d, "series": labels[p], "value": n} for (d, p), n in sorted(groups.items())],
+            "data": [{"day": d, "series": labels[p], "key": p, "value": n} for (d, p), n in sorted(groups.items())],
             "label": "Requests",
         },
     )
@@ -195,7 +206,7 @@ def request_durations(requests, games):
         ]
         for variant, g in sorted(groups.items())
     ]
-    return panel(
+    result = panel(
         "Request completion and episode play use separate clocks and covered samples."
         if rows
         else "No completed request or episode timing collected.",
@@ -213,13 +224,20 @@ def request_durations(requests, games):
         "Only fetched game details contribute. Overrides are shown separately, with no inferred shortening.",
     )
 
+    result["chart"] = {"kind": "amounts", "label": "Minutes (separate samples)", "data": [
+        {"label": f"{variant} · {label}", "value": quantile(group[key], fraction)}
+        for variant, group in sorted(groups.items())
+        for key, label, fraction in (("play", "play median", .5), ("queue", "queue median", .5),
+                                    ("requests", "request p90", .9)) if group[key]]}
+    return result
+
 
 def override_frequency(requests, data):
     ids = {r["id"] for r in requests}
     rows = [r for r in data.get("rows", []) if r["id"] in ids]
     counts = Counter((key, str(value)) for row in rows for key, value in row["values"].items())
     ordered = sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))
-    return panel(
+    result = panel(
         f"{ordered[0][0][0]} is set to {ordered[0][0][1]} in {ordered[0][1]}/{len(rows)} inspected requests."
         if ordered
         else "No allowlisted overrides found in inspected requests."
@@ -231,8 +249,13 @@ def override_frequency(requests, data):
         "notes, rosters and arbitrary values never enter the cache. No version-default comparison is available.",
     )
 
+    result["chart"] = {"kind": "amounts", "label": "Inspected requests", "data": [
+        {"label": f"{key} = {value}", "value": n} for (key, value), n in ordered]}
+    return result
 
-def spending_panels(snapshot, league, now, competition):
+
+def spending_panels(snapshot, league, now, competition, start=None, version="all"):
+    start = now - 7 * 86400 if start is None else start
     scope = league["id"] if league else ""
 
     def source(name, key="all"):
@@ -252,18 +275,22 @@ def spending_panels(snapshot, league, now, competition):
     selected = [
         r
         for r in requests.values()
-        if r["variant"] == variant and r["created_at"] is not None and now - 7 * 86400 <= r["created_at"] <= now
+        if r["variant"] == variant and r["created_at"] is not None and start <= r["created_at"] <= now
+        and (version == "all" or r["coworld_id"] == version)
     ]
-    versions = data("versions").get("rows", [])
+    versions = [v for v in data("versions").get("rows", []) if version == "all" or v["id"] == version]
     complete = bool(versions) and all(
-        (source("requests", v["id"]).get("data") or {}).get("backfilled") for v in versions
+        all((source("requests", v["id"]).get("data") or {}).get(key) for key in ("backfilled", "complete"))
+        for v in versions
     )
     details = {key: s for (name, key), s in snapshot.items() if name == "detail"}
     games = [
         g
         for state in competition["episode_sources"].values()
         for g in state["data"]["rows"]
-        if g["completed_at"] is None or g["completed_at"] >= now - 7 * 86400
+        if (version == "all" or g["coworld_id"] == version)
+        and (g["completed_at"] if g["completed_at"] is not None else g["created_at"]) is not None
+        and start <= (g["completed_at"] if g["completed_at"] is not None else g["created_at"]) <= now
     ]
     models, model_alerts = model_usage(data("models"))
     seat_panel, amounts, seat_alerts = seat_spend(
@@ -285,6 +312,11 @@ def spending_panels(snapshot, league, now, competition):
         "How long they take": request_durations(selected, [s["data"] for s in details.values() if s.get("data")]),
         "Common config overrides": override_frequency(selected, data("overrides")),
     }
+    panels["Requests per day"]["chart"]["markers"] = competition.get("version_markers", [])
+    for name in ("League against experience requests", "Models in use"):
+        panels[name]["note"] += " Range/version controls do not apply: native API week, all versions."
+    panels["LLM spend per seat per game"]["note"] += (
+        " Selection uses cached coverage; the SQL collector only scans unfinished or last-seven-day games.")
     request_deps = [source("versions")] + [source("requests", v["id"]) for v in versions]
     selected_details = {s["data"]["id"]: s for s in request_details if s["data"]["id"] in {r["id"] for r in selected}}
     expected_games = {key for s in selected_details.values() for key in s["data"]["episode_ids"]}

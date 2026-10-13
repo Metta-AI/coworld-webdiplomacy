@@ -17,9 +17,11 @@ class Store:
         self.directory.chmod(0o700)
         with self.connection() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1):
+            if version not in (0, 1, 2):
                 raise RuntimeError("Unsupported cache schema; use the matching League Desk version")
             db.execute("PRAGMA journal_mode=WAL")
+            if version == 1:
+                db.execute("ALTER TABLE control ADD COLUMN refresh_requested INTEGER NOT NULL DEFAULT 0")
             db.executescript((PACKAGE / "schema.sql").read_text())
         self.path.chmod(0o600)
 
@@ -101,3 +103,13 @@ class Store:
     def defer(self, until):
         with self.connection() as db:
             db.execute("UPDATE control SET retry_not_before=max(retry_not_before, ?)", (until,))
+
+    def request_refresh(self):
+        with self.connection() as db:
+            db.execute("UPDATE control SET refresh_requested=1")
+
+    def take_refresh(self):
+        with self.connection() as db:
+            return bool(db.execute(
+                "UPDATE control SET refresh_requested=0 WHERE refresh_requested=1 RETURNING singleton"
+            ).fetchone())

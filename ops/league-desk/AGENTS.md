@@ -5,6 +5,8 @@ accepted design is `../../docs/designs/league-dashboard-2026-10-12.html`; phase
 briefs and verdicts are in `../../tmp/collab/`. Do not implement beyond the
 currently authorized phase.
 
+- Local `POST /refresh` only queues a coalesced signal and requires the exact Origin.
+  Page/fragment GETs stay cache-only; slow floors and failure backoff cannot be forced.
 - Keep Python synchronous. Only collector code calls the platform; page handlers
   read SQLite only. Use `CoworldApiClient.from_login` with elevated User access.
 - Allowlisted GETs and fixed, scoped SELECT templates through `POST /sql/query`

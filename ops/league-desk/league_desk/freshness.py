@@ -20,7 +20,7 @@ def annotate(panel, dependencies, now, cadence=COMPETITION_SECONDS):
     panel["age"] = max(ages) if ages else None
     panel["missing"] = sum(d.get("data") is None for d in dependencies)
     panel["stale"] = False
-    details = []
+    panel["sources"] = []
     for source in dependencies:
         name = source.get("name", "uncollected source")
         interval = {
@@ -37,9 +37,9 @@ def annotate(panel, dependencies, now, cadence=COMPETITION_SECONDS):
         age = max(0, int(now - fetched(source))) if fetched(source) is not None else None
         expired = age is not None and age > 2 * max(cadence, interval)
         panel["stale"] |= bool(source.get("error")) or expired
-        details.append(
-            f"{name}: {age_label(age)}; stale after {2 * max(cadence, interval):g} s"
-            + (f"; {source['error']}" if source.get("error") else "")
-        )
-    panel["freshness_detail"] = ". ".join(details)
+        data = source.get("data") or {}
+        rows = data.get("rows", data.get("leagues", []))
+        panel["sources"].append({"name": name, "age": age, "rows": len(rows),
+                                 "stale": bool(source.get("error")) or expired, "error": source.get("error"),
+                                 "threshold": 2 * max(cadence, interval)})
     panel.setdefault("coverage", "")

@@ -1,0 +1,67 @@
+<div id="desk-content" data-rendered="{{ rendered_at }}" data-generation="{{ generation }}">
+  <p class="note" data-swap="scope">Current Now and memberships; historical selection: {{ range_label }} · {{ versions.get(version_key, 'all versions') }}.
+    Ratings stay cumulative; version filtering selects observations, not isolated MMR. Submissions stay all versions.
+    Cost scans run at most every 15 minutes; artifacts await a later phase.
+    {% if slow_next_due %}All current slow groups are eligible again by {{ slow_next_due | when }}.{% endif %}</p>
+  <p class="note" role="status" data-swap="age">
+    {% if age is not none %}Oldest collected source: <span data-age="{{ age }}">{{ age | age_label }}</span>.{% else %}No data collected yet.{% endif %}
+    {{ missing }} health sources missing; {{ missing_panels }} panels missing sources, {{ stale_panels }} stale. {% if league %}{{ league.name }}{% else %}League discovery pending.{% endif %}
+  </p>
+  <section aria-label="Now" class="top" data-swap="now">
+    <div><h2>Now</h2><div class="now">
+    {% for row in now_rows %}
+      <section><h3>{{ row.title }}</h3><p><b>{{ row.text }}</b></p>{% if row.source == 'budgets' and meter %}
+          <meter class="{% if meter.alert %}budget-alert{% endif %}" value="{{ meter.value }}" max="{{ meter.limit }}" aria-label="Budget spent"></meter>
+        {% endif %}<p class="note">{{ row.note }}</p>{% if row.detail %}<details><summary>Coverage</summary><p class="note">{{ row.detail }}</p></details>{% endif %}
+        <p class="note {% if row.stale %}bad{% endif %}">Softmax API ·
+          {% if row.age is not none %}<span data-age="{{ row.age }}">{{ row.age | age_label }}</span>{% else %}not collected{% endif %}
+          {% if row.error %} · {{ row.error }}{% endif %}
+        </p>
+      </section>
+    {% endfor %}
+    </div></div>
+    <aside class="alerts"><h3>Needs attention</h3>
+      {% if alerts %}<ul>{% for alert in alerts %}<li class="bad">{{ alert }}</li>{% endfor %}</ul>
+      {% elif budget_available %}<p>No breaches in the available budget data.</p>
+      {% else %}<p>Budget checks await collection.</p>{% endif %}
+      <p class="note">Model errors use family-wide data. Cap comparisons use the current reference; retries remain unknown.</p>
+    </aside>
+  </section>
+  <div class="grid">
+    {% for title, panels in sections %}
+      <header class="group"><h2>{{ title }}</h2></header>
+      {% for name, source, span, empty in panels %}
+      <section class="panel span-{{ span }}" data-swap="{{ name }}">
+        <header><h3>{{ name }}</h3><span class="src {% if source == 'Needs instrumentation' %}src-inst{% elif 'Replays' in source %}src-art{% else %}src-api{% endif %}">{{ source }}</span></header>
+        {% set content = panel_data.get(name) %}
+        {% if content %}
+          <p class="reading">{{ content.sentence }}</p>
+          <p class="note panel-age {% if content.stale %}bad{% endif %}">{{ source }} · <span data-age="{{ content.age if content.age is not none else '' }}">{{ content.age | age_label }}</span><span data-stale-status>{% if content.stale %} · stale or failed{% endif %}</span></p>
+          {% if name == 'MMR over time' and players %}
+          <label for="player">Rating band</label><select id="player" name="player" form="filters">
+            <option value="">Point at a player</option>{% for key, label in players.items() %}
+            <option value="{{ key }}" {% if player_key == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>{% endif %}
+          {% if content.chart and content.chart.data %}
+            <div class="plot" data-chart='{{ content.chart | tojson }}' aria-label="{{ name }} chart"></div>
+          {% endif %}
+            <details><summary>View values</summary>
+            <p class="note">{{ content.coverage }} {{ content.missing }} sources missing.</p>
+            <table class="data sources"><thead><tr><th>Source</th><th>Age</th><th>Rows</th></tr></thead><tbody>
+            {% for row in content.sources %}<tr data-source data-threshold="{{ row.threshold }}" data-error="{{ 'true' if row.error else 'false' }}" class="{% if row.stale %}bad{% endif %}"><td>{{ row.name }}{% if row.error %}: {{ row.error }}{% endif %}</td>
+              <td><span data-age="{{ row.age if row.age is not none else '' }}">{{ row.age | age_label }}</span></td><td>{{ row.rows }}</td></tr>{% endfor %}</tbody></table>
+            {% if name == "Competing players" %}</details>{% endif %}
+            {% if content.rows %}<div class="table-scroll"><table class="data"><thead><tr>{% for column in content.columns %}<th>{{ column }}</th>{% if name == "Competing players" and loop.index0 == 3 %}<th>Last 20 observations</th>{% endif %}{% endfor %}</tr></thead>
+            <tbody>{% for row in content.rows %}{% set row_index = loop.index0 %}<tr>{% for value in row %}<td>{{ value }}
+              {% if name == 'Competing players' and loop.index0 == 3 %}<div class="plot cell" data-chart='{{ content.cells[row_index].interval | tojson }}' aria-label="Shared rating interval scale"></div>{% endif %}</td>
+              {% if name == 'Competing players' and loop.index0 == 3 %}<td><div class="plot cell" data-chart='{{ content.cells[row_index].spark | tojson }}' aria-label="Last 20 observed ratings"></div></td>{% endif %}
+              {% endfor %}</tr>{% endfor %}</tbody></table></div>{% endif %}
+            {% if name != "Competing players" %}</details>{% endif %}
+          <p class="note">{{ content.note }}</p>
+        {% else %}<p class="reading">{{ empty }}</p><p class="note">No data yet.</p>{% endif %}
+      </section>
+      {% endfor %}
+    {% endfor %}
+  </div>
+</div>
+<template id="version-options"><option value="all">All versions</option>{% for key, label in versions.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</template>

@@ -4,14 +4,14 @@ A local, read-only operations page for the webDiplomacy leagues. The collector
 uses your existing Softmax User login with elevated privileges and saves selected
 fields to SQLite. The page reads that cache, never the platform.
 
-**P3 competition, spending and requests:** current memberships, cumulative ratings and
+**P4 API page:** current memberships, cumulative ratings and
 local rating history, submissions, round/game timing, exposure, throughput and
 player head-to-head are available alongside the health strip. Charts use local
 Observable Plot and D3 bundles. League-attributed source costs, family-wide model
 usage, SQL seat estimates, compute unit costs and experience-request history are
 available with explicit scope/coverage. Tournament daily breakdown and artifacts
-remain unavailable. There is no rating backfill. Full presentation, filters and
-automatic refresh are a later phase.
+remain unavailable. There is no rating backfill. Range/version filters, local house fonts, rating
+bands and automatic fragment refresh are available.
 
 ## Run
 
@@ -32,10 +32,29 @@ The page works without login or a network connection:
 uv run --directory ops/league-desk python -m league_desk serve --no-collector
 ```
 
-An empty cache shows the empty page. The page has a League selector and a **View cache**
-button, which reloads the page without polling the platform. It has no automatic
-browser refresh, range/version filters, or manual collection button yet. Ages
-are measured at page load. The collector runs independently of the browser.
+An empty cache shows the empty page. League, range (24h/7d/30d/all), cached
+Coworld version and rating-band player selections are kept in the URL; browser
+Back/Forward restores them. Historical controls do not change the current Now
+strip or memberships. Native-week cost/model panels explicitly keep their original
+scope. A version-filtered rating is an observed cumulative rating, not a rebuilt
+rating for that version alone.
+
+The browser swaps panel interiors every 60 seconds, preserving scroll, focus,
+expanded disclosures and table scroll. Unchanged charts keep their SVG; changed
+charts or widths are redrawn with Plot. Pause is per tab and survives reload;
+hidden tabs stop requests and refresh on becoming visible unless paused. Ages
+continue to advance, including while paused, and expired panel sources turn
+terracotta. A failed fragment fetch keeps the previous contents and reports failure.
+
+**Refresh** sends a same-origin local `POST /refresh`, coalescing a SQLite signal
+for the collector. The collector checks signals each second between polls. Its
+current bounded pass finishes first. Fast groups poll again; failed-source retry
+deadlines, shared rate limits and the fifteen-minute scan floor still apply. Bounded
+history/detail queues continue on their own due times. The page immediately reads
+the cache, then watches for a changed fetch generation for up to one minute; this
+confirms a cache update, not completion of every remote source. A paused tab can
+still request and watch a manual refresh. With `--no-collector`, the signal waits
+for a collector and the page says no update was observed rather than claiming success.
 
 To collect once, or run the collector in a separate terminal:
 
@@ -87,8 +106,9 @@ root's CLI pins and lockfile are independent.
   health data is marked in terracotta. Competition data goes stale after two
   five-minute cadences; old terminal episode listings after two daily cadences.
   The masthead includes all panel ages and missing/stale counts, and uses minutes
-  past 120 seconds. Panels show a short source/age line; coverage and component
-  freshness appear in View values. Missing coverage alone does not turn it red.
+  past 120 seconds. Panels show a short source/age line; coverage and a source/age/row-count table
+  appear in View values. The Now completion cell puts its longer coverage in a
+  separate disclosure. Missing coverage alone does not turn it red.
   Competition panels have a five-minute refresh contract even when a faster round
   source contributes; stale means older than 600 seconds, not 523. Round-duration
   data retains its minute cadence. Failures always mark the panel stale.
@@ -98,8 +118,11 @@ root's CLI pins and lockfile are independent.
 
 ## Competition and game measures
 
-Game panels use the last seven days, all versions; completed-game measures use
-completion time. Memberships and standings are current, and rating history covers
+Game panels default to the last seven days, all versions; completed-game measures
+use completion time. Unfinished seat-game costs use game creation time. All means retained history, not proof of complete platform
+history. Range filters use request/submission creation, game completion, and rating
+observation times. Round metrics include unfinished rounds and whole matching
+rounds; a version match does not isolate a mixed-version round. Memberships and standings are current, and rating history covers
 all locally observed updates. Each panel has a reading generated from the same
 values as its chart and expandable table. Missing source data and incomplete scans
 remain visible even when some values are available.
@@ -114,8 +137,13 @@ remain visible even when some values are available.
   decreases in rounds played. Resets without an observable decrease are not proven.
 - A 24-hour rating delta needs a baseline within ten minutes of the requested
   baseline time in the same uninterrupted segment; the actual time is displayed.
-  Missing baselines stay unknown. Last-20 observed points are prepared for the
-  later table-sparkline presentation; there is no invented round-by-round history.
+  Missing baselines stay unknown. Last-20 observed points appear as table sparklines, beside interval cells on one
+  shared unclipped scale; these are observations, not invented rounds. Two points
+  in one continuous segment are connected. Gaps/resets still break lines. The
+  first-run note remains while fewer than six observations exist. The MMR chart
+  labels the top three, greys the rest, and shows the pointed-at or selected
+  player's interval. Small multiples share time and rating scales; solid lines
+  show mu, dashed lines MMR, and labels show the latest half-width.
 - Submissions count distinct IDs by Pacific creation day. Prior-week comparisons
   require exhaustion of the API listing. This does not recover deleted history;
   partial rolling-window days and incomplete scans are labelled.
@@ -184,21 +212,22 @@ SQLite WAL/SHM sidecars, and `collector.lock`. The directory has mode 0700 and t
 main database 0600. Never commit, publish, serve, or upload this directory. It contains
 private operational data, including requester labels/emails.
 
-Schema version 1 deliberately has only three tables:
+Schema version 2 keeps three tables:
 
 | Table | Meaning |
 |---|---|
 | `sources` | Selected-field snapshots, resumable round/submission scans, per-round episode lists, attempt/success/due times and safe errors |
-| `control` | Persisted shared rate-limit deadline |
+| `control` | Persisted shared rate-limit deadline and coalesced refresh request |
 | `observations` | Changed canonical version, league settings and consistent ratings, stamped when observed locally |
 
 Source replacement and observation insertion happen in one short transaction.
 The database uses WAL and a five-second busy timeout. Page reads use one read-only
 transaction for sources and observations. The new groups reuse
 these tables rather than adding unused normalized entities; the schema version
-and existing P1 cache remain compatible. A newer unsupported schema fails
-initialization explicitly; there are no migrations beyond initializing version 1 yet. Back up the closed cache
-before changing schema versions if its observed history matters.
+is now 2. Initialization migrates schema 1 by adding the refresh flag without
+rewriting snapshots or observations. A newer unsupported schema fails explicitly.
+Stop the server/collector and back up the closed cache before upgrading if its
+observed history matters; older app versions cannot open schema 2.
 
 The collector allows only these GET paths:
 
@@ -256,8 +285,7 @@ Admin cost/model scans and SQL groups reserve a 15-minute minimum between attemp
 **before** I/O. Errors, crashes and forced polls cannot bypass it. Each seat/override
 SQL pass rotates at most 50 known IDs, replacing those rows and preserving per-ID
 check times for older chunks. Late usage is re-read; poll totals are never added
-together. The page discloses when slow groups are eligible again. There is still
-no browser-triggered poll until the refresh phase.
+together. The page discloses when slow groups are eligible again. Manual refresh cannot move those deadlines forward.
 
 HTTP connect/read timeouts are bounded. The transport supports
 object cursors and `X-Next-Cursor` list headers, rejects repeated/incomplete pages,
@@ -268,12 +296,19 @@ Other transient failures back off up to about 15 minutes. A slow request or
 backoff can make a source older than its normal cadence.
 
 The server accepts loopback Host names only, including on static routes, and
-serves page responses with `no-store`. Jinja escapes API labels. There are no
-browser write routes or CORS grants. Do not expose it through a tunnel or proxy.
-Fonts currently fall back to locally installed/system fonts; no CDN is contacted.
+serves pages and fragments with `no-store`. Jinja escapes API labels. The sole
+browser POST requires an exact same-origin Origin header and only queues local
+collection; it accepts no route, SQL, credentials or scope parameters. No CORS
+grants exist. Do not expose it through a tunnel or proxy.
+Merriweather and Merriweather Sans Latin subsets are pinned to Fontsource 5.3.0,
+with OFL licenses and hashes beside the assets. Other scripts use system fallback;
+no CDN is contacted at runtime.
 Observable Plot 0.6.17 and D3 7.9.0 are vendored with licenses, source URLs and
-SHA-256 hashes in `league_desk/static/vendor/README.md`. Initial charts are local;
-fonts, small multiples, hover selection and refresh arrive in the presentation phase.
+SHA-256 hashes in `league_desk/static/vendor/README.md`. Every chart is local. Canonical-version markers say when this desk observed the
+canonical version; they do not claim release timestamps or historical game changes.
+Marks outside a chart's represented day buckets are omitted. Rating snapshots can
+match a selected version through canonical observation or their last round's
+observed game association; ratings always remain cumulative.
 
 ## Files and checks
 
@@ -284,7 +319,10 @@ the health strip; `competition_metrics.py` and `game_metrics.py` produce metric
 objects and fixed readings; `panels.py` joins dependencies and coverage;
 `spending.py` collects cost/request/SQL groups, `sql.py` owns fixed SELECTs,
 `spend_metrics.py` computes those panels, and `freshness.py` defines their age rules;
-`server.py`, `templates/desk.html` and `static/desk.css` render the page. `config.py`
+`selection.py` defines cached filter choices; `server.py`, `templates/desk.html`
+and `templates/fragments.html` render the page. `static/refresh.js` owns browser
+refresh and navigation, `static/charts.js` owns Plot marks, and `static/desk.css`
+owns presentation. `config.py`
 contains cadences and freshness thresholds. `dates.py` handles Pacific dates.
 
 From the repository root:
@@ -300,3 +338,30 @@ in-process TestClient. Network transports are denied in the test base class.
 The always-run CI test job runs this project's tests and lint. `ops/` is not an
 image input and needs no extra image-scope rule. This application is not copied
 by `optimizer/install.sh` and does not change the game runtime or public protocol.
+
+## Browser acceptance with invented data
+
+Use the root project's existing Playwright development dependency, not a global
+install. Start the network-denied fixture server in a separate terminal:
+
+```sh
+uv run --directory ops/league-desk --locked python tests/browser_fixture.py
+```
+
+Then run from the root (install Chromium once if needed):
+
+```sh
+uv run --locked playwright install chromium
+uv run --locked python ops/league-desk/tests/browser_check.py
+```
+
+Stop the fixture with Ctrl-C. It uses a temporary cache on port 8661, never the
+real runtime. The check covers local assets, lines/bands/cells, responsive layout,
+fragment swapping, scroll/disclosures, pause, simulated visibility events, history
+navigation, delayed responses and failed refreshes. Browser time is controlled;
+this is distinct from the live sustained-collector acceptance check.
+
+Implementation follows [Plot pointer input events](https://observablehq.com/plot/interactions/pointer)
+and the [browser visibility lifecycle](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API).
+The accepted small synchronous app and native browser APIs remain sufficient; no
+new dashboard or client framework dependency is needed.

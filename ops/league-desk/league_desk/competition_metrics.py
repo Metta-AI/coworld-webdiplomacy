@@ -28,6 +28,7 @@ def rating_history(history):
                      "high": mu + 3 * sigma if mu is not None and sigma is not None else None,
                      "rounds": row["rounds_played"], "segment": segments[key],
                      "series": f"{row['division_id']}:{row['player_id']}:{segments[key]}",
+                     "canonical_id": observation["data"].get("canonical_id"),
                      "reset": bool(reset), "gap": bool(gap), "last_round_id": row["last_round_id"]}
             points.append(point)
             previous[key] = point
@@ -56,12 +57,13 @@ def standings(members, ratings, points, submissions, games, now, submission_comp
     scores = defaultdict(list)
     for row in player_scores(games):
         scores[row["player_id"]].append(row["score"])
-    rows, intervals, sparks, changes, player_ids = [], [], [], [], []
+    rows, intervals, sparks, changes, player_ids, entry_keys = [], [], [], [], [], []
     for key, policies in sorted(competing.items(), key=lambda item: (
             -(rated.get(item[0], {}).get("rating") if rated.get(item[0], {}).get("rating") is not None
               else float('-inf')), item[0])):
         division, player_id = key
         player_ids.append(player_id)
+        entry_keys.append([division, player_id])
         rating = rated.get(key, {})
         name = policies[0]["player"]
         mu, sigma = rating.get("mu"), rating.get("sigma")
@@ -78,7 +80,8 @@ def standings(members, ratings, points, submissions, games, now, submission_comp
                      f"{submissions_24h} / {submissions_7d}" + (" observed" if not submission_complete else " listed"),
                      "not observed", "unknown"])
         if low is not None:
-            intervals.append({"player": name, "low": low, "high": high, "mu": mu, "value": rating.get("rating")})
+            intervals.append({"player": name, "player_id": player_id, "division_id": division,
+                              "low": low, "high": high, "mu": mu, "value": rating.get("rating")})
         sparks.extend([r for r in points if (r["division_id"], r["player_id"]) == key][-20:])
         if delta is not None:
             changes.append((abs(delta), name, delta, baseline))
@@ -94,6 +97,7 @@ def standings(members, ratings, points, submissions, games, now, submission_comp
                    {"kind": "intervals", "data": intervals})
     result["sparks"] = sparks
     result["player_ids"] = player_ids
+    result["entry_keys"] = entry_keys
     return result
 
 
@@ -104,6 +108,8 @@ def histories(points):
     gaps, resets = sum(r["gap"] for r in points), sum(r["reset"] for r in points)
     note = (f"{gaps} player-series gaps; {resets} observed resets. Lines stop across gaps/resets. "
             "Cumulative mixed-input ratings, never version-isolated MMR; canonical observations are not release times.")
+    if len(times) < 6:
+        note = "History starts at first run; fewer than six observations. " + note
     rows = [[r["player"], when(r["time"]), fmt(r["value"]), fmt(r["mu"]), fmt(r["low"]), fmt(r["high"]),
              "reset" if r["reset"] else "gap" if r["gap"] else "observed"] for r in points]
     columns = ["Player", "Observed (Pacific)", "MMR", "μ", "μ − 3σ", "μ + 3σ", "Continuity"]
@@ -126,14 +132,18 @@ def histories(points):
                                                {"kind": "bands", "data": points})}
 
 
-def submission_series(rows, now, complete):
-    current = [r for r in rows if r["created_at"] is not None and now - 7 * 86400 <= r["created_at"] <= now]
-    prior = [r for r in rows if r["created_at"] is not None and now - 14 * 86400 <= r["created_at"] < now - 7 * 86400]
-    counts = Counter((day(r["created_at"]), r["player"]) for r in current)
-    points = [{"day": d, "series": player, "value": n} for (d, player), n in sorted(counts.items())]
-    sentence = (f"{len(current)} listed submissions in seven days; {len(prior)} in the prior seven days."
-                if complete else
-                f"Submission history incomplete: {len(current)} observed in seven days.")
+def submission_series(rows, now, complete, start=None):
+    start = now - 7 * 86400 if start is None else start
+    current = [r for r in rows if r["created_at"] is not None and start <= r["created_at"] <= now]
+    prior = [r for r in rows if r["created_at"] is not None
+             and max(0, start - (now - start)) <= r["created_at"] < start]
+    counts = Counter((day(r["created_at"]), r["player_id"]) for r in current)
+    labels = {r["player_id"]: r["player"] for r in current}
+    points = [{"day": d, "series": labels[player], "key": player, "value": n}
+              for (d, player), n in sorted(counts.items())]
+    sentence = (f"{len(current)} listed submissions in the selection; {len(prior)} in the prior equal window."
+                if complete and start else
+                f"Submission history incomplete: {len(current)} observed in the selection.")
     return panel(sentence, ["Pacific creation day", "Player", "Submissions"],
                  [[r["day"], r["series"], r["value"]] for r in points],
                  "All versions. Complete means the current API listing was exhausted; "
@@ -164,7 +174,7 @@ def exposure(members, games, rounds, episode_sources, submissions, now, target):
         else:
             waiting += 1
     rows += [["Median wait to first observed game, min", fmt(quantile(waits, .5))],
-             ["Seven-day submissions without an observed game", waiting]]
+             ["Selected submissions without an observed game", waiting]]
     exposures = []
     for rd in rounds:
         source = episode_sources.get(rd["id"])
@@ -181,9 +191,12 @@ def exposure(members, games, rounds, episode_sources, submissions, now, target):
     rows += [["Eligible player/round rows with complete episode listing", len(exposures)],
              ["Eligible player/round rows with zero games", sum(r["games"] == 0 for r in exposures)]]
     result = panel(sentence, ["Measure", "Observed value"], rows,
-                   "Current memberships, all versions; seats and submitted policies in seven days. "
+                   "Current memberships, all versions; seats and submitted policies in the selected window. "
                    "First observed game is not "
                    "necessarily the historical first game. No-game submissions may be waiting or outside retained "
                    "history. Eligibility uses the round's entrant roster; current target is not a historical limit.")
+    result["chart"] = {"kind": "amounts", "label": "Games in whole matching rounds", "reference": target,
+                       "data": [{"label": f"Round {r['round']} · {names.get(r['player_id'], 'Unnamed entrant')}",
+                                 "value": r["games"]} for r in exposures]}
     result["exposures"] = exposures
     return result

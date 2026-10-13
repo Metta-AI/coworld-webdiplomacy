@@ -6,67 +6,27 @@
   <script defer src="/static/vendor/d3-7.9.0.min.js"></script>
   <script defer src="/static/vendor/plot-0.6.17.min.js"></script>
   <script defer src="/static/charts.js"></script>
+  <script defer src="/static/refresh.js"></script>
 </head>
 <body><main class="wrap">
   <header class="masthead">
     <div><span class="eyebrow">League operations · webDiplomacy · {{ time }}</span><h1>The League Desk</h1></div>
-    <form class="controls" method="get">
+    <form class="controls" method="get" id="filters">
       <label class="seglabel" for="league">League</label>
       <select name="league" id="league">
         <option value="press" {% if league_key == 'press' %}selected{% endif %}>Press</option>
         <option value="gunboat" {% if league_key == 'gunboat' %}selected{% endif %}>Gunboat</option>
-      </select><button class="refresh" type="submit">View cache</button>
+      </select>
+      <label class="seglabel" for="range">Range</label><select name="range" id="range">
+        {% for key, value in ranges.items() %}<option value="{{ key }}" {% if range_key == key %}selected{% endif %}>{{ value[1] }}</option>{% endfor %}
+      </select>
+      <label class="seglabel" for="version">Version</label><select name="version" id="version">
+        <option value="all">All versions</option>{% for key, label in versions.items() %}
+        <option value="{{ key }}" {% if version_key == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select><button class="refresh" type="submit">Refresh</button>
+      <button type="button" id="pause" aria-pressed="false">Pause</button>
+      <span id="refresh-status" class="note" role="status">Automatic refresh every 60 s</span>
     </form>
   </header>
-  <p class="note">Current league health and competition; game panels cover the last seven days, all versions. Collection runs every 60 seconds; reload to read the cache.
-    Cost scans run at most every 15 minutes; artifacts await a later phase.
-    {% if slow_next_due %}All current slow groups are eligible again by {{ slow_next_due | when }}.{% endif %}</p>
-  <p class="note" role="status">
-    {% if age is not none %}Oldest collected source: {{ age | age_label }} at page load.{% else %}No data collected yet.{% endif %}
-    {{ missing }} health sources missing; {{ missing_panels }} panels missing sources, {{ stale_panels }} stale. {% if league %}{{ league.name }}{% else %}League discovery pending.{% endif %}
-  </p>
-  <section aria-label="Now" class="top">
-    <div><h2>Now</h2><div class="now">
-    {% for row in now_rows %}
-      <section><h3>{{ row.title }}</h3><p><b>{{ row.text }}</b></p>{% if row.source == 'budgets' and meter %}
-          <meter class="{% if meter.alert %}budget-alert{% endif %}" value="{{ meter.value }}" max="{{ meter.limit }}" aria-label="Budget spent"></meter>
-        {% endif %}<p class="note">{{ row.note }}</p>
-        <p class="note {% if row.stale %}bad{% endif %}">Softmax API ·
-          {% if row.age is not none %}{{ row.age }} seconds old{% else %}not collected{% endif %}
-          {% if row.error %} · {{ row.error }}{% endif %}
-        </p>
-      </section>
-    {% endfor %}
-    </div></div>
-    <aside class="alerts"><h3>Needs attention</h3>
-      {% if alerts %}<ul>{% for alert in alerts %}<li class="bad">{{ alert }}</li>{% endfor %}</ul>
-      {% elif budget_available %}<p>No breaches in the available budget data.</p>
-      {% else %}<p>Budget checks await collection.</p>{% endif %}
-      <p class="note">Model errors use family-wide data. Cap comparisons use the current reference; retries remain unknown.</p>
-    </aside>
-  </section>
-  <div class="grid">
-    {% for title, panels in sections %}
-      <header class="group"><h2>{{ title }}</h2></header>
-      {% for name, source, span, empty in panels %}
-      <section class="panel span-{{ span }}">
-        <header><h3>{{ name }}</h3><span class="src {% if source == 'Needs instrumentation' %}src-inst{% elif 'Replays' in source %}src-art{% else %}src-api{% endif %}">{{ source }}</span></header>
-        {% set content = panel_data.get(name) %}
-        {% if content %}
-          <p class="reading">{{ content.sentence }}</p>
-          <p class="note {% if content.stale %}bad{% endif %}">{{ source }} · {{ content.age | age_label }}{% if content.stale %} · stale or failed{% endif %}</p>
-          {% if content.chart and content.chart.data %}
-            <div class="plot" data-chart='{{ content.chart | tojson }}' aria-label="{{ name }} chart"></div>
-          {% endif %}
-            <details {% if name == 'Competing players' %}open{% endif %}><summary>View values</summary>
-            <p class="note">{{ content.coverage }} {{ content.missing }} sources missing. {{ content.freshness_detail }}</p>
-            {% if content.rows %}<div class="table-scroll"><table><thead><tr>{% for column in content.columns %}<th>{{ column }}</th>{% endfor %}</tr></thead>
-            <tbody>{% for row in content.rows %}<tr>{% for value in row %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>{% endif %}
-            </details>
-          <p class="note">{{ content.note }}</p>
-        {% else %}<p class="reading">{{ empty }}</p><p class="note">No data yet.</p>{% endif %}
-      </section>
-      {% endfor %}
-    {% endfor %}
-  </div>
+  {% include "fragments.html" %}
 </main></body></html>

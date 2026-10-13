@@ -77,10 +77,15 @@ def latest_round(api, league_id):
 class Collector:
     def __init__(self, store, api, clock=time.time):
         self.store, self.api, self.clock = store, api, clock
+        self.manual = False
 
     def poll(self, name, scope, fetch, observed=False, cadence=POLL_SECONDS, force=False, floor=0):
         now = self.clock()
         previous = self.store.source(name, scope)
+        force |= self.manual and name in {"discovery", "canonical", "budgets", "settings", "health",
+                                          "round", "rounds", "memberships", "submissions", "ratings"}
+        if previous and previous["error"]:
+            force = False
         if now < self.store.retry_not_before() or previous and now < previous["next_due"] and not force:
             return
         if previous and floor and now < (previous["attempted_at"] or 0) + floor:
@@ -169,14 +174,19 @@ def collector_lock(directory):
 def collect(store, once=False):
     store.initialize()
     with collector_lock(store.directory):
+        next_poll = 0
         while True:
-            if time.time() >= store.retry_not_before():
+            manual = store.take_refresh()
+            if (manual or time.time() >= next_poll) and time.time() >= store.retry_not_before():
                 try:
                     with logged_in_api() as api:
-                        Collector(store, api).once()
+                        collector = Collector(store, api)
+                        collector.manual = manual
+                        collector.once()
                 except ApiError as error:
                     store.failure("discovery", "all", str(error), time.time(), POLL_SECONDS)
                     store.defer(time.time() + POLL_SECONDS)
+                next_poll = time.time() + POLL_SECONDS
             if once:
                 return
-            time.sleep(POLL_SECONDS)
+            time.sleep(1)

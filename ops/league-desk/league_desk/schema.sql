@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS sources (
 );
 CREATE TABLE IF NOT EXISTS control (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
-    retry_not_before REAL NOT NULL DEFAULT 0
+    retry_not_before REAL NOT NULL DEFAULT 0,
+    refresh_requested INTEGER NOT NULL DEFAULT 0
 );
 INSERT OR IGNORE INTO control(singleton) VALUES (1);
 -- Observations are not release timestamps or retroactive settings history.
@@ -23,4 +24,4 @@ CREATE TABLE IF NOT EXISTS observations (
     data TEXT NOT NULL,
     PRIMARY KEY (name, scope, observed_at)
 );
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;
