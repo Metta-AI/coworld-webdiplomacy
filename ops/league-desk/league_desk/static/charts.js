@@ -92,6 +92,31 @@
       options = {width:130,height:30,margin:3,x:{type:'time',axis:null},y:{axis:null},
         marks:[Plot.line(data,{x:d=>new Date(d.time*1000),y:'value',z:d=>d.plot_series || d.series,stroke:navy}),
           Plot.dot(data,{x:d=>new Date(d.time*1000),y:'value',fill:navy,r:1.5})]};
+    } else if (chart.kind === "power-scores") {
+      const eligible = data.filter(d=>d.games>=chart.minimum);
+      options.height = 275; options.marginLeft = 65;
+      options.y = {domain:data.map(d=>d.power),label:null};
+      options.x = {label:'Mean score · 95% interval',grid:true,
+        domain:d3.extent([0,chart.reference,...eligible.flatMap(d=>[d.low,d.high,d.mean]).filter(v=>v!==null)])};
+      options.marks = [Plot.ruleX([chart.reference],{stroke:grey,strokeDasharray:'4,3'}),
+        Plot.ruleY(eligible.filter(d=>d.low!==null),{y:'power',x1:'low',x2:'high',stroke:navy}),
+        Plot.dot(eligible,{y:'power',x:'mean',fill:navy,title:d=>`${d.power}: ${d.mean}; ${d.games} games`}),
+        Plot.text(data.filter(d=>d.games<chart.minimum),{y:'power',x:()=>0,text:d=>`${d.games} games · fewer than five`,
+          textAnchor:'start',fill:grey})];
+    } else if (chart.kind === "policy-power") {
+      const labels = new Map(data.map(d=>[d.policy_id,d.policy]));
+      options.height = Math.max(200,labels.size*32+70); options.marginLeft = Math.min(width*.45,Math.max(120,...[...labels.values()].map(s=>s.length*5.5)));
+      options.x = {domain:[...new Set(data.map(d=>d.power))],label:'Power',tickFormat:d=>d.slice(0,3)};
+      options.y = {domain:[...labels.keys()],label:null,tickFormat:id=>{const label=labels.get(id),limit=Math.floor((options.marginLeft-12)/6);
+        return width<500 && label.length>limit?label.slice(0,limit-1)+'…':label}};
+      const extent = Math.max(.01,...data.filter(d=>d.games>=chart.minimum).map(d=>Math.abs(d.mean)));
+      options.color = {type:'linear',domain:[-extent,0,extent],range:[gold,'#fffdf4',navy]};
+      options.marks = [Plot.cell(data.filter(d=>d.games<chart.minimum),{x:'power',y:'policy_id',fill:'none',stroke:grey,
+        strokeDasharray:'3,3',inset:1,title:d=>`${d.policy}, ${d.power}: ${d.games} games; fewer than five`}),
+        Plot.cell(data.filter(d=>d.games>=chart.minimum),{x:'power',y:'policy_id',fill:'mean',inset:1,
+          title:d=>`${d.policy}, ${d.power}: ${d.mean}; ${d.games} games`}),
+        Plot.text(data.filter(d=>d.games>=chart.minimum),{x:'power',y:'policy_id',text:d=>d.mean.toFixed(2),
+          fill:d=>Math.abs(d.mean)>extent*.65?'#fffdf4':navy})];
     } else if (chart.kind === "seat-dots") {
       const labels = new Map(data.map(d=>[d.key,d.player]));
       options.height = Math.max(170, chart.order.length*32+65); options.marginLeft = 140; options.marginTop = 32;
@@ -111,14 +136,15 @@
       const max = d3.max(chart.order, model=>d3.sum(data.filter(d=>d.model===model),d=>d.value));
       for (const model of chart.order) {
         const label = document.createElement('p'); label.className = 'model-label'; label.textContent = model;
-        container.append(label,clean(Plot.plot({width,height:50,marginLeft:40,marginTop:5,marginBottom:22,
-          x:{domain:[0,max],label:null,ticks:4},y:{axis:null},color:{domain:sources,range:colors},
+        const last = model === chart.order[chart.order.length-1];
+        container.append(label,clean(Plot.plot({width,height:last?50:28,marginLeft:40,marginTop:5,marginBottom:last?22:3,
+          x:{domain:[0,max],label:null,ticks:4,axis:last?'bottom':null},y:{axis:null},color:{domain:sources,range:colors},
           marks:[Plot.barX(data.filter(d=>d.model===model),{x:'value',y:()=>model,fill:'source',
             title:d=>`${d.source}: $${d.value.toFixed(3)}`})],className:'desk-plot'})));
       }
       node.replaceChildren(container); return;
     } else if (chart.kind === "amounts") {
-      options.x = {label:chart.label || 'USD', grid:true}; options.y = {label:null, tickFormat:d=>d}; options.marginLeft = Math.min(width*.65,Math.max(130,...data.map(d=>d.label.length*6)));
+      options.x = {label:chart.label || 'USD', grid:true}; options.y = {label:null, domain:chart.order, tickFormat:d=>d}; options.marginLeft = Math.min(width*.65,Math.max(130,...data.map(d=>d.label.length*6)));
       options.height = Math.min(500,Math.max(160,data.length*23+45));
       options.marks = [Plot.barX(data,{x:'value',y:'label',fill:navy,title:d=>`${d.label}: ${d.value.toFixed(3)}`})];
       if (chart.reference !== null && chart.reference !== undefined)

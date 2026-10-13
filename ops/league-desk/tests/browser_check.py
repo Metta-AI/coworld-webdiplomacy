@@ -26,6 +26,12 @@ with sync_playwright() as p:
     page.evaluate("document.fonts.ready")
     assert page.evaluate('document.fonts.check(\'700 12px "Merriweather"\')')
     assert page.locator('.panel').count() == 24
+    powers = page.locator('[data-swap="Score by power, all players"]')
+    assert powers.locator('circle').count() == 7
+    assert 'Results 5/5' in powers.inner_text()
+    assert page.locator('[data-swap="Contested provinces"] rect').count() > 0
+    assert page.locator('[data-swap="Phase timing"] rect').count() > 0
+    assert page.locator('[data-swap="Score by policy and power"] [aria-label="cell"] rect').count() > 0
     assert page.locator('.plot:empty').count() == 0
     ratings = page.locator('.panel[data-swap="MMR over time"]')
     assert ratings.locator('g[aria-label="line"] path').first.get_attribute('d').count('L') >= 2

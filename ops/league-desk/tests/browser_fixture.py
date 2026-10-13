@@ -1,13 +1,17 @@
 """Invented, network-denied cache for the optional browser acceptance check."""
 import copy
+import json
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import httpx
 import uvicorn
 from helpers import DeskTest
+from test_artifacts import replay, results
 from test_competition import CompetitionTests, raw_game
 
 from league_desk.server import create_app
@@ -30,10 +34,22 @@ try:
     games = []
     for i in range(5):
         game = raw_game(fixture.now, f"ereq_00000000-0000-0000-0000-{i + 1:012d}")
+        for slot in range(2, 7):
+            game['participants'].append({'position':slot,'player_id':None,'player_name':None,
+                                         'policy_version_id':'pv_Field','is_filler':True,'is_seed':False})
+            game['participant_scores'].append({'position':slot,'score':0})
         games.append(game)
         fixture.responses["/v2/episode-requests/" + game["id"]] = {
             **game, "cost_usd": 1, "experience_request_id": None}
     fixture.responses["/v2/rounds/round_demo/episodes"]["entries"] = games
+    @contextmanager
+    def stream(method, path):
+        kind = path.rsplit('/',1)[-1]
+        payload = results() if kind == 'results' else replay()
+        if kind == 'results':
+            payload['scores'] = [.8, .2, 0, 0, 0, 0, 0]
+        yield httpx.Response(200, content=json.dumps(payload).encode())
+    fixture.api.stream = stream
     fixture.collector.once()
     for _ in range(2):
         fixture.now += 300

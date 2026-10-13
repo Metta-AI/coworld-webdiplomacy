@@ -12,7 +12,7 @@ SECTIONS = [
         ("Game duration", "Softmax API", 4, "Game timestamps have not been collected."),
         ("Games per day and how they ended", "Softmax API · Replays and results", 4,
          "Game history and end reasons have not been collected."),
-        ("Where an episode's time goes", "Softmax API", 12,
+        ("Where an episode's time goes", "Softmax API · Replays and results", 12,
          "Detailed boot, connect, adjudication and upload timing is unavailable."),
     ]),
     ("Money and model use", [

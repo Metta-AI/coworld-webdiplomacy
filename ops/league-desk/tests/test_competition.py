@@ -87,7 +87,8 @@ class CompetitionTests(DeskTest):
         self.enrich()
         self.collector.once()
         snapshot = self.store.snapshot(True)
-        self.assertTrue(all(not s["error"] for s in snapshot.values()))
+        self.assertTrue(all(not s["error"] for (name, _), s in snapshot.items()
+                            if not name.startswith("artifact_")))
         self.assertEqual(len(snapshot["ratings", "league_demo"]["history"]), 1)
         self.assertEqual(snapshot["episodes", "round_demo"]["data"]["rows"][0]["seats"][0]["score"], .8)
         self.now += 301
@@ -96,6 +97,23 @@ class CompetitionTests(DeskTest):
         Collector(store, self.api, clock=lambda: self.now).once()
         self.assertEqual(len(store.snapshot(True)["ratings", "league_demo"]["history"]), 1)
         self.assertTrue(all(c[0] == "GET" or c[1] == "/sql/query" for c in self.calls))
+
+    def test_old_episode_cache_refreshes_policy_labels_once(self):
+        self.enrich()
+        self.collector.once()
+        source = self.store.source("episodes", "round_demo")
+        for game in source["data"]["rows"]:
+            for seat in game["seats"]:
+                seat.pop("policy_label")
+        self.store.success("episodes", "round_demo", source["data"], self.now, cadence=86400)
+        raw = self.responses["/v2/rounds/round_demo/episodes"]["entries"][0]
+        raw["participants"][0].update(policy_name="Invented historical policy", version=3)
+        self.collector.competition("league_demo", "cow_demo")
+        rows = self.store.source("episodes", "round_demo")["data"]["rows"]
+        self.assertEqual(rows[0]["seats"][0]["policy_label"], "Invented historical policy v3")
+        self.calls.clear()
+        self.collector.competition("league_demo", "cow_demo")
+        self.assertFalse(any('/episodes' in c[1] for c in self.calls))
 
     def test_chart_labels_are_escaped_and_page_reads_only_cache(self):
         from fastapi.testclient import TestClient

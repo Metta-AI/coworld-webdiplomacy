@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from .board_metrics import board_panels
 from .dates import when
 from .freshness import age_label
 from .metrics import desk, money
@@ -53,6 +54,7 @@ def create_app(store=None):
         competition = competition_panels(snapshot, context["league"], now, start, version)
         spending = spending_panels(snapshot, context["league"], now, competition, start, version)
         competition["panel_data"].update(spending["spend_panels"])
+        competition["panel_data"].update(board_panels(snapshot, context["league"], competition, now, start, version))
         standings = competition["panel_data"]["Competing players"]
         for entry_player, row in zip(standings["player_ids"], standings["rows"], strict=True):
             values = spending["player_costs"].get(entry_player)

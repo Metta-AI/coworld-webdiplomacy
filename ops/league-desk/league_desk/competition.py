@@ -61,6 +61,8 @@ def episode(row):
             raise ValueError("missing filler attribution")
         seats.append({"slot": seat["position"], "player_id": seat.get("player_id"),
                       "player": seat.get("player_name"), "policy_id": seat.get("policy_version_id"),
+                      "policy_label": (f"{seat['policy_name']} v{seat['version']}"
+                                       if seat.get("policy_name") and seat.get("version") is not None else None),
                       "filler": seat["is_filler"], "seed": seat["is_seed"], "score": scores.get(seat["position"])})
     if len({s["slot"] for s in seats}) != len(seats):
         raise ValueError("duplicate seat")

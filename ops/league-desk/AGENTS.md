@@ -30,3 +30,14 @@ currently authorized phase.
   model-free policies from missing usage, or per-version MMR from cumulative ratings.
 - Keep this README current; root README is embedded in the game manifest and does
   not need edits for this dashboard. CI's always-run test job checks this project.
+
+- P5 public artifacts use independent `artifact_results` / `artifact_replay`
+  source ledgers. Only the collector downloads/parses; the server reads compact
+  facts. Ready immutable files are not polled again or expired by age.
+- Keep the two artifact routes separate from arbitrary GETs; no redirects, seat
+  logs, policy ZIPs or trajectories. Validate/decompress within configured bounds,
+  stage before promotion, and retain last good facts on failure.
+- `optimizer_tools.py` is the only reuse seam. Check scores before the shared
+  loader (it defaults missing scores to zero). Preserve game clustering, the
+  five-game color floor and the stale Finished-board exclusion. Do not infer
+  Ready/deadline outcomes from replay snapshots or phase config alone.

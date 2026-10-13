@@ -1,7 +1,7 @@
 <div id="desk-content" data-rendered="{{ rendered_at }}" data-generation="{{ generation }}">
   <p class="note" data-swap="scope">Current Now and memberships; historical selection: {{ range_label }} · {{ versions.get(version_key, 'all versions') }}.
     Ratings stay cumulative; version filtering selects observations, not isolated MMR. Submissions stay all versions.
-    Cost scans run at most every 15 minutes; artifacts await a later phase.
+    Cost scans run at most every 15 minutes; public artifact coverage appears per panel.
     {% if slow_next_due %}All current slow groups are eligible again by {{ slow_next_due | when }}.{% endif %}</p>
   <p class="note" role="status" data-swap="age">
     {% if age is not none %}Oldest collected source: <span data-age="{{ age }}">{{ age | age_label }}</span>.{% else %}No data collected yet.{% endif %}
@@ -36,7 +36,7 @@
         {% set content = panel_data.get(name) %}
         {% if content %}
           <p class="reading">{{ content.sentence }}</p>
-          <p class="note panel-age {% if content.stale %}bad{% endif %}">{{ source }} · <span data-age="{{ content.age if content.age is not none else '' }}">{{ content.age | age_label }}</span><span data-stale-status>{% if content.stale %} · stale or failed{% endif %}</span></p>
+          <p class="note panel-age {% if content.stale %}bad{% endif %}">{{ source }} · {% if content.immutable %}{{ content.artifact_status }}{% else %}<span data-age="{{ content.age if content.age is not none else '' }}">{{ content.age | age_label }}</span>{% endif %}<span data-stale-status>{% if content.stale %} · stale or failed{% endif %}</span></p>
           {% if name == 'MMR over time' and players %}
           <label for="player">Rating band</label><select id="player" name="player" form="filters">
             <option value="">Point at a player</option>{% for key, label in players.items() %}

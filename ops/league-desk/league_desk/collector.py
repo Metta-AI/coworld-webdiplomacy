@@ -119,6 +119,8 @@ class Collector:
             self.competition(league["id"], data["coworld_id"])
         from .spending import collect_spending
         collect_spending(self, data)
+        from .artifacts import collect_artifacts
+        collect_artifacts(self)
 
     def competition(self, league_id, canonical_id):
         def cached(name):
@@ -134,13 +136,16 @@ class Collector:
             source = self.store.source("episodes", row["id"])
             cadence = POLL_SECONDS if row["completed_at"] is None else (
                 COMPETITION_SECONDS if self.clock() - row["completed_at"] < RECONCILE_SECONDS else RECONCILE_SECONDS)
-            if not source or self.clock() >= source["next_due"]:
-                candidates.append((source["fetched_at"] or 0 if source else 0, row, cadence))
-        for _, row, cadence in sorted(candidates, key=lambda item: (item[0], item[1]["id"]))[:EPISODE_ROUNDS_PER_POLL]:
+            needs_labels = bool(source and source.get("data") and any(
+                "policy_label" not in seat for game in source["data"]["rows"] for seat in game["seats"]))
+            if not source or self.clock() >= source["next_due"] or needs_labels:
+                candidates.append((source["fetched_at"] or 0 if source else 0, row, cadence, needs_labels))
+        for _, row, cadence, needs_labels in sorted(
+                candidates, key=lambda item: (item[0], item[1]["id"]))[:EPISODE_ROUNDS_PER_POLL]:
             def fetch_episodes(row=row):
                 return {"league_id": league_id, "round_id": row["id"], "rows": [episode(r) for r in
                         self.api.pages(f"/v2/rounds/{row['id']}/episodes")]}
-            self.poll("episodes", row["id"], fetch_episodes, cadence=cadence)
+            self.poll("episodes", row["id"], fetch_episodes, cadence=cadence, force=needs_labels)
         self.poll("memberships", league_id, lambda: memberships(self.api, league_id),
                   cadence=COMPETITION_SECONDS)
         self.poll("submissions", league_id, lambda: scan(

@@ -4,13 +4,14 @@ A local, read-only operations page for the webDiplomacy leagues. The collector
 uses your existing Softmax User login with elevated privileges and saves selected
 fields to SQLite. The page reads that cache, never the platform.
 
-**P4 API page:** current memberships, cumulative ratings and
+**P5 API and public-artifact page:** current memberships, cumulative ratings and
 local rating history, submissions, round/game timing, exposure, throughput and
 player head-to-head are available alongside the health strip. Charts use local
 Observable Plot and D3 bundles. League-attributed source costs, family-wide model
 usage, SQL seat estimates, compute unit costs and experience-request history are
-available with explicit scope/coverage. Tournament daily breakdown and artifacts
-remain unavailable. There is no rating backfill. Range/version filters, local house fonts, rating
+available with explicit scope/coverage. Public results and replay facts provide power/policy scores, province contests,
+end reasons and observed phase timings. Tournament daily breakdown and game
+instrumentation remain unavailable. There is no rating backfill. Range/version filters, local house fonts, rating
 bands and automatic fragment refresh are available.
 
 ## Run
@@ -159,8 +160,8 @@ remain visible even when some values are available.
   Duration axes start at zero; the labelled current interval line is a reference,
   not a claim about the settings of older rounds.
 - Game duration is running to completed, grouped by completion day/version. Median
-  and p90 use linear interpolation. Failures stay separate in throughput; end
-  reasons await artifacts. Version differences are associations, not causal claims.
+  and p90 use linear interpolation. Failures stay separate in throughput; public
+  results supply outcome/end reason and draw survivor counts where available. Version differences are associations, not causal claims.
 - Coarse timing uses one fully timestamped completed game nearest the median total:
   created→dispatched, dispatched→running, running→completed. It never adds component
   medians from different games. Detailed lifecycle and phase timing remains absent.
@@ -187,7 +188,8 @@ remain visible even when some values are available.
   It is observed usage, not configured model identity. Policy/player label counts
   are not stable identities; no name-based join assigns models to standings. Full
   model names appear above source-stacked bars on a shared USD scale, ordered by
-  total spend; the values table includes calls, errors and failure rate.
+  total spend, with one USD axis at the bottom; the values table includes calls,
+  errors and failure rate.
 - Per-seat estimated cost sums the SQL player-role facts across hour/provider rows
   at episode/slot grain. Their database key is episode/slot/hour/source-system.
   The existing estimate and actual rejection counter remain distinct. Missing
@@ -212,10 +214,76 @@ remain visible even when some values are available.
   The denominator is inspected requests, not all requests. Setting `end_year`
   does not prove a shortened game without a version-specific default comparison.
 
+## Public artifacts and board measures
+
+The collector fetches only public `results` and `replay` artifacts for terminal
+league games already in the cache. It never fetches game logs, seat logs, policy
+ZIPs or trajectories. Experience-request artifacts are outside this collector.
+The separate collector process downloads and parses; page/fragment requests read
+only compact derived facts from SQLite. Optional replay `episode.players` is ignored.
+
+- Power scores include every seat, including fillers. Countries map by results
+  slot, never by slot-plus-one. Missing/invalid scores quarantine all score facts;
+  known API score conflicts, cancellations, episode failures and timeouts exclude
+  the game from competitive summaries. Operational end-reason counts retain them.
+- Score intervals reuse the optimizer's game-clustered `matchups.stat` calculation.
+  The comparison is exactly 1/7, not empirical field par. Fewer than five distinct
+  games have no colored mark/cell; zero variance leaves the interval unavailable.
+  Policy/power groups use stable policy-version IDs; labels come from current
+  memberships or recorded API participants. Old episode snapshots refresh once,
+  within the existing bounded episode queue, to obtain those labels.
+- Final centers, survival and solos reuse `webdip_episodes.load_episode`, with
+  missing scores checked first. Final member counts come from results, not the
+  replay's stale Finished board. Private-log taints cannot be assessed here.
+- Contests count failed incoming Move orders plus observed owner changes in
+  known consecutive history boards. The optimizer's movement/territory helpers
+  fold coast children into provinces. First boards establish a baseline; missing
+  ownership, duplicate phase entries and the stale Finished board add no changes.
+  The denominator is usable, untainted games with known board comparisons. Final
+  autumn changes may be absent. The table includes zero provinces; the chart shows
+  the six highest and three lowest observed rates. These are counts, not strategy
+  or causal findings.
+- Phase durations use results `transitions.elapsed_seconds`, collapsing adjacent
+  processing-state changes within a turn/phase. Only phases with a following
+  transition have durations; pauses remain included. Grouping uses observed replay
+  phase configuration when available, otherwise an explicit unknown limit.
+  Movement means upstream Diplomacy. Duration below config does not establish
+  early finish: the replay keeps a phase's last snapshot, not its initial deadline.
+  Ready times, per-phase adjudication and seat health remain unavailable.
+- Game-level gamemaster maximums, when present, appear as labelled context beside
+  the coarse API timing; they overlap play time and are never added to its stack.
+
+Each artifact has an independent ledger entry in `sources`, keyed by
+`artifact_results` or `artifact_replay` plus episode ID. No schema migration or
+parallel ledger is needed: attempt/success/due/error fields already implement the
+retry contract. Successful data stores `state=ready`, the normalized JSON hash,
+parser revision, relative path and derived facts in one transaction. Missing data
+is pending; HTTP 404 means not available yet, while auth, corrupt and transport
+failures stay explicit. An error preserves last good facts. Results remain useful
+when a replay is missing or corrupt; results-only panels do not inherit replay
+errors. Successful immutable artifacts never become stale merely because they age;
+panels show per-kind coverage and last ingest, with retry failures still visible.
+
+Downloads use the existing public route/file conventions and optimizer loader,
+through the repository-relative `optimizer_tools.py` seam. The broader optimizer
+fetcher is intentionally not called: it downloads private seat files and its
+`.done` marker means any artifact succeeded. Each kind stages its standard JSON
+filename separately and promotes it only after successful validation. Gzip is
+detected by bytes; HTTP gzip is handled by the transport. Redirects are refused.
+A successful artifact is not fetched again; parser revision changes reparse the
+hash-verified local file. Errors retry with exponential backoff from a minute to
+an hour, respecting the shared persisted rate-limit deadline and Retry-After.
+At most four artifact attempts run after normal API groups, stopping between
+attempts after twenty seconds. Individual downloads check a thirty-second total
+deadline between chunks (bounded HTTP reads may run past it); limits are 64 MiB
+of streamed bytes and 128 MiB expanded JSON. Limits live in `config.py`.
+
 ## Storage and privacy
 
 Everything mutable is in this project's ignored `.runtime/`: `desk.sqlite3`,
-SQLite WAL/SHM sidecars, and `collector.lock`. The directory has mode 0700 and the
+SQLite WAL/SHM sidecars, `collector.lock`, and the public-only `artifacts/` subtree.
+Artifact paths use a neutral `round-0000` bucket with globally unique episode IDs;
+league/round attribution comes from API cache rows, not the folder name. The directory has mode 0700 and the
 main database 0600. Never commit, publish, serve, or upload this directory. It contains
 private operational data, including requester labels/emails.
 
@@ -223,7 +291,7 @@ Schema version 2 keeps three tables:
 
 | Table | Meaning |
 |---|---|
-| `sources` | Selected-field snapshots, resumable round/submission scans, per-round episode lists, attempt/success/due times and safe errors |
+| `sources` | Independent artifact ledgers/facts, selected-field snapshots, resumable round/submission scans, per-round episode lists, attempt/success/due times and safe errors |
 | `control` | Persisted shared rate-limit deadline and coalesced refresh request |
 | `observations` | Changed canonical version, league settings and consistent ratings, stamped when observed locally |
 
@@ -251,6 +319,7 @@ The collector allows only these GET paths:
 - `/v2/coworlds/summaries` (version discovery; no manifest bodies)
 - `/v2/experience-requests`, `/v2/experience-requests/{request_id}`
 - `/v2/episode-requests` (paginated request episode IDs), `/v2/episode-requests/{episode_id}`
+- `/v2/episode-requests/{episode_id}/artifacts/results` and `/artifacts/replay` (bounded binary transport)
 - `/admin/costs/leagues`, `/admin/llm-coworld-usage`
 - `/sql/tables/episode_llm_usage/schema`, `/sql/tables/experience_requests/schema`
 
@@ -324,6 +393,9 @@ observed game association; ratings always remain cumulative.
 `competition.py` parses competition and resumes history scans; `metrics.py` builds
 the health strip; `competition_metrics.py` and `game_metrics.py` produce metric
 objects and fixed readings; `panels.py` joins dependencies and coverage;
+`artifacts.py` ingests public artifacts and derives facts; `board_metrics.py` builds
+board/end-reason/timing panels; `optimizer_tools.py` imports the existing shared
+loader, normalizers and statistics without invoking their CLI/downloaders.
 `spending.py` collects cost/request/SQL groups, `sql.py` owns fixed SELECTs,
 `spend_metrics.py` computes those panels, and `freshness.py` defines their age rules;
 `selection.py` defines cached filter choices; `server.py`, `templates/desk.html`

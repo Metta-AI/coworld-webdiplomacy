@@ -1,12 +1,13 @@
 """The collector's only network boundary. No platform writes are available."""
 import math
 import re
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 
 import httpx
 
-from .config import MAX_PAGES, PAGE_SIZE, SERVER
+from .config import ARTIFACT_DOWNLOAD_SECONDS, MAX_PAGES, PAGE_SIZE, SERVER
 
 GET_PATHS = (
     r"/v2/coworlds/summaries", r"/v2/experience-requests", r"/v2/episode-requests",
@@ -36,8 +37,8 @@ class Page:
 
 
 class Api:
-    def __init__(self, request):
-        self.request = request
+    def __init__(self, request, stream=None):
+        self.request, self.stream = request, stream
 
     def get(self, path, params=None):
         if not any(re.fullmatch(pattern, path) for pattern in GET_PATHS):
@@ -49,6 +50,14 @@ class Api:
             response = self.request(method, path, **kwargs)
         except httpx.HTTPError:
             raise ApiError("Network request failed") from None
+        self.check_status(response)
+        try:
+            return response.json(), response.headers
+        except ValueError:
+            raise ApiError("API returned invalid JSON") from None
+
+    @staticmethod
+    def check_status(response):
         if response.status_code == 429:
             raw = response.headers.get("x-ratelimit-retry-after", response.headers.get("retry-after", "60"))
             try:
@@ -62,10 +71,32 @@ class Api:
             raise ApiError("Login/access unavailable; use James's User login, not a player login")
         if response.status_code != 200:
             raise ApiError(f"API returned HTTP {response.status_code}")
+
+    def artifact(self, episode_id, kind, destination, limit):
+        """Stream only the two public artifacts; redirects never receive credentials."""
+        if kind not in ("results", "replay") or not re.fullmatch(r"ereq_[A-Za-z0-9-]+", episode_id):
+            raise ApiError("Artifact route is not allowed")
+        path = f"/v2/episode-requests/{episode_id}/artifacts/{kind}"
+        if self.stream is None:
+            raise ApiError("Artifact streaming transport unavailable")
         try:
-            return response.json(), response.headers
-        except ValueError:
-            raise ApiError("API returned invalid JSON") from None
+            with self.stream("GET", path) as response:
+                if response.status_code == 404:
+                    raise ApiError("Public artifact not available yet (HTTP 404)")
+                self.check_status(response)
+                size = 0
+                deadline = time.monotonic() + ARTIFACT_DOWNLOAD_SECONDS
+                with destination.open("wb") as handle:
+                    for chunk in response.iter_bytes(65536):
+                        if time.monotonic() > deadline:
+                            raise ApiError("Artifact download time limit exceeded")
+                        size += len(chunk)
+                        if size > limit:
+                            raise ApiError("Artifact exceeds size limit")
+                        handle.write(chunk)
+                return response.headers.get("content-type", "")
+        except httpx.HTTPError:
+            raise ApiError("Artifact download failed") from None
 
     def select(self, kind, ids, after=None):
         # The only POST surface accepts a named fixed SELECT, never caller-supplied SQL.
@@ -129,4 +160,4 @@ def logged_in_api():
         # transport so our persisted retry deadline, including x-ratelimit-retry-after, owns retries.
         with httpx.Client(base_url=SERVER + "/observatory", headers=headers,
                           timeout=httpx.Timeout(15, connect=5), follow_redirects=False) as http:
-            yield Api(http.request)
+            yield Api(http.request, http.stream)
