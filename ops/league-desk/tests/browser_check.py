@@ -103,6 +103,39 @@ with sync_playwright() as p:
     assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
     assert not errors, errors
     assert not external, external
+    # Exercise geometry with invented data that previously fell below the duration axis.
+    page.set_viewport_size({"width": 1440, "height": 1000})
+    page.evaluate("""() => {
+      const charts = [
+        {kind:'daily-dots',label:'Minutes',data:[{day:'2026-01-01',series:'demo',value:46,p90:49,n:5}]},
+        {kind:'dots',label:'Minutes',reference:60,data:[{time:1000,value:46,reference:null}]},
+        {kind:'bars',label:'Games',counts:true,data:[{day:'2026-01-01',value:3,series:'completed'}]},
+        {kind:'seat-dots',label:'USD',reference:2,order:['a'],data:[{key:'a',player:'Ada',slot:0,value:.5}]},
+        {kind:'models',order:['provider/full-model-name'],data:[
+          {model:'provider/full-model-name',source:'League rounds',value:1},
+          {model:'provider/full-model-name',source:'Experience requests',value:2}]}
+      ];
+      const host=document.createElement('section');host.id='chart-regressions';
+      for(const chart of charts){const node=document.createElement('div');node.className='plot';
+        node.dataset.chart=JSON.stringify(chart);host.append(node);}
+      document.body.append(host);window.deskCharts.drawAll();
+    }""")
+    probes = page.locator('#chart-regressions .plot')
+    for index in (0, 1):
+        assert '0' in probes.nth(index).locator('text').all_text_contents()
+        assert probes.nth(index).locator('circle').evaluate_all(
+            '(es)=>es.every(e=>+e.getAttribute("cy")>=20 && +e.getAttribute("cy")<=180)')
+    assert 'Current interval · 60 min' in probes.nth(1).inner_text()
+    assert probes.nth(1).locator('g[aria-label="rule"] line').count() >= 1
+    assert probes.nth(2).locator('g[aria-label="bar"] rect').evaluate_all(
+        '(es)=>es.every(e=>+e.getAttribute("width")<=44)')
+    assert '3' in probes.nth(2).locator('text').all_text_contents()
+    assert 'Current cap · $2' in probes.nth(3).inner_text()
+    assert probes.nth(3).locator('circle').count() == 1
+    assert 'provider/full-model-name' in probes.nth(4).inner_text()
+    assert 'Experience requests' in probes.nth(4).inner_text()
+    assert probes.nth(4).locator('g[aria-label="bar"] rect').count() == 2
+    assert not errors, errors
     browser.close()
 print('Browser acceptance passed: local fonts/charts, lines/bands/cells, refresh, pause, visibility, '
       'filters, history, races, errors, narrow layout.')

@@ -133,27 +133,31 @@ remain visible even when some values are available.
 - Each rating view is bracketed by summary-generation reads, and all views by
   commissioner-state generation reads. Racing reads retry once, then retain the
   previous snapshot. History starts at first collection, inserts only changed
-  observations, and breaks lines on missed polls, multi-round jumps or observed
-  decreases in rounds played. Resets without an observable decrease are not proven.
+  observations. Missed polls and multi-round jumps break delta-comparison segments;
+  decreases in rounds played also break plotted lines. Resets without an observable decrease are not proven.
 - A 24-hour rating delta needs a baseline within ten minutes of the requested
   baseline time in the same uninterrupted segment; the actual time is displayed.
   Missing baselines stay unknown. Last-20 observed points appear as table sparklines, beside interval cells on one
-  shared unclipped scale; these are observations, not invented rounds. Two points
-  in one continuous segment are connected. Gaps/resets still break lines. The
+  shared unclipped scale; these are observations, not invented rounds. Two observed points are connected across polling gaps;
+  this interpolation does not reconstruct missing rounds. Resets still break lines. The
   first-run note remains while fewer than six observations exist. The MMR chart
   labels the top three, greys the rest, and shows the pointed-at or selected
-  player's interval. Small multiples share time and rating scales; solid lines
-  show mu, dashed lines MMR, and labels show the latest half-width.
+  player's interval. Small multiples share time and rating scales; thin lines
+  show mu, heavy solid lines MMR, and labels show the latest half-width. Bands span
+  observed intervals and break at missing sigma/mu; the panel reports missing intervals.
 - Submissions count distinct IDs by Pacific creation day. Prior-week comparisons
   require exhaustion of the API listing. This does not recover deleted history;
   partial rolling-window days and incomplete scans are labelled.
 - Seat exposure includes fillers. Eligible zero-game rows require a completed
   round, its recorded entrant roster and a complete episode listing. The scheduler
-  target is labelled current, never applied retroactively. Submission waiting
+  target is labelled current, never applied retroactively. A compact visible table
+  summarizes membership, filler seats, waiting and median games per player/round. Submission waiting
   means no game observed for that policy in the window, not proof it never played.
 - Round duration is completed minus created (upstream started may be null).
   Skips are excluded and unfinished rounds are censored. Historical interval
   comparisons use settings observed before creation; earlier intervals are unknown.
+  Duration axes start at zero; the labelled current interval line is a reference,
+  not a claim about the settings of older rounds.
 - Game duration is running to completed, grouped by completion day/version. Median
   and p90 use linear interpolation. Failures stay separate in throughput; end
   reasons await artifacts. Version differences are associations, not causal claims.
@@ -173,7 +177,7 @@ remain visible even when some values are available.
 ## Spending and experience-request measures
 
 - League-versus-experience costs come from a single league-scoped API response,
-  split by source. The period is the API's native week, all versions; requests
+  split by source with friendly labels and navy bars. The period is the API's native week, all versions; requests
   without this league attribution are outside that comparison. Combined totals
   must reconcile to compute plus estimated LLM before being cached.
 - Tournament daily cost history stays explicitly unavailable: the family-wide
@@ -181,12 +185,15 @@ remain visible even when some values are available.
   with one league's budget. The Now strip continues to show the actual budget API.
 - Model usage is **family-wide**, across both leagues, requests and versions.
   It is observed usage, not configured model identity. Policy/player label counts
-  are not stable identities; no name-based join assigns models to standings.
+  are not stable identities; no name-based join assigns models to standings. Full
+  model names appear above source-stacked bars on a shared USD scale, ordered by
+  total spend; the values table includes calls, errors and failure rate.
 - Per-seat estimated cost sums the SQL player-role facts across hour/provider rows
   at episode/slot grain. Their database key is episode/slot/hour/source-system.
   The existing estimate and actual rejection counter remain distinct. Missing
   seats remain unknown, even after a successful query. Current cap is a reference;
-  it does not establish an old game's cap or a billed amount.
+  it does not establish an old game's cap or a billed amount. One dot represents
+  one seat-game, player rows sort by median spend, and the current cap is labelled.
 - Standings LLM/game averages estimated totals for completed games with usage for
   every owned non-filler seat, showing its covered-game denominator. Compute
   unit cost comes from episode details; round means need all listed games covered

@@ -9,6 +9,11 @@ from .game_metrics import day, fmt, minutes, panel, quantile
 from .metrics import money
 
 
+def source_label(source):
+    return {"tournament": "League rounds", "xp__request": "Experience requests",
+            "xp_request": "Experience requests"}.get(source, source)
+
+
 def source_spend(data):
     rows = data.get("rows", [])
     if not rows:
@@ -21,7 +26,7 @@ def source_spend(data):
         ["Source", "Compute", "Estimated LLM", "Combined estimate"],
         [
             [
-                r["source"],
+                source_label(r["source"]),
                 money(r["compute_cost_usd"]),
                 money(r["llm_estimated_cost_usd"]),
                 money(r["combined_estimated_cost_usd"]),
@@ -33,7 +38,8 @@ def source_spend(data):
         {
             "kind": "bars",
             "data": [
-                {"day": r["source"], "series": "Combined estimate", "value": r["combined_estimated_cost_usd"]}
+                {"day": source_label(r["source"]), "series": "Combined estimate",
+                 "value": r["combined_estimated_cost_usd"]}
                 for r in rows
             ],
             "label": "USD", "x_label": "Attributed source",
@@ -53,12 +59,13 @@ def model_usage(data):
         if row["player"]:
             group["players"].add(row["player"])
     alerts, rows = [], []
-    for (model, role, source), group in sorted(groups.items()):
+    for (model, role, source), group in sorted(groups.items(), key=lambda item: -item[1]["spend"]):
         n, errors = group["calls"], group["errors"]
         if n >= MODEL_MIN_CALLS and errors / n > MODEL_ERROR_RATE:
-            alerts.append(f"Family-wide {model}: {errors}/{n} calls failed ({role}, {source}).")
+            alerts.append(f"Family-wide {model}: {errors}/{n} calls failed ({role}, {source_label(source)}).")
         rows.append(
-            [model, role, source, n, errors, money(group["spend"]), len(group["policies"]), len(group["players"])]
+            [model, role, source_label(source), n, errors, f"{errors / n:.1%}" if n else "unknown",
+             money(group["spend"]), len(group["policies"]), len(group["players"])]
         )
     result = panel(
         alerts[0]
@@ -67,20 +74,28 @@ def model_usage(data):
         f"{len({key[0] for key in groups})} model labels."
         if groups
         else "No model usage observed.",
-        ["Model", "Role", "Source", "Calls", "Errors", "Estimated USD", "Policy labels", "Player labels"],
+        ["Model", "Role", "Source", "Calls", "Errors", "Failure rate", "Estimated USD",
+         "Policy labels", "Player labels"],
         rows,
         "Entire webDiplomacy family, both leagues and experience requests, all versions; native API week. "
         "Display labels are not stable policy identities. No configured-model or model-free-policy inference.",
     )
-    result["chart"] = {"kind": "amounts", "label": "Estimated USD", "data": [
-        {"label": f"{model} · {role} · {source}", "value": group["spend"]}
-        for (model, role, source), group in sorted(groups.items())]}
+    model_sources = defaultdict(float)
+    for (model, role, source), group in groups.items():
+        model_sources[model, source_label(source)] += group["spend"]
+    totals = Counter()
+    for (model, source), amount in model_sources.items():
+        totals[model] += amount
+    result["chart"] = {"kind": "models", "label": "Estimated USD", "order": list(dict(totals.most_common())),
+                       "data": [{"model": model, "source": source, "value": value}
+                                for (model, source), value in model_sources.items()]}
     return result, alerts
 
 
 def seat_spend(data, games, cap):
     by_id = {g["id"]: g for g in games}
     rows, amounts, rejections, near, keyed = [], [], 0, 0, {}
+    points = []
     for row in data.get("rows", []):
         game = by_id.get(row["episode"])
         seat = next((s for s in game["seats"] if s["slot"] == row["slot"]), None) if game else None
@@ -88,6 +103,9 @@ def seat_spend(data, games, cap):
             continue
         keyed[row["episode"], row["slot"]] = row["estimated"]
         amounts.append(row["estimated"])
+        points.append({"key": seat["player_id"] or f"unattributed:{row['episode']}:{row['slot']}",
+                       "player": seat["player"] or "Unattributed seat", "slot": row["slot"],
+                       "value": row["estimated"]})
         rejections += row["rejections"]
         near += cap is not None and row["estimated"] >= cap * SEAT_NEAR_CAP
         rows.append(
@@ -117,9 +135,12 @@ def seat_spend(data, games, cap):
         f"{data.get('eligible', 0)} eligible games queried; no-row seats remain unknown. "
         "Cap is today's reference, not the historical game cap. Estimates at a cap do not prove rejection.",
     )
-    result["chart"] = {"kind": "amounts", "label": "Estimated USD / seat-game", "reference": cap,
-                       "data": [{"label": f"Seat-game {i + 1}", "value": value}
-                                for i, value in enumerate(amounts)]}
+    grouped = defaultdict(list)
+    for point in points:
+        grouped[point["key"]].append(point["value"])
+    order = sorted(grouped, key=lambda key: (-quantile(grouped[key], .5), key))
+    result["chart"] = {"kind": "seat-dots", "label": "Estimated USD / seat-game", "reference": cap,
+                       "order": order, "data": points}
     return result, keyed, [sentence] if rejections else []
 
 

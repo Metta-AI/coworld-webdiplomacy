@@ -8,7 +8,7 @@ from .game_metrics import PAR, day, fmt, minutes, panel, player_scores, quantile
 
 
 def rating_history(history):
-    points, previous, segments = [], {}, defaultdict(int)
+    points, previous, segments, resets = [], {}, defaultdict(int), defaultdict(int)
     for observation in history:
         for row in observation["data"]["rows"]:
             key = (row["division_id"], row["player_id"])
@@ -18,15 +18,18 @@ def rating_history(history):
             gap = old and (observation["data"].get("poll_gap", False) or
                            row["rounds_played"] is not None and old["rounds"] is not None and
                            row["rounds_played"] - old["rounds"] > 1)
-            # Polling gaps and observed rank resets break lines. No interpolated rounds.
+            # Gaps invalidate delta comparisons; only resets break plotted observation lines.
             if reset or gap:
                 segments[key] += 1
+            if reset:
+                resets[key] += 1
             mu, sigma = row["mu"], row["sigma"]
             point = {"player_id": row["player_id"], "division_id": row["division_id"], "player": row["player"],
                      "time": observation["observed_at"], "value": row["rating"], "mu": mu,
                      "low": mu - 3 * sigma if mu is not None and sigma is not None else None,
                      "high": mu + 3 * sigma if mu is not None and sigma is not None else None,
                      "rounds": row["rounds_played"], "segment": segments[key],
+                     "plot_series": f"{key}:{resets[key]}",
                      "series": f"{row['division_id']}:{row['player_id']}:{segments[key]}",
                      "canonical_id": observation["data"].get("canonical_id"),
                      "reset": bool(reset), "gap": bool(gap), "last_round_id": row["last_round_id"]}
@@ -106,8 +109,11 @@ def histories(points):
     sentence = f"{len(times)} observed updates since {when(times[0])}." if times else (
         "Rating history starts with the first successful poll.")
     gaps, resets = sum(r["gap"] for r in points), sum(r["reset"] for r in points)
-    note = (f"{gaps} player-series gaps; {resets} observed resets. Lines stop across gaps/resets. "
+    note = (f"{gaps} player-series gaps; {resets} observed resets. "
+            "Lines connect observed values across polling gaps, not unobserved rounds; resets break lines. "
             "Cumulative mixed-input ratings, never version-isolated MMR; canonical observations are not release times.")
+    missing = sum(r["low"] is None for r in points)
+    note += f" μ ± 3σ unavailable at {missing}/{len(points)} observations; bands break at missing intervals."
     if len(times) < 6:
         note = "History starts at first run; fewer than six observations. " + note
     rows = [[r["player"], when(r["time"]), fmt(r["value"]), fmt(r["mu"]), fmt(r["low"]), fmt(r["high"]),
@@ -128,7 +134,8 @@ def histories(points):
                          f"{min(narrowing)[1]}'s observed rating interval narrowed most." if narrowing else
                          "Not enough changed intervals to describe a trend.")
     return {"MMR over time": panel(sentence, columns, rows, note, {"kind": "ratings", "data": points}),
-            "Rating interval over time": panel(interval_sentence, columns, rows, note,
+            "Rating interval over time": panel(interval_sentence, columns, rows,
+                                               note + " Thin line: μ; heavy line: MMR; area: μ ± 3σ.",
                                                {"kind": "bands", "data": points})}
 
 
@@ -184,10 +191,8 @@ def exposure(members, games, rounds, episode_sources, submissions, now, target):
             count = sum(any(s["player_id"] == player and not s["filler"] for s in game["seats"])
                         for game in source["data"]["rows"])
             exposures.append({"round": rd["number"], "player_id": player, "games": count})
-    names = {s["player_id"]: s["player"] for g in games for s in g["seats"] if s["player_id"]}
-    names.update({m["player_id"]: m["player"] for m in members})
-    rows += [[f"Round {r['round']} · {names.get(r['player_id'], 'Unnamed entrant')} games", r["games"]]
-             for r in exposures]
+    rows += [["Median games per player per completed round",
+              fmt(quantile([r["games"] for r in exposures], .5))]]
     rows += [["Eligible player/round rows with complete episode listing", len(exposures)],
              ["Eligible player/round rows with zero games", sum(r["games"] == 0 for r in exposures)]]
     result = panel(sentence, ["Measure", "Observed value"], rows,
@@ -195,8 +200,5 @@ def exposure(members, games, rounds, episode_sources, submissions, now, target):
                    "First observed game is not "
                    "necessarily the historical first game. No-game submissions may be waiting or outside retained "
                    "history. Eligibility uses the round's entrant roster; current target is not a historical limit.")
-    result["chart"] = {"kind": "amounts", "label": "Games in whole matching rounds", "reference": target,
-                       "data": [{"label": f"Round {r['round']} · {names.get(r['player_id'], 'Unnamed entrant')}",
-                                 "value": r["games"]} for r in exposures]}
     result["exposures"] = exposures
     return result

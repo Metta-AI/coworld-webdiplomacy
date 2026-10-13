@@ -10,7 +10,7 @@
   }
   function entityColor(key) {
     let hash = 0; for (const c of key) hash = ((hash * 31) + c.charCodeAt(0)) >>> 0;
-    return [navy, gold, "#5573a0", "#5d6d41", "#706387", "#527878"][hash % 6];
+    return [navy, "#4576aa", "#5573a0", "#6e527d", "#706387", "#527878"][hash % 6];
   }
   function clean(plot) { plot.querySelectorAll("style").forEach(style => style.remove()); return plot; }
   function draw(node) {
@@ -26,9 +26,9 @@
         const section = document.createElement('section'), label = document.createElement('h4');
         const last = rows[rows.length - 1]; label.textContent = `${last.player} · ±${last.high === null ? '?' : ((last.high-last.low)/2).toFixed(2)}`;
         const x = d => new Date(d.time * 1000), color = entityColor(last.player_id);
-        const marks = [Plot.areaY(rows.filter(d => d.low !== null), {x, y1:'low', y2:'high', z:'series', fill:color, fillOpacity:.13}),
-          Plot.line(rows, {x, y:'mu', z:'series', stroke:color}),
-          Plot.line(rows, {x, y:'value', z:'series', stroke:color, strokeDasharray:'3,2'}),
+        const marks = [Plot.areaY(rows, {x, y1:'low', y2:'high', z:d=>d.plot_series || d.series, fill:color, fillOpacity:.13}),
+          Plot.line(rows, {x, y:'mu', z:d=>d.plot_series || d.series, stroke:color, strokeWidth:1}),
+          Plot.line(rows, {x, y:'value', z:d=>d.plot_series || d.series, stroke:color, strokeWidth:2.5}),
           Plot.dot(rows, {x, y:'value', fill:color, r:2, title:d=>`${d.player}: MMR ${d.value}; μ ${d.mu}`}),
           Plot.ruleX(chart.markers || [],{x:d=>new Date(d.time*1000),stroke:grey,strokeDasharray:'2,3',title:'label'})];
         section.append(label, clean(Plot.plot({width:Math.max(230, Math.floor(width / Math.max(1, Math.floor(width/260))) - 16),
@@ -38,20 +38,32 @@
       node.replaceChildren(grid); return;
     }
     let options = {width, height: 210, marginLeft: 52, y: {grid: true, label: chart.label},
-      color: {range: [navy, gold, grey]}, marks: []};
+      color: {range: [navy, "#7d97b6", grey]}, marks: []};
     if (chart.kind === "bars") {
       options.x = {type: "band", label: chart.x_label || "Pacific day"};
-      options.marks = [Plot.barY(data, {x: "day", y: "value", fill: d => entityColor(d.key || d.series), title: d => `${d.series}: ${d.value}`})];
+      const days = [...new Set(data.map(d=>d.day))];
+      const inset = Math.max(0, ((width - 72) / Math.max(1,days.length) * .9 - 44) / 2);
+      options.y.zero = true;
+      options.marks = [Plot.barY(data, {x: "day", y: "value", insetLeft:inset, insetRight:inset,
+        fill: d => chart.counts || !d.key ? navy : entityColor(d.key), title: d => `${d.series}: ${d.value}`})];
+      if (chart.counts && days.length <= 7) options.marks.push(Plot.text(
+        d3.rollups(data, rows=>d3.sum(rows,d=>d.value), d=>d.day).map(([day,value])=>({day,value})),
+        {x:'day',y:'value',text:d=>String(d.value),dy:-9,fill:navy}));
     } else if (chart.kind === "daily-dots") {
+      options.y.domain = [0, d3.max(data, d=>Math.max(d.value,d.p90)) * 1.1];
       options.x = {type: "band", label: chart.x_label || "Pacific day"};
       options.marks = [Plot.dot(data, {x: "day", y: "value", stroke: "series",
         title: d => `${d.series}: median ${d.value.toFixed(2)}, p90 ${d.p90.toFixed(2)} min; n=${d.n}`}),
         Plot.tickY(data, {x: "day", y: "p90", stroke: "series"})];
     } else if (chart.kind === "dots") {
       options.x = timeAxis(data);
+      options.y.domain = [0, Math.max(chart.reference || 0, d3.max(data,d=>Math.max(d.value,d.reference || 0))) * 1.15];
       options.marks = [Plot.dot(data, {x: d => new Date(d.time * 1000), y: "value", fill: navy,
         title: d => `${d.value.toFixed(2)} minutes`}), Plot.dot(data.filter(d => d.reference !== null),
-        {x: d => new Date(d.time * 1000), y: "reference", symbol: "cross", stroke: gold})];
+        {x: d => new Date(d.time * 1000), y: "reference", symbol: "cross", stroke: navy})];
+      if (chart.reference != null) options.marks.push(
+        Plot.ruleY([chart.reference],{stroke:navy,strokeDasharray:'4,3'}),
+        Plot.text([chart.reference],{y:d=>d,text:d=>`Current interval · ${d} min`,frameAnchor:'right',textAnchor:'end',dy:-8,fill:navy}));
     } else if (chart.kind === "intervals") {
       options.height = Math.max(150, data.length * 30 + 50);
       options.marginLeft = 130; options.y = {label: null}; options.x = {label: "Rating (μ ± 3σ)", grid: true};
@@ -64,8 +76,8 @@
       const color = d => top.some(r => r.player_id === d.player_id) ? entityColor(d.player_id) : grey;
       options.x = timeAxis(data); options.marginRight = 80;
       options.y = {label:'Cumulative rating', grid:true};
-      const mark = {x:d=>new Date(d.time*1000), y:'value', z:'series', stroke:color};
-      options.marks = [...d3.group(data.filter(d=>d.low !== null), d=>d.player_id)].map(([id, rows]) =>
+      const mark = {x:d=>new Date(d.time*1000), y:'value', z:d=>d.plot_series || d.series, stroke:color};
+      options.marks = [...d3.group(data, d=>d.player_id)].map(([id, rows]) =>
         Plot.areaY(rows, {...mark, y1:'low', y2:'high', fill:entityColor(id), fillOpacity:.14,
           ariaLabel:()=>`interval ${id}`}));
       options.marks.push(Plot.line(valid, mark), Plot.dot(valid, {...mark, r:2,
@@ -78,10 +90,35 @@
           Plot.dot(data, {y:()=>0, x:'mu', fill:navy, r:3}), Plot.dot(data,{y:()=>0,x:'value',fill:gold,r:2})]};
     } else if (chart.kind === "spark") {
       options = {width:130,height:30,margin:3,x:{type:'time',axis:null},y:{axis:null},
-        marks:[Plot.line(data,{x:d=>new Date(d.time*1000),y:'value',z:'series',stroke:navy}),
+        marks:[Plot.line(data,{x:d=>new Date(d.time*1000),y:'value',z:d=>d.plot_series || d.series,stroke:navy}),
           Plot.dot(data,{x:d=>new Date(d.time*1000),y:'value',fill:navy,r:1.5})]};
+    } else if (chart.kind === "seat-dots") {
+      const labels = new Map(data.map(d=>[d.key,d.player]));
+      options.height = Math.max(170, chart.order.length*32+65); options.marginLeft = 140; options.marginTop = 32;
+      options.x = {label:chart.label,grid:true,domain:[0,Math.max(chart.reference || 0,d3.max(data,d=>d.value))*1.08]};
+      options.y = {label:null,domain:chart.order,tickFormat:key=>labels.get(key)};
+      options.marks = [Plot.dot(data,{x:'value',y:'key',stroke:navy,fill:navy,fillOpacity:.3,r:3,
+        title:d=>`${d.player} · slot ${d.slot}: $${d.value.toFixed(3)}`})];
+      if (chart.reference != null) options.marks.push(Plot.ruleX([chart.reference],{stroke:navy,strokeDasharray:'4,3'}),
+        Plot.text([chart.reference],{x:d=>d,text:d=>`Current cap · $${d}`,frameAnchor:'top',textAnchor:'end',dx:-4,dy:-12,fill:navy}));
+    } else if (chart.kind === "models") {
+      const container = document.createElement('div');
+      const sources = [...new Set(data.map(d=>d.source))];
+      const colors = [navy,'#7d97b6','#b6c3d4'];
+      const legend = document.createElement('p'); legend.className = 'note';
+      legend.textContent = 'Estimated USD · ' + sources.map((source,i)=>`${source} (${['dark','medium','light'][i] || 'blue'} blue)`).join(' · ');
+      container.append(legend);
+      const max = d3.max(chart.order, model=>d3.sum(data.filter(d=>d.model===model),d=>d.value));
+      for (const model of chart.order) {
+        const label = document.createElement('p'); label.className = 'model-label'; label.textContent = model;
+        container.append(label,clean(Plot.plot({width,height:50,marginLeft:40,marginTop:5,marginBottom:22,
+          x:{domain:[0,max],label:null,ticks:4},y:{axis:null},color:{domain:sources,range:colors},
+          marks:[Plot.barX(data.filter(d=>d.model===model),{x:'value',y:()=>model,fill:'source',
+            title:d=>`${d.source}: $${d.value.toFixed(3)}`})],className:'desk-plot'})));
+      }
+      node.replaceChildren(container); return;
     } else if (chart.kind === "amounts") {
-      options.x = {label:chart.label || 'USD', grid:true}; options.y = {label:null, tickFormat:d=>d.length>20 ? d.slice(0,19)+'…' : d}; options.marginLeft = 130;
+      options.x = {label:chart.label || 'USD', grid:true}; options.y = {label:null, tickFormat:d=>d}; options.marginLeft = Math.min(width*.65,Math.max(130,...data.map(d=>d.label.length*6)));
       options.height = Math.min(500,Math.max(160,data.length*23+45));
       options.marks = [Plot.barX(data,{x:'value',y:'label',fill:navy,title:d=>`${d.label}: ${d.value.toFixed(3)}`})];
       if (chart.reference !== null && chart.reference !== undefined)

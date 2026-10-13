@@ -50,13 +50,13 @@
             <table class="data sources"><thead><tr><th>Source</th><th>Age</th><th>Rows</th></tr></thead><tbody>
             {% for row in content.sources %}<tr data-source data-threshold="{{ row.threshold }}" data-error="{{ 'true' if row.error else 'false' }}" class="{% if row.stale %}bad{% endif %}"><td>{{ row.name }}{% if row.error %}: {{ row.error }}{% endif %}</td>
               <td><span data-age="{{ row.age if row.age is not none else '' }}">{{ row.age | age_label }}</span></td><td>{{ row.rows }}</td></tr>{% endfor %}</tbody></table>
-            {% if name == "Competing players" %}</details>{% endif %}
+            {% if name in ("Competing players", "Membership and exposure") %}</details>{% endif %}
             {% if content.rows %}<div class="table-scroll"><table class="data"><thead><tr>{% for column in content.columns %}<th>{{ column }}</th>{% if name == "Competing players" and loop.index0 == 3 %}<th>Last 20 observations</th>{% endif %}{% endfor %}</tr></thead>
             <tbody>{% for row in content.rows %}{% set row_index = loop.index0 %}<tr>{% for value in row %}<td>{{ value }}
               {% if name == 'Competing players' and loop.index0 == 3 %}<div class="plot cell" data-chart='{{ content.cells[row_index].interval | tojson }}' aria-label="Shared rating interval scale"></div>{% endif %}</td>
               {% if name == 'Competing players' and loop.index0 == 3 %}<td><div class="plot cell" data-chart='{{ content.cells[row_index].spark | tojson }}' aria-label="Last 20 observed ratings"></div></td>{% endif %}
               {% endfor %}</tr>{% endfor %}</tbody></table></div>{% endif %}
-            {% if name != "Competing players" %}</details>{% endif %}
+            {% if name not in ("Competing players", "Membership and exposure") %}</details>{% endif %}
           <p class="note">{{ content.note }}</p>
         {% else %}<p class="reading">{{ empty }}</p><p class="note">No data yet.</p>{% endif %}
       </section>

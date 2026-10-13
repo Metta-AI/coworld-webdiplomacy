@@ -118,7 +118,8 @@ def round_durations(rounds, settings_history, now):
     return panel(sentence, ["Round", "Status", "Created → completed, min", "Observed interval, min"], rows,
                  f"{running} unfinished, {skipped} skipped; skips excluded. "
                  "Intervals before first observation unknown.",
-                 {"kind": "dots", "data": points, "label": "Minutes"})
+                 {"kind": "dots", "data": points, "label": "Minutes",
+                  "reference": settings_history[-1]["data"]["round_interval_minutes"] if settings_history else None})
 
 
 def game_durations(games):
@@ -148,7 +149,7 @@ def throughput(games):
                  ["Completion day (Pacific)", "Status", "Games"],
                  [[r["day"], r["series"], r["value"]] for r in points],
                  "Observed terminal events only. Missing days are gaps; today's bucket is partial.",
-                 {"kind": "bars", "data": points, "label": "Games"})
+                 {"kind": "bars", "data": points, "label": "Games", "counts": True})
 
 
 def episode_timing(games):

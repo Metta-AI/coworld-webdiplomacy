@@ -89,9 +89,11 @@ meter::-moz-meter-bar{background:var(--meter-fill)}
 .desk-plot{--plot-background:var(--bg)}
 .desk-plot text,.desk-plot tspan{white-space:pre}
 
-.multiples{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}.multiples h4{font-size:11px;margin:3px 0;color:var(--ink-navy)}
+.multiples{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}.multiples h4{font-size:11px;margin:3px 0;color:var(--ink-navy)}
 .cell{width:150px;min-width:130px}.cell svg{height:30px}.sources{margin:10px 0;max-width:640px}
 .controls{gap:8px}.controls label{margin-left:8px}button{font:inherit;cursor:pointer}button:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .panel .data td{font-variant-numeric:tabular-nums}.src{white-space:normal}.panel .data{font-size:11px}
 #refresh-status{flex-basis:100%;text-align:right}
 @media(prefers-reduced-motion:reduce){.pulse{animation:none}}
+
+.model-label { margin: 4px 0 0; overflow-wrap: anywhere; font-size: 12px; }
