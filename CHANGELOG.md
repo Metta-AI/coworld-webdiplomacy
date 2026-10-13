@@ -20,6 +20,17 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-13 · Coworld 0.7.11 · Saved replays name the player in each seat
+
+**What changed.** Coworld 0.7.11. The episode config takes an optional `players: [{name}]`,
+which the platform fills with each seat's display name. When the game ends, every saved
+replay frame's `episode` carries `players: [{slot, countryID, name}]`, and the replay viewer
+shows the name under each power. Names never reach bots, the upstream server or the live
+spectator stream during play. Replays from earlier versions have no names and still render.
+
+**In your optimizer.** Nothing is required. A replay fetched from 0.7.11 or later carries
+`episode.players` in each frame; the lab's loader ignores fields it does not use.
+
 ## 2026-10-12 · Coworld 0.7.10 · Replays mark our policy's seats
 
 **What changed.** The optimizer template only; the game did not change. Wherever a
