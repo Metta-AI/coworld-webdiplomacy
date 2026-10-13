@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The League Desk</title><link rel="stylesheet" href="/static/desk.css">
+</head>
+<body><main class="wrap">
+  <header class="masthead">
+    <div><span class="eyebrow">League operations · webDiplomacy · {{ time }}</span><h1>The League Desk</h1></div>
+    <form class="controls" method="get">
+      <label class="seglabel" for="league">League</label>
+      <select name="league" id="league">
+        <option value="press" {% if league_key == 'press' %}selected{% endif %}>Press</option>
+        <option value="gunboat" {% if league_key == 'gunboat' %}selected{% endif %}>Gunboat</option>
+      </select><button class="refresh" type="submit">View cache</button>
+    </form>
+  </header>
+  <p class="note">Current league health. Collection runs every 60 seconds; reload to read the cache.
+    The remaining panels are not available yet.</p>
+  <p class="note" role="status">
+    {% if age is not none %}Oldest collected source: {{ age }} seconds old at page load.{% else %}No data collected yet.{% endif %}
+    {{ missing }} required health sources missing. {% if league %}{{ league.name }}{% else %}League discovery pending.{% endif %}
+  </p>
+  <section aria-label="Now" class="top">
+    <div><h2>Now</h2><div class="now">
+    {% for row in now_rows %}
+      <section><h3>{{ row.title }}</h3><p><b>{{ row.text }}</b></p>{% if row.source == 'budgets' and meter %}
+          <meter value="{{ meter.value }}" max="{{ meter.limit }}" aria-label="Budget spent"></meter>
+        {% endif %}<p class="note">{{ row.note }}</p>
+        <p class="note {% if row.stale %}bad{% endif %}">Softmax API ·
+          {% if row.age is not none %}{{ row.age }} seconds old{% else %}not collected{% endif %}
+          {% if row.error %} · {{ row.error }}{% endif %}
+        </p>
+      </section>
+    {% endfor %}
+    </div></div>
+    <aside class="alerts"><h3>Needs attention</h3>
+      {% if alerts %}<ul>{% for alert in alerts %}<li class="bad">{{ alert }}</li>{% endfor %}</ul>
+      {% elif budget_available %}<p>No breaches in the available budget data.</p>
+      {% else %}<p>Budget checks await collection.</p>{% endif %}
+      <p class="note">Failure streaks, model errors, seat caps and mixed-version ratings are not yet checked.</p>
+    </aside>
+  </section>
+  <div class="grid">
+    {% for title, panels in sections %}
+      <header class="group"><h2>{{ title }}</h2></header>
+      {% for name, source, span, empty in panels %}
+      <section class="panel span-{{ span }}">
+        <header><h3>{{ name }}</h3><span class="src {% if source == 'Needs instrumentation' %}src-inst{% elif 'Replays' in source %}src-art{% else %}src-api{% endif %}">{{ source }}</span></header>
+        <p class="reading">{{ empty }}</p><p class="note">No data yet.</p>
+      </section>
+      {% endfor %}
+    {% endfor %}
+  </div>
+</main></body></html>

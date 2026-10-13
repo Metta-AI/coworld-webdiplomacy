@@ -142,6 +142,8 @@ public frame whenever it changes.
 | `adapter/client/shim.js` | Replaces fetch, XMLHttpRequest and EventSource in the board with tunnel messages; reconnect policy |
 | `adapter/viewer.html`, `adapter/client/viewer.js` | Shared renderer for the live `/client/global` view and the static replay bundle |
 
+The local [League Desk](../ops/league-desk/README.md) collects read-only league health into SQLite and serves a cache-only page; it is separate from game images and optimizer installs.
+
 ## Tools
 
 All under `tools/`; see the README for which to run when.
