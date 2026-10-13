@@ -1,6 +1,7 @@
 """Bounded public-only ingest. Each artifact has its own persistent source ledger."""
 import gzip
 import hashlib
+import io
 import math
 import re
 import time
@@ -9,6 +10,7 @@ from collections import Counter
 
 from .api import ApiError
 from .config import ARTIFACT_PASS_SECONDS, ARTIFACTS_PER_PASS, MAX_ARTIFACT_DOWNLOAD_BYTES, MAX_ARTIFACT_JSON_BYTES
+from .instrumentation import log_facts, result_instrumentation, supported
 from .optimizer_tools import (
     ABBREVIATION,
     POWERS,
@@ -21,7 +23,7 @@ from .optimizer_tools import (
     suffix_for,
 )
 
-PARSER_VERSION = 1
+PARSER_VERSIONS = {"results": 2, "replay": 1, "logs": 1}
 TERMINAL = {"completed", "failed", "cancelled", "error", "canceled", "timed_out"}
 
 
@@ -66,7 +68,8 @@ def result_facts(directory, results, game):
         raise ValueError("invalid results")
     facts = {"outcome": results["outcome"], "reason": results.get("reason") or "unknown",
              "taints": episode_taint(game["status"], results), "seats": [], "score_issue": None,
-             "phases": phase_durations(results.get("transitions") or [])}
+             "phases": phase_durations(results.get("transitions") or []),
+             "instrumentation": result_instrumentation(results)}
     calls = results.get("gamemaster_calls") or {}
     facts["gamemaster"] = {k: calls[k] for k in ("count", "p50_seconds", "max_seconds", "http_errors")
                            if isinstance(calls.get(k), (int, float)) and math.isfinite(calls[k])}
@@ -143,10 +146,11 @@ def collect_artifacts(collector):
     for game_id, (game, round_id) in games.items():
         if not re.fullmatch(r"ereq_[A-Za-z0-9-]+", game_id):
             continue
-        for kind in ("results", "replay"):
+        for kind in (("results", "replay", "logs") if supported(game.get("version")) else ("results", "replay")):
             source = snapshot.get(("artifact_" + kind, game_id), {})
             data = source.get("data") or {}
-            if data.get("parser_version") == PARSER_VERSION and not source.get("error"):
+            version = PARSER_VERSIONS[kind] if supported(game.get("version")) else 1
+            if data.get("parser_version") == version and not source.get("error"):
                 continue
             if collector.clock() >= source.get("next_due", 0):
                 candidates.append((source.get("attempted_at") or 0, game_id, kind, game, round_id, source))
@@ -157,14 +161,26 @@ def collect_artifacts(collector):
         name = "artifact_" + kind
         now = collector.clock()
         collector.store.reserve(name, game_id, now, 60)
-        # A stable episode ID isolates duplicate/reset round numbers. No user-supplied filesystem path.
-        directory = episode_dir(collector.store.directory / "artifacts", {"round_number": 0}, game) / kind
-        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-        path = directory / (kind + suffix_for("application/json"))
-        staging = directory / "pending"
-        staging.mkdir(exist_ok=True, mode=0o700)
-        part = staging / path.name
         try:
+            if kind == "logs":
+                buffer = io.BytesIO()
+                collector.api.artifact(game_id, kind, buffer, MAX_ARTIFACT_DOWNLOAD_BYTES)
+                facts = log_facts(buffer.getvalue())
+                if facts["timing"] is None or (facts["activity"] is None and
+                                               "interrupted_seconds" not in facts["timing"]):
+                    # Terminal status can precede the final stdout upload. Retry missing lines.
+                    raise ApiError("Public instrumentation lines incomplete; retry pending")
+                collector.store.success(name, game_id, {"state": "ready", "parser_version": PARSER_VERSIONS[kind],
+                                        "facts": facts}, collector.clock(), cadence=0)
+                continue
+            # A stable episode ID isolates duplicate/reset round numbers. No user-supplied filesystem path.
+            directory = episode_dir(collector.store.directory / "artifacts", {"round_number": 0}, game) / kind
+            directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+            path = directory / (kind + suffix_for("application/json"))
+            staging = directory / "pending"
+            staging.mkdir(exist_ok=True, mode=0o700)
+            part = staging / path.name
+
             old = source.get("data") or {}
             if path.exists() and old and not source.get("error"):
                 if hashlib.sha256(path.read_bytes()).hexdigest() != old["sha256"]:
@@ -179,7 +195,8 @@ def collect_artifacts(collector):
             if parse_directory == staging:
                 part.replace(path)
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            collector.store.success(name, game_id, {"state": "ready", "parser_version": PARSER_VERSION,
+            collector.store.success(name, game_id, {"state": "ready",
+                                    "parser_version": PARSER_VERSIONS[kind] if supported(game.get("version")) else 1,
                                     "path": str(path.relative_to(collector.store.directory)), "sha256": digest,
                                     "facts": facts}, collector.clock(), cadence=0)
         except (ApiError, ValueError, KeyError, TypeError, IndexError, AttributeError, OSError, EOFError,

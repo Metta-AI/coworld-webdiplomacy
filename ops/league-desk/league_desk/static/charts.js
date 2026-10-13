@@ -183,6 +183,17 @@
             title:d=>`${d.source}: $${d.value.toFixed(3)}`})],className:'desk-plot'})));
       }
       node.replaceChildren(container); return;
+    } else if (chart.kind === "instrument-rows") {
+      const container=document.createElement('div'), max=Math.max(1,d3.max(data,d=>d.value)||0);
+      for (let i=0;i<data.length;i++) {
+        const row=data[i], label=document.createElement('p');label.className='model-label';label.textContent=row.label;
+        const last=i===data.length-1;
+        container.append(label,clean(Plot.plot({width,height:last?64:35,marginLeft:5,marginRight:55,
+          marginTop:5,marginBottom:last?35:3,x:{domain:[0,max],label:last?chart.label:null,ticks:3,axis:last?'bottom':null},
+          y:{axis:null},marks:[Plot.barX([row],{x:'value',y:'label',fill:navy}),
+            Plot.text([row],{x:'value',y:'label',text:'value_label',dx:5,textAnchor:'start',fill:navy})]})));
+      }
+      node.replaceChildren(container);return;
     } else if (chart.kind === "amounts") {
       options.x = {label:chart.label || 'USD', grid:true}; options.y = {label:null, domain:chart.order, tickFormat:d=>d}; options.marginLeft = Math.min(width*.65,Math.max(130,...data.map(d=>d.label.length*6)));
       options.height = Math.min(500,Math.max(160,data.length*23+45));

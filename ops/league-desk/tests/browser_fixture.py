@@ -11,8 +11,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import httpx
 import uvicorn
 from helpers import DeskTest
-from test_artifacts import replay, results
+from test_artifacts import replay
 from test_competition import CompetitionTests, raw_game
+from test_instrumentation import instrumented_results, log_bytes
 
 from league_desk.server import create_app
 
@@ -45,10 +46,10 @@ try:
     @contextmanager
     def stream(method, path):
         kind = path.rsplit('/',1)[-1]
-        payload = results() if kind == 'results' else replay()
+        payload = instrumented_results() if kind == 'results' else replay()
         if kind == 'results':
             payload['scores'] = [.8, .2, 0, 0, 0, 0, 0]
-        yield httpx.Response(200, content=json.dumps(payload).encode())
+        yield httpx.Response(200, content=log_bytes() if kind == "logs" else json.dumps(payload).encode())
     fixture.api.stream = stream
     fixture.collector.once()
     for _ in range(2):
@@ -62,6 +63,9 @@ try:
         {"id": "cow_demo", "version": "9.9.1", "created_at": fixture.now - 86400},
         {"id": "cow_old", "version": "9.9.0", "created_at": fixture.now - 86400 * 30},
     ]}, fixture.now)
+    from league_desk.artifacts import collect_artifacts
+    for _ in range(3):
+        collect_artifacts(fixture.collector)
     from league_desk.game_metrics import day
     daily_rows = []
     for offset in (2, 1, 0):
