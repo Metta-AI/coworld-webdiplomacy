@@ -75,6 +75,7 @@ def install_routes(app, episode):
         await websocket.accept()
         with episode.lock:
             episode.connections[slot] = websocket
+            episode.record_connection(slot, connected=True)
         seat = episode.seats[slot]
         webdip = {
             "base_url": "http://" + host,
@@ -146,3 +147,4 @@ def install_routes(app, episode):
             with episode.lock:
                 if episode.connections.get(slot) is websocket:
                     del episode.connections[slot]
+                    episode.record_connection(slot, connected=False)

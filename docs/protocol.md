@@ -109,10 +109,35 @@ elapsed times, and completed gamemaster request timing summaries.
 | `seed` | Episode seed actually used |
 | `countries` | `countries[slot]` is that seat's upstream country ID (1–7, Classic order England, France, Italy, Germany, Austria, Turkey, Russia) |
 | `members` | Upstream member rows ordered by country ID: `countryID`, `status`, `supplyCenterNo`, `unitNo` (string values from SQL). `status` is upstream's `Playing`, `Defeated`, `Left`, `Won`, `Drawn`, `Survived` or `Resigned`; scoring treats `Playing`, `Drawn` and `Survived` as surviving |
-| `transitions` | Each observed `(turn, phase, process_status)` change with `elapsed_seconds` since game creation and `unix_time` |
-| `gamemaster_calls` | `count`, `p50_seconds`, `max_seconds` and `http_errors` for upstream `gamemaster.php` requests |
+| `transitions` | Each observed `(turn, phase, process_status)` change with `elapsed_seconds` since game creation, `unix_time`, and `deadline_unix_time` (upstream `processTime` when observed: the phase's deadline, or `null`). A phase that ends before its deadline ended early because every seat was Ready |
+| `gamemaster_calls` | `count`, `p50_seconds`, `max_seconds` and `http_errors` for upstream `gamemaster.php` requests, plus `phases`: one `{turn, phase, count, max_seconds}` per observed phase, counting each request in the phase it started in. The request that adjudicates a phase is that phase's longest |
+| `seat_health` | Seven entries in **slot order**: `slot`; `connections`, the seat's `/player` WebSocket events `{event, elapsed_seconds}` up to the end of the game, where `event` is `connect` (first), `reconnect` (any later connect; one with no `disconnect` before it took over a live connection) or `disconnect`; and `api_requests`, upstream's count of API requests made with the seat's key (the bot, the browser tunnel and the launcher's press archive worker, which polls every 2 s), or `null` when the game was cancelled |
+| `timing` | Seconds spent in each stage of the container's life up to writing results, each timed from the end of the stage before, in the order they ended: `storage_seconds` (secrets, MariaDB, Redis), `game_creation_seconds`, `services_seconds` (adapter, PHP-FPM, nginx, SSE until ready), `player_connect_wait_seconds` (until all seven seats connected or the connection deadline; absent if the game never started), `play_seconds` (until the game ended), `replay_write_seconds`. The game log's `timing` line has the full profile |
 
 Turns count from 0 (Spring 1901); the year is `1901 + turn // 2`.
+
+### Game log
+
+Game container stdout is the public game log; anyone who can see the episode can
+read it. Besides service status lines and failure metadata it carries one JSON
+object per line:
+
+| `event` | When | Fields |
+| --- | --- | --- |
+| `phase` | Each transition, during play | The `transitions` entry above |
+| `seat_activity` | Once, when the game has ended (never during play) | `phases`: one `{turn, phase, seats}` per Diplomacy, Retreats or Builds phase observed. `seats` is in **slot order**; each entry is `null` when the seat had no orders to give, otherwise `{first_saved_seconds, first_ready_seconds}`: seconds after the phase was first observed until the seat was first seen with orders saved (upstream order status `Saved` or `Completed`) or Ready. `null` means never: no orders saved, or never Ready |
+| `game_over` | Once, after `seat_activity` | `outcome`, `reason`, and `gamemaster_calls` without `phases` |
+| `timing` | Last line, at container exit | Every `timing` stage above, then `results_write_seconds`, `acknowledgement_wait_seconds` (until every connected seat acknowledged `game_over` or `completion_timeout_seconds`), `shutdown_seconds` and `total_seconds`. A stop or failure before completion replaces the stages it cut short with one `interrupted_seconds` |
+
+`seat_activity` comes from sampling every seat's upstream order status on each
+adapter tick (a few times a second), so times are accurate to about a quarter of a
+second, a seat that is already Ready when the phase is first observed shows `0.0`,
+and a Ready that lasts less than a tick can be missed. The last phase of a game that
+the adapter ended (year cap or time budget) is cut short, so its seats usually show
+`null`; `transitions` shows how long it lasted. Upstream hides other seats'
+order status while an anonymous game runs, so the adapter keeps these samples in
+memory and never puts them in replay frames, on `/global`, in `results.json` or
+in anything a player receives.
 
 Replay is currently a JSON array of upstream **public** variant/game/status/
 history/messages snapshots and public lifecycle state. Private player contexts,

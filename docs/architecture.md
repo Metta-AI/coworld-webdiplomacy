@@ -71,7 +71,9 @@ config, then runs `players.scenarios` against itself as a regression check.
 | Redis | `127.0.0.1:6379` | `config/redis.conf` | `redis.log` |
 
 Container stdout is the public game log. It carries only service status, phase
-transitions (`{"event":"phase",…}`), `game_over`, and failure metadata. Files under
+transitions (`{"event":"phase",…}`), and, once the game has ended, `seat_activity`,
+`game_over` and the exit `timing` profile (see [protocol](protocol.md#game-log)),
+plus failure metadata. Files under
 `/run/webdip/logs` are private and may contain secrets.
 
 ### Public routes (nginx)
@@ -101,12 +103,13 @@ bootstrap upstream's own code (`php/wdc_bootstrap.php`).
 | --- | --- | --- |
 | `wdc_install.php` | bake | Registers Classic in `wD_VariantInfo` |
 | `wdc_create_game.php` | `Episode.__init__` | One transaction: `processGame::create` (Unranked, `MemberVsBots`), seven `User` accounts `Seat1`–`Seat7`, one `wD_ApiKeys` row per seat token, memberships in seed-shuffled countries, or the config's pinned `countries` |
-| `wdc_state.php` | every tick | Consistent snapshot of the game row, member rows and public file URLs/versions |
+| `wdc_state.php` | every tick | Consistent snapshot of the game row, member rows and public file URLs/versions, plus each member's order status and API request count under `private_activity` (kept out of `members`; never published during play) |
 | `wdc_start.php` | tick, when 7 seats are connected or `player_connect_timeout_seconds` passes | Sets `processTime` to now so the gamemaster starts the game |
 | `wdc_end.php` | tick, at the year cap or `episode_budget_seconds` | Takes upstream's `gamemaster` lock and calls `setDrawn()` |
 | `wdc_map.php` | tick, once per new phase (`render_maps`) | Runs upstream `map.php` as a guest for a public PNG |
 
-Each tick: read state; record a phase transition; read the public files from disk
+Each tick: read state; record a phase transition; sample each seat's order status
+(kept in memory until the game ends); read the public files from disk
 and wait (up to 10 s) until their versions match the committed row; render the
 map; append or replace the replay frame; start or end the game when due. When
 upstream reports `Finished`, or the game row disappears (cancel), `finish()`
