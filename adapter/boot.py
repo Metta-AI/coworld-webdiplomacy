@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 
 from adapter.artifacts import read_artifact
 from adapter.config import EpisodeConfig
-from adapter.episode import Episode
+from adapter.episode import Episode, TimingProfile
 from adapter.routes import install_routes
 from adapter.supervisor import RUN, Supervisor
 
@@ -203,6 +203,7 @@ def bake(supervisor, settings):
 
 
 def main():
+    timing = TimingProfile()
     supervisor = Supervisor()
     for number in (signal.SIGTERM, signal.SIGINT):
         signal.signal(number, lambda *_: supervisor.stopping.set())
@@ -210,6 +211,7 @@ def main():
     thread = None
     status = 0
     scenario = None
+    episode = None
     try:
         settings = prepare()
         start_storage(supervisor)
@@ -222,6 +224,7 @@ def main():
                 + "' ACCOUNT UNLOCK; "
                 "UPDATE webdiplomacy.wD_Misc SET value=UNIX_TIMESTAMP() WHERE name='LastProcessTime';"
             )
+            timing.lap("storage")
             mode = os.environ.get("WEBDIP_MODE")
             if mode:
                 if mode not in ("smoke", "tactics", "convoy"):
@@ -238,10 +241,10 @@ def main():
                     COGAME_RESULTS_URI="file:///run/webdip/results.json",
                     COGAME_SAVE_REPLAY_URI="file:///run/webdip/replay.json",
                 )
-            episode = None
             if os.environ.get("COGAME_CONFIG_URI"):
                 config = EpisodeConfig.model_validate_json(read_artifact(os.environ["COGAME_CONFIG_URI"]))
-                episode = Episode(config)
+                episode = Episode(config, timing)
+                timing.lap("game_creation")
             app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
             @app.get("/healthz")
@@ -271,6 +274,7 @@ def main():
             supervisor.start("sse", ["node", "server.js"], cwd=APP / "sse-server")
             supervisor.wait_for(lambda: (RUN / "sse.sock").exists(), "sse")
             supervisor.ready = True
+            timing.lap("services")
             print("webDiplomacy services ready", flush=True)
             if mode:
                 with (RUN / "logs/scenario.log").open("ab") as log:
@@ -293,6 +297,9 @@ def main():
         report_failure(error, supervisor)
         status = 1
     finally:
+        if episode:
+            # A stop or failure before completion leaves the rest of the run in one stage.
+            timing.lap("acknowledgement_wait" if episode.completion_ready() else "interrupted")
         if scenario:
             try:
                 scenario.wait(timeout=5)
@@ -313,6 +320,11 @@ def main():
             thread.join(timeout=10)
             if thread.is_alive():
                 status = 1
+        if episode:
+            # Printed last, so it includes shutdown; stages that never ran are absent.
+            timing.lap("shutdown")
+            total = round(sum(timing.stages.values()), 3)
+            print(json.dumps({"event": "timing", **timing.stages, "total_seconds": total}), flush=True)
     return status
 
 

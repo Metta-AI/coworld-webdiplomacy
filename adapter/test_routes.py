@@ -9,6 +9,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.testclient import TestClient
 
 from adapter.config import EpisodeConfig
+from adapter.episode import Episode
 from adapter.routes import install_routes
 
 
@@ -24,6 +25,11 @@ class LifecycleTest(unittest.TestCase):
             started=False,
             finished=False,
             result={},
+            created_at=0.0,
+            connection_events=[[] for _ in range(7)],
+        )
+        self.episode.record_connection = lambda slot, connected: Episode.record_connection(
+            self.episode, slot, connected
         )
         self.app = FastAPI()
         install_routes(self.app, self.episode)
@@ -37,6 +43,20 @@ class LifecycleTest(unittest.TestCase):
                 self.assertEqual(first.receive_json(), {"type": "seat_replaced"})
                 with self.assertRaises(WebSocketDisconnect):
                     first.receive_json()
+
+    def test_connections_are_recorded_per_slot(self):
+        with TestClient(self.app) as client:
+            with client.websocket_connect(self.address) as first:
+                first.receive_json()
+                with client.websocket_connect(self.address) as second:  # Takeover: no disconnect in between.
+                    second.receive_json()
+                    self.assertEqual(first.receive_json(), {"type": "seat_replaced"})
+            with client.websocket_connect(self.address) as third:
+                third.receive_json()
+        events = [event["event"] for event in self.episode.connection_events[0]]
+        self.assertEqual(events, ["connect", "reconnect", "disconnect", "reconnect", "disconnect"])
+        self.assertTrue(all(event["elapsed_seconds"] > 0 for event in self.episode.connection_events[0]))
+        self.assertEqual(self.episode.connection_events[1], [])
 
     def test_hello_never_carries_seat_names(self):
         self.episode.config = EpisodeConfig(

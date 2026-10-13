@@ -236,7 +236,9 @@ upstream downtime heartbeat. No database installation occurs at runtime.
 Generated upstream configuration/cache files exist only inside the image or
 container; never edit or generate files in the source submodule.
 
-Public stdout contains service status, public phase/completion events, and failure metadata
+Public stdout contains service status, public phase/completion events (after the game,
+each seat's Ready timing and the container's timing profile; see
+[protocol](docs/protocol.md#game-log)), and failure metadata
 (exception type, code locations, service kernel wait locations, socket descriptors and
 endpoints, listening ports, FPM startup flags, resolver/hosts entries, and exited
 service names/codes). Socket endpoints use the kernel's hexadecimal address/port
@@ -254,7 +256,7 @@ exit status. Allow 45 seconds for a worst-case shutdown.
 ## Run an episode
 
 ```sh
-uv run coworld build --version 0.7.11
+uv run coworld build --version 0.7.12
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```
