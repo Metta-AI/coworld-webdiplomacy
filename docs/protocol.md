@@ -95,7 +95,8 @@ SC / total surviving SCs; `draw_size` gives equal shares to survivors. A solo
 winner receives 1 and everyone else 0. Cancellation gives each seat 1/7; the
 zero-center fallback also gives equal shares. Results include the country map,
 seed, members' final center counts, actual final state, observed transition
-elapsed times, and completed gamemaster request timing summaries.
+elapsed times and deadlines, completed gamemaster request timing summaries, each
+seat's connection events and API request count, and the container's timing profile.
 
 `results.json` fields (written by `adapter/episode.py`; the manifest's
 `results_schema` requires only the first three):

@@ -20,6 +20,31 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-13 · Coworld 0.7.12 · Game log and results record seat health and timing
+
+**What changed.** Coworld 0.7.12. The game records operational data for the league
+dashboard; play, scoring and what a bot is told during the game do not change.
+
+- `results.json` gains `seat_health` (per slot: `/player` connect, disconnect and
+  reconnect times, and the number of upstream API requests made with the seat's key),
+  `timing` (seconds spent booting, creating the game, waiting for seats and playing),
+  `transitions[].deadline_unix_time` (each phase's deadline) and
+  `gamemaster_calls.phases` (the longest gamemaster request in each phase).
+- The public game log gains two lines. When the game has ended, `seat_activity` gives,
+  per phase and seat, how many seconds after the phase began the seat first had orders
+  saved and first was Ready (`null`: never). At exit, `timing` gives the full stage profile.
+  Ready data is never written during play: not on the spectator stream, in replay frames
+  or in anything a bot receives before `game_over`.
+
+See [protocol](docs/protocol.md#game-log) for every field. Because `game_over` carries
+`results.json`, every bot in a game can see each seat's connection events and API request
+count once the game is over; the game log, including `seat_activity`, is public to anyone
+who can see the episode.
+
+**In your optimizer.** Nothing is required. A results file from 0.7.12 or later has the new
+fields; the lab's loader ignores fields it does not use. To compare how fast seats submit,
+read the `seat_activity` line from the episode's game log.
+
 ## 2026-10-13 · Coworld 0.7.11 · Saved replays name the player in each seat
 
 **What changed.** Coworld 0.7.11. The episode config takes an optional `players: [{name}]`,

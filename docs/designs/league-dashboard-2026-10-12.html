@@ -421,7 +421,7 @@
   <section id="summary">
     <h2>Executive Summary</h2>
     <p>James runs two webDiplomacy leagues on the Softmax platform: the press league (Game of the Week, variant <code>classic-press</code>) and the gunboat league. Today the state of a league is spread over a dozen CLI commands and team-only API routes. Three settings changed on 2026-10-12 alone, and no single place shows what those changes did. This document proposes <strong>The League Desk</strong>: one dense, read-only page that runs on his machine and reads the Softmax API.</p>
-    <p>The design has three local parts, all synchronous Python: a collector that polls the API into a SQLite file, a metrics layer over that file, and one server-rendered page. A survey of the API on 2026-10-12 found a route for all but two of the platform metrics.<sup class="ref"><a href="#src-1" title="Softmax API: memberships, submissions, leaderboards, rounds and round episodes routes — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">1</a></sup> Board metrics come from the public files each game already writes.<sup class="ref"><a href="#src-2" title="adapter/episode.py:198-210 — writes results.json (scores, countries, members, outcome, reason).">2</a></sup> Three metrics need small changes to the game, planned for Coworld 0.7.11. The most consequential decision is to keep a local cache, because the platform stores no rating history.</p>
+    <p>The design has three local parts, all synchronous Python: a collector that polls the API into a SQLite file, a metrics layer over that file, and one server-rendered page. A survey of the API on 2026-10-12 found a route for all but two of the platform metrics.<sup class="ref"><a href="#src-1" title="Softmax API: memberships, submissions, leaderboards, rounds and round episodes routes — Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">1</a></sup> Board metrics come from the public files each game already writes.<sup class="ref"><a href="#src-2" title="adapter/episode.py:198-210 — writes results.json (scores, countries, members, outcome, reason).">2</a></sup> Three metrics need small changes to the game, planned for Coworld 0.7.12. The most consequential decision is to keep a local cache, because the platform stores no rating history.</p>
   </section>
 
   <div class="callout callout-info">
@@ -649,7 +649,7 @@
   <section id="instrumentation">
     <h2>7 · Instrumentation the game needs</h2>
     <ul class="key-points">
-      <li>Six changes, listed smallest first. Items 1 to 5 ship together in Coworld 0.7.11. Item 6 is deferred.</li>
+      <li>Six changes, listed smallest first. Items 1 to 5 ship together in Coworld 0.7.12. Item 6 is deferred.</li>
       <li>None touches the upstream submodule, and none advances a phase.</li>
     </ul>
     <table class="instr-table">
@@ -663,7 +663,7 @@
         <tr><td>6</td><td>Count private press messages per seat per phase. Counts only, never content.</td><td>Negotiation volume</td><td>End-of-game query</td><td><code>results.json</code> goes to every player.<sup class="ref"><a href="#src-20" title="adapter/routes.py:119 — results.json is sent to every player in the game_over message.">20</a></sup> Counts reveal who talked to whom. Deferred until the platform has a team-only telemetry artifact (decision 5).</td></tr>
       </tbody>
     </table>
-    <p>Any new <code>results.json</code> field also needs an update to <code>docs/protocol.md</code>, the manifest sync and a new Coworld version, 0.7.11. Item 5 writes to the game log at the end of the game. Item 6 is deferred (decision 5).</p>
+    <p>Any new <code>results.json</code> field also needs an update to <code>docs/protocol.md</code>, the manifest sync and a new Coworld version, 0.7.12. Item 5 writes to the game log at the end of the game. Item 6 is deferred (decision 5).</p>
   </section>
 
   <section id="build-order">
@@ -675,7 +675,7 @@
     <ol>
       <li><strong>API-only page.</strong> Sections 1 to 5 of the page and the head-to-head grid. No game change is needed.</li>
       <li><strong>Artifact ingest.</strong> Score by power, contested provinces, end reasons and phase timing.</li>
-      <li><strong>Coworld 0.7.11</strong> with instrumentation items 1 to 5. This adds the timing profile, time to Ready and seat health.</li>
+      <li><strong>Coworld 0.7.12</strong> with instrumentation items 1 to 5. This adds the timing profile, time to Ready and seat health.</li>
       <li><strong>Platform timing split</strong> from Datadog job traces, joined to the game's timing record.<sup class="ref"><a href="#src-13" title="observatory_execution/job_lifecycle_trace.py — job lifecycle trace spans. Softmax platform, read 2026-10-12 with live GET requests and elevated team access; source checked at metta 41060d2d04.">13</a></sup></li>
     </ol>
   </section>

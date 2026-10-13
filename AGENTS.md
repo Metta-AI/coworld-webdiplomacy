@@ -38,7 +38,9 @@ the game.
   loop does that. The adapter only uses `php/wdc_*.php` at game start and end.
 - **Replay, spectator stream and game stdout carry public data only.** Never
   record player contexts, private press, tokens or draft orders there. Private
-  press goes only to each seat's player log and artifact.
+  press goes only to each seat's player log and artifact. Seats' order status
+  (Saved, Ready) is private during play: it reaches stdout only in the
+  `seat_activity` line written after the game ends, and never `results.json`.
 - **Seat tokens are credentials** (they are also the upstream API keys). Do not
   log them, and do not publish `tmp/` evidence or `/run/webdip/logs` contents.
 - Keep the code synchronous unless a framework requires otherwise; the async
@@ -76,7 +78,7 @@ uv run ruff check adapter players tools optimizer
 (cd optimizer/ide && uv run python -m unittest discover -s tests)     # optimizer IDE
 (cd optimizer/mixin && uv run --no-project --python 3.12 --with "pydantic-ai-slim[openai]==2.54.0" \
   python -m unittest discover -s players/castlereagh/tests)          # reference policy
-uv run coworld build --version 0.7.11                              # images + dist/ manifest
+uv run coworld build --version 0.7.12                              # images + dist/ manifest
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```
