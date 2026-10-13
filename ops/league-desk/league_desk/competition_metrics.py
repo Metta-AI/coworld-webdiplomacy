@@ -96,7 +96,8 @@ def standings(members, ratings, points, submissions, games, now, submission_comp
     result = panel(sentence, ["Player", "Competing policies", "MMR", "μ ± 3σ", "24 h change", "Scored games (7d)",
                              f"Mean score (par {PAR:.3f})", "Submissions 24h / 7d", "Model", "LLM/game"], rows,
                    "Current memberships; all versions. Scores average owned non-filler seats once per game. "
-                   "MMR is cumulative across versions. Model labels lack a verified player identity join.",
+                   "MMR is cumulative across versions. Models describe observed provider calls, "
+                   "not policy configuration.",
                    {"kind": "intervals", "data": intervals})
     result["sparks"] = sparks
     result["player_ids"] = player_ids

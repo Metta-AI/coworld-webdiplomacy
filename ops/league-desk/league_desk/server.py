@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from .alerts import prepare_alerts
 from .board_metrics import board_panels
 from .dates import when
 from .freshness import age_label
@@ -38,6 +39,17 @@ def create_app(store=None):
         return JSONResponse({"status": "queued", "message": "Collector requested; slow polls retain their deadlines."},
                             status_code=202, headers={"Cache-Control": "no-store"})
 
+    @app.post("/alerts/{fingerprint}")
+    def change_alert(request: Request, fingerprint: str, dismissed: bool = Query(...)):
+        if request.headers.get("origin") != str(request.base_url).rstrip("/"):
+            raise HTTPException(403, "Same-origin alert change required")
+        if len(fingerprint) != 64 or any(c not in "0123456789abcdef" for c in fingerprint):
+            raise HTTPException(422, "Invalid alert fingerprint")
+        if not store.path.exists():
+            raise HTTPException(503, "Start serve to initialize the cache")
+        store.set_dismissed(fingerprint, dismissed, time.time())
+        return JSONResponse({"dismissed": dismissed}, headers={"Cache-Control": "no-store"})
+
     @app.get("/")
     @app.get("/fragments")
     def home(request: Request, league: Literal["press", "gunboat"] = "press",
@@ -57,11 +69,12 @@ def create_app(store=None):
         competition["panel_data"].update(board_panels(snapshot, context["league"], competition, now, start, version))
         standings = competition["panel_data"]["Competing players"]
         for entry_player, row in zip(standings["player_ids"], standings["rows"], strict=True):
+            row[-2] = spending["player_models"].get(entry_player, "not collected")
             values = spending["player_costs"].get(entry_player)
             if values:
                 row[-1] = f"{money(sum(values) / len(values))} ({len(values)} covered games)"
-        standings["note"] += (" LLM/game is estimated across games with usage for every owned seat; "
-                              "model labels lack a stable identity join.")
+        standings["note"] += (" LLM/game is provider billed spend across covered completed games with every owned "
+                              "seat covered; models join stable player/policy IDs in the selected creation cohort.")
         seat_panel = spending["spend_panels"]["LLM spend per seat per game"]
         standings["stale"] |= seat_panel["stale"]
         standings["sources"] += seat_panel["sources"]
@@ -87,6 +100,17 @@ def create_app(store=None):
         competition["stale_panels"] = sum(bool(p["stale"]) for p in competition["panel_data"].values())
         if any(p["stale"] for p in spending["spend_panels"].values()):
             context["alerts"].append("Spend or request sources failed or are stale; last good data is retained.")
+        stale_sources = {s["name"] for p in competition["panel_data"].values() for s in p["sources"]
+                         if s["stale"] or s["age"] is None}
+        stale_sources.update(r["source"] for r in context["now_rows"] if r["stale"])
+        rating_versions = {g["coworld_id"] for source in competition["episode_sources"].values()
+                           for g in (source.get("data") or {}).get("rows", [])}
+        rating_state = snapshot.get(("ratings", (context["league"] or {}).get("id", "")), {})
+        rating_versions.update(d["canonical_id"] for d in [rating_state.get("data") or {},
+                               *(o["data"] for o in rating_state.get("history", []))] if d.get("canonical_id"))
+        context["alerts"], context["dismissed_alerts"] = prepare_alerts(
+            context["alerts"], (context["league"] or {}).get("id", league), rating_versions,
+            stale_sources, store.dismissals())
         ages = [value for value in (context["age"], competition["competition_age"]) if value is not None]
         context["age"] = max(ages) if ages else None
         if competition["episode_sources"]:

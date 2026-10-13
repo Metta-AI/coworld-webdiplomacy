@@ -46,9 +46,18 @@ class DeskTest(unittest.TestCase):
         self.responses.update({"/v2/coworlds/summaries": [], "/admin/llm-coworld-usage": {"period": "week", "rows": []},
                                "/admin/costs/leagues": {"period": "week", "leagues": []}})
         self.api = Api(self.request)
+        original_select = self.api.select
+
+        def select(kind, ids, after=None, **kwargs):
+            from league_desk.sql import ATTRIBUTION_COLUMNS
+            if kind in ATTRIBUTION_COLUMNS:
+                return {"columns": ATTRIBUTION_COLUMNS[kind], "rows": []}
+            return original_select(kind, ids, after, **kwargs)
+
+        self.api.select = select
         self.collector = Collector(self.store, self.api, clock=lambda: self.now)
 
-    def request(self, method, path, params=None, json=None):
+    def request(self, method, path, params=None, json=None, timeout=None):
         self.calls.append((method, path, copy.deepcopy(params)))
         if path == "/sql/query":
             return httpx.Response(200, json={"columns": ["episode", "slot", "calls", "estimated", "rejections"],

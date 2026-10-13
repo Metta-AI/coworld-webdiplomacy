@@ -83,6 +83,14 @@
       .catch(error => { if (error.name !== 'AbortError' && id === sequence) message('Refresh failed; last contents retained.'); })
       .finally(() => { if (id === sequence) schedule(); });
   }
+  document.addEventListener('click', event => {
+    const button = event.target.closest('button[data-alert]');
+    if (!button) return;
+    button.disabled = true;
+    fetch(`/alerts/${button.dataset.alert}?dismissed=${button.dataset.dismiss}`, {method: 'POST'})
+      .then(response => { if (!response.ok) throw new Error('Alert change failed'); return update(true); })
+      .catch(() => { button.disabled = false; message('Alert change failed; try again.'); });
+  });
   function navigate() {
     history.pushState(null, '', `/?${params()}`); watchUntil = 0; update(true);
   }

@@ -13,6 +13,16 @@
     return [navy, "#4576aa", "#5573a0", "#6e527d", "#706387", "#527878"][hash % 6];
   }
   function clean(plot) { plot.querySelectorAll("style").forEach(style => style.remove()); return plot; }
+  function legend(labels,colors) {
+    const result=document.createElement('p');result.className='chart-legend';
+    labels.forEach((label,i)=>{
+      const swatch=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      swatch.setAttribute('width','10');swatch.setAttribute('height','10');
+      const square=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      square.setAttribute('width','10');square.setAttribute('height','10');square.setAttribute('fill',colors[i]);
+      swatch.append(square);result.append(swatch,document.createTextNode(' '+label+' · '));
+    });return result;
+  }
   function draw(node) {
     const chart = JSON.parse(node.dataset.chart), data = chart.data;
     const width = Math.max(260, node.clientWidth);
@@ -39,7 +49,37 @@
     }
     let options = {width, height: 210, marginLeft: 52, y: {grid: true, label: chart.label},
       color: {range: [navy, "#7d97b6", grey]}, marks: []};
-    if (chart.kind === "bars") {
+    if (chart.kind === "daily-spend" || chart.kind === "source-days") {
+      options.x = {type:'band',label:'Pacific day',tickFormat:d=>d.slice(5)};
+      options.y.zero = true;
+      options.color = {domain:chart.kind==='daily-spend'?['Compute','Estimated LLM']:['League rounds','Experience requests'],
+        range:[navy,'#7d97b6']};
+      if (chart.kind==='daily-spend') {
+        options.marks = [Plot.barY(data,{x:'day',y:'value',fill:'series',
+          title:d=>`${d.day} · ${d.series}: $${d.value.toFixed(3)}`})];
+        const budgets = chart.budgets || [];
+        const dailyBudgets = [...new Set(data.map(d=>d.day))].map(day=>({day,value:budgets.find(d=>d.day===day)?.value}));
+        options.marks.push(Plot.lineY(dailyBudgets,{x:'day',y:'value',stroke:navy,strokeDasharray:'4,3'}),
+          Plot.tickY(budgets,{x:'day',y:'value',stroke:navy,title:d=>`Observed budget: $${d.value}`}));
+        if (budgets.length) options.marks.push(Plot.text(budgets.slice(-1),{x:'day',y:'value',text:()=> 'Observed budget',
+          textAnchor:'end',dy:-8,fill:navy}));
+      } else options.marks = [Plot.lineY(data,{x:'day',y:'value',stroke:'series'}),
+        Plot.dot(data,{x:'day',y:'value',stroke:'series',title:d=>`${d.day} · ${d.series}: $${d.value.toFixed(3)}`})];
+    } else if (chart.kind === "policy-models") {
+      const container=document.createElement('div'), models=[...new Set(data.map(d=>d.model))];
+      const colors=models.map((_,i)=>[navy,'#7d97b6','#6e527d','#4576aa','#aaa49a','#6f8372','#ad925a','#524d63'][i%8]);
+      container.append(legend(models,colors));
+      const groups=[...d3.group(data,d=>d.policy).values()], max=d3.max(groups,rows=>d3.sum(rows,d=>d.value));
+      for (let i=0;i<groups.length;i++) {
+        const rows=groups[i],label=document.createElement('p'),last=i===groups.length-1;
+        label.className='model-label';label.textContent=rows[0].label;
+        container.append(label,clean(Plot.plot({width,height:last?50:28,marginLeft:40,marginTop:5,marginBottom:last?22:3,
+          x:{domain:[0,max],label:null,ticks:4,axis:last?'bottom':null},y:{axis:null},
+          color:{domain:models,range:colors},marks:[Plot.barX(rows,{x:'value',y:()=>rows[0].policy,fill:'model',
+            title:d=>`${d.model}: $${d.value.toFixed(3)}`})],className:'desk-plot'})));
+      }
+      node.replaceChildren(container);return;
+    } else if (chart.kind === "bars") {
       options.x = {type: "band", label: chart.x_label || "Pacific day"};
       const days = [...new Set(data.map(d=>d.day))];
       const inset = Math.max(0, ((width - 72) / Math.max(1,days.length) * .9 - 44) / 2);
@@ -190,6 +230,8 @@
       plot.addEventListener('pointerleave',()=>selectBand(chart.selected));
     }
     node.replaceChildren(plot);
+    if (chart.kind==='daily-spend' || chart.kind==='source-days')
+      node.prepend(legend(options.color.domain,options.color.range));
   }
   function drawAll() {
     document.querySelectorAll('.plot').forEach(node => {

@@ -74,7 +74,7 @@ class CollectorTests(DeskTest):
     def test_selected_fields_only_and_no_remote_writes(self):
         self.collector.once()
         rows = self.store.snapshot()
-        self.assertEqual(len(rows), 13)
+        self.assertEqual(len(rows), 16)
         self.assertTrue(all(r["error"] is None for r in rows.values()))
         self.assertNotIn("must-not-store", str(rows))
         self.assertNotIn("not-for-cache", str(rows))
@@ -126,12 +126,12 @@ class CollectorTests(DeskTest):
         self.now += 61
         self.collector.once()
         with self.store.connection(True) as db:
-            self.assertEqual(db.execute("SELECT count(*) FROM observations").fetchone()[0], 2)
+            self.assertEqual(db.execute("SELECT count(*) FROM observations").fetchone()[0], 3)
         self.responses["/v2/coworlds/cow_demo"]["version"] = "9.9.2"
         self.now += 61
         self.collector.once()
         with self.store.connection(True) as db:
-            self.assertEqual(db.execute("SELECT count(*) FROM observations").fetchone()[0], 3)
+            self.assertEqual(db.execute("SELECT count(*) FROM observations").fetchone()[0], 4)
         self.store.failure("canonical", "all", "error", self.now, 1)
         self.now += 61
         self.collector.once()

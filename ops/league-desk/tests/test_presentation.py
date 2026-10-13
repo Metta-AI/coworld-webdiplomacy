@@ -29,7 +29,7 @@ class PresentationTests(DeskTest):
         self.assertIn('id="desk-content"', response.text)
         self.assertNotIn('<html', response.text)
         self.assertIn("Ratings stay cumulative", response.text)
-        self.assertIn("native API week, all versions", response.text)
+        self.assertIn("All Coworld versions; the version control does not apply", response.text)
         self.assertEqual(response.headers["cache-control"], "no-store")
         self.assertEqual(self.calls, [])
         for query in ("range=bad", "version=absent", "league=absent"):

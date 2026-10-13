@@ -26,6 +26,9 @@ def annotate(panel, dependencies, now, cadence=COMPETITION_SECONDS):
         interval = {
             "versions": RECONCILE_SECONDS,
             "costs": SLOW_SECONDS,
+            "daily_spend": SLOW_SECONDS,
+            "seat_models": SLOW_SECONDS,
+            "attempts": SLOW_SECONDS,
             "models": SLOW_SECONDS,
             "seats": SLOW_SECONDS,
             "overrides": SLOW_SECONDS,

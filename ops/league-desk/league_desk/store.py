@@ -113,3 +113,19 @@ class Store:
             return bool(db.execute(
                 "UPDATE control SET refresh_requested=0 WHERE refresh_requested=1 RETURNING singleton"
             ).fetchone())
+
+    def dismissals(self):
+        if not self.path.exists():
+            return set()
+        with self.connection(True) as db:
+            # A cache-only server may read a v2 cache created before dismissal support.
+            if not db.execute("SELECT 1 FROM sqlite_master WHERE name='alert_dismissals'").fetchone():
+                return set()
+            return {r[0] for r in db.execute("SELECT fingerprint FROM alert_dismissals")}
+
+    def set_dismissed(self, fingerprint, dismissed, now):
+        with self.connection() as db:
+            if dismissed:
+                db.execute("INSERT OR REPLACE INTO alert_dismissals VALUES (?, ?)", (fingerprint, now))
+            else:
+                db.execute("DELETE FROM alert_dismissals WHERE fingerprint=?", (fingerprint,))

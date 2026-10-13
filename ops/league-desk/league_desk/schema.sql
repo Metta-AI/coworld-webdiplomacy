@@ -24,4 +24,8 @@ CREATE TABLE IF NOT EXISTS observations (
     data TEXT NOT NULL,
     PRIMARY KEY (name, scope, observed_at)
 );
+CREATE TABLE IF NOT EXISTS alert_dismissals (
+    fingerprint TEXT PRIMARY KEY,
+    dismissed_at REAL NOT NULL
+);
 PRAGMA user_version = 2;
