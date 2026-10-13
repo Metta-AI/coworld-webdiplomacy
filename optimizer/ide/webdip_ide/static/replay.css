@@ -18,6 +18,7 @@
 .replay-table td.opponents { width: 100%; min-width: 96px; max-width: 0; font-size: var(--text-xs); }
 .replay-table td.flags { white-space: normal; min-width: 96px; max-width: 168px; font-size: var(--text-xs); line-height: 1.35; color: var(--terracotta); }
 .replay-table .tag { margin-left: 4px; }
+.replay-table .ours { background: var(--accent-soft); color: var(--navy); padding: 0 3px; border-radius: 2px; }
 .replay-table td.num span { margin-left: 6px; }
 
 /* --- 2. viewer head --- */
@@ -151,6 +152,9 @@ main:has(> .replay) { container: viewer / inline-size; }
 .power-head { display: flex; align-items: baseline; font-weight: 700; font-size: var(--text-sm); border-bottom: 1px solid var(--rule); padding-bottom: 1px; }
 .power-head .power-sc { margin-left: auto; font-weight: 400; font-size: var(--text-xs); color: var(--ink-2); }
 .power-block.us .power-head { border-bottom-color: var(--ink); }
+/* Every seat of the policy we follow: an accent tint, so ours stand out among the seven. */
+.power-block.ours { background: var(--accent-soft); border-left: 2px solid var(--accent); padding: 2px 4px 2px 6px; }
+.power-block.ours .power-policy .final { color: var(--navy); }
 .power-policy { display: flex; gap: var(--s2); font-size: 0.66rem; line-height: 1.5; white-space: nowrap; }
 .power-policy .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .power-policy .final { flex: none; font-variant-numeric: tabular-nums; }

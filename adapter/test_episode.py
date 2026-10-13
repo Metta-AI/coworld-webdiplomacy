@@ -53,6 +53,43 @@ class EpisodeRules(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 EpisodeConfig(tokens=tokens, countries=countries)
 
+    def test_players_name_every_seat_or_none(self):
+        tokens = list("abcdefg")
+        self.assertEqual(EpisodeConfig(tokens=tokens).players, [])
+        named = EpisodeConfig(tokens=tokens, players=[{"name": f"P{i}"} for i in range(7)])
+        self.assertEqual(named.players[6].name, "P6")
+        for players in ([{"name": "P"}] * 6, [{"name": ""}] * 7, [{"name": "P", "owner": "x"}] * 7):
+            with self.assertRaises(ValidationError):
+                EpisodeConfig(tokens=tokens, players=players)
+
+    def test_platform_writes_seat_names_into_this_schema(self):
+        # The platform fills players[].name only when the schema has this inline shape.
+        from coworld.manifest_validation import game_config_with_named_players
+
+        names = [f"Player {i} (Owner)" for i in range(7)]
+        named = game_config_with_named_players(
+            {"seed": 1}, names, EpisodeConfig.model_json_schema(), player_owners=["Owner"] * 7
+        )
+        self.assertEqual([player.name for player in EpisodeConfig(tokens=list("abcdefg"), **named).players], names)
+
+    def test_seat_names_reach_only_the_saved_replay(self):
+        from unittest.mock import patch
+
+        created = {"ok": True, "game_id": 1, "seats": []}
+        config = EpisodeConfig(
+            tokens=list("abcdefg"), countries=[3, 1, 2, 7, 6, 5, 4], players=[{"name": f"P{i}"} for i in range(7)]
+        )
+        with patch("adapter.episode.php", return_value=created) as php, patch.object(Episode, "tick"):
+            episode = Episode(config)
+        self.assertNotIn("players", php.call_args.kwargs["payload"])
+        live = {"game": {}, "episode": {"seed": 1}}
+        episode.frames = [live]
+        saved = episode.saved_frames()
+        self.assertEqual(saved[0]["episode"]["players"][0], {"slot": 0, "countryID": 3, "name": "P0"})
+        self.assertEqual(live, {"game": {}, "episode": {"seed": 1}})
+        episode.config = EpisodeConfig(tokens=list("abcdefg"))
+        self.assertIs(episode.saved_frames(), episode.frames)
+
     def test_episode_uses_pinned_countries_and_otherwise_shuffles_by_seed(self):
         from unittest.mock import patch
 

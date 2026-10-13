@@ -4,7 +4,7 @@
     python3 games/webdiplomacy/tools/opponent_profile.py DIR... --opponent NAME[:vN]
         [--versus OURPOLICY[:vN]] [--variant classic-press] [--out PREFIX] [--episodes FILE] [--json]
     python3 games/webdiplomacy/tools/opponent_profile.py DIR... --game EPISODE_ID [--powers Turkey,Russia]
-        [--years 1901-1903] [--logs] [--decisions --versus OURPOLICY[:vN]]
+        [--years 1901-1903] [--logs] [--versus OURPOLICY[:vN] [--decisions]]
 
 DIR is any directory holding episodes (see `webdip_episodes.py`). Every power's adjudicated
 orders are public, so a rival can be profiled without its logs. The tool counts; the
@@ -24,7 +24,8 @@ still being fetched; par and the field are then those games only.
 `--game` prints one game's adjudicated orders phase by phase (all powers, or only those named),
 with each order's result, retreats, builds and disbands, the centres that changed hands, each
 seat's centre count by year and, with `--logs`, the path of each seat log on disk: the way to
-read a game without the IDE. EPISODE_ID may be a unique prefix (`ereq_0cd0b789`). `--decisions
+read a game without the IDE. EPISODE_ID may be a unique prefix (`ereq_0cd0b789`). `--versus
+OURPOLICY` marks our seats "(ours)" in the seat list and on their order lines. `--decisions
 --versus OURPOLICY` adds, under each phase, what our own shown seats' logs say they committed
 that turn: stances, trust and required orders from the reference policy's `press_policy` (no
 press text). Only seats of OURPOLICY are printed, whatever logs are on disk (an account that
@@ -1230,15 +1231,20 @@ def render_game(game: Game, powers: list[str] | None = None, years: tuple[int, i
                 logs: bool = False, decisions: bool = False, ours: str | None = None) -> str:
     """One game's adjudicated movement orders, phase by phase, with results and centre counts.
 
-    `decisions` prints log lines only for the seats of `ours` (a policy name)."""
+    `ours` (a policy name) marks our seats "(ours)"; `decisions` prints log lines only for its seats."""
     seats = sorted(game.seats, key=lambda s: s.power)
     wanted = {p.upper() for p in powers} if powers else {s.power.upper() for s in seats}
+    our_powers = {s.power.upper() for s in seats if ours and policy_matcher(ours)(s.policy)}
+
+    def label(power: str) -> str:
+        return power.title() + (" (ours)" if power.upper() in our_powers else "")
+
     lines = [f"# {game.episode} ({game.variant}, {game.source})", ""]
     for seat in seats:
         by_year = " ".join(f"{year}:{count}" for year, count in sorted(seat.centers_by_year.items()))
         taint = f" TAINTED {','.join(seat.taint)}" if seat.taint else ""
         lines.append(f"{seat.power:8} {seat.policy:32} score {seat.score:.3f}, {seat.final_centers} centres"
-                     f"{taint} | centres by year {by_year}")
+                     f"{taint}{' (ours)' if seat.power.upper() in our_powers else ''} | centres by year {by_year}")
         if logs and seat.slot in game.logs:
             lines.append(f"         seat log (slot {seat.slot}): {game.logs[seat.slot]}")
     if has_press_audit(game.episode):
@@ -1270,7 +1276,7 @@ def render_game(game: Game, powers: list[str] | None = None, years: tuple[int, i
             for o in mine:
                 failed = o["type"] != "hold" and not o["success"]
                 shown.append(o["text"] + (" (dislodged)" if o["dislodged"] else " (failed)" if failed else ""))
-            lines.append(f"{power.title():8} " + "; ".join(shown))
+            lines.append(f"{label(power):8} " + "; ".join(shown))
         lines += committed.get(phase["turn"], [])
         if i + 1 < len(game.phases):
             before, after = phase["centers"], game.phases[i + 1]["centers"]
@@ -1283,7 +1289,7 @@ def render_game(game: Game, powers: list[str] | None = None, years: tuple[int, i
                 lines.append("centres changed: " + ", ".join(changes))
         # Retreats and builds adjudicated after this movement phase and before the next one.
         after_phase = [
-            f"{power.title()} {text}"
+            f"{label(power)} {text}"
             for index in sorted(game.between)
             if phase["index"] < index < next_index[i]
             for power, text in game.between[index]
@@ -1313,8 +1319,9 @@ def main(argv=None) -> int:
     ap.add_argument("--episodes", metavar="FILE", help="only the episode ids in FILE: a PREFIX.json from --out, a "
                     "saved `matchups.py --json`, or one id per line. Repeats a "
                     "run on the same games while more are being fetched")
-    ap.add_argument("--versus", help="our policy, NAME or NAME:vN: how the opponent treated our seats; with --game "
-                                     "--decisions, the policy whose seat logs are printed")
+    ap.add_argument("--versus", help="our policy, NAME or NAME:vN: how the opponent treated our seats; with --game, "
+                                     "marks our seats (ours), and with --decisions, the policy whose seat logs "
+                                     "are printed")
     ap.add_argument("--variant", help="only this variant, for example classic-press or classic-gunboat")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)

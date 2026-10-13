@@ -204,7 +204,7 @@ def verdict(claim: dict, message: dict, our_power: str) -> dict:
 
 STYLE = """
 :root{--bg:#fffdf4;--surface:#fffaf0;--fg:#111827;--sub:#555;--muted:#6b6560;--navy:#1a3875;--sage:#5d6d41;
---terra:#945637;--gold:#80601f;--border:#e4dac8;--strong:#d4c9b5;--soft:#f0ebe1}
+--terra:#945637;--gold:#80601f;--border:#e4dac8;--strong:#d4c9b5;--soft:#f0ebe1;--accent:#5573a0;--accent-soft:#eef2f7}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);
 font:15px/1.5 "Merriweather Sans",-apple-system,"Segoe UI",sans-serif}
 main{max-width:1080px;margin:0 auto;padding:28px 24px 64px}
@@ -237,6 +237,9 @@ details{margin:10px 0 0;font-size:13px}summary{cursor:pointer;color:var(--navy)}
 .legend li{padding:5px 0;border-bottom:1px solid var(--soft);color:var(--sub)}
 .orders{font:13px/1.55 ui-monospace,Menlo,monospace;color:var(--sub)}.orders b{color:var(--fg);font-family:inherit}
 .fail{color:var(--terra)}.empty{color:var(--muted);font-style:italic}
+/* our seat: an accent tint wherever the powers are listed */
+tr.us td{background:var(--accent-soft)}tr.us td:first-child{box-shadow:inset 2px 0 0 var(--accent);padding-left:6px}
+.orders .us{background:var(--accent-soft);border-left:2px solid var(--accent);padding-left:4px}
 @media(max-width:760px){.turn{grid-template-columns:minmax(0,1fr)}}
 """
 
@@ -310,7 +313,7 @@ def render_legend(messages: list[dict]) -> str:
     )
 
 
-def render_orders(phase: dict) -> str:
+def render_orders(phase: dict, our_power: str) -> str:
     lines = []
     for power in POWER_ORDER:
         orders = [o for o in phase["orders"] if o["power"] == power]
@@ -321,7 +324,10 @@ def render_orders(phase: dict) -> str:
                 else f'<span class="fail">{html.escape(o["text"])} (failed)</span>'
                 for o in orders
             )
-            lines.append(f"<div><b>{power.title()}</b> {shown}</div>")
+            if power == our_power:
+                lines.append(f'<div class="us"><b>{power.title()} (us)</b> {shown}</div>')
+            else:
+                lines.append(f"<div><b>{power.title()}</b> {shown}</div>")
     return '<div class="orders">' + "".join(lines) + "</div>"
 
 
@@ -332,8 +338,10 @@ def render_summary(summary: dict) -> str:
         asked = "—" if not row["asked"] else f"{row['complied']} of {row['asked']}"
         cats = " ".join(f'<span class="count">{category_chip(name)}×{count}</span>'
                         for name, count in sorted(row["categories"].items()))
+        us = power == summary["our_power"]
+        row_class = ' class="us"' if us else ""
         rows.append(
-            f"<tr><td>{power.title()}{' (us)' if power == summary['our_power'] else ''}</td>"
+            f"<tr{row_class}><td>{power.title()}{' (us)' if us else ''}</td>"
             f'<td class="n">{row["messages"]}</td><td class="n">{row["claims"]}</td>'
             f'<td class="n">{row["held"]}</td><td class="n">{row["did_not_hold"]}</td><td class="n">{share}</td>'
             f'<td class="n">{row["unverifiable"]}</td><td class="n">{asked}</td><td>{cats}</td></tr>'
@@ -360,7 +368,11 @@ def render_report(data: dict) -> str:
     for turn in sorted(set(by_turn) | set(phases)):
         said = "".join(render_message(m, data["our_power"]) for m in by_turn.get(turn, []))
         said = said or '<p class="empty">No press this turn.</p>'
-        done = render_orders(phases[turn]) if turn in phases else '<p class="empty">Not played: the game had ended.</p>'
+        done = (
+            render_orders(phases[turn], data["our_power"])
+            if turn in phases
+            else '<p class="empty">Not played: the game had ended.</p>'
+        )
         turns.append(f'<section class="turn"><h3>{turn_label(turn)}</h3><div>{said}</div><div>{done}</div></section>')
     summary = data["summary"]
     belief = (

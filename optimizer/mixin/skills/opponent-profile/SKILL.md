@@ -149,8 +149,10 @@ For each, read the orders phase by phase:
 - Without it, print the game (same phase numbers as the links):
 
   ```sh
-  python3 $L/tools/opponent_profile.py $A --game <episode id> --powers Turkey,Russia --years 1901-1903
+  python3 $L/tools/opponent_profile.py $A --game <episode id> --powers Turkey,Russia --years 1901-1903 --versus <our policy>
   ```
+
+  `--versus` marks our seats "(ours)" in the seat list and on their order lines.
 
   Leave `--powers` out for all seven and `--years` out for the whole game; a
   unique prefix of the episode id is enough. `coworld replay-open <episode id>

@@ -29,7 +29,7 @@ The first message is:
 }
 ```
 
-`rules` contains all episode settings except tokens. Country assignment is a
+`rules` contains all episode settings except tokens and seat names (`players`). Country assignment is a
 seeded permutation unless the `countries` setting pins it (see
 [Configuration](#configuration)); results are always in **slot order**, not
 country order.
@@ -222,6 +222,11 @@ rotating every seat through every power needs one config (for example one
 experiment request's `game_config_overrides`) per assignment.
 `render_maps` defaults to true and captures public PNGs through unmodified
 `map.php`. False omits PNGs; the public position map still renders.
+`players` is set by the platform, not by a variant or override: when the config
+schema declares `players[].name`, hosted episodes receive each seat's display name
+in slot order. It is optional and, when given, names all seven seats. Play stays
+anonymous: the names are not sent in hello, to upstream or on `/global`, and enter
+only the saved replay (`episode.players`, see [replay](replay.md)) once the game ends.
 
 ## Private player artifacts
 

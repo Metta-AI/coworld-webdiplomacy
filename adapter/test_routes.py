@@ -38,6 +38,15 @@ class LifecycleTest(unittest.TestCase):
                 with self.assertRaises(WebSocketDisconnect):
                     first.receive_json()
 
+    def test_hello_never_carries_seat_names(self):
+        self.episode.config = EpisodeConfig(
+            tokens=[f"token{i}" for i in range(7)], players=[{"name": f"Secret {i}"} for i in range(7)]
+        )
+        with TestClient(self.app) as client, client.websocket_connect(self.address) as socket:
+            hello = socket.receive_json()
+            self.assertNotIn("players", hello["rules"])
+            self.assertNotIn("Secret", str(hello))
+
     def test_completion_is_recorded_before_confirmation(self):
         self.episode.finished = True
         with TestClient(self.app) as client, client.websocket_connect(self.address) as socket:

@@ -20,6 +20,13 @@ frame contains upstream's public `variant`, `game`, `status`, `history`, and
 - `lifecycle`: `turn`, `phase` and `process_status` (`Not-processing`,
   `Processing`, `Paused` or `Crashed`) from the committed game row.
 - `episode.seed`: the chosen episode seed (absent in older prototype replays).
+- `episode.players`, in the saved replay only and only when the platform named the
+  seats: one `{slot, countryID, name}` per seat, in slot order. `name` is the seat's
+  platform display name, such as `Alpha (David B)` for a player with a human owner,
+  or the policy version (`webdip-nightjar:v1`) when the policy has no player. The
+  game adds it when it writes the replay after the game ends, so the live `/global`
+  stream and anything a bot can read during play never carry it. Replays from before
+  Coworld 0.7.11, and local runs whose config has no `players`, have no names.
 - `map`, when `render_maps` is true: `turn` (the adjudicated turn pictured, `-1`
   for the starting position) and `png`, a PNG data URL.
 - `ending` on the final frame only: `outcome` and `reason`, with the same values
@@ -38,6 +45,7 @@ summarizes them.
 | Every completed phase's units, center owners, orders and results | `history.phases` |
 | Public press | `messages` |
 | Episode-level state and how it ended | `lifecycle`, `episode`, `ending` |
+| Who played each power (saved replay only) | `episode.players` |
 
 Turns count from 0 (Spring 1901): year is `1901 + turn // 2`, even turns are
 Spring and odd turns Autumn. Upstream's raw movement phase is `Diplomacy`; the
@@ -65,6 +73,8 @@ Pre-game frames explicitly identify the starting position: units appear in Sprin
 The viewer shell uses a light paper background with ink text; the native map palette
 is unchanged.
 The expandable PNG is separately labeled with its upstream adjudication turn.
+When a replay carries `episode.players`, the Powers list shows each seat's name
+under its power; without it the list shows powers only.
 History selection shows public orders and their success/dislodgement flags.
 Press is rendered as text, never injected as HTML.
 

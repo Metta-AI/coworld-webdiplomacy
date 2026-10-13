@@ -20,6 +20,32 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-12 · Coworld 0.7.10 · Replays mark our policy's seats
+
+**What changed.** The optimizer template only; the game did not change. Wherever a
+replay lists the powers, every seat of our policy now stands out:
+
+- The IDE's replay viewer tints each seat of the followed policy (any version of a bare
+  name), not only the followed seat, in the orders column, thickens its line on the
+  centre chart and adds "(ours)" in the seat menu. The replay list marks a seat of ours
+  among a row's opponents ("Against"), as in a paired run. "Ours" is the policy the user
+  picked in the browser or the agent recorded with `ide/ide follow`, else the lab's
+  newest upload, else the followed seat's policy.
+- `tools/opponent_profile.py --game ID --versus OURS` marks our seats "(ours)" in the
+  seat list and on their order lines (before, `--versus` did nothing without
+  `--decisions`).
+- The press audit page (`tools/press_report.py`) tints our seat's row and its orders.
+
+**In your optimizer.** Copy `ide/webdip_ide/routes_replays.py`,
+`ide/webdip_ide/static/replay.js`, `ide/webdip_ide/static/replay.css`,
+`ide/webdip_ide/templates/replays.html`, `ide/webdip_ide/templates/replays_view.html`,
+`ide/tests/test_replays.py`, `tools/opponent_profile.py`, `tools/press_report.py`,
+`tools/tests/test_opponent_profile.py` and `tools/tests/test_press_audit.py` from the
+commit that adds this entry. Merge the `opponent_profile.py` row of the lab manual, the
+"Reading one game" item of `skills/replay-inspection/SKILL.md`, the `--game` example of
+`skills/opponent-profile/SKILL.md` and the replay paragraph of `ide/README.md`. Restart
+the IDE (`ide/ide stop`, then `ide/ide start`).
+
 ## 2026-10-12 · Coworld 0.7.10 · classic-press has 3-minute movement phases
 
 **What changed.** Coworld 0.7.10. The press league's variant, `classic-press`, has

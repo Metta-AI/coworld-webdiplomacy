@@ -370,6 +370,13 @@ games first). A lab with neither is guessing: the dashboard and the home page ta
 policy `matchups.py --list` gives and the home page says it is a guess; the replay browser
 follows every seat that has a log.
 
+The replay pages mark every seat of the followed policy (any version of a bare name) as
+ours, not only the seat whose log is shown: the viewer tints its power in the orders column
+in the accent colour (`.power-block.ours`), thickens its line on the centre chart and adds
+"(ours)" in the seat menu, and the replay list marks a seat of ours among a row's opponents
+("Against"). `routes_replays._mark_ours` sets `ours` on each seat of `/api/replays/<episode>`;
+with no policy picked or recorded, the followed seat's policy is ours.
+
 Write every date with the `when` filter (`{{ row.time | when }}` gives `Oct 11, 2:42 AM`,
 Pacific, with the year only when it is not this year) or `day`; in Python, `dates.when()`.
 Name the zone in one way only: the abbreviation that is right for the date, `PDT` or `PST`

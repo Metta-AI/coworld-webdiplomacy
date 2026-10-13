@@ -211,6 +211,31 @@ class ReplayTests(unittest.TestCase):
         every = self.client.get("/replays", params={"policy": ""}).text  # the user can still ask for every seat
         self.assertNotIn(selected, every)
 
+    def test_our_policy_is_marked_wherever_seats_are_listed(self):
+        from webdip_ide import store
+
+        def ours(view):
+            return [s["slot"] for s in view["seats"] if s["ours"]]
+
+        # Nothing named: the followed seat (a logged one) is all the lab has to go on.
+        self.assertEqual(ours(self.client.get("/api/replays/ereq_press", params={"seat": 3}).json()), [3])
+        store.set_followed_policy("field-press-a")  # `ide/ide follow`: every version of the name
+        self.assertEqual(ours(self.client.get("/api/replays/ereq_press", params={"seat": 3}).json()), [0])
+        self.client.cookies.set("dashboard_policy", "my-castlereagh-press")  # a newer pick in this browser wins
+        self.client.cookies.set("dashboard_policy_at", "9999999999")
+        self.assertEqual(ours(self.client.get("/api/replays/ereq_press").json()), [3])
+        page = self.client.get("/replays/ereq_press").text
+        self.assertIn("my-castlereagh-press:v1 (ours)", page)
+        self.assertNotIn("field-heuristic-a:v1 (ours)", page)
+        self.client.cookies.clear()
+        # A game with six seats of one policy: every one of them is ours, in the viewer and the list.
+        smoke = "coworld-smoke/cow_c04cc127-41a3-48da-8e34-b5fa1965ba66"
+        store.set_followed_policy(smoke)
+        self.assertEqual(len(ours(self.client.get("/api/replays/ereq_gunboat").json())), 6)
+        self.assertIn(f'<span class="ours" title="Another seat of the policy we follow">{smoke} (ours)</span>',
+                      self.client.get("/replays").text)
+        self.assertNotIn('class="ours"', self.client.get("/replays", params={"policy": "field-press-a"}).text)
+
     def test_viewer_page_and_unknown_episode(self):
         page = self.client.get("/replays/ereq_press?phase=3")
         self.assertEqual(page.status_code, 200)

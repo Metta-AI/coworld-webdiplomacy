@@ -125,7 +125,8 @@ each surviving power's supply centers squared divided by the sum of those square
 Optional `draw_size` splits score equally among survivors; `supply_centers` uses
 each survivor's share of owned centers. Cancellation gives equal scores. Upstream
 handles Draw, Pause and Cancel votes; a game still paused at the time limit ends
-and scores from its centers. Identities are anonymous until the game finishes.
+and scores from its centers. Identities are anonymous until the game finishes; the
+saved replay then names the player in each seat.
 
 Protect home centers, coordinate support, and negotiate before committing to an
 attack. The random bot is a legal-order example, not a strong strategic opponent.
