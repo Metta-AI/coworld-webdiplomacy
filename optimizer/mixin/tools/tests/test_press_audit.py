@@ -427,6 +427,10 @@ class Audit(unittest.TestCase):
         self.assertNotIn("<script>x", page)
         self.assertIn("&lt;script&gt;", page)
         self.assertIn('broke their word</span><span class="stood err">we relied on it</span>', page)
+        # Our seat is tinted wherever the powers are listed; the others are not.
+        self.assertIn('<tr class="us"><td>Russia (us)</td>', page)
+        self.assertIn('<div class="us"><b>Russia (us)</b>', page)
+        self.assertNotIn("Germany (us)", page)
 
 
 def audited(us, phases, said, borders=None):

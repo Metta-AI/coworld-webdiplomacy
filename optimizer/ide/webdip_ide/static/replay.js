@@ -88,6 +88,10 @@
   }
   function seatRow() { return view.seats.find(function (s) { return s.slot === view.seat; }) || null; }
   function isUs(name) { return view.our_power && String(name).toUpperCase() === view.our_power; }
+  // Every seat of the policy we follow, not only the followed one (routes_replays._mark_ours).
+  function isOurs(country) {
+    return view.seats.some(function (s) { return String(s.country) === String(country) && s.ours; });
+  }
 
   // ---------- map ----------
 
@@ -406,7 +410,7 @@
     POWER_ORDER.forEach(function (name) {
       var country = Object.keys(names).find(function (c) { return names[c] === name; });
       if (!country) return;
-      var block = el("div", "power-block" + (isUs(name) ? " us" : ""));
+      var block = el("div", "power-block" + (isUs(name) ? " us" : "") + (isOurs(country) ? " ours" : ""));
       var head = el("div", "power-head");
       head.appendChild(dot(name));
       head.appendChild(el("span", "power-name", name));
@@ -423,9 +427,10 @@
       if (s) {
         // The name may be cut short; the final score never is.
         var line = el("div", "power-policy muted");
-        line.title = s.policy + (isUs(name) ? " (the seat we follow)" : "") + " · final score " + fmt(s.score);
+        line.title = s.policy + (isUs(name) ? " (the seat we follow)" : s.ours ? " (ours)" : "") +
+          " · final score " + fmt(s.score);
         line.appendChild(el("span", "name", s.policy));
-        line.appendChild(el("span", "final", (isUs(name) ? "followed · " : "") + "final " + fmt(s.score)));
+        line.appendChild(el("span", "final", (isUs(name) ? "followed · " : s.ours ? "ours · " : "") + "final " + fmt(s.score)));
         block.appendChild(line);
       }
       var list = el("ul", "order-list");
@@ -525,9 +530,9 @@
         var count = ph.sc[country] || 0;
         d += index === 0 ? "M" + x(0) + " " + y(count) : " H" + x(index) + " V" + y(count);
       });
-      var us = isUs(names[country]);
-      chart.appendChild(svg("path", { d: d, stroke: colors[country], class: "sc-line" + (us ? " us" : "") },
-        names[country] + (us ? " (followed)" : "")));
+      var us = isUs(names[country]), ours = isOurs(country);
+      chart.appendChild(svg("path", { d: d, stroke: colors[country], class: "sc-line" + (us || ours ? " us" : "") },
+        names[country] + (us ? " (followed)" : ours ? " (ours)" : "")));
     });
 
     // Marker rows.
@@ -602,7 +607,7 @@
       item.appendChild(document.createTextNode(text));
       box.appendChild(item);
     }
-    if (view.our_power) key("line", "", "the seat we follow");
+    if (view.our_power || view.seats.some(function (s) { return s.ours; })) key("line", "", "our seats");
     if (rows.Board.some(function (m) { return m.shape === "bar"; })) key("bar", "", "3 or more centres won or lost in a year");
     if (rows.Board.some(function (m) { return m.shape === "cross"; })) key("cross", "", "eliminated");
     if (rows.Press.some(function (m) { return m.tone === "bad"; })) key("diamond", "bad", "lied to us");

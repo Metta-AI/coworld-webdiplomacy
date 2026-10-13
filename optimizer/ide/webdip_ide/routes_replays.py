@@ -66,6 +66,8 @@ def _episode_rows(policy: str) -> tuple[list[dict], bool]:
                 "delta": seat["score"] - episodes.PARITY if seat else None,
                 "opponents": opponents,
                 "opponent_names": sorted({episodes.policy_name(p) for p in opponents}),
+                # Another of our seats at the table (a paired run, or an older version of ours).
+                "ours": episodes.policy_name(policy) if policy else "",
                 "flags": flags,
                 "flags_known": episode["indexed"],
                 "taint": taint,
@@ -192,6 +194,22 @@ def _seat(row: dict, seat: int | None, remembered: str = "") -> int | None:
     return episodes.default_seat(row)
 
 
+def _our_policy(request: Request, row: dict) -> str:
+    """The policy we follow: the browser's pick, else the one the lab can name (recorded, or uploaded last)."""
+    return routes_dashboard.remembered_policy(request) or routes_dashboard.lab_policy(
+        {episodes.policy_name(s["policy"]) for s in row["seats"]}
+    )
+
+
+def _mark_ours(seats: list[dict], ours: str, followed: int | None) -> list[dict]:
+    """Each seat with `ours`: true for every seat of the policy we follow (any version of a bare
+    name), so a game with two of our seats marks both. A lab that names no policy has only the
+    followed seat to go on, so its policy is ours."""
+    if not ours:
+        ours = next((episodes.policy_name(s["policy"]) for s in seats if s["slot"] == followed), "")
+    return [{**s, "ours": bool(ours) and episodes.matches_policy(s["policy"], ours)} for s in seats]
+
+
 @router.get("/replays/{episode}")
 def replay_page(
     request: Request, episode: str, phase: int | None = None, seat: int | None = None, turn: int | None = None
@@ -201,13 +219,13 @@ def replay_page(
         response = render(request, "replays_missing.html", episode=episode)
         response.status_code = 404
         return response
+    ours = _our_policy(request, row)
+    followed = _seat(row, seat, ours)
     return render(
         request,
         "replays_view.html",
-        episode=row,
-        # The policy we follow: the browser's pick, else the one the lab can name (recorded, or uploaded last).
-        seat=_seat(row, seat, routes_dashboard.remembered_policy(request)
-                   or routes_dashboard.lab_policy({episodes.policy_name(s["policy"]) for s in row["seats"]})),
+        episode={**row, "seats": _mark_ours(row["seats"], ours, followed)},
+        seat=followed,
         phase=phase,
         turn=turn,
         source_words=SOURCE_WORDS,
@@ -217,10 +235,12 @@ def replay_page(
 
 
 @router.get("/api/replays/{episode}")
-def replay_data(episode: str, seat: int | None = None):
+def replay_data(request: Request, episode: str, seat: int | None = None):
     row = _episode_or_404(episode)
     view = episodes.load_view(row, _seat(row, seat))
-    return {**view, "annotations": store.annotations(episode), "audit_stamp": episodes.audit_stamp(episode)}
+    seats = _mark_ours(view["seats"], _our_policy(request, row), view["seat"])
+    return {**view, "seats": seats, "annotations": store.annotations(episode),
+            "audit_stamp": episodes.audit_stamp(episode)}  # fmt: skip
 
 
 @router.get("/api/replays/{episode}/audit-status")

@@ -290,6 +290,13 @@ class Cli(unittest.TestCase):
             code, text = self.run_main([tmp, "--game", "ereq_a", "--years", "1902", "--logs"])
             self.assertNotIn("## Autumn 1901", text)
             self.assertIn("## Spring 1902", text)
+            self.assertNotIn("(ours)", text)  # without --versus nothing is marked
+            code, text = self.run_main([tmp, "--game", "ereq_a", "--versus", "ours"])
+            seat_lines = {line.split()[0].upper(): line for line in text.splitlines()[2:5]}
+            self.assertIn(" (ours) | centres by year", seat_lines["RUSSIA"])
+            self.assertNotIn("(ours)", seat_lines["GERMANY"])
+            self.assertIn("\nRussia (ours) ", text)
+            self.assertNotIn("Germany (ours)", text)
             self.assertEqual(self.run_main([tmp, "--game", "ereq_none"])[0], 2)
             self.assertEqual(self.run_main([tmp, "--game", "ereq_"])[0], 0)  # a unique prefix is enough
 
