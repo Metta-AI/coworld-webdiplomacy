@@ -3,7 +3,27 @@
 import secrets
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema, field_validator
+
+
+class SeatPlayer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=200)
+
+
+# The platform writes each seat's display name into players[slot].name only when the
+# schema declares this inline shape (coworld.manifest_validation's
+# game_config_with_named_players); a $ref or a nullable union would hide it.
+SEAT_PLAYERS_SCHEMA = {
+    "type": "array",
+    "maxItems": 7,
+    "items": {
+        "type": "object",
+        "properties": {"name": {"type": "string", "minLength": 1, "maxLength": 200}},
+        "required": ["name"],
+        "additionalProperties": False,
+    },
+}
 
 
 class EpisodeConfig(BaseModel):
@@ -22,6 +42,9 @@ class EpisodeConfig(BaseModel):
     render_maps: bool = True
     # countries[slot] is that slot's upstream country ID; None shuffles them by seed.
     countries: list[Annotated[int, Field(ge=1, le=7)]] | None = Field(default=None, min_length=7, max_length=7)
+    # Seat display names in slot order, written by the platform. Private until the game
+    # ends: they go only into the saved replay, never hello, upstream or /global.
+    players: Annotated[list[SeatPlayer], WithJsonSchema(SEAT_PLAYERS_SCHEMA)] = Field(default_factory=list)
 
     @field_validator("tokens")
     @classmethod
@@ -29,6 +52,13 @@ class EpisodeConfig(BaseModel):
         if len(set(tokens)) != 7 or any(not token or len(token) > 80 for token in tokens):
             raise ValueError("seven distinct nonempty tokens of at most 80 characters required")
         return tokens
+
+    @field_validator("players")
+    @classmethod
+    def one_name_per_seat(cls, players):
+        if players and len(players) != 7:
+            raise ValueError("players must name all seven seats or be omitted")
+        return players
 
     @field_validator("countries")
     @classmethod

@@ -98,7 +98,8 @@ def install_routes(app, episode):
                     "capabilities": [BOT_API_CAPABILITY],
                     "slot": slot,
                     "webdip": webdip,
-                    "rules": episode.config.model_dump(exclude={"tokens"}),
+                    # Seat names stay private while anonymous play is in progress.
+                    "rules": episode.config.model_dump(exclude={"tokens", "players"}),
                     "source_url": SOURCE_URL,
                 }
             )

@@ -85,7 +85,9 @@ class Episode:
         else:
             self.countries = list(range(1, 8))
             random.Random(config.seed).shuffle(self.countries)
-        created = php("wdc_create_game", payload={**config.model_dump(), "countries": self.countries})
+        created = php(
+            "wdc_create_game", payload={**config.model_dump(exclude={"players"}), "countries": self.countries}
+        )
         self.game_id = int(created["game_id"])
         self.seats = created["seats"]
         self.tick()
@@ -215,7 +217,7 @@ class Episode:
             self.frames[-1] = final_public
         # These URIs are supplied by the runner, never by a player.
         write_artifact(
-            os.environ["COGAME_SAVE_REPLAY_URI"], json.dumps(self.frames).encode(), "COGAME_SAVE_REPLAY_METHOD"
+            os.environ["COGAME_SAVE_REPLAY_URI"], json.dumps(self.saved_frames()).encode(), "COGAME_SAVE_REPLAY_METHOD"
         )
         write_artifact(os.environ["COGAME_RESULTS_URI"], json.dumps(result).encode(), "COGAME_RESULTS_METHOD")
         with self.lock:
@@ -235,6 +237,20 @@ class Episode:
             ),
             flush=True,
         )
+
+    def saved_frames(self):
+        """Frames for the saved replay: seat names join each frame's `episode` only here.
+
+        Names are written once the game is over, into copies, so the live `/global`
+        stream (which shares these frame objects) never carries them.
+        """
+        if not self.config.players:
+            return self.frames
+        players = [
+            {"slot": slot, "countryID": country, "name": player.name}
+            for slot, (country, player) in enumerate(zip(self.countries, self.config.players, strict=True))
+        ]
+        return [{**frame, "episode": {**frame["episode"], "players": players}} for frame in self.frames]
 
     def completion_ready(self):
         with self.lock:

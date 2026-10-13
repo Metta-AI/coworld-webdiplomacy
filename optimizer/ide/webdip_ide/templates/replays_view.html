@@ -14,7 +14,7 @@
         <select id="seat-select">
           {% if not episode.seats | selectattr("has_log") | list %}<option value="">none: no seat log on disk</option>{% endif %}
           {% for s in episode.seats %}{% if s.has_log %}
-          <option value="{{ s.slot }}"{% if s.slot == seat %} selected{% endif %}>{{ s.power }} · {{ s.policy }} · score {{ "%.3f" | format(s.score) }}</option>
+          <option value="{{ s.slot }}"{% if s.slot == seat %} selected{% endif %}>{{ s.power }} · {{ s.policy }}{% if s.ours %} (ours){% endif %} · score {{ "%.3f" | format(s.score) }}</option>
           {% endif %}{% endfor %}
         </select>
       </div>

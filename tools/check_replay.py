@@ -125,6 +125,11 @@ def run(replays, directory=Path("tmp/p5-static-replay")):
                         expect(view.locator("#units > g")).to_have_count(len(board["units"]))
                         phases = frame["history"]["phases"]
                         expect(view.locator("#orders li")).to_have_count(len(phases[-1]["orders"]) if phases else 0)
+                        # Seat names appear only when the saved replay carries them.
+                        players = frame.get("episode", {}).get("players", [])
+                        expect(view.locator("#powers .player")).to_have_count(len(players))
+                        for player in players:
+                            expect(view.locator("#powers")).to_contain_text(player["name"])
                         if encoding == "plain":
                             view.locator("#map").screenshot(path=str(directory / f"map-{number}-{i}.png"))
                         if frame.get("map"):
@@ -190,6 +195,7 @@ def run(replays, directory=Path("tmp/p5-static-replay")):
             fixture = next(
                 frame for frame in json.loads(replays[0].read_text()) if frame["game"]["phase"] == "Diplomacy"
             )
+            fixture.get("episode", {}).pop("players", None)  # /global never carries seat names
             for changes, expected in (
                 ({"processTime": 1800000065, "processStatus": "Not-processing"}, "1:05"),
                 ({"processTime": 1799999999}, "0:00"),
