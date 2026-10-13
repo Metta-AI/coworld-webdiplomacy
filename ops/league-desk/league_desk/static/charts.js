@@ -147,6 +147,10 @@
       options.x = {label:chart.label || 'USD', grid:true}; options.y = {label:null, domain:chart.order, tickFormat:d=>d}; options.marginLeft = Math.min(width*.65,Math.max(130,...data.map(d=>d.label.length*6)));
       options.height = Math.min(500,Math.max(160,data.length*23+45));
       options.marks = [Plot.barX(data,{x:'value',y:'label',fill:navy,title:d=>`${d.label}: ${d.value.toFixed(3)}`})];
+      if (data.some(d=>d.value_label)) {
+        options.marginRight = 65;
+        options.marks.push(Plot.text(data,{x:'value',y:'label',text:'value_label',textAnchor:'start',dx:5,fill:navy}));
+      }
       if (chart.reference !== null && chart.reference !== undefined)
         options.marks.push(Plot.ruleX([chart.reference],{stroke:gold,strokeDasharray:'4,3'}));
     } else if (chart.kind === "timing") {

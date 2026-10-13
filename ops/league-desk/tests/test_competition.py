@@ -226,6 +226,18 @@ class CompetitionTests(DeskTest):
         self.responses["/v2/rounds/round_demo/episodes"] = httpx.Response(500)
         self.collector.once()
         self.assertEqual(self.store.source("episodes", "round_demo")["data"], old)
+        failed = self.store.source("episodes", "round_demo")
+        self.assertIsNotNone(failed["error"])
+        recovered = raw_game(self.now, "ereq_recovered")
+        self.responses["/v2/rounds/round_demo/episodes"] = {"entries": [recovered], "next_cursor": None}
+        self.store = Store(self.store.directory)
+        self.store.initialize()
+        self.collector = Collector(self.store, self.api, clock=lambda: self.now)
+        self.now = failed["next_due"] + 1
+        self.collector.once()
+        source = self.store.source("episodes", "round_demo")
+        self.assertIsNone(source["error"])
+        self.assertEqual([g["id"] for g in source["data"]["rows"]], ["ereq_recovered"])
 
     def test_rate_limit_stops_inside_competition_group(self):
         self.enrich()

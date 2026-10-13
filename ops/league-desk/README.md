@@ -4,7 +4,7 @@ A local, read-only operations page for the webDiplomacy leagues. The collector
 uses your existing Softmax User login with elevated privileges and saves selected
 fields to SQLite. The page reads that cache, never the platform.
 
-**P5 API and public-artifact page:** current memberships, cumulative ratings and
+**API and public-artifact page:** current memberships, cumulative ratings and
 local rating history, submissions, round/game timing, exposure, throughput and
 player head-to-head are available alongside the health strip. Charts use local
 Observable Plot and D3 bundles. League-attributed source costs, family-wide model
@@ -164,7 +164,8 @@ remain visible even when some values are available.
   results supply outcome/end reason and draw survivor counts where available. Version differences are associations, not causal claims.
 - Coarse timing uses one fully timestamped completed game nearest the median total:
   created→dispatched, dispatched→running, running→completed. It never adds component
-  medians from different games. Detailed lifecycle and phase timing remains absent.
+  medians from different games. Detailed lifecycle timing remains absent; public
+  transition durations appear separately in Phase timing.
 - Scores join by seat position, never array order. Mean score averages multiple
   owned non-filler seats once per player/game; all owned scores must be present.
   The comparison reference is exactly 1/7. Missing scores never become zero.
@@ -249,6 +250,8 @@ only compact derived facts from SQLite. Optional replay `episode.players` is ign
   phase configuration when available, otherwise an explicit unknown limit.
   Movement means upstream Diplomacy. Duration below config does not establish
   early finish: the replay keeps a phase's last snapshot, not its initial deadline.
+  Each median has a seconds label, including near-zero phases whose bars are too short to read.
+  Transitions do not record whether a phase had orders to give; no-order counts are unknown.
   Ready times, per-phase adjudication and seat health remain unavailable.
 - Game-level gamemaster maximums, when present, appear as labelled context beside
   the coarse API timing; they overlap play time and are never added to its stack.
@@ -385,6 +388,34 @@ canonical version; they do not claim release timestamps or historical game chang
 Marks outside a chart's represented day buckets are omitted. Rating snapshots can
 match a selected version through canonical observation or their last round's
 observed game association; ratings always remain cumulative.
+
+## Operating and recovering the desk
+
+Keep the foreground `serve` process running to grow the cache and rating history.
+Restarting it preserves observations, scan cursors, artifact facts, retry deadlines
+and the slow-scan floor. A first run has no historical rating observations; allow
+bounded scans to catch up and use each panel's coverage disclosure. A successful
+page load does not mean every remote source has finished collecting.
+
+When a scan fails, its last good values remain visible with an error and age.
+Leave the collector running for its scheduled retry. Refresh cannot bypass a
+rate-limit deadline, failed-source backoff or the slow-scan floor. If login/access
+fails, check the User login using the command above, then restart the collector.
+If the collector lock is held, stop the other collector you own; removing a lock
+file while its process is alive can allow two collectors. A stale file alone does
+not hold the operating-system lock.
+
+Use `serve --no-collector` for an offline reading session; scripts, charts and
+fonts are local. The browser still polls the local server unless paused. Offline
+reading preserves cached errors/ages and does not pretend the data is fresh.
+
+Storage has no automatic retention or compaction policy. Raw public artifacts,
+selected request facts and rating observations accumulate; both scan catch-up and
+page rendering can slow as retained history grows. Monitor `.runtime/` disk use.
+For a backup, stop every collector/server using this cache, then copy the entire
+`.runtime/` directory to a private location. Restore only while those processes
+are stopped, with the same or a compatible newer schema. A fresh cache loses
+local rating history permanently unless a backup exists. Do not share backups.
 
 ## Files and checks
 

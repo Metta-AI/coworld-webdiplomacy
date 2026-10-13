@@ -106,7 +106,7 @@ def timing_panel(results, replays):
         rows.append([label, fmt(limit), len(values), len({g for g, _ in values}), fmt(median),
                      above if above is not None else "unknown", "not recorded"])
         reference = f"{fmt(limit)} s limit" if limit is not None else "limit unknown"
-        points.append({"label": f"{label} · {reference}", "value": median})
+        points.append({"label": f"{label} · {reference}", "value": median, "value_label": f"{median:g} s"})
     sentence = (f"{sum(len(v) for v in groups.values())} complete observed phases in "
                 f"{len({g for v in groups.values() for g, _ in v})} games." if groups else
                 "No complete timestamped phase transitions.")
@@ -121,7 +121,8 @@ def timing_panel(results, replays):
                  "Results transition clocks, grouped by turn/phase; processing-state duplicates collapse. "
                  "Final incomplete phases excluded. Pauses remain in elapsed duration. Replay config is an observed "
                  "reference; duration below config does not prove early finish. Deadlines and per-phase adjudication "
-                 "durations are not established by these public snapshots.",
+                 "durations are not established by these public snapshots. Phases with no orders to give: "
+                 "not recorded by the transition clocks.",
                  {"kind": "amounts", "label": "Median observed seconds", "data": points})
 
 
