@@ -1,8 +1,9 @@
 """The collector's only network boundary. No platform writes are available."""
+import io
 import math
 import re
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 
 import httpx
@@ -73,9 +74,11 @@ class Api:
             raise ApiError(f"API returned HTTP {response.status_code}")
 
     def artifact(self, episode_id, kind, destination, limit):
-        """Stream only the two public artifacts; redirects never receive credentials."""
-        if kind not in ("results", "replay") or not re.fullmatch(r"ereq_[A-Za-z0-9-]+", episode_id):
+        """Stream only the three public artifacts; redirects never receive credentials."""
+        if kind not in ("results", "replay", "logs") or not re.fullmatch(r"ereq_[A-Za-z0-9-]+", episode_id):
             raise ApiError("Artifact route is not allowed")
+        if kind == "logs" and not isinstance(destination, io.BytesIO):
+            raise ApiError("Game logs require an in-memory destination")
         path = f"/v2/episode-requests/{episode_id}/artifacts/{kind}"
         if self.stream is None:
             raise ApiError("Artifact streaming transport unavailable")
@@ -86,7 +89,7 @@ class Api:
                 self.check_status(response)
                 size = 0
                 deadline = time.monotonic() + ARTIFACT_DOWNLOAD_SECONDS
-                with destination.open("wb") as handle:
+                with (nullcontext(destination) if kind == "logs" else destination.open("wb")) as handle:
                     for chunk in response.iter_bytes(65536):
                         if time.monotonic() > deadline:
                             raise ApiError("Artifact download time limit exceeded")

@@ -13,8 +13,8 @@ SECTIONS = [
         ("Game duration", "Softmax API", 4, "Game timestamps have not been collected."),
         ("Games per day and how they ended", "Softmax API · Replays and results", 4,
          "Game history and end reasons have not been collected."),
-        ("Where an episode's time goes", "Softmax API · Replays and results", 12,
-         "Detailed boot, connect, adjudication and upload timing is unavailable."),
+        ("Where an episode's time goes", "Softmax API · Results and game log", 12,
+         "No instrumented lifecycle profiles collected."),
     ]),
     ("Money and model use", [
         ("Daily spend against budget", "Read-only SQL", 4, "Daily cost breakdown has not been collected."),
@@ -33,10 +33,9 @@ SECTIONS = [
         ("Score by power, all players", "Replays and results", 4, "Results have not been ingested."),
         ("Contested provinces", "Replays and results", 4, "No replay histories ingested."),
         ("Score by policy and power", "Replays and results", 8, "Results have not been ingested."),
-        ("Phase timing", "Replays and results", 4, "No complete phase transitions ingested."),
-        ("Time to Ready", "Needs instrumentation", 4, "Ready timing needs an end-of-game log record."),
-        ("Seat health", "Needs instrumentation", 4,
-         "Seat-level health is unavailable from the public artifacts collected here."),
+        ("Phase timing", "Results", 4, "No complete phase transitions ingested."),
+        ("Time to Ready", "Results and game log", 4, "No public order activity collected."),
+        ("Seat health", "Results and game log", 4, "No instrumented seat health collected."),
     ]),
 ]
 

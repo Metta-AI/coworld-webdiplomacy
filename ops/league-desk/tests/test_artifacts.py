@@ -40,7 +40,8 @@ def replay():
 
 
 def game():
-    return {"id": "ereq_demo", "status": "completed", "coworld_id": "cow_demo", "version": "9.9.1", "completed_at": 100,
+    return {"id": "ereq_demo", "status": "completed", "coworld_id": "cow_demo", "version": "0.7.11",
+            "completed_at": 100,
             "seats": [{"slot": i, "policy_id": "pv_demo", "score": score}
                       for i, score in enumerate(results()["scores"])]}
 
@@ -103,10 +104,11 @@ class ArtifactTests(DeskTest):
         snapshot = self.ingest()
         self.assertIsNotNone(snapshot["artifact_results", "ereq_demo"]["data"])
         self.assertIsNone(snapshot["artifact_replay", "ereq_demo"]["data"])
-        with patch("league_desk.artifacts.PARSER_VERSION", 2):
-            self.ingest()
+        old = snapshot["artifact_results", "ereq_demo"]["data"]
+        self.store.success("artifact_results", "ereq_demo", {**old, "parser_version": 0}, self.now, cadence=0)
+        self.ingest()
         self.assertEqual(len(self.artifact_calls), 2)
-        self.assertEqual(self.store.source("artifact_results", "ereq_demo")["data"]["parser_version"], 2)
+        self.assertEqual(self.store.source("artifact_results", "ereq_demo")["data"]["parser_version"], 1)
 
     def test_missing_scores_are_quarantined_not_silently_zero(self):
         payload = results()
@@ -128,7 +130,7 @@ class ArtifactTests(DeskTest):
         self.assertEqual(score_facts({**game(), "status": "failed"}, facts), [])
 
     def test_download_limits_redirect_auth_errors_and_global_rate_floor(self):
-        for kind in ("logs", "trajectory", "policy-logs"):
+        for kind in ("trajectory", "policy-logs"):
             with self.assertRaises(ApiError):
                 self.api.artifact("ereq_demo", kind, self.store.directory / "test.part", 10)
         for status in (302, 403):

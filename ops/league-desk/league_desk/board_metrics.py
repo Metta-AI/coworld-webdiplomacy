@@ -3,7 +3,9 @@ from collections import Counter, defaultdict
 
 from .config import MIN_SHARED_GAMES
 from .dates import when
-from .game_metrics import PAR, day, fmt, panel, quantile
+from .game_metrics import PAR, day, fmt, panel
+from .instrument_metrics import instrumentation_panels
+from .instrumentation import supported
 from .optimizer_tools import POWERS, stat
 
 
@@ -91,51 +93,18 @@ def contests_panel(replays):
                   "order": [r["label"] for r in shown]})
 
 
-def timing_panel(results, replays):
-    groups = defaultdict(list)
-    for game_id, facts in results.items():
-        limits = replays.get(game_id, {}).get("limits", {})
-        for phase in facts["phases"]:
-            limit = limits.get(f"{phase['turn']}:{phase['phase']}")
-            groups[phase["phase"], limit].append((game_id, phase["seconds"]))
-    rows, points = [], []
-    for (phase, limit), values in sorted(groups.items(), key=lambda pair: (pair[0][0], pair[0][1] or -1)):
-        label = "Movement" if phase == "Diplomacy" else phase
-        median = quantile([v for _, v in values], .5)
-        above = sum(v > limit for _, v in values) if limit is not None else None
-        rows.append([label, fmt(limit), len(values), len({g for g, _ in values}), fmt(median),
-                     above if above is not None else "unknown", "not recorded"])
-        reference = f"{fmt(limit)} s limit" if limit is not None else "limit unknown"
-        points.append({"label": f"{label} · {reference}", "value": median, "value_label": f"{median:g} s"})
-    sentence = (f"{sum(len(v) for v in groups.values())} complete observed phases in "
-                f"{len({g for v in groups.values() for g, _ in v})} games." if groups else
-                "No complete timestamped phase transitions.")
-    exceeded = sum(r[5] for r in rows if isinstance(r[5], int))
-    if exceeded:
-        sentence = f"{exceeded} complete observed phases exceeded their observed config reference."
-    elif points:
-        longest = max(points, key=lambda p: p["value"])
-        sentence += f" Largest median: {longest['label']}, {fmt(longest['value'])} seconds."
-    return panel(sentence, ["Phase", "Observed config seconds", "Phases", "Games", "Median seconds",
-                            "Above config", "Deadline-based early rate"], rows,
-                 "Results transition clocks, grouped by turn/phase; processing-state duplicates collapse. "
-                 "Final incomplete phases excluded. Pauses remain in elapsed duration. Replay config is an observed "
-                 "reference; duration below config does not prove early finish. Deadlines and per-phase adjudication "
-                 "durations are not established by these public snapshots. Phases with no orders to give: "
-                 "not recorded by the transition clocks.",
-                 {"kind": "amounts", "label": "Median observed seconds", "data": points})
-
-
 def board_panels(snapshot, league, competition, now, start, version):
     games = {g["id"]: g for s in competition["episode_sources"].values() for g in s["data"]["rows"]
              if g["completed_at"] is not None and start <= g["completed_at"] <= now
              and (version == "all" or g["coworld_id"] == version)
              and g["status"] in ("completed", "failed", "cancelled", "error", "canceled", "timed_out")}
-    results, replays, dependencies = {}, {}, []
-    for kind, target in (("results", results), ("replay", replays)):
+    results, replays, logs, dependencies = {}, {}, {}, []
+    for kind, target in (("results", results), ("replay", replays), ("logs", logs)):
         for game_id in games:
+            if kind == "logs" and not supported(games[game_id].get("version")):
+                continue
             source = snapshot.get(("artifact_" + kind, game_id), {})
-            dependencies.append({**source, "name": kind})
+            dependencies.append({**source, "name": kind, "scope": game_id})
             if source.get("data"):
                 target[game_id] = source["data"]["facts"]
     seats, excluded = [], 0
@@ -151,13 +120,21 @@ def board_panels(snapshot, league, competition, now, start, version):
     comparable = [replays[key] for key in replays if key in results and score_facts(games[key], results[key])]
     panels = {"Score by power, all players": powers_panel(seats),
               "Score by policy and power": policy_panel(seats, labels),
-              "Contested provinces": contests_panel(comparable), "Phase timing": timing_panel(results, replays)}
-    coverage = (f"Results {len(results)}/{len(games)}; replay {len(replays)}/{len(games)} "
-                "finished selected league games.")
-    newest = max((d.get("fetched_at") or 0 for d in dependencies), default=0)
+              "Contested provinces": contests_panel(comparable)}
+    panels.update(instrumentation_panels(games, results, logs, labels))
+    eligible = sum(supported(g.get("version")) for g in games.values())
+    coverage = (f"Results {len(results)}/{len(games)}; replay {len(replays)}/{len(games)}; "
+                f"game log {len(logs)}/{eligible} eligible 0.7.12+ games. "
+                "Terminal selected league games.")
     for title, value in panels.items():
-        required = dependencies if title in ("Contested provinces", "Phase timing") else [
-            d for d in dependencies if d["name"] == "results"]
+        kinds = ("results", "replay") if title == "Contested provinces" else ("results",)
+        required = [d for d in dependencies if d["name"] in kinds]
+        if title in ("Time to Ready", "Seat health", "Where an episode's time goes", "Phase timing"):
+            kinds = (("results",) if title == "Phase timing" else ("logs",)
+                     if title == "Where an episode's time goes" else ("results", "logs"))
+            required = [d for d in dependencies if d["name"] in kinds and
+                        supported(games[d["scope"]].get("version"))]
+        newest = max((d.get("fetched_at") or 0 for d in required), default=0)
         value.update(immutable=True, age=None, missing=sum(not d.get("data") for d in required),
                      stale=any(bool(d.get("error")) for d in required),
                      artifact_status=coverage + (f" Last ingest {when(newest)}." if newest else " Awaiting ingest."),
@@ -183,10 +160,4 @@ def board_panels(snapshot, league, competition, now, start, version):
     throughput["coverage"] += " " + coverage
     throughput["sources"] += panels["Score by power, all players"]["sources"]
     throughput["stale"] |= panels["Score by power, all players"]["stale"]
-    timing = competition["panel_data"].get("Where an episode's time goes")
-    calls = [r["gamemaster"] for r in results.values() if r.get("gamemaster", {}).get("max_seconds") is not None]
-    if timing and calls:
-        timing["note"] += (f" Game-level gamemaster context: {len(calls)} results with timings; "
-                           f"largest recorded call {fmt(max(r['max_seconds'] for r in calls))} seconds. "
-                           "This overlaps play time; it is not a per-phase adjudication measurement.")
     return panels

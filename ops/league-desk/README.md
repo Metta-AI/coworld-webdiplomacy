@@ -10,7 +10,7 @@ player head-to-head are available alongside the health strip. Charts use local
 Observable Plot and D3 bundles. League-only daily source costs, stable player/policy model attribution, SQL seat
 spend, compute unit costs and experience-request history are
 available with explicit scope/coverage. Public results and replay facts provide power/policy scores, province contests,
-end reasons and observed phase timings. Game instrumentation remains unavailable. There is no rating backfill. Range/version filters, local house fonts, rating
+end reasons and observed phase timings. Public 0.7.12 instrumentation adds Ready/Saved timing, seat health and container stages. There is no rating backfill. Range/version filters, local house fonts, rating
 bands and automatic fragment refresh are available.
 
 ## Run
@@ -172,10 +172,11 @@ remain visible even when some values are available.
 - Game duration is running to completed, grouped by completion day/version. Median
   and p90 use linear interpolation. Failures stay separate in throughput; public
   results supply outcome/end reason and draw survivor counts where available. Version differences are associations, not causal claims.
-- Coarse timing uses one fully timestamped completed game nearest the median total:
-  created→dispatched, dispatched→running, running→completed. It never adds component
-  medians from different games. Detailed lifecycle timing remains absent; public
-  transition durations appear separately in Phase timing.
+- Episode timing uses separate stage medians for a common complete-game cohort on
+  Coworld 0.7.12+. Queue and pod start use API timestamps; container stages use
+  the final public log profile. Medians are not additive. API/container boundaries
+  differ, so pod start can overlap early container work. Interrupted profiles stay
+  outside this cohort; missing stages do not become zero.
 - Scores join by seat position, never array order. Mean score averages multiple
   owned non-filler seats once per player/game; all owned scores must be present.
   The comparison reference is exactly 1/7. Missing scores never become zero.
@@ -248,9 +249,9 @@ remain visible even when some values are available.
 
 ## Public artifacts and board measures
 
-The collector fetches only public `results` and `replay` artifacts for terminal
-league games already in the cache. It never fetches game logs, seat logs, policy
-ZIPs or trajectories. Experience-request artifacts are outside this collector.
+The collector fetches public `results` and `replay` artifacts for terminal
+league games already in the cache, plus public `logs` on Coworld 0.7.12+. It never
+fetches seat logs, policy ZIPs or trajectories. Experience-request artifacts are outside this collector.
 The separate collector process downloads and parses; page/fragment requests read
 only compact derived facts from SQLite. Optional replay `episode.players` is ignored.
 
@@ -275,23 +276,48 @@ only compact derived facts from SQLite. Optional replay `episode.players` is ign
   autumn changes may be absent. The table includes zero provinces; the chart shows
   the six highest and three lowest observed rates. These are counts, not strategy
   or causal findings.
-- Phase durations use results `transitions.elapsed_seconds`, collapsing adjacent
-  processing-state changes within a turn/phase. Only phases with a following
-  transition have durations; pauses remain included. Grouping uses observed replay
-  phase configuration when available, otherwise an explicit unknown limit.
-  Movement means upstream Diplomacy. Duration below config does not establish
-  early finish: the replay keeps a phase's last snapshot, not its initial deadline.
-  Each median has a seconds label, including near-zero phases whose bars are too short to read.
-  Transitions do not record whether a phase had orders to give; no-order counts are unknown.
-  Ready times, per-phase adjudication and seat health remain unavailable.
-- Game-level gamemaster maximums, when present, appear as labelled context beside
-  the coarse API timing; they overlap play time and are never added to its stack.
+- Instrumented panels state “From Coworld 0.7.12; N of M games covered.” The
+  denominator is selected terminal games by completion time and Coworld version;
+  older versions remain uncovered, never inferred zero. Stable policy-version IDs
+  join slot-ordered facts to API seats, including fillers with known policy IDs.
+- Time to Ready separates Movement (upstream Diplomacy) and Retreat/build. It
+  shows first-Saved and first-Ready shares of the observed deadline minus phase
+  start. Each game's median share contributes once to the across-game median.
+  Never-Ready is the share of due seat-phases with a null first-Ready time. Null
+  seats have no orders due. Missing deadlines do not supply timing denominators.
+  Final Finished-bound and incomplete phases are censored, so adapter time/year
+  caps do not create false never-Ready readings. Samples have about 0.25-second
+  resolution and can miss brief Ready states. Timing marks require five measured
+  games per estimate; smaller samples and counts remain in the table.
+- Seat health counts disconnect/reconnect events, including connection takeover.
+  A late first connect is after the first observed order phase; never-connected
+  seats are separate. It counts games with any uncensored due phase never Saved,
+  with a distinct covered-game denominator. API requests sum each policy's seats
+  within a game, then take the median; they include browser/archive worker calls
+  and are context, not an alert. Cancelled API counts and pod loss remain unknown.
+  Existing verified failure-streak alerts are unchanged. No new Ready alert is
+  enabled. Health chart marks require five games with covered due phases.
+- Phase timing uses transition clocks, collapsing processing-state duplicates.
+  It shows observed and adjudication medians separately; adjudication is the
+  longest gamemaster request started in each phase and overlaps phase duration.
+  Early finish compares the next order-phase timestamp with the latest observed
+  deadline (including extensions). Final Finished-bound/incomplete phases are
+  excluded from early rates. Missing calls/deadlines remain unknown.
+- Logs are bounded and parsed entirely in memory. Only `seat_activity` and
+  `timing` JSON lines contribute whitelisted derived facts. No raw log is written
+  to disk or SQLite. Unknown events/service lines are ignored; duplicate or
+  malformed recognized events fail safely. A terminal game whose final lines
+  have not arrived retries. A final interrupted timing profile may legitimately
+  lack activity; that absence stays unknown.
 
 Each artifact has an independent ledger entry in `sources`, keyed by
-`artifact_results` or `artifact_replay` plus episode ID. No schema migration or
+`artifact_results`, `artifact_replay` or `artifact_logs` plus episode ID. No schema migration or
 parallel ledger is needed: attempt/success/due/error fields already implement the
 retry contract. Successful data stores `state=ready`, the normalized JSON hash,
-parser revision, relative path and derived facts in one transaction. Missing data
+parser revision, relative path and derived facts in one transaction for results/replay.
+Logs store only parser revision, ready state and derived facts, without a path or raw bytes.
+Existing 0.7.12 results are reparsed locally at parser revision 2; old-version
+results and replay stay at revision 1 and do not need another download. Missing data
 is pending; HTTP 404 means not available yet, while auth, corrupt and transport
 failures stay explicit. An error preserves last good facts. Results remain useful
 when a replay is missing or corrupt; results-only panels do not inherit replay
@@ -301,8 +327,8 @@ panels show per-kind coverage and last ingest, with retry failures still visible
 Downloads use the existing public route/file conventions and optimizer loader,
 through the repository-relative `optimizer_tools.py` seam. The broader optimizer
 fetcher is intentionally not called: it downloads private seat files and its
-`.done` marker means any artifact succeeded. Each kind stages its standard JSON
-filename separately and promotes it only after successful validation. Gzip is
+`.done` marker means any artifact succeeded. Results/replay stage their standard JSON
+filenames separately and promotes it only after successful validation. Gzip is
 detected by bytes; HTTP gzip is handled by the transport. Redirects are refused.
 A successful artifact is not fetched again; parser revision changes reparse the
 hash-verified local file. Errors retry with exponential backoff from a minute to
@@ -360,7 +386,7 @@ The collector allows only these GET paths:
 - `/v2/coworlds/summaries` (version discovery; no manifest bodies)
 - `/v2/experience-requests`, `/v2/experience-requests/{request_id}`
 - `/v2/episode-requests` (paginated request episode IDs), `/v2/episode-requests/{episode_id}`
-- `/v2/episode-requests/{episode_id}/artifacts/results` and `/artifacts/replay` (bounded binary transport)
+- `/v2/episode-requests/{episode_id}/artifacts/results` , `/artifacts/replay` and `/artifacts/logs` (bounded public-artifact transport)
 - `/admin/costs/leagues`, `/admin/llm-coworld-usage`
 - `/sql/tables/episode_llm_usage/schema`, `/sql/tables/experience_requests/schema`
 
@@ -476,7 +502,8 @@ local rating history permanently unless a backup exists. Do not share backups.
 `competition.py` parses competition and resumes history scans; `metrics.py` builds
 the health strip; `competition_metrics.py` and `game_metrics.py` produce metric
 objects and fixed readings; `panels.py` joins dependencies and coverage;
-`artifacts.py` ingests public artifacts and derives facts; `board_metrics.py` builds
+`artifacts.py` ingests public artifacts; `instrumentation.py` validates selected
+public log/result facts and `instrument_metrics.py` builds the four instrumentation panels; `board_metrics.py` builds
 board/end-reason/timing panels; `optimizer_tools.py` imports the existing shared
 loader, normalizers and statistics without invoking their CLI/downloaders.
 `spending.py` collects cost/request/SQL groups; `attribution.py` validates league

@@ -49,6 +49,10 @@ with sync_playwright() as p:
     assert timing_labels.count() > 0
     assert all(label.endswith(' s') for label in timing_labels.all_text_contents())
     assert page.locator('[data-swap="Score by policy and power"] [aria-label="cell"] rect').count() > 0
+    assert page.locator('[data-swap="Time to Ready"] .plot rect').count() >= 2
+    assert '5 of 5 games covered' in page.locator('[data-swap="Time to Ready"]').inner_text()
+    assert page.locator('[data-swap="Seat health"] .plot rect').count() >= 1
+    assert page.locator('[data-swap="Where an episode\'s time goes"] .plot rect').count() == 11
     assert page.locator('.plot:empty').count() == 0
     ratings = page.locator('.panel[data-swap="MMR over time"]')
     assert ratings.locator('g[aria-label="line"] path').first.get_attribute('d').count('L') >= 2

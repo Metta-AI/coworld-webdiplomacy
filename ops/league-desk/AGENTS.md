@@ -49,13 +49,23 @@ currently authorized phase.
 - Keep this README current; root README is embedded in the game manifest and does
   not need edits for this dashboard. CI's always-run test job checks this project.
 
-- P5 public artifacts use independent `artifact_results` / `artifact_replay`
+- Public artifacts use independent `artifact_results` / `artifact_replay` / `artifact_logs`
   source ledgers. Only the collector downloads/parses; the server reads compact
   facts. Ready immutable files are not polled again or expired by age.
-- Keep the two artifact routes separate from arbitrary GETs; no redirects, seat
+- Keep the three public artifact routes separate from arbitrary GETs; no redirects, seat
   logs, policy ZIPs or trajectories. Validate/decompress within configured bounds,
   stage before promotion, and retain last good facts on failure.
 - `optimizer_tools.py` is the only reuse seam. Check scores before the shared
   loader (it defaults missing scores to zero). Preserve game clustering, the
   five-game color floor and the stale Finished-board exclusion. Do not infer
   Ready/deadline outcomes from replay snapshots or phase config alone.
+
+- Terminal 0.7.12+ game logs are parsed only in memory. Cache selected seat_activity
+  and timing facts, never raw logs. Missing final lines retry; interrupted profiles
+  may lack activity. Older versions are uncovered, never zero.
+- Ready/Saved shares use observed deadline minus phase start, with medians within
+  each game before across-game medians. Exclude null seats and final/incomplete
+  phases from never-Ready/no-Saved denominators. Five-game chart floor applies.
+- Connection events are not pod-loss evidence. API requests include browser and
+  archive traffic, and cancelled counts remain unknown. Stage medians are separate,
+  not additive; API pod-start boundaries can overlap container initialization.
