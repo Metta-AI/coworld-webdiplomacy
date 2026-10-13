@@ -123,8 +123,12 @@ root's CLI pins and lockfile are independent.
   Competition panels have a five-minute refresh contract even when a faster round
   source contributes; stale means older than 600 seconds, not 523. Round-duration
   data retains its minute cadence. Failures always mark the panel stale.
-  Slow panels use a 30-minute stale threshold, with older chunk/query timestamps
-  retained; refreshing one chunk cannot conceal older cached seat/override rows.
+  Slow panels use a 30-minute stale threshold, retaining old seat/query timestamps.
+  Immutable request overrides use the newest pass age and selected-request inspection
+  coverage instead; old inspected chunks do not expire. Missing inspections remain visible.
+  Finished game details follow their daily schedule (stale after two intervals).
+  Request lists use their version rotation interval, while the canonical list stays
+  strict at ten minutes, including on slow panels. Errors always remain visible.
 - All display dates use America/Los_Angeles with PDT/PST, including API reset times.
 
 ## Competition and game measures
@@ -428,7 +432,11 @@ the earliest visible round is unknown. Membership scans and each episode listing
 are atomic, bounded at ten pages; larger scans fail explicitly without replacing
 last good values. No full-page cutoff is interpreted as completeness.
 
-Version discovery is daily. Two version request walks advance per collector pass,
+Version discovery is daily. Two version request walks advance per collector pass;
+a due canonical version takes priority. Its cadence is five minutes. Other versions
+use the larger of five minutes or one minute per noncanonical version, reserving
+one of the two slots for canonical work. Freshness uses twice that interval.
+The walks advance
 in 30-day creation windows back to the version's creation time, then refreshing
 seven-day windows. Cursors keep their fixed window bounds across retries. Last
 recent-window time remains visible while older windows backfill. The detail loop
@@ -436,6 +444,8 @@ reads two due requests per pass, reserving one for a known unfinished request wh
 available, and eight episode details; large caches therefore need bounded catch-up.
 Request episodes use a separate paginated ID listing, not the unpaginated detail's
 embedded episode array. Request details can refresh outside the creation window.
+Known finished episode details use the daily reconciliation cadence; unfinished or
+previously unknown episode details use 15 minutes.
 
 Admin cost scans and SQL groups reserve a 15-minute minimum between attempts
 **before** I/O. Errors, crashes and forced polls cannot bypass it. Each seat/override

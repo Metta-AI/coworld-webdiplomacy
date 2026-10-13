@@ -7,6 +7,7 @@ from .config import MODEL_ERROR_RATE, MODEL_MIN_CALLS, SEAT_NEAR_CAP, SLOW_SECON
 from .freshness import annotate
 from .game_metrics import day, fmt, minutes, panel, quantile
 from .metrics import money
+from .spending import request_interval
 
 
 def source_label(source):
@@ -260,17 +261,18 @@ def request_durations(requests, games):
 def override_frequency(requests, data):
     ids = {r["id"] for r in requests}
     rows = [r for r in data.get("rows", []) if r["id"] in ids]
+    inspected = len(ids & (set(data.get("checked_at", {})) | {r["id"] for r in rows}))
     counts = Counter((key, str(value)) for row in rows for key, value in row["values"].items())
     ordered = sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))
     result = panel(
-        f"{ordered[0][0][0]} is set to {ordered[0][0][1]} in {ordered[0][1]}/{len(rows)} inspected requests."
+        f"{ordered[0][0][0]} is set to {ordered[0][0][1]} in {ordered[0][1]}/{inspected} inspected requests."
         if ordered
         else "No allowlisted overrides found in inspected requests."
-        if rows
+        if inspected
         else "Stored request overrides not yet collected.",
         ["Config key", "Value", "Requests", "Inspected"],
-        [[key, value, n, len(rows)] for (key, value), n in ordered],
-        f"{len(rows)}/{len(ids)} selected requests inspected. Only allowlisted scalar keys are read; "
+        [[key, value, n, inspected] for (key, value), n in ordered],
+        f"{inspected}/{len(ids)} selected requests inspected. Only allowlisted scalar keys are read; "
         "notes, rosters and arbitrary values never enter the cache. No version-default comparison is available.",
     )
 
@@ -344,7 +346,13 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
         "Common config overrides": override_frequency(selected, data("overrides")),
     }
     panels["Requests per day"]["chart"]["markers"] = competition.get("version_markers", [])
-    request_deps = [source("versions")] + [source("requests", v["id"]) for v in versions]
+    canonical_id = data("discovery").get("coworld_id")
+    version_count = len(data("versions").get("rows", []))
+    request_deps = [source("versions")] + [
+        {**source("requests", v["id"]),
+         "revisit_seconds": request_interval(v["id"], canonical_id, version_count)}
+        for v in versions
+    ]
     selected_details = {s["data"]["id"]: s for s in request_details if s["data"]["id"] in {r["id"] for r in selected}}
     expected_games = {key for s in selected_details.values() for key in s["data"]["episode_ids"]}
     timing_deps = [selected_details.get(r["id"], {}) for r in selected] + [
@@ -370,6 +378,11 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
     for name, result in panels.items():
         annotate(result, deps[name], now, cadence=SLOW_SECONDS if name not in ("Requests per day",) else 300)
         result["coverage"] = result["note"]
+        if name == "Common config overrides":
+            inspected = set(data("overrides").get("checked_at", {})) | {
+                r["id"] for r in data("overrides").get("rows", [])
+            }
+            result["missing"] += sum(r["id"] not in inspected for r in selected)
     # One total per player/game; multiple models must not multiply the denominator.
     player_costs = defaultdict(list)
     for game in games:

@@ -1,9 +1,17 @@
 """Slow spend/SQL snapshots and bounded experience-request history; no remote writes."""
 
 from datetime import datetime, timezone
+from math import ceil
 
 from .competition import episode, identity, number, scan, text
-from .config import COMPETITION_SECONDS, DETAILS_PER_POLL, RECONCILE_SECONDS, SLOW_SECONDS, XP_VERSIONS_PER_POLL
+from .config import (
+    COMPETITION_SECONDS,
+    DETAILS_PER_POLL,
+    POLL_SECONDS,
+    RECONCILE_SECONDS,
+    SLOW_SECONDS,
+    XP_VERSIONS_PER_POLL,
+)
 from .dates import timestamp
 from .sql import OVERRIDES, select_rows
 
@@ -167,22 +175,31 @@ def overrides(api, ids):
     return {"ids": sorted(ids), "rows": rows}
 
 
+def request_interval(version_id, canonical_id, version_count):
+    """Reserve one poll slot for canonical; bound the remaining version rotation."""
+    if version_id == canonical_id:
+        return COMPETITION_SECONDS
+    return max(COMPETITION_SECONDS, ceil(max(0, version_count - 1) / (XP_VERSIONS_PER_POLL - 1)) * POLL_SECONDS)
+
+
 def collect_spending(collector, discovery):
     store, api, now = collector.store, collector.api, collector.clock()
     poll = collector.poll
     poll("versions", "all", lambda: versions(api), cadence=RECONCILE_SECONDS)
     catalog = (store.source("versions", "all") or {}).get("data") or {}
+    canonical_id = discovery["coworld_id"]
     pending = []
     for version in catalog.get("rows", []):
         old = store.source("requests", version["id"])
         if not old or now >= old["next_due"]:
             pending.append((old["fetched_at"] or 0 if old else 0, version, old))
-    for _, version, old in sorted(pending, key=lambda r: (r[0], -(r[1]["created_at"] or 0)))[:XP_VERSIONS_PER_POLL]:
+    pending.sort(key=lambda r: (r[1]["id"] != canonical_id, r[0], -(r[1]["created_at"] or 0)))
+    for _, version, old in pending[:XP_VERSIONS_PER_POLL]:
         poll(
             "requests",
             version["id"],
             lambda: request_history(api, version, old, collector.clock()),
-            cadence=COMPETITION_SECONDS,
+            cadence=request_interval(version["id"], canonical_id, len(catalog.get("rows", []))),
         )
     snapshot = store.snapshot()
     requests = {
@@ -241,7 +258,9 @@ def collect_spending(collector, discovery):
         if now >= snapshot.get(("detail", key), {}).get("next_due", 0)
     ]
     for _, key in sorted(due)[:DETAILS_PER_POLL]:
-        poll("detail", key, lambda: details(api, key), cadence=SLOW_SECONDS)
+        previous = snapshot.get(("detail", key), {}).get("data") or games.get(key, {})
+        cadence = RECONCILE_SECONDS if previous.get("completed_at") is not None else SLOW_SECONDS
+        poll("detail", key, lambda: details(api, key), cadence=cadence)
     from .attribution import collect_attribution
 
     collect_attribution(collector, discovery["leagues"])

@@ -280,6 +280,28 @@ class ExperienceTests(DeskTest):
         self.assertIn("0/1 listed game details", timing["note"])
         self.assertEqual(timing["missing"], 1)
 
+    def test_override_coverage_tracks_selected_requests_without_aging_old_checks(self):
+        row = {**request_row(self.row()), "seen_at": self.now}
+        snapshot = {}
+        for name, scope, data in (
+            ("versions", "all", {"rows": [{"id": "cow_demo"}]}),
+            ("requests", "cow_demo", {"rows": [row], "backfilled": True}),
+            ("overrides", "all", {"rows": [], "checked_at": {}}),
+        ):
+            snapshot[name, scope] = {"name": name, "data": data, "fetched_at": self.now,
+                                     "next_due": self.now + 300}
+        def result():
+            return spending_panels(snapshot, {"id": "league_demo", "key": "press"}, self.now,
+                                   {"episode_sources": {}})["spend_panels"]["Common config overrides"]
+        self.assertEqual(result()["missing"], 1)
+        snapshot["overrides", "all"]["data"]["checked_at"][REQUEST] = self.now - 279 * 60
+        self.assertEqual(result()["missing"], 0)
+        self.assertFalse(result()["stale"])
+        self.assertIn("1/1 selected requests inspected", result()["note"])
+        row["created_at"] = self.now - 60 * 86400
+        snapshot["overrides", "all"]["data"]["checked_at"] = {}
+        self.assertEqual(result()["missing"], 0)
+
     def test_failed_partial_window_restarts_same_bounds(self):
         version = {"id": "cow_demo", "created_at": self.now - 60 * 86400}
         old = {
@@ -387,3 +409,68 @@ class SpendingMetricTests(DeskTest):
         self.assertIn("unknown/round", result["sentence"])
         self.assertIn("$2.00/game", result["sentence"])
         self.assertEqual(result["rows"][0][1], "1/2")
+
+
+class FreshnessScheduleTests(DeskTest):
+    def test_finished_detail_uses_daily_schedule_but_errors_still_show(self):
+        source = {"name": "detail", "data": {}, "fetched_at": self.now, "next_due": self.now + 86400}
+        panel = {}
+        annotate(panel, [source], self.now + 18000)
+        self.assertFalse(panel["stale"])
+        annotate(panel, [source], self.now + 172801)
+        self.assertTrue(panel["stale"])
+        source["error"] = "failed"
+        annotate(panel, [source], self.now + 1)
+        self.assertTrue(panel["stale"])
+
+    def test_override_age_is_newest_pass_not_immutable_chunk(self):
+        source = {"name": "overrides", "data": {"checked_at": {REQUEST: self.now - 279 * 60}},
+                  "fetched_at": self.now}
+        panel = {}
+        annotate(panel, [source], self.now)
+        self.assertFalse(panel["stale"])
+        self.assertEqual(panel["age"], 0)
+        annotate(panel, [source], self.now + 1801)
+        self.assertTrue(panel["stale"])
+        source["error"] = "failed"
+        annotate(panel, [source], self.now)
+        self.assertTrue(panel["stale"])
+
+    def test_rotated_request_lists_and_strict_canonical(self):
+        from league_desk.spending import request_interval
+
+        panel = {}
+        for version, expected in (("cow_old", False), ("cow_current", True)):
+            interval = request_interval(version, "cow_current", 30)
+            source = {"name": "requests", "data": {"recent_through": self.now},
+                      "fetched_at": self.now, "revisit_seconds": interval}
+            annotate(panel, [source], self.now + 13 * 60, cadence=900)
+            self.assertEqual(panel["stale"], expected)
+            annotate(panel, [source], self.now + 2 * interval + 1)
+            self.assertTrue(panel["stale"])
+            source["error"] = "failed"
+            annotate(panel, [source], self.now + 1)
+            self.assertTrue(panel["stale"])
+
+    def test_canonical_request_walk_is_not_starved_by_old_versions(self):
+        from league_desk.spending import collect_spending
+
+        rows = [{"id": f"cow_old_{n}", "created_at": self.now - 1000} for n in range(30)]
+        rows.append({"id": "cow_demo", "created_at": self.now})
+        self.store.success("versions", "all", {"rows": rows}, self.now, cadence=86400)
+        self.responses["/v2/experience-requests"] = {"entries": [], "next_cursor": None}
+        collect_spending(self.collector, {"coworld_id": "cow_demo", "leagues": []})
+        calls = [c for c in self.calls if c[1] == "/v2/experience-requests"]
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0][2]["coworld_id"], "cow_demo")
+        self.assertEqual(self.store.source("requests", "cow_demo")["next_due"], self.now + 300)
+        self.assertEqual(self.store.source("requests", "cow_old_0")["next_due"], self.now + 1800)
+
+    def test_known_finished_game_detail_is_scheduled_daily(self):
+        from league_desk.spending import collect_spending
+
+        game = {**episode(raw_game(self.now)), "completed_at": self.now - 1}
+        self.store.success("episodes", "round_demo", {"rows": [game]}, self.now)
+        with patch("league_desk.spending.details", return_value=game):
+            collect_spending(self.collector, {"coworld_id": "cow_demo", "leagues": []})
+        self.assertEqual(self.store.source("detail", game["id"])["next_due"], self.now + 86400)

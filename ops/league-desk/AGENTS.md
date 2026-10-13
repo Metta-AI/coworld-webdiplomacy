@@ -14,6 +14,10 @@ currently authorized phase.
   only. Never accept SQL text from a caller or mutate the platform.
 - Slow cost/model/SQL attempts reserve their 15-minute floor before network I/O.
   Do not bypass that floor on errors, restarts or manual refreshes.
+- Freshness follows per-row episode/detail schedules. Immutable overrides use newest
+  pass age plus selected-request inspection coverage, never oldest chunk age. Request
+  lists follow the bounded version rotation; canonical walks get priority and retain
+  the ten-minute stale threshold. Errors and missed schedules must remain visible.
 - SQL seat facts are unique by episode/slot/hour/provider; aggregate once at seat
   grain and replace snapshots. Missing rows are unknown, not zero usage.
 - Daily cost SQL is league/source/Pacific-day scoped and replaces its whole 30-day
