@@ -98,11 +98,11 @@ class Api:
         except httpx.HTTPError:
             raise ApiError("Artifact download failed") from None
 
-    def select(self, kind, ids, after=None):
+    def select(self, kind, ids, after=None, *, start=None, end=None):
         # The only POST surface accepts a named fixed SELECT, never caller-supplied SQL.
         from .sql import query
-        statement = query(kind, ids, after)
-        return self._request("POST", "/sql/query", json={"query": statement})[0]
+        statement = query(kind, ids, after, start=start, end=end)
+        return self._request("POST", "/sql/query", json={"query": statement}, timeout=25)[0]
 
     def json(self, path, params=None):
         return self.get(path, params)[0]

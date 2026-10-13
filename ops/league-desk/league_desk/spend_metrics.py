@@ -93,6 +93,7 @@ def model_usage(data):
 
 
 def seat_spend(data, games, cap):
+    with_models = any("models" in row for row in data.get("rows", []))
     by_id = {g["id"]: g for g in games}
     rows, amounts, rejections, near, keyed = [], [], 0, 0, {}
     points = []
@@ -106,7 +107,7 @@ def seat_spend(data, games, cap):
         points.append({"key": seat["player_id"] or f"unattributed:{row['episode']}:{row['slot']}",
                        "player": seat["player"] or "Unattributed seat", "slot": row["slot"],
                        "value": row["estimated"]})
-        rejections += row["rejections"]
+        rejections += row["rejections"] or 0
         near += cap is not None and row["estimated"] >= cap * SEAT_NEAR_CAP
         rows.append(
             [
@@ -114,22 +115,24 @@ def seat_spend(data, games, cap):
                 row["slot"],
                 row["calls"],
                 money(row["estimated"]),
-                row["rejections"],
+                row["rejections"] if row["rejections"] is not None else "unknown",
                 money(cap),
-            ]
+            ] + ([", ".join(row["models"]) or "No provider calls observed"] if with_models else [])
         )
+    description = "covered seats, median provider billed" if with_models else "seats with usage, median estimate"
     sentence = (
         f"{rejections:g} recorded spend-limit rejections across {len(rows)} seats with usage."
         if rejections
         else f"{near} seats are near or above the current cap reference."
         if near
-        else f"{len(rows)} seats with usage, median estimate {money(quantile(amounts, 0.5))}."
+        else f"{len(rows)} {description} {money(quantile(amounts, 0.5))}."
         if rows
         else "No attributed per-seat usage; missing rows do not establish zero spend."
     )
     result = panel(
         sentence,
-        ["Player", "Slot", "Calls", "Estimated USD", "Rejections", "Current cap reference"],
+        ["Player", "Slot", "Calls", "Provider billed USD" if with_models else "Estimated USD",
+         "Rejections", "Current cap reference"] + (["Resolved models"] if with_models else []),
         rows,
         f"SQL player-role sums across provider/hour facts. {len(data.get('ids', []))}/"
         f"{data.get('eligible', 0)} eligible games queried; no-row seats remain unknown. "
@@ -139,7 +142,8 @@ def seat_spend(data, games, cap):
     for point in points:
         grouped[point["key"]].append(point["value"])
     order = sorted(grouped, key=lambda key: (-quantile(grouped[key], .5), key))
-    result["chart"] = {"kind": "seat-dots", "label": "Estimated USD / seat-game", "reference": cap,
+    result["chart"] = {"kind": "seat-dots", "label": "Provider billed USD / seat-game" if with_models else
+                       "Estimated USD / seat-game", "reference": cap,
                        "order": order, "data": points}
     return result, keyed, [sentence] if rejections else []
 
@@ -313,17 +317,23 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
         and (g["completed_at"] if g["completed_at"] is not None else g["created_at"]) is not None
         and start <= (g["completed_at"] if g["completed_at"] is not None else g["created_at"]) <= now
     ]
-    models, model_alerts = model_usage(data("models"))
-    seat_panel, amounts, seat_alerts = seat_spend(
-        data("seats", scope), games, data("settings", scope).get("seat_cap_usd")
-    )
+    from .attribution_metrics import attributed_models, daily_panels
+
+    models, model_alerts, provider_seats, player_models = attributed_models(
+        data("seat_models", scope), data("attempts", scope), games, start, now, version, scope)
+    daily, comparison = daily_panels(data("daily_spend", scope), data("costs", scope),
+                                     source("budget_limits", scope), start, now)
+    rejections = {(r["episode"], r["slot"]): r["rejections"] for r in data("seats", scope).get("rows", [])}
+    for row in provider_seats["rows"]:
+        row["rejections"] = rejections.get((row["episode"], row["slot"]))
+    seat_panel, amounts, seat_alerts = seat_spend(provider_seats, games, data("settings", scope).get("seat_cap_usd"))
+    seat_panel["note"] = ("Provider billed spend summed across resolved models once per episode/slot. "
+                          "Covered no-call seats contribute observed zero; absent seat coverage stays unknown. "
+                          "Game creation is limited to seven days; range/version selection also applies. "
+                          "Rejections come separately from the usage ledger and may lag. Cap is today's reference.")
     panels = {
-        "Daily spend against budget": panel(
-            "Tournament daily cost breakdown is unavailable from these sources.",
-            note="The available family-wide daily costs include experience requests and cannot be compared to this "
-            "league's tournament budget. The Now strip retains actual spend, projection and reset time.",
-        ),
-        "League against experience requests": source_spend(data("costs", scope)),
+        "Daily spend against budget": daily,
+        "League against experience requests": comparison,
         "Models in use": models,
         "LLM spend per seat per game": seat_panel,
         "Cost per round and per game": unit_costs(
@@ -334,10 +344,6 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
         "Common config overrides": override_frequency(selected, data("overrides")),
     }
     panels["Requests per day"]["chart"]["markers"] = competition.get("version_markers", [])
-    for name in ("League against experience requests", "Models in use"):
-        panels[name]["note"] += " Range/version controls do not apply: native API week, all versions."
-    panels["LLM spend per seat per game"]["note"] += (
-        " Selection uses cached coverage; the SQL collector only scans unfinished or last-seven-day games.")
     request_deps = [source("versions")] + [source("requests", v["id"]) for v in versions]
     selected_details = {s["data"]["id"]: s for s in request_details if s["data"]["id"] in {r["id"] for r in selected}}
     expected_games = {key for s in selected_details.values() for key in s["data"]["episode_ids"]}
@@ -352,10 +358,10 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
         "request episode listings differ from their declared count."
     )
     deps = {
-        "Daily spend against budget": [source("budgets")],
-        "League against experience requests": [source("costs", scope)],
-        "Models in use": [source("models")],
-        "LLM spend per seat per game": [source("seats", scope)],
+        "Daily spend against budget": [source("daily_spend", scope), source("costs", scope)],
+        "League against experience requests": [source("daily_spend", scope), source("costs", scope)],
+        "Models in use": [source("seat_models", scope), source("attempts", scope)],
+        "LLM spend per seat per game": [source("seat_models", scope), source("seats", scope)],
         "Cost per round and per game": [details.get(g["id"], {}) for g in games] or [{}],
         "Requests per day": request_deps,
         "How long they take": request_deps + timing_deps,
@@ -364,7 +370,7 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
     for name, result in panels.items():
         annotate(result, deps[name], now, cadence=SLOW_SECONDS if name not in ("Requests per day",) else 300)
         result["coverage"] = result["note"]
-    # Only stable seat/player joins can enrich standings; model labels lack stable IDs.
+    # One total per player/game; multiple models must not multiply the denominator.
     player_costs = defaultdict(list)
     for game in games:
         if game["status"] != "completed" or game["completed_at"] is None:
@@ -380,11 +386,12 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
         "spend_panels": panels,
         "spend_alerts": model_alerts + seat_alerts,
         "player_costs": player_costs,
+        "player_models": player_models,
         "slow_next_due": max(
             (
                 s.get("next_due", 0)
                 for (name, _), s in snapshot.items()
-                if name in ("costs", "models", "seats", "overrides")
+                if name in ("costs", "models", "seats", "overrides", "daily_spend", "seat_models", "attempts")
             ),
             default=0,
         ),

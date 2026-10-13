@@ -21,10 +21,14 @@
     {% endfor %}
     </div></div>
     <aside class="alerts"><h3>Needs attention</h3>
-      {% if alerts %}<ul>{% for alert in alerts %}<li class="bad">{{ alert }}</li>{% endfor %}</ul>
+      {% if alerts %}<ul>{% for alert in alerts %}<li class="bad">{{ alert.message }} <button type="button" data-alert="{{ alert.fingerprint }}" data-dismiss="true">Dismiss</button></li>{% endfor %}</ul>
+      {% elif dismissed_alerts %}<p>No undismissed alerts.</p>
       {% elif budget_available %}<p>No breaches in the available budget data.</p>
       {% else %}<p>Budget checks await collection.</p>{% endif %}
-      <p class="note">Model errors use family-wide data. Cap comparisons use the current reference; retries remain unknown.</p>
+      {% if dismissed_alerts %}<details class="dismissed-alerts"><summary>{{ dismissed_alerts|length }} dismissed · show</summary>
+        <ul>{% for alert in dismissed_alerts %}<li>{{ alert.message }} <button type="button" data-alert="{{ alert.fingerprint }}" data-dismiss="false">Undo</button></li>{% endfor %}</ul>
+      </details>{% endif %}
+      <p class="note">Model alerts use league provider and attempt data. Attempt and provider failures are separate rates; cap comparisons use the current reference.</p>
     </aside>
   </section>
   <div class="grid">

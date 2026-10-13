@@ -97,3 +97,9 @@ meter::-moz-meter-bar{background:var(--meter-fill)}
 @media(prefers-reduced-motion:reduce){.pulse{animation:none}}
 
 .model-label { margin: 4px 0 0; overflow-wrap: anywhere; font-size: 12px; }
+
+.plot .chart-legend svg { width:10px; height:10px; display:inline-block; }
+
+.dismissed-alerts { font-size: .85rem; }
+.dismissed-alerts summary, .alerts .dismissed-alerts li { color: var(--fg-muted); }
+.alerts button { font-size: .75rem; padding: .1rem .35rem; margin-left: .4rem; }

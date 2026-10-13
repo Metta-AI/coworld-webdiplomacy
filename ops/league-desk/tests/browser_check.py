@@ -26,6 +26,20 @@ with sync_playwright() as p:
     page.evaluate("document.fonts.ready")
     assert page.evaluate('document.fonts.check(\'700 12px "Merriweather"\')')
     assert page.locator('.panel').count() == 24
+    assert page.locator('[data-swap="Daily spend against budget"] .plot rect').count() >= 6
+    assert page.locator('[data-swap="League against experience requests"] .plot circle').count() >= 6
+    assert page.locator('[data-swap="Models in use"] .model-label').count() == 2
+    assert 'invented/model-Ada' in page.locator('[data-swap="Competing players"]').inner_text()
+    first_alert = page.locator('button[data-dismiss="true"]').first
+    fingerprint = first_alert.get_attribute('data-alert')
+    first_alert.click()
+    wait(page, '(id)=>!!document.querySelector(`[data-alert="${id}"][data-dismiss="false"]`)', fingerprint)
+    assert not page.locator('.dismissed-alerts').get_attribute('open')
+    assert page.locator('.dismissed-alerts summary').evaluate('(e)=>getComputedStyle(e).color') == 'rgb(107, 101, 96)'
+    page.reload()
+    page.locator('.dismissed-alerts summary').click()
+    page.locator(f'[data-alert="{fingerprint}"][data-dismiss="false"]').click()
+    wait(page, '(id)=>!!document.querySelector(`[data-alert="${id}"][data-dismiss="true"]`)', fingerprint)
     powers = page.locator('[data-swap="Score by power, all players"]')
     assert powers.locator('circle').count() == 7
     assert 'Results 5/5' in powers.inner_text()

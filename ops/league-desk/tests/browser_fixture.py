@@ -62,6 +62,31 @@ try:
         {"id": "cow_demo", "version": "9.9.1", "created_at": fixture.now - 86400},
         {"id": "cow_old", "version": "9.9.0", "created_at": fixture.now - 86400 * 30},
     ]}, fixture.now)
+    from league_desk.game_metrics import day
+    daily_rows = []
+    for offset in (2, 1, 0):
+        for source, factor in (("tournament", 1), ("xp_request", 3)):
+            daily_rows.append({"league_id": "league_demo", "source": source, "day": day(fixture.now-offset*86400),
+                               "compute": factor*(3-offset), "llm": factor*2,
+                               "week_compute": factor*(3-offset), "week_llm": factor*2})
+    fixture.store.success("daily_spend", "league_demo", {"rows": daily_rows}, fixture.now)
+    fixture.store.success("costs", "league_demo", {"rows": [
+        {"source": source, "compute_cost_usd": factor*6, "llm_estimated_cost_usd": factor*6,
+         "combined_estimated_cost_usd": factor*12} for source, factor in (("tournament", 1), ("xp_request", 3))
+    ]}, fixture.now)
+    provider_rows, attempt_rows = [], []
+    for game in games:
+        for slot, player in enumerate(("Ada", "Bert")):
+            provider_rows.append({"episode": game["id"], "slot": slot, "player_id": player, "player": player,
+                "policy_version_id": "pv_"+player, "policy_id": "pol_"+player, "policy": "Invented "+player,
+                "version": 1, "coworld_id": "cow_demo", "created_at": fixture.now-100,
+                "model": "invented/model-"+player, "calls": 25, "failed": 1, "usd": .1*(slot+1),
+                "failure_day": day(fixture.now)})
+    attempt_rows = [{"policy_version_id": "pv_"+player, "model": "invented/requested-"+player,
+                     "attempts": 30*len(games), "not_ok": 5*len(games), "refused": len(games),
+                     "failure_day": day(fixture.now)} for player in ("Ada", "Bert")]
+    fixture.store.success("seat_models", "league_demo", {"rows": provider_rows}, fixture.now)
+    fixture.store.success("attempts", "league_demo", {"rows": attempt_rows}, fixture.now)
     uvicorn.run(create_app(fixture.store), host="127.0.0.1", port=8661, access_log=False)
 finally:
     fixture.doCleanups()

@@ -1,7 +1,8 @@
 """Panel catalogue and competition/game dependency joins."""
 SECTIONS = [
     ("Standings and rating", [
-        ("Competing players", "Softmax API", 12, "Competing memberships and ratings have not been collected."),
+        ("Competing players", "Softmax API · Read-only SQL", 12,
+         "Competing memberships and ratings have not been collected."),
         ("MMR over time", "Local rating snapshots", 4, "Rating history begins when snapshot collection is enabled."),
         ("Policy submissions", "Softmax API", 4, "Submission history has not been collected."),
         ("Membership and exposure", "Softmax API", 4, "Membership and seat exposure have not been collected."),
@@ -16,10 +17,10 @@ SECTIONS = [
          "Detailed boot, connect, adjudication and upload timing is unavailable."),
     ]),
     ("Money and model use", [
-        ("Daily spend against budget", "Softmax API", 4, "Daily cost breakdown has not been collected."),
-        ("League against experience requests", "Softmax API", 4, "Comparable source costs have not been collected."),
+        ("Daily spend against budget", "Read-only SQL", 4, "Daily cost breakdown has not been collected."),
+        ("League against experience requests", "Read-only SQL", 4, "Comparable source costs have not been collected."),
         ("LLM spend per seat per game", "Read-only SQL", 4, "Per-seat usage has not been collected."),
-        ("Models in use", "Softmax API", 8, "No model usage collected; this does not mean policies use no model."),
+        ("Models in use", "Read-only SQL", 8, "No model usage collected; this does not mean policies use no model."),
         ("Cost per round and per game", "Softmax API", 4, "Cost attribution has not been collected."),
     ]),
     ("Experience requests", [

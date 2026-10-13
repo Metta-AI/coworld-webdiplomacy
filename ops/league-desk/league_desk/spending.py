@@ -242,6 +242,9 @@ def collect_spending(collector, discovery):
     ]
     for _, key in sorted(due)[:DETAILS_PER_POLL]:
         poll("detail", key, lambda: details(api, key), cadence=SLOW_SECONDS)
+    from .attribution import collect_attribution
+
+    collect_attribution(collector, discovery["leagues"])
     for league in discovery["leagues"]:
         poll("costs", league["id"], lambda: costs(api, league["id"]), cadence=SLOW_SECONDS, floor=SLOW_SECONDS)
         eligible = sorted(
@@ -271,7 +274,6 @@ def collect_spending(collector, discovery):
                 }
 
             poll("seats", league["id"], fetch_seats, cadence=SLOW_SECONDS, floor=SLOW_SECONDS)
-    poll("models", "all", lambda: models(api), cadence=SLOW_SECONDS, floor=SLOW_SECONDS)
     old = (store.source("overrides", "all") or {}).get("data") or {}
     request_ids = sorted(requests)
     batch = request_ids[old.get("offset", 0) : old.get("offset", 0) + 50] or request_ids[:50]

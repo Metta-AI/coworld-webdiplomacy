@@ -7,11 +7,10 @@ fields to SQLite. The page reads that cache, never the platform.
 **API and public-artifact page:** current memberships, cumulative ratings and
 local rating history, submissions, round/game timing, exposure, throughput and
 player head-to-head are available alongside the health strip. Charts use local
-Observable Plot and D3 bundles. League-attributed source costs, family-wide model
-usage, SQL seat estimates, compute unit costs and experience-request history are
+Observable Plot and D3 bundles. League-only daily source costs, stable player/policy model attribution, SQL seat
+spend, compute unit costs and experience-request history are
 available with explicit scope/coverage. Public results and replay facts provide power/policy scores, province contests,
-end reasons and observed phase timings. Tournament daily breakdown and game
-instrumentation remain unavailable. There is no rating backfill. Range/version filters, local house fonts, rating
+end reasons and observed phase timings. Game instrumentation remains unavailable. There is no rating backfill. Range/version filters, local house fonts, rating
 bands and automatic fragment refresh are available.
 
 ## Run
@@ -36,8 +35,9 @@ uv run --directory ops/league-desk python -m league_desk serve --no-collector
 An empty cache shows the empty page. League, range (24h/7d/30d/all), cached
 Coworld version and rating-band player selections are kept in the URL; browser
 Back/Forward restores them. Historical controls do not change the current Now
-strip or memberships. Native-week cost/model panels explicitly keep their original
-scope. A version-filtered rating is an observed cumulative rating, not a rebuilt
+strip or memberships. Daily costs use Pacific dates touched by the range, across all Coworld versions.
+Models in use retains a fixed seven-day league game-creation cohort;
+standings model cells and seat spend intersect that cohort with range/version. A version-filtered rating is an observed cumulative rating, not a rebuilt
 rating for that version alone.
 
 The browser swaps panel interiors every 60 seconds, preserving scroll, focus,
@@ -56,6 +56,16 @@ the cache, then watches for a changed fetch generation for up to one minute; thi
 confirms a cache update, not completion of every remote source. A paused tab can
 still request and watch a manual refresh. With `--no-collector`, the signal waits
 for a collector and the page says no update was observed rather than claiming success.
+
+Each Needs-attention item has **Dismiss**. Dismissed items collapse under a muted
+“dismissed · show” disclosure with **Undo**. This changes only the local cache;
+restarts and page refreshes preserve it. A model alert returns when its model,
+league, affected policy-version set or latest Pacific failure day changes. Provider
+and attempt alerts remain separate. Mixed-version alerts track the observed
+Coworld-version set plus canonical associations recorded with ratings; stale-source
+alerts track source names. Other alerts track
+their displayed facts. Changing counts alone does not revive a model alert on the
+same day for the same affected policies. Dismissal does not clear panel errors.
 
 To collect once, or run the collector in a separate terminal:
 
@@ -98,7 +108,7 @@ root's CLI pins and lockfile are independent.
 - **Needs attention** checks actual/projected budget overruns, source freshness,
   multiple observed game versions, and verified platform failure streaks. A streak
   must match the current active competing policy; its limit comes from that
-  division's settings. Model-error checks use family-wide usage; actual seat
+  division's settings. Model-error checks use per-league provider and attempt failure rates; actual seat
   rejection counts come from SQL. Current-cap comparisons are labelled references.
   The meter is navy
   unless actual spend or projection exceeds the budget, when it is terracotta.
@@ -178,29 +188,50 @@ remain visible even when some values are available.
 
 ## Spending and experience-request measures
 
-- League-versus-experience costs come from a single league-scoped API response,
-  split by source with friendly labels and navy bars. The period is the API's native week, all versions; requests
-  without this league attribution are outside that comparison. Combined totals
-  must reconcile to compute plus estimated LLM before being cached.
-- Tournament daily cost history stays explicitly unavailable: the family-wide
-  daily route mixes tournament and experience spending. It cannot be compared
-  with one league's budget. The Now strip continues to show the actual budget API.
-- Model usage is **family-wide**, across both leagues, requests and versions.
-  It is observed usage, not configured model identity. Policy/player label counts
-  are not stable identities; no name-based join assigns models to standings. Full
-  model names appear above source-stacked bars on a shared USD scale, ordered by
-  total spend, with one USD axis at the bottom; the values table includes calls,
-  errors and failure rate.
-- Per-seat estimated cost sums the SQL player-role facts across hour/provider rows
-  at episode/slot grain. Their database key is episode/slot/hour/source-system.
-  The existing estimate and actual rejection counter remain distinct. Missing
-  seats remain unknown, even after a successful query. Current cap is a reference;
-  it does not establish an old game's cap or a billed amount. One dot represents
-  one seat-game, player rows sort by median spend, and the current cap is labelled.
-- Standings LLM/game averages estimated totals for completed games with usage for
-  every owned non-filler seat, showing its covered-game denominator. Compute
-  unit cost comes from episode details; round means need all listed games covered
-  and completed in the selected window. Per-round LLM is not reconciled.
+- Daily costs come from `usage_records`, scoped by league, source and Pacific
+  bucket day. League-round compute and estimated LLM are stacked against recorded
+  budget references; experience-request spend appears in a separate daily series.
+  Only requests attributed to the league are included. Lobby is excluded, matching
+  the API; persistent costs, if present, remain in reconciliation but not these
+  two-source charts. Daily accounting has no reliable Coworld-version dimension.
+  The range selects Pacific dates touched by the interval, not exact clock hours;
+  the first/last retained dates may be partial.
+- Every slow poll replaces the entire last-30-day accounting snapshot, including
+  the 48-hour correction window. Today and the previous two days are provisional.
+  Each daily row also carries its exact rolling-seven-day contribution, so the
+  partial boundary day is not overcounted. Compute and LLM are compared separately
+  per source against `/admin/costs/leagues`; differences above $0.01 are visible
+  caveats. The API and SQL have separate fetch times and may straddle ingestion.
+- Budget references begin when the desk observes them. The latest recorded limit
+  on each Pacific day is shown; missing days stay unknown. This is not historical
+  budget reconstruction and does not assume the budget resets at Pacific midnight.
+- Models in use is now league-only, keyed by episode/slot, policy-version and
+  player IDs. A row summarizes one player/policy version, lists resolved provider
+  models and requested attempt models separately, and shows both failure rates.
+  The chart stacks provider billed USD by resolved model under each policy label.
+  Labels never join identities; duplicate names cannot merge policies. No-call
+  seats remain in the cohort. No observed calls does not prove model-free code.
+- The provider and attempt queries cover tournament games created in the last
+  seven days. Models in use and its alerts retain that fixed cohort across
+  range/version selections; standings models and seat costs intersect it with the
+  selection. Provider events start
+  one day earlier and end at the query cutoff. Attempts join through indexed
+  job-request IDs, including failures/refusals before provider work. Attempt and
+  provider failures have separate denominators and must not be added together.
+  Requested models describe observed calls, not inspected policy configuration.
+  Raw event retention, delayed ingestion and snapshot timing still limit coverage.
+  Family-wide model summaries are no longer polled or used for the league alert.
+- Per-seat spend sums provider model rows once per episode/slot, including covered
+  no-call seats as observed zero. Uncovered seats remain unknown. The dot chart
+  retains player rows and the current cap reference; the table lists models.
+  Spend-limit rejection counters still come from `episode_llm_usage` independently,
+  so they may lag or be unknown. A general refusal is not called a spend-limit denial.
+- Standings show observed provider models through stable player IDs. LLM/game sums
+  all owned non-filler seats once per completed covered game; multiple models do
+  not multiply the denominator. A game requires every owned seat's coverage.
+  These are provider billed totals; daily accounting uses the corrected usage
+  ledger and may differ at cohort boundaries. Compute unit costs still use episode
+  details. Per-round LLM reconciliation remains outside this phase.
 - Experience counts use request creation time and the selected variant ID, across
   all discovered versions. One request may contain multiple episodes. Requester
   labels/emails are private localhost data. Incomplete version/window coverage is
@@ -290,19 +321,26 @@ league/round attribution comes from API cache rows, not the folder name. The dir
 main database 0600. Never commit, publish, serve, or upload this directory. It contains
 private operational data, including requester labels/emails.
 
-Schema version 2 keeps three tables:
+Experimental live collection must use a separate private scratch directory with
+`Store(scratch_directory)`, never the dashboard's shared `.runtime/`. When seeding
+from an existing cache, use SQLite's backup API and retain all persisted due times
+and rate-limit deadlines. A new directory is not permission to bypass scan floors.
+Pass that Store explicitly to the experimental collector and cache-only app;
+browser input cannot select a cache directory.
+
+Schema version 2 keeps four tables (dismissals are an additive table):
 
 | Table | Meaning |
 |---|---|
 | `sources` | Independent artifact ledgers/facts, selected-field snapshots, resumable round/submission scans, per-round episode lists, attempt/success/due times and safe errors |
 | `control` | Persisted shared rate-limit deadline and coalesced refresh request |
-| `observations` | Changed canonical version, league settings and consistent ratings, stamped when observed locally |
+| `observations` | Changed canonical version, league settings, budget references and consistent ratings, stamped when observed locally |
+| `alert_dismissals` | Local alert fingerprints and dismissal times, preserved across restarts |
 
 Source replacement and observation insertion happen in one short transaction.
 The database uses WAL and a five-second busy timeout. Page reads use one read-only
-transaction for sources and observations. The new groups reuse
-these tables rather than adding unused normalized entities; the schema version
-is now 2. Initialization migrates schema 1 by adding the refresh flag without
+transaction for sources and observations. Attribution snapshots reuse sources and observations. Initialization adds the
+dismissal table to existing version-2 caches without rewriting their data. Initialization migrates schema 1 by adding the refresh flag without
 rewriting snapshots or observations. A newer unsupported schema fails explicitly.
 Stop the server/collector and back up the closed cache before upgrading if its
 observed history matters; older app versions cannot open schema 2.
@@ -326,12 +364,25 @@ The collector allows only these GET paths:
 - `/admin/costs/leagues`, `/admin/llm-coworld-usage`
 - `/sql/tables/episode_llm_usage/schema`, `/sql/tables/experience_requests/schema`
 
-The sole platform POST is `/sql/query`, through two named fixed SELECT templates:
-seat aggregates and allowlisted request overrides. IDs are validated as UUIDs
-before interpolation; a caller cannot supply SQL text. Keyset pages use LIMIT 500
-and continue after an exact full page. Repeated/unscoped rows or incompatible
-schemas fail explicitly. HTTP 408 splits the ID batch; a single-ID timeout remains
-an error. Integer sums are cast to bigint to preserve integer wire types. No
+The sole platform POST is `/sql/query`, through five named fixed SELECT templates:
+`seats`, `overrides`, `daily_spend`, `seat_models`, and `attempts`. IDs are validated
+before interpolation; time windows are bounded integer epoch seconds, and model
+cursors accept a restricted character set. A caller cannot supply SQL text.
+The three attribution templates read only `usage_records`, `llm_provider_events`,
+`llm_attempt_events`, `episode_requests`, `episode_request_attempts`,
+`episode_request_policies`, `rounds`, `divisions`, `leagues`, `policy_versions`,
+`policies` and `players`. Credential/session/account tables are never queried.
+Daily aggregates have a hard 500-row bound; a full response is an explicit error.
+Seat/model rows keyset-page by episode/slot/model, up to twenty pages.
+Attempt aggregates group by policy version/requested model and fail on a full page.
+All pages must succeed before replacing a snapshot. The older seat/override
+keysets retain their ten-page limit. SQL transport allows 25 seconds so the
+platform's 20-second timeout can return an explicit 408. Repeated/unscoped rows or incompatible
+schemas fail explicitly. HTTP 408 splits older multi-ID seat/override batches. Attempt queries split
+disjoint game-creation windows down to at most one day, merging counts only within
+that one successful poll. This cannot double-count games. A terminal timeout or
+any failed subquery retains the previous snapshot and the slow retry floor.
+Daily/provider timeouts likewise retain previous facts; no partial totals succeed. Integer sums are cast to bigint to preserve integer wire types. No
 arbitrary route, SQL or URL comes from the browser.
 
 Health/round scans run every 60 seconds; memberships, submissions and ratings every
@@ -360,7 +411,7 @@ available, and eight episode details; large caches therefore need bounded catch-
 Request episodes use a separate paginated ID listing, not the unpaginated detail's
 embedded episode array. Request details can refresh outside the creation window.
 
-Admin cost/model scans and SQL groups reserve a 15-minute minimum between attempts
+Admin cost scans and SQL groups reserve a 15-minute minimum between attempts
 **before** I/O. Errors, crashes and forced polls cannot bypass it. Each seat/override
 SQL pass rotates at most 50 known IDs, replacing those rows and preserving per-ID
 check times for older chunks. Late usage is re-read; poll totals are never added
@@ -375,9 +426,10 @@ Other transient failures back off up to about 15 minutes. A slow request or
 backoff can make a source older than its normal cadence.
 
 The server accepts loopback Host names only, including on static routes, and
-serves pages and fragments with `no-store`. Jinja escapes API labels. The sole
-browser POST requires an exact same-origin Origin header and only queues local
-collection; it accepts no route, SQL, credentials or scope parameters. No CORS
+serves pages and fragments with `no-store`. Jinja escapes API labels. Local
+`POST /refresh` queues collection; `POST /alerts/{fingerprint}?dismissed=true|false`
+changes local dismissal state. Both require an exact same-origin Origin header;
+neither accepts platform routes, SQL or credentials. No CORS
 grants exist. Do not expose it through a tunnel or proxy.
 Merriweather and Merriweather Sans Latin subsets are pinned to Fontsource 5.3.0,
 with OFL licenses and hashes beside the assets. Other scripts use system fallback;
@@ -427,7 +479,9 @@ objects and fixed readings; `panels.py` joins dependencies and coverage;
 `artifacts.py` ingests public artifacts and derives facts; `board_metrics.py` builds
 board/end-reason/timing panels; `optimizer_tools.py` imports the existing shared
 loader, normalizers and statistics without invoking their CLI/downloaders.
-`spending.py` collects cost/request/SQL groups, `sql.py` owns fixed SELECTs,
+`spending.py` collects cost/request/SQL groups; `attribution.py` validates league
+accounting/provider/attempt snapshots and records budget references;
+`alerts.py` creates fact-based fingerprints; `attribution_metrics.py` reconciles costs and builds attributed panels; `sql.py` owns fixed SELECTs,
 `spend_metrics.py` computes those panels, and `freshness.py` defines their age rules;
 `selection.py` defines cached filter choices; `server.py`, `templates/desk.html`
 and `templates/fragments.html` render the page. `static/refresh.js` owns browser
@@ -467,7 +521,7 @@ uv run --locked python ops/league-desk/tests/browser_check.py
 
 Stop the fixture with Ctrl-C. It uses a temporary cache on port 8661, never the
 real runtime. The check covers local assets, lines/bands/cells, responsive layout,
-fragment swapping, scroll/disclosures, pause, simulated visibility events, history
+dismiss/undo, fragment swapping, scroll/disclosures, pause, simulated visibility events, history
 navigation, delayed responses and failed refreshes. Browser time is controlled;
 this is distinct from the live sustained-collector acceptance check.
 

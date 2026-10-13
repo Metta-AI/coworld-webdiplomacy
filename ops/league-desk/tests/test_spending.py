@@ -125,7 +125,7 @@ class SqlTests(DeskTest):
         self.sql_calls = []
         remaining = iter(pages)
 
-        def request(method, path, params=None, json=None):
+        def request(method, path, params=None, json=None, timeout=None):
             if method == "GET":
                 return httpx.Response(
                     200,
