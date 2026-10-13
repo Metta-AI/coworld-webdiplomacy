@@ -1,27 +1,13 @@
-"""One synchronous collector; each source keeps its last complete successful result."""
+"""One synchronous collector; sources retain successful data and explicit scan progress."""
 import fcntl
-import math
 import random
 import time
 from contextlib import contextmanager
 
 from .api import ApiError, logged_in_api
-from .config import LEAGUES, POLL_SECONDS
+from .competition import episode, memberships, number, ratings, round_row, scan, submission, text
+from .config import COMPETITION_SECONDS, EPISODE_ROUNDS_PER_POLL, LEAGUES, POLL_SECONDS, RECONCILE_SECONDS
 from .dates import timestamp
-
-
-def number(value):
-    if value is None:
-        return None
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-        raise ValueError("invalid number")
-    return value
-
-
-def text(value):
-    if not isinstance(value, str) or not value:
-        raise ValueError("missing string")
-    return value
 
 
 def discovery(api):
@@ -66,7 +52,11 @@ def budgets(api, leagues):
 def settings(api, league_id):
     row = api.json(f"/v2/leagues/{league_id}/settings")["settings"]
     return {"round_interval_minutes": number(row["round_interval_minutes"]),
-            "seat_cap_usd": number(row["episode_player_pod_llm_spend_limit_usd"])}
+            "seat_cap_usd": number(row["episode_player_pod_llm_spend_limit_usd"]),
+            "game_target": number((row.get("ladder") or {}).get("scheduler", {}).get("min_episodes_per_entrant")),
+            "divisions": [{"id": text(d["division_id"]),
+                           "failure_limit": number(d.get("disqualify_after_consecutive_failures"))}
+                          for d in (row.get("ladder") or {}).get("divisions", [])]}
 
 
 def health(api, league_id):
@@ -88,10 +78,10 @@ class Collector:
     def __init__(self, store, api, clock=time.time):
         self.store, self.api, self.clock = store, api, clock
 
-    def poll(self, name, scope, fetch, observed=False):
+    def poll(self, name, scope, fetch, observed=False, cadence=POLL_SECONDS, force=False):
         now = self.clock()
         previous = self.store.source(name, scope)
-        if now < self.store.retry_not_before() or previous and now < previous["next_due"]:
+        if now < self.store.retry_not_before() or previous and now < previous["next_due"] and not force:
             return
         try:
             data = fetch()
@@ -104,7 +94,7 @@ class Collector:
                 self.store.defer(self.clock() + error.retry_after)
             self.store.failure(name, scope, message, self.clock(), delay)
         else:
-            self.store.success(name, scope, data, self.clock(), observed)
+            self.store.success(name, scope, data, self.clock(), observed, cadence)
 
     def once(self):
         self.poll("discovery", "all", lambda: discovery(self.api))
@@ -117,6 +107,47 @@ class Collector:
         for league in data["leagues"]:
             for name, fetch in (("settings", settings), ("health", health), ("round", latest_round)):
                 self.poll(name, league["id"], lambda: fetch(self.api, league["id"]), observed=name == "settings")
+            self.competition(league["id"], data["coworld_id"])
+
+    def competition(self, league_id, canonical_id):
+        def cached(name):
+            return (self.store.source(name, league_id) or {}).get("data") or {}
+
+        self.poll("rounds", league_id, lambda: scan(
+            self.api, "/v2/rounds", {"league_id": league_id}, round_row,
+            self.store.source("rounds", league_id), self.clock()))
+        rounds = cached("rounds").get("rows", [])
+        # Old unfinished/hidden rounds still need reconciliation; never drop them on a reset.
+        candidates = []
+        for row in rounds:
+            source = self.store.source("episodes", row["id"])
+            cadence = POLL_SECONDS if row["completed_at"] is None else (
+                COMPETITION_SECONDS if self.clock() - row["completed_at"] < RECONCILE_SECONDS else RECONCILE_SECONDS)
+            if not source or self.clock() >= source["next_due"]:
+                candidates.append((source["fetched_at"] or 0 if source else 0, row, cadence))
+        for _, row, cadence in sorted(candidates, key=lambda item: (item[0], item[1]["id"]))[:EPISODE_ROUNDS_PER_POLL]:
+            def fetch_episodes(row=row):
+                return {"league_id": league_id, "round_id": row["id"], "rows": [episode(r) for r in
+                        self.api.pages(f"/v2/rounds/{row['id']}/episodes")]}
+            self.poll("episodes", row["id"], fetch_episodes, cadence=cadence)
+        self.poll("memberships", league_id, lambda: memberships(self.api, league_id),
+                  cadence=COMPETITION_SECONDS)
+        self.poll("submissions", league_id, lambda: scan(
+            self.api, "/v2/league-submissions", {"league_id": league_id}, submission,
+            self.store.source("submissions", league_id), self.clock()), cadence=COMPETITION_SECONDS)
+        divisions = cached("settings").get("divisions", [])
+        if divisions:
+            completed = sorted(r["id"] for r in rounds if r["status"] == "completed")
+            previous = self.store.source("ratings", league_id)
+            force = bool(previous and not previous["error"] and
+                         (previous["data"] or {}).get("completed_rounds") != completed)
+
+            def fetch_ratings():
+                result = ratings(self.api, league_id, divisions, rounds, canonical_id)
+                result["poll_gap"] = bool(previous and previous["fetched_at"] is not None and
+                                          self.clock() - previous["fetched_at"] > COMPETITION_SECONDS * 2)
+                return result
+            self.poll("ratings", league_id, fetch_ratings, observed=True, cadence=COMPETITION_SECONDS, force=force)
 
 
 @contextmanager

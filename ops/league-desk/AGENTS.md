@@ -7,7 +7,7 @@ currently authorized phase.
 
 - Keep Python synchronous. Only collector code calls the platform; page handlers
   read SQLite only. Use `CoworldApiClient.from_login` with elevated User access.
-- Allowlisted GET requests only in P1. Never mutate the platform. Future SQL
+- Allowlisted GET requests only. Never mutate the platform. Future SQL
   support must accept only fixed, scoped SELECT templates.
 - Cache selected fields, not raw responses or manifests. Keep credentials,
   requester information, real policy names and operational values out of fixtures,

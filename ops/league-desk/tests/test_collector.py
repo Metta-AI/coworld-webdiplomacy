@@ -43,6 +43,7 @@ class ApiTests(DeskTest):
             self.api.pages("/v2/rounds", {"limit": 1})
 
     def test_repeated_rows_do_not_loop(self):
+        self.responses["/v2/rounds"]["next_cursor"] = "more"
         with self.assertRaisesRegex(ApiError, "repeated"):
             self.api.pages("/v2/rounds")
         self.assertEqual(len(self.calls), 2)
@@ -73,7 +74,7 @@ class CollectorTests(DeskTest):
     def test_selected_fields_only_and_no_remote_writes(self):
         self.collector.once()
         rows = self.store.snapshot()
-        self.assertEqual(len(rows), 6)
+        self.assertEqual(len(rows), 10)
         self.assertTrue(all(r["error"] is None for r in rows.values()))
         self.assertNotIn("must-not-store", str(rows))
         self.assertNotIn("not-for-cache", str(rows))

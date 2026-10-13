@@ -44,16 +44,23 @@ class Store:
     def decode(row):
         return {**dict(row), "data": json.loads(row["data"]) if row["data"] is not None else None}
 
-    def snapshot(self):
+    def snapshot(self, include_history=False):
         if not self.path.exists():
             return {}
         with self.connection(True) as db:
-            return {(r["name"], r["scope"]): self.decode(r) for r in db.execute(
+            db.execute("BEGIN")
+            snapshot = {(r["name"], r["scope"]): self.decode(r) for r in db.execute(
                 "SELECT sources.*, (SELECT max(observed_at) FROM observations o "
                 "WHERE o.name=sources.name AND o.scope=sources.scope) AS observed_at FROM sources"
             )}
+            if include_history:
+                for row in db.execute("SELECT * FROM observations ORDER BY observed_at"):
+                    key = (row["name"], row["scope"])
+                    if key in snapshot:
+                        snapshot[key].setdefault("history", []).append(self.decode(row))
+            return snapshot
 
-    def success(self, name, scope, data, now, observed=False):
+    def success(self, name, scope, data, now, observed=False, cadence=POLL_SECONDS):
         encoded = json.dumps(data, sort_keys=True, allow_nan=False)
         with self.connection() as db:
             if observed:
@@ -67,7 +74,7 @@ class Store:
                 "INSERT INTO sources VALUES (?, ?, ?, ?, ?, ?, 0, NULL) ON CONFLICT(name, scope) DO UPDATE SET "
                 "data=excluded.data, attempted_at=excluded.attempted_at, fetched_at=excluded.fetched_at, "
                 "next_due=excluded.next_due, failures=0, error=NULL",
-                (name, scope, encoded, now, now, now + POLL_SECONDS),
+                (name, scope, encoded, now, now, now + cadence),
             )
 
     def failure(self, name, scope, message, now, delay):

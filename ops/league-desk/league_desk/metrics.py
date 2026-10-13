@@ -74,5 +74,6 @@ def desk(snapshot, league_key, now):
     return {"league": league, "now_rows": now_rows, "alerts": alerts,
             "age": max(ages) if ages else None, "missing": sum(r.get("data") is None for r in relevant),
             "time": when(now), "budget_available": bool(budget),
-            "meter": ({"value": spent, "limit": limit}
+            "meter": ({"value": spent, "limit": limit,
+                       "alert": spent > limit or projection is not None and projection > limit}
                       if spent is not None and limit is not None and limit > 0 else None)}

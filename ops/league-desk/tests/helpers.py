@@ -39,8 +39,10 @@ class DeskTest(unittest.TestCase):
                 {"status": "running", "created_at": "2027-01-15T08:00:00Z", "completed_at": None}]}],
             "/v2/rounds": {"entries": [{"id": "round_demo", "round_number": 3, "status": "running",
                                          "created_at": "2027-01-15T08:00:00Z", "completed_at": None}],
-                           "next_cursor": "more"},
+                           "next_cursor": None},
         }
+        self.responses.update({"/v2/league-policy-memberships": [], "/v2/league-submissions": [],
+                               "/v2/rounds/round_demo/episodes": {"entries": [], "next_cursor": None}})
         self.api = Api(self.request)
         self.collector = Collector(self.store, self.api, clock=lambda: self.now)
 

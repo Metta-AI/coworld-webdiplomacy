@@ -72,6 +72,11 @@ class RoutesTests(DeskTest):
         data = desk(snapshot, "press", self.now)
         self.assertTrue(any("Projected spend" in a for a in data["alerts"]))
         self.assertIn("$0.00", data["now_rows"][2]["text"])
+        self.assertTrue(data["meter"]["alert"])
+        budget.update(spent_today_usd=40, projected_today_usd=40)
+        self.assertFalse(desk(snapshot, "press", self.now)["meter"]["alert"])
+        budget.update(spent_today_usd=41, projected_today_usd=None)
+        self.assertTrue(desk(snapshot, "press", self.now)["meter"]["alert"])
 
     def test_timestamps_display_pacific_and_dst(self):
         self.assertIn("PST", when(timestamp("2027-01-15T08:00:00Z")))

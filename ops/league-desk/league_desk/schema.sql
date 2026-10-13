@@ -1,4 +1,4 @@
--- Each source is a complete, selected-field snapshot; failed polls preserve its data.
+-- Selected-field snapshots; history scans carry explicit completeness and cursor state.
 CREATE TABLE IF NOT EXISTS sources (
     name TEXT NOT NULL,
     scope TEXT NOT NULL,
