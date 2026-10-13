@@ -254,7 +254,7 @@ exit status. Allow 45 seconds for a worst-case shutdown.
 ## Run an episode
 
 ```sh
-uv run coworld build --version 0.7.10
+uv run coworld build --version 0.7.11
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```
