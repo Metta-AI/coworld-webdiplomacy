@@ -103,6 +103,25 @@
       ],
       "default": null,
       "title": "Countries"
+    },
+    "players": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "maxItems": 7,
+      "title": "Players",
+      "type": "array"
     }
   },
   "required": [

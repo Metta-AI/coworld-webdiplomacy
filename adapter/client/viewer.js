@@ -61,11 +61,17 @@ function render() {
     units.append(group);
   }
   const powers = $('powers'); powers.replaceChildren();
+  // Saved replays name each seat once the game is over; live frames and older replays do not.
+  const players = new Map((frame.episode?.players || []).map(p => [p.countryID, p.name]));
   for (const country of frame.variant.countries) {
     const member = game.members.find(m => m.countryID === country.countryID);
     const row = document.createElement('div'); row.className = 'power';
     const dot = document.createElement('span'); dot.className = 'swatch'; dot.style.background = color(country.countryID);
     const name = document.createElement('span'); name.textContent = country.name;
+    if (players.has(country.countryID)) {
+      const player = document.createElement('small'); player.className = 'player';
+      player.textContent = players.get(country.countryID); name.append(player);
+    }
     const status = document.createElement('small'); status.textContent = member?.status || 'Playing'; name.append(status);
     const count = document.createElement('span'); count.className = 'count'; count.textContent = `${member?.supplyCenterNo ?? 0} SC · ${member?.unitNo ?? 0} units`;
     row.append(dot, name, count); powers.append(row);
