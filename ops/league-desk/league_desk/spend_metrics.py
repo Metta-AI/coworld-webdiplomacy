@@ -321,7 +321,7 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
     ]
     from .attribution_metrics import attributed_models, daily_panels
 
-    models, model_alerts, provider_seats, player_models = attributed_models(
+    models, model_alerts, provider_seats, policy_models = attributed_models(
         data("seat_models", scope), data("attempts", scope), games, start, now, version, scope)
     daily, comparison = daily_panels(data("daily_spend", scope), data("costs", scope),
                                      source("budget_limits", scope), start, now)
@@ -399,7 +399,7 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
         "spend_panels": panels,
         "spend_alerts": model_alerts + seat_alerts,
         "player_costs": player_costs,
-        "player_models": player_models,
+        "policy_models": policy_models,
         "slow_next_due": max(
             (
                 s.get("next_due", 0)

@@ -97,7 +97,7 @@ def attributed_models(data, attempt_data, games, start, now, version, scope=""):
         for key in ("attempts", "not_ok", "refused"):
             group[key] += row[key]
         group["requested"].add(row["model"] or "Unknown requested model")
-    rows, chart, player_models = [], defaultdict(float), defaultdict(set)
+    rows, chart, policy_models = [], defaultdict(float), defaultdict(set)
     for (player, policy), group in sorted(groups.items(), key=lambda pair: (-pair[1]["usd"], pair[0][1])):
         label = group["label"]
         observed = ", ".join(sorted(group["models"])) or "No provider calls observed"
@@ -132,11 +132,10 @@ def attributed_models(data, attempt_data, games, start, now, version, scope=""):
                     "data": [{"label": model, "value": usd}
                              for model, usd in sorted(chart.items(), key=lambda item: -item[1])]})
     for row in selected:
-        if row["player_id"]:
-            models = player_models[row["player_id"]]
-            if row["calls"]:
-                models.add(row["model"] or "Unknown resolved model")
+        models = policy_models[row["policy_version_id"]]
+        if row["calls"]:
+            models.add(row["model"] or "Unknown resolved model")
     seats = {"rows": [{**r, "models": sorted(r["models"])} for r in seat_amounts.values()],
              "ids": sorted({key[0] for key in seat_amounts}), "eligible": len({g["id"] for g in games})}
     return result, alerts, seats, {p: ", ".join(sorted(models)) or "No provider calls observed"
-                                   for p, models in player_models.items()}
+                                   for p, models in policy_models.items()}

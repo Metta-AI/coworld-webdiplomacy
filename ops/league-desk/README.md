@@ -239,7 +239,9 @@ remain visible even when some values are available.
   retains player rows and the current cap reference; the table lists models.
   Spend-limit rejection counters still come from `episode_llm_usage` independently,
   so they may lag or be unknown. A general refusal is not called a spend-limit denial.
-- Standings show observed provider models through stable player IDs. LLM/game sums
+- Standings list each player's active (champion) policy only, and the observed
+  provider models of that policy version, joined by its stable ID; "No covered
+  seats" means it has no seats in the cohort yet. LLM/game sums
   all owned non-filler seats once per completed covered game; multiple models do
   not multiply the denominator. A game requires every owned seat's coverage.
   These are provider billed totals; daily accounting uses the corrected usage

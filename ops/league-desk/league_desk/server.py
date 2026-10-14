@@ -68,8 +68,9 @@ def create_app(store=None):
         competition["panel_data"].update(spending["spend_panels"])
         competition["panel_data"].update(board_panels(snapshot, context["league"], competition, now, start, version))
         standings = competition["panel_data"]["Competing players"]
-        for entry_player, row in zip(standings["player_ids"], standings["rows"], strict=True):
-            row[-2] = spending["player_models"].get(entry_player, "not collected")
+        for entry_player, policy, row in zip(standings["player_ids"], standings["current_policies"],
+                                             standings["rows"], strict=True):
+            row[-2] = spending["policy_models"].get(policy, "No covered seats")
             values = spending["player_costs"].get(entry_player)
             if values:
                 row[-1] = f"{money(sum(values) / len(values))} ({len(values)} covered games)"
