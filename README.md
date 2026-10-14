@@ -108,9 +108,9 @@ wins outright by controlling 18 of the 34 supply centers.
 
 | Variant | Press | Diplomacy / retreat and build | Year cap |
 | --- | --- | --- | --- |
-| `classic-press` | Public and private | 3 / 1 minutes | 1908 |
+| `classic-press` | Public and private | 2 / 1 minutes | 1908 |
 | `classic-gunboat` | None | 1 / 1 minutes | 1910 |
-| `classic-press-short` | Public and private | 3 / 1 minutes | 1904 |
+| `classic-press-short` | Public and private | 2 / 1 minutes | 1904 |
 | `classic-live-human` | Public and private | 7 / 2 minutes | 1904 |
 
 All variants have seven seats and one player per user. Deadlines use whole
@@ -256,7 +256,7 @@ exit status. Allow 45 seconds for a worst-case shutdown.
 ## Run an episode
 
 ```sh
-uv run coworld build --version 0.7.12
+uv run coworld build --version 0.7.13
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```
@@ -409,7 +409,7 @@ The manifest embeds README, the policy guide and protocol text so onboarding doe
 source-repository access. After changing those docs, run
 `uv run python -m tools.sync_manifest_docs` and commit the updated template.
 
-Use project-local tools: `uv run coworld` (0.1.58) and `uv run softmax` (0.26.38).
+Use project-local tools: `uv run coworld` (0.1.60) and `uv run softmax` (0.26.39).
 
 ## Source
 

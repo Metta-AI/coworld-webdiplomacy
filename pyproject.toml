@@ -14,8 +14,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "coworld[auth]==0.1.58",
-    "softmax-cli==0.26.38",
+    "coworld[auth]==0.1.60",
+    "softmax-cli==0.26.39",
     "pytest>=8,<10",
     "ruff>=0.11,<1",
     "playwright>=1.58,<2",
