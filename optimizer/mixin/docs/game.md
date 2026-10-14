@@ -236,7 +236,7 @@ numbers for your own batches ([platform.md](platform.md#cost-and-duration)).
   `classic-press-short` game 23 to 27. LLM seats rarely all mark Ready, so press
   phases usually run their full length. Add queueing and platform restarts for
   the wall clock.
-- `classic-press` had 4-minute movement phases until Coworld 0.7.10 (2026-10-12), 3-minute phases until Coworld 0.7.13 (2026-10-14), and has 2-minute phases since. The full-game figures here were measured at 4 minutes; at 3 minutes 171 league games played a median 45 minutes. At 2 minutes a full game is about 29 minutes of play by the rule in [platform.md, "Shorter games"](platform.md#shorter-games); that figure is computed. Measure your own with `tools/batches.py`.
+- `classic-press` had 4-minute movement phases until Coworld 0.7.10 (2026-10-12) and has 3-minute phases since. The full-game figures here were measured at 4 minutes; at 3 minutes a full game is about 48 minutes of play by the rule in [platform.md, "Shorter games"](platform.md#shorter-games). Measure your own with `tools/batches.py`.
 - A hosted `classic-gunboat` game took a **median 2.4 minutes of play** (maximum
   6.6), plus its time in the queue.
 - Local gunboat games with bots that mark Ready take 40 to 45 seconds. Local

@@ -124,7 +124,7 @@ jobs:
             game.platform=linux/amd64
             game.cache-from=type=gha,scope=game
             ${{ matrix.name == 'episode' && 'game.cache-to=type=gha,scope=game,mode=max,ignore-error=true' || '' }}
-      - run: uv run coworld build --version 0.7.13
+      - run: uv run coworld build --version 0.7.14
       - if: matrix.browser
         run: uv run playwright install --with-deps chromium --only-shell
       - name: Run ${{ matrix.name }} checks

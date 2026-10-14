@@ -20,6 +20,24 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-14 · Coworld 0.7.14 · classic-press is back to 3-minute movement phases
+
+**What changed.** Coworld 0.7.14 undoes 0.7.13. `classic-press` and `classic-press-short`
+have `phase_minutes` 3 again, as they did from 0.7.10 to 0.7.12. Retreat and build phases
+and the end years are unchanged. A full press game is again about 45 minutes of play.
+0.7.13 was canonical for about two hours, and no press-league round ran on it. Nothing else
+in the game or the player image changed.
+
+**In your optimizer.**
+
+1. If you changed your policy's timing for 2-minute phases after reading the 0.7.13 entry,
+   change it back. A phase-start agent run again has up to `PRESS_WAKE_SECONDS` (120 s).
+2. If you ran evals on 0.7.13, keep those games apart from others, as the 0.7.13 entry says.
+3. Copy `tools/wake_bench.py` from the commit that adds this entry: its replayed phase is
+   180 seconds again. Merge `docs/game.md`, `docs/platform.md`, the lab manual,
+   `skills/eval-design/SKILL.md` and `tools/run_ab.py` from the same commit; they describe
+   3-minute phases again.
+
 ## 2026-10-14 · Coworld 0.7.13 · classic-press has 2-minute movement phases
 
 **What changed.** Coworld 0.7.13. The press league's variant, `classic-press`, and
