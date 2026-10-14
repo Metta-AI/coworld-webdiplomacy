@@ -60,7 +60,7 @@ def standings(members, ratings, points, submissions, games, now, submission_comp
     scores = defaultdict(list)
     for row in player_scores(games):
         scores[row["player_id"]].append(row["score"])
-    rows, intervals, sparks, changes, player_ids, entry_keys = [], [], [], [], [], []
+    rows, intervals, sparks, changes, player_ids, entry_keys, current = [], [], [], [], [], [], []
     for key, policies in sorted(competing.items(), key=lambda item: (
             -(rated.get(item[0], {}).get("rating") if rated.get(item[0], {}).get("rating") is not None
               else float('-inf')), item[0])):
@@ -69,6 +69,9 @@ def standings(members, ratings, points, submissions, games, now, submission_comp
         entry_keys.append([division, player_id])
         rating = rated.get(key, {})
         name = policies[0]["player"]
+        # The champion is the player's one active entry; benched and older versions are left out.
+        champion = next((m for m in policies if m.get("champion")), None)
+        current.append(champion["policy_id"] if champion else None)
         mu, sigma = rating.get("mu"), rating.get("sigma")
         low, high = (mu - 3 * sigma, mu + 3 * sigma) if mu is not None and sigma is not None else (None, None)
         delta, baseline = rating_delta(points, division, player_id, now)
@@ -76,7 +79,7 @@ def standings(members, ratings, points, submissions, games, now, submission_comp
         submissions_24h, submissions_7d = [sum(s["player_id"] == player_id and s["created_at"] is not None and
                                              now - age <= s["created_at"] <= now for s in submissions)
                                            for age in (86400, 7 * 86400)]
-        rows.append([name, "; ".join(f"{m['policy']} v{m['version']} ({m['substatus']})" for m in policies),
+        rows.append([name, f"{champion['policy']} v{champion['version']}" if champion else "No active policy",
                      fmt(rating.get("rating")), f"{fmt(mu)} ± {fmt(3 * sigma if sigma is not None else None)}",
                      f"{delta:+.2f} since {when(baseline)}" if delta is not None else "baseline unavailable",
                      len(values), fmt(mean(values)) if values else "unknown",
@@ -93,15 +96,16 @@ def standings(members, ratings, points, submissions, games, now, submission_comp
     if changes:
         _, name, delta, baseline = max(changes)
         sentence = f"{name} has the largest observed 24-hour rating change: {delta:+.2f}, from {when(baseline)}."
-    result = panel(sentence, ["Player", "Competing policies", "MMR", "μ ± 3σ", "24 h change", "Scored games (7d)",
+    result = panel(sentence, ["Player", "Active policy", "MMR", "μ ± 3σ", "24 h change", "Scored games (7d)",
                              f"Mean score (par {PAR:.3f})", "Submissions 24h / 7d", "Model", "LLM/game"], rows,
                    "Current memberships; all versions. Scores average owned non-filler seats once per game. "
-                   "MMR is cumulative across versions. Models describe observed provider calls, "
+                   "MMR is cumulative across versions. Models are the active policy's observed provider calls, "
                    "not policy configuration.",
                    {"kind": "intervals", "data": intervals})
     result["sparks"] = sparks
     result["player_ids"] = player_ids
     result["entry_keys"] = entry_keys
+    result["current_policies"] = current
     return result
 
 

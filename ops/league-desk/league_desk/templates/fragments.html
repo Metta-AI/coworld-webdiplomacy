@@ -40,7 +40,7 @@
         {% set content = panel_data.get(name) %}
         {% if content %}
           <p class="reading">{{ content.sentence }}</p>
-          <p class="note panel-age {% if content.stale %}bad{% endif %}">{{ source }} · {% if content.immutable %}{{ content.artifact_status }}{% else %}<span data-age="{{ content.age if content.age is not none else '' }}">{{ content.age | age_label }}</span>{% endif %}<span data-stale-status>{% if content.stale %} · stale or failed{% endif %}</span></p>
+          <p class="note panel-age {% if content.stale %}bad{% endif %}">{{ source }} · {% if content.immutable %}{{ content.artifact_status }}{% else %}newest data <span data-age="{{ content.newest if content.newest is not none else '' }}">{{ content.newest | age_label }}</span>{% endif %}<span data-stale-status>{% if content.stale %} · stale or failed{% endif %}</span></p>
           {% if name == 'MMR over time' and players %}
           <label for="player">Rating band</label><select id="player" name="player" form="filters">
             <option value="">Point at a player</option>{% for key, label in players.items() %}
@@ -51,8 +51,8 @@
           {% endif %}
             <details><summary>View values</summary>
             <p class="note">{{ content.coverage }} {{ content.missing }} sources missing.</p>
-            <table class="data sources"><thead><tr><th>Source</th><th>Age</th><th>Rows</th></tr></thead><tbody>
-            {% for row in content.sources %}<tr data-source data-threshold="{{ row.threshold }}" data-error="{{ 'true' if row.error else 'false' }}" class="{% if row.stale %}bad{% endif %}"><td>{{ row.name }}{% if row.error %}: {{ row.error }}{% endif %}</td>
+            <table class="data sources"><thead><tr><th>Source</th><th>Oldest at risk</th><th>Rows</th></tr></thead><tbody>
+            {% for row in content.sources | grouped %}<tr data-source data-threshold="{{ row.threshold }}" data-error="{{ 'true' if row.error else 'false' }}" class="{% if row.stale %}bad{% endif %}"><td>{{ row.name }}{% if row.count > 1 %} ×{{ row.count }}{% endif %}{% if row.error %}: {{ row.error }}{% endif %}</td>
               <td><span data-age="{{ row.age if row.age is not none else '' }}">{{ row.age | age_label }}</span></td><td>{{ row.rows }}</td></tr>{% endfor %}</tbody></table>
             {% if name in ("Competing players", "Membership and exposure") %}</details>{% endif %}
             {% if content.rows %}<div class="table-scroll"><table class="data"><thead><tr>{% for column in content.columns %}<th>{{ column }}</th>{% if name == "Competing players" and loop.index0 == 3 %}<th>Last 20 observations</th>{% endif %}{% endfor %}</tr></thead>

@@ -398,3 +398,11 @@ class MetricsTests(DeskTest):
         self.assertEqual(result["rows"][0][2], "unknown")
         self.assertEqual(result["rows"][0][-2:], ["not observed", "unknown"])
         self.assertEqual(result["chart"]["data"], [])
+
+    def test_standings_list_only_the_champion_policy(self):
+        rows = [{"player": "Ada", "player_id": "Ada", "division_id": "div_demo", "status": "competing",
+                 "policy": "Invented", "version": v, "substatus": sub, "champion": champ, "policy_id": f"pv_{v}"}
+                for v, sub, champ in ((1, "benched", False), (2, "active", True))]
+        result = standings(rows, [], [], [], [], self.now, False)
+        self.assertEqual(result["rows"][0][1], "Invented v2")
+        self.assertEqual(result["current_policies"], ["pv_2"])

@@ -103,6 +103,8 @@ class Collector:
                 self.store.defer(self.clock() + error.retry_after)
             self.store.failure(name, scope, message, self.clock(), delay)
         else:
+            # A callable cadence picks the next refresh from what was just fetched (e.g. a finished game).
+            cadence = cadence(data) if callable(cadence) else cadence
             self.store.success(name, scope, data, self.clock(), observed, cadence)
 
     def once(self):

@@ -474,3 +474,82 @@ class FreshnessScheduleTests(DeskTest):
         with patch("league_desk.spending.details", return_value=game):
             collect_spending(self.collector, {"coworld_id": "cow_demo", "leagues": []})
         self.assertEqual(self.store.source("detail", game["id"])["next_due"], self.now + 86400)
+
+    def test_finished_detail_from_old_schedule_is_not_stale(self):
+        # Rows fetched under the old 15-minute schedule keep that next_due until re-read.
+        source = {"name": "detail", "data": {"completed_at": self.now - 60}, "fetched_at": self.now,
+                  "next_due": self.now + 900}
+        panel = {}
+        annotate(panel, [source], self.now + 18000)
+        self.assertFalse(panel["stale"])
+        source["data"]["completed_at"] = None
+        annotate(panel, [source], self.now + 18000)
+        self.assertTrue(panel["stale"])
+
+    def test_seat_rotation_length_sets_the_threshold(self):
+        source = {"name": "seats", "fetched_at": self.now,
+                  "data": {"eligible": 102, "checked_at": {GAME: self.now - 2827}}}
+        panel = {}
+        annotate(panel, [source], self.now)
+        self.assertFalse(panel["stale"])  # Three 50-game batches at 15 minutes: stale after 90 minutes.
+        self.assertEqual(panel["sources"][0]["threshold"], 5400)
+        source["data"]["checked_at"][GAME] = self.now - 5401
+        annotate(panel, [source], self.now)
+        self.assertTrue(panel["stale"])
+
+    def test_detail_schedule_follows_the_fetched_game_and_unfinished_games_go_first(self):
+        from league_desk.config import DETAILS_PER_POLL
+        from league_desk.spending import collect_spending
+
+        listed = {**episode(raw_game(self.now)), "completed_at": None}
+        finished = {**listed, "completed_at": self.now - 1}
+        old = [{**finished, "id": f"old_{n}"} for n in range(DETAILS_PER_POLL)]
+        self.store.success("episodes", "round_demo", {"rows": [listed, *old]}, self.now)
+        for row in old:
+            self.store.success("detail", row["id"], row, self.now - 90000, cadence=86400)
+        fetched = []
+
+        def fetch(api, key):
+            fetched.append(key)
+            return finished if key == listed["id"] else next(r for r in old if r["id"] == key)
+
+        with patch("league_desk.spending.details", side_effect=fetch):
+            collect_spending(self.collector, {"coworld_id": "cow_demo", "leagues": []})
+        self.assertEqual(fetched[0], listed["id"])  # Unfetched ahead of daily re-reads.
+        # Listed as running, fetched as finished: the fetched data picks the daily schedule.
+        self.assertEqual(self.store.source("detail", listed["id"])["next_due"], self.now + 86400)
+
+    def test_new_canonical_refreshes_the_version_catalog_early(self):
+        from league_desk.spending import collect_spending
+
+        self.store.success("versions", "all", {"rows": [{"id": "cow_old", "created_at": self.now - 1000}]},
+                           self.now - 3600, cadence=86400)
+        self.responses["/v2/experience-requests"] = {"entries": [], "next_cursor": None}
+        with patch("league_desk.spending.versions",
+                   return_value={"rows": [{"id": "cow_demo", "created_at": self.now}]}) as fetch:
+            collect_spending(self.collector, {"coworld_id": "cow_demo", "leagues": []})
+            self.assertEqual(fetch.call_count, 1)
+            collect_spending(self.collector, {"coworld_id": "cow_demo", "leagues": []})
+            self.assertEqual(fetch.call_count, 1)  # Known now: back on the daily schedule.
+        self.assertIsNotNone(self.store.source("requests", "cow_demo"))
+
+    def test_grouped_sources_keep_the_closest_to_stale(self):
+        from league_desk.freshness import grouped
+
+        rows = [{"name": "detail", "age": 100, "threshold": 172800, "rows": 1, "stale": False, "error": None},
+                {"name": "detail", "age": 1500, "threshold": 1800, "rows": 1, "stale": False, "error": None},
+                {"name": "results", "age": 5, "threshold": "Infinity", "rows": 0, "stale": False, "error": None},
+                {"name": "results", "age": 9, "threshold": "Infinity", "rows": 0, "stale": False, "error": None},
+                {"name": "rounds", "age": None, "threshold": 600, "rows": 0, "stale": False, "error": "failed"}]
+        detail, results, rounds = grouped(rows)
+        self.assertEqual(results["threshold"], "Infinity")
+        self.assertEqual((detail["count"], detail["rows"], detail["age"], detail["threshold"]), (2, 2, 1500, 1800))
+        self.assertEqual(rounds["error"], "failed")
+
+    def test_long_request_lists_get_one_threshold_per_walk_visit(self):
+        source = {"name": "requests", "fetched_at": self.now, "revisit_seconds": 720,
+                  "data": {"recent_through": self.now - 31 * 60, "rows": [{}] * 518}}
+        panel = {}
+        annotate(panel, [source], self.now)
+        self.assertFalse(panel["stale"])  # 518 rows take three 200-row visits: stale after 72 minutes.
+        self.assertEqual(panel["sources"][0]["threshold"], 4320)

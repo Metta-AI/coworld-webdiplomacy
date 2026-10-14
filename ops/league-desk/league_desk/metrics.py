@@ -1,5 +1,5 @@
 """Current health strip from a single cache snapshot; no API calls."""
-from .config import STALE_SECONDS
+from .config import COMPETITION_SECONDS, STALE_SECONDS
 from .dates import when
 
 
@@ -20,6 +20,10 @@ def desk(snapshot, league_key, now):
     budget_data = source("budgets").get("data") or {}
     health = source("health", scope).get("data")
     budget = next((r for r in budget_data.get("leagues", []) if r["league_id"] == scope), {})
+    members = (source("memberships", scope).get("data") or {}).get("rows", [])
+    submissions = (source("submissions", scope).get("data") or {}).get("rows", [])
+    active = sum(m["status"] == "competing" and m["substatus"] == "active" for m in members)
+    day_submissions = sum(s["created_at"] is not None and now - 86400 <= s["created_at"] <= now for s in submissions)
     rounds = round_data.get("rounds", [])
     latest = rounds[0] if rounds else None
     interval = settings.get("round_interval_minutes")
@@ -39,6 +43,10 @@ def desk(snapshot, league_key, now):
          "text": canonical.get("version", "Canonical version not confirmed."),
          "note": "Canonical first observed in this cache at " + when(source("canonical").get("observed_at"))
          + "; not a release timestamp."},
+        {"title": "Policies", "source": "memberships", "scope": scope, "threshold": 2 * COMPETITION_SECONDS,
+         "text": f"{active} active · {day_submissions} submitted in 24 h"
+         if source("memberships", scope).get("data") is not None else "Memberships not collected.",
+         "note": "Active competing memberships; submissions are every listed upload, all versions."},
         {"title": "Last 24 h", "source": "health", "scope": scope,
          "text": "Game, retry and failure counts are not yet collected.",
          "note": (f"Health summary covers {len(health['rounds'])} recently listed rounds; not 24-hour game totals."
@@ -54,7 +62,7 @@ def desk(snapshot, league_key, now):
             fetched = min(fetched, budget_data["as_of"])
         row["age"] = max(0, int(now - fetched)) if fetched is not None else None
         row["error"] = state.get("error")
-        row["stale"] = bool(row["error"]) or row["age"] is not None and row["age"] > STALE_SECONDS
+        row["stale"] = bool(row["error"]) or row["age"] is not None and row["age"] > row.get("threshold", STALE_SECONDS)
         if row["age"] is not None:
             ages.append(row["age"])
     discovery_time = source("discovery").get("fetched_at")

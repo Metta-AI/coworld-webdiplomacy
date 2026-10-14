@@ -14,6 +14,8 @@ from league_desk.board_metrics import board_panels
 from league_desk.instrument_metrics import instrumentation_panels
 from league_desk.instrumentation import log_facts, result_instrumentation, supported
 
+CURRENT = {f"pv_{slot}" for slot in range(7)}
+
 
 def instrumented_results():
     raw = results()
@@ -171,19 +173,22 @@ class InstrumentationTests(DeskTest):
 
     def test_ready_shares_floor_null_seats_and_old_games(self):
         games, data, logs = self.data()
-        panels = instrumentation_panels(games, data, logs, {"pv_0": "Invented first", "pv_1": "Invented second"})
+        labels = {"pv_0": "Invented first", "pv_1": "Invented second"}
+        panels = instrumentation_panels(games, data, logs, labels, CURRENT)
         ready = panels["Time to Ready"]
         self.assertEqual(len(ready["rows"]), 4)  # Null seats excluded; two phase types.
         first = next(r for r in ready["rows"] if r[:2] == ["Invented first", "Movement"])
-        self.assertEqual(first[3:9], [5, "10.0%", 5, "25.0%", 5, "0/5 (0.0%)"])
+        self.assertEqual(first[3:7], [5, "25.0%", 5, "0/5 (0.0%)"])
         second = next(r for r in ready["rows"] if r[:2] == ["Invented second", "Movement"])
-        self.assertEqual(second[8], "5/5 (100.0%)")
-        self.assertEqual(len(ready["chart"]["data"]), 4)
-        small = instrumentation_panels(*self.data(4), {})["Time to Ready"]
+        self.assertEqual(second[6], "5/5 (100.0%)")
+        self.assertEqual(len(ready["chart"]["data"]), 2)  # Ready only; Saved is no longer charted.
+        retired = instrumentation_panels(games, data, logs, labels, CURRENT - {"pv_1"})["Time to Ready"]
+        self.assertNotIn("Invented second", str(retired["rows"]))
+        small = instrumentation_panels(*self.data(4), {}, CURRENT)["Time to Ready"]
         self.assertFalse(small["chart"]["data"])
         old = next(iter(games.values()))
         old["version"] = "0.7.11"
-        ready = instrumentation_panels(games, data, logs, {})["Time to Ready"]
+        ready = instrumentation_panels(games, data, logs, {}, CURRENT)["Time to Ready"]
         self.assertIn("4 of 5 games covered", ready["note"])
         self.assertFalse(ready["chart"]["data"])
         self.assertFalse(supported("0.7.12-rc1"))
@@ -200,14 +205,14 @@ class InstrumentationTests(DeskTest):
             activity["turn"] = turn
             activity["seats"][0]["first_ready_seconds"] = 95
             logs[key]["activity"].append(activity)
-        result = instrumentation_panels(games, data, logs, {"pv_0": "Invented"})["Time to Ready"]
+        result = instrumentation_panels(games, data, logs, {"pv_0": "Invented"}, CURRENT)["Time to Ready"]
         row = next(r for r in result["rows"] if r[:2] == ["Invented", "Movement"])
-        self.assertEqual(row[6], "25.0%")
-        self.assertEqual(row[7], 5)
+        self.assertEqual(row[4], "25.0%")
+        self.assertEqual(row[5], 5)
 
     def test_health_and_real_stages_keep_unknowns(self):
         games, data, logs = self.data()
-        panels = instrumentation_panels(games, data, logs, {})
+        panels = instrumentation_panels(games, data, logs, {}, CURRENT)
         first = panels["Seat health"]["rows"][0]
         self.assertEqual(first[1:6], [5, 5, 5, "5/5 timed seats", 0])
         self.assertEqual(first[7:10], ["10.00", 5, "unknown"])
@@ -218,17 +223,18 @@ class InstrumentationTests(DeskTest):
         self.assertIn("not additive", stages["note"])
         phases = panels["Phase timing"]
         self.assertIn("0.40", str(phases["rows"]))
-        self.assertIn("1/1", str(instrumentation_panels(*self.data(1), {})["Phase timing"]["rows"]))
+        self.assertIn("1/1", str(instrumentation_panels(*self.data(1), {}, CURRENT)["Phase timing"]["rows"]))
         key = next(iter(games))
         logs[key]["timing"] = {"interrupted_seconds": 10}
         data[key]["instrumentation"]["health"][0]["api_requests"] = None
         data[key]["instrumentation"]["health"][0]["connections"] = []
-        panels = instrumentation_panels(games, data, logs, {})
+        panels = instrumentation_panels(games, data, logs, {}, CURRENT)
         self.assertIn("4 of 5 games covered", panels["Where an episode's time goes"]["note"])
         self.assertEqual(panels["Seat health"]["rows"][0][8], 4)
         self.assertEqual(panels["Seat health"]["rows"][0][5], 1)
         logs.clear()
-        self.assertIn("0/0 covered", instrumentation_panels(games, data, logs, {})["Seat health"]["rows"][1][6])
+        health = instrumentation_panels(games, data, logs, {}, CURRENT)["Seat health"]
+        self.assertIn("0/0 covered", health["rows"][1][6])
 
     def test_log_failure_is_independent_and_selection_is_respected(self):
         g = {**game(), "version": "0.7.12"}

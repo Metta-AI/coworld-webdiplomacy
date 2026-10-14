@@ -181,8 +181,9 @@ class ArtifactTests(DeskTest):
         result = powers_panel(seats)
         france = next(r for r in result["chart"]["data"] if r["power"] == "France")
         self.assertEqual(france["ci"], stat([(s["game"], s["score"]) for s in seats])["ci"])
-        self.assertEqual(policy_panel(seats[:4]*2, {})["chart"]["data"][1]["games"], 4)
-        self.assertIn("0 policy/power", policy_panel(seats[:4]*2, {})["sentence"])
+        self.assertEqual(policy_panel(seats[:4]*2, {}, {"pv_demo"})["chart"]["data"][1]["games"], 4)
+        self.assertIn("0 policy/power", policy_panel(seats[:4]*2, {}, {"pv_demo"})["sentence"])
+        self.assertEqual(policy_panel(seats, {}, {"pv_other"})["chart"]["data"], [])
         same = [{**s, "score": .2} for s in seats]
         self.assertIsNone(next(r for r in powers_panel(same)["chart"]["data"] if r["power"] == "France")["ci"])
 

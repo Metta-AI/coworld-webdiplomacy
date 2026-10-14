@@ -94,7 +94,7 @@ class AttributionTests(DeskTest):
         self.assertEqual(model["rows"][0][5], 1)
         self.assertEqual(model["rows"][0][8], 25)
         self.assertEqual(seats["rows"][0]["estimated"], 2)
-        self.assertEqual(labels["ply_Ada"], "invented/resolved")
+        self.assertEqual(labels[POLICY], "invented/resolved")
         self.assertIn("invented/requested", model["rows"][0][2])
         self.assertFalse(attributed_models(data, {}, [], self.now, self.now, "all")[2]["rows"])
         self.assertFalse(attributed_models(data, result, [], 0, self.now, "cow_other")[2]["rows"])
@@ -108,11 +108,11 @@ class AttributionTests(DeskTest):
         self.assertEqual(len(model["rows"]), 2)
         self.assertEqual(seats["rows"][0]["estimated"], 5)
         self.assertEqual(model["rows"][0][3], 1)
-        self.assertEqual(labels["ply_Bert"], "No provider calls observed")
+        self.assertEqual(labels["00000000-0000-0000-0000-000000000005"], "No provider calls observed")
         self.assertEqual(model["rows"][0][7], "unknown")
         data["rows"].append({**data["rows"][0], "slot": 2, "model": "", "calls": 0, "failed": 0, "usd": 0})
         labels = attributed_models(data, {}, [], 0, self.now, "all")[3]
-        self.assertNotIn("No provider calls observed", labels["ply_Ada"])
+        self.assertNotIn("No provider calls observed", labels[POLICY])
 
     def test_daily_reconciliation_and_budget_observations(self):
         data = {"rows": [self.daily_row(compute=20, week_compute=3)], "start": self.now-30*86400}
@@ -179,7 +179,7 @@ class AttributionTests(DeskTest):
         competition = {"episode_sources": {"round_invented": {"data": {"rows": [game]}}}}
         result = spending_panels(self.store.snapshot(), {"id": LEAGUE, "key": "press"}, self.now, competition)
         self.assertEqual(result["player_costs"]["ply_Ada"], [2])
-        self.assertEqual(result["player_models"]["ply_Ada"], "invented/resolved")
+        self.assertEqual(result["policy_models"][POLICY], "invented/resolved")
         different = copy.deepcopy(data)
         different["rows"][0].update(usd=0, calls=0, failed=0, model="")
         self.store.success("seat_models", LEAGUE, different, self.now)

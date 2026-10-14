@@ -24,7 +24,7 @@ def complete_activity(facts, log):
             if (p["turn"], p["phase"]) in phases]
 
 
-def ready_panel(games, results, logs, labels, total):
+def ready_panel(games, results, logs, labels, current, total):
     groups, covered = defaultdict(list), set()
     for game_id, game in games.items():
         facts = results.get(game_id, {}).get("instrumentation", {})
@@ -32,35 +32,34 @@ def ready_panel(games, results, logs, labels, total):
             covered.add(game_id)
             for seat in game["seats"]:
                 activity = seats[seat["slot"]]
-                if activity is not None and seat["policy_id"]:
+                if activity is not None and seat["policy_id"] in current:
                     group = "Movement" if phase["phase"] == "Diplomacy" else "Retreat/build"
                     groups[seat["policy_id"], group].append((game_id, phase["length"], activity))
     rows, points = [], []
     for (policy, phase), observations in sorted(groups.items()):
         # One median per game before the across-game median: long games do not dominate timing.
-        per_game = defaultdict(lambda: {"saved": [], "ready": []})
+        per_game = defaultdict(list)
         for game_id, length, activity in observations:
-            for name in ("saved", "ready"):
-                value = activity[f"first_{name}_seconds"]
-                if length is not None and value is not None:
-                    per_game[game_id][name].append(value/length)
+            value = activity["first_ready_seconds"]
+            if length is not None and value is not None:
+                per_game[game_id].append(value/length)
         n = len({g for g, _, _ in observations})
-        values = {name: [median(v[name]) for v in per_game.values() if v[name]] for name in ("saved", "ready")}
+        values = [median(v) for v in per_game.values() if v]
         never = sum(a["first_ready_seconds"] is None for _, _, a in observations)
         rows.append([labels.get(policy, "Unlisted policy"), phase, n, len(observations),
-                     percent(median(values["saved"])), len(values["saved"]), percent(median(values["ready"])),
-                     len(values["ready"]), f"{never}/{len(observations)} ({percent(never/len(observations))})"])
-        for name in ("saved", "ready"):
-            if len(values[name]) >= MIN_SHARED_GAMES:
-                points.append({"label": f"{labels.get(policy, 'Unlisted policy')} · {phase} · {name.title()}",
-                               "value": median(values[name])*100, "value_label": percent(median(values[name]))})
-    sentence = (f"{len(groups)} policy/phase groups; {len(points)} timing estimates meet the five-game floor."
-                if groups else "No complete phases with order activity are covered yet.")
+                     percent(median(values)), len(values),
+                     f"{never}/{len(observations)} ({percent(never/len(observations))})"])
+        if len(values) >= MIN_SHARED_GAMES:
+            points.append({"label": f"{labels.get(policy, 'Unlisted policy')} · {phase}",
+                           "value": median(values)*100, "value_label": percent(median(values))})
+    sentence = (f"{len(groups)} policy/phase groups; {len(points)} Ready estimates meet the five-game floor."
+                if groups else "No complete phases with order activity are covered yet for the competing policies.")
     return panel(sentence, ["Policy version", "Phase type", "Games", "Seat phases with orders due",
-                 "Median first Saved / phase length", "Saved games", "Median first Ready / phase length", "Ready games",
-                 "Never Ready"], rows, coverage(len(covered), total) +
+                 "Median first Ready / phase length", "Ready games", "Never Ready"], rows,
+                 "Currently competing policies only. " + coverage(len(covered), total) +
                  "Phase length is observed deadline minus first phase timestamp; absent deadlines stay unknown. "
                  "Timing is the median of each game's median share; never-Ready is a seat-phase share. "
+                 "First Saved is still recorded in the game log but not shown here. "
                  "Null seats have no orders due and are excluded. Final Finished-bound/incomplete phases are censored, "
                  "including adapter-cut-short endings. Sampling is about 0.25 s and can miss brief Ready states. "
                  "Charts require five measured games per timing estimate; smaller samples remain in the table.",
@@ -178,10 +177,10 @@ def phases_panel(games, results, total):
                  {"kind": "amounts", "label": "Median seconds", "data": points})
 
 
-def instrumentation_panels(games, results, logs, labels):
+def instrumentation_panels(games, results, logs, labels, current):
     selected = {k: g for k, g in games.items() if supported(g.get("version"))}
     total = len(games)
-    return {"Time to Ready": ready_panel(selected, results, logs, labels, total),
+    return {"Time to Ready": ready_panel(selected, results, logs, labels, current, total),
             "Seat health": health_panel(selected, results, logs, labels, total),
             "Where an episode's time goes": stages_panel(selected, results, logs, total),
             "Phase timing": phases_panel(selected, results, total)}
