@@ -121,8 +121,11 @@ root's CLI pins and lockfile are independent.
   health data is marked in terracotta. Competition data goes stale after two
   five-minute cadences; old terminal episode listings after two daily cadences.
   The masthead includes all panel ages and missing/stale counts, and uses minutes
-  past 120 seconds. Panels show a short source/age line; coverage and a source/age/row-count table
-  appear in View values. The Now completion cell puts its longer coverage in a
+  past 120 seconds. Panels show a short source line with the age of their newest
+  data (so a refreshed panel reads as refreshed); a stale flag still appears if any
+  input is overdue. Coverage and a source table appear in View values, one row per
+  source name: per-game sources are counted (e.g. "detail ×124"), and the row shows
+  the member closest to its stale threshold. The Now completion cell puts its longer coverage in a
   separate disclosure. Missing coverage alone does not turn it red.
   Competition panels have a five-minute refresh contract even when a faster round
   source contributes; stale means older than 600 seconds, not 523. Round-duration
@@ -134,7 +137,8 @@ root's CLI pins and lockfile are independent.
   coverage instead; old inspected chunks do not expire. Missing inspections remain visible.
   Finished game details follow their daily schedule (stale after two intervals);
   a detail's schedule follows the game state it just fetched.
-  Request lists use their version rotation interval, while the canonical list stays
+  Request lists use their version rotation interval times the visits a full walk
+  needs (200 rows per visit), while the canonical list stays
   strict at ten minutes, including on slow panels. Errors always remain visible.
 - All display dates use America/Los_Angeles with PDT/PST, including API reset times.
 
@@ -448,7 +452,8 @@ last good values. No full-page cutoff is interpreted as completeness.
 Version discovery is daily. Two version request walks advance per collector pass;
 a due canonical version takes priority. Its cadence is five minutes. Other versions
 use the larger of five minutes or one minute per noncanonical version, reserving
-one of the two slots for canonical work. Freshness uses twice that interval.
+one of the two slots for canonical work. The version catalog refreshes daily, or within five minutes
+when the canonical version is missing from it. Freshness uses twice that interval.
 The walks advance
 in 30-day creation windows back to the version's creation time, then refreshing
 seven-day windows. Cursors keep their fixed window bounds across retries. Last

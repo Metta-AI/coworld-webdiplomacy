@@ -186,9 +186,15 @@ def request_interval(version_id, canonical_id, version_count):
 def collect_spending(collector, discovery):
     store, api, now = collector.store, collector.api, collector.clock()
     poll = collector.poll
-    poll("versions", "all", lambda: versions(api), cadence=RECONCILE_SECONDS)
-    catalog = (store.source("versions", "all") or {}).get("data") or {}
     canonical_id = discovery["coworld_id"]
+    catalog = (store.source("versions", "all") or {}).get("data") or {}
+    # A new canonical release must not wait out the daily catalog refresh: its requests are listed per version.
+    known = any(r["id"] == canonical_id for r in catalog.get("rows", []))
+    missing = bool(catalog) and not known
+    # The floor bounds retries to one per five minutes if the catalog still lacks it.
+    poll("versions", "all", lambda: versions(api), cadence=RECONCILE_SECONDS, force=missing,
+         floor=COMPETITION_SECONDS if missing else 0)
+    catalog = (store.source("versions", "all") or {}).get("data") or {}
     pending = []
     for version in catalog.get("rows", []):
         old = store.source("requests", version["id"])

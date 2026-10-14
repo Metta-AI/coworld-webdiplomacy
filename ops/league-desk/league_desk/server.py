@@ -11,7 +11,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .alerts import prepare_alerts
 from .board_metrics import board_panels
 from .dates import when
-from .freshness import age_label
+from .freshness import age_label, grouped
 from .metrics import desk, money
 from .panels import SECTIONS, competition_panels
 from .paths import PACKAGE, runtime_dir
@@ -25,6 +25,7 @@ def create_app(store=None):
     templates = Jinja2Templates(directory=PACKAGE / "templates")
     templates.env.filters["age_label"] = age_label
     templates.env.filters["when"] = when
+    templates.env.filters["grouped"] = grouped
     app = FastAPI(title="The League Desk", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]"])
     app.mount("/static", StaticFiles(directory=PACKAGE / "static"), name="static")
@@ -80,6 +81,8 @@ def create_app(store=None):
         standings["stale"] |= seat_panel["stale"]
         standings["sources"] += seat_panel["sources"]
         standings["age"] = max((v for v in (standings["age"], seat_panel["age"]) if v is not None), default=None)
+        standings["newest"] = min((v for v in (standings["newest"], seat_panel["newest"]) if v is not None),
+                                  default=None)
         standings["missing"] += seat_panel["missing"]
         interval_data = standings["chart"]["data"]
         domain = [min((r["low"] for r in interval_data), default=0),
@@ -121,7 +124,7 @@ def create_app(store=None):
             game_row = context["now_rows"][-1]
             game_row["detail"] = competition["game_coverage"] + " Retry attempts unavailable."
             game_row["note"] = "Observed completions; retry count unavailable."
-            game_row["age"] = competition["panel_data"]["Game duration"]["age"]
+            game_row["age"] = competition["panel_data"]["Game duration"]["newest"]
             game_row["stale"] = competition["panel_data"]["Game duration"]["stale"]
             game_row["error"] = ("Incomplete game coverage"
                                  if competition["panel_data"]["Game duration"]["missing"] else None)

@@ -2,7 +2,15 @@
 
 import math
 
-from .config import COMPETITION_SECONDS, POLL_SECONDS, RECONCILE_SECONDS, SEAT_BATCH, SLOW_SECONDS
+from .config import (
+    COMPETITION_SECONDS,
+    HISTORY_PAGES,
+    PAGE_SIZE,
+    POLL_SECONDS,
+    RECONCILE_SECONDS,
+    SEAT_BATCH,
+    SLOW_SECONDS,
+)
 
 
 def age_label(seconds):
@@ -21,6 +29,7 @@ def annotate(panel, dependencies, now, cadence=COMPETITION_SECONDS):
 
     ages = [max(0, int(now - fetched(d))) for d in dependencies if fetched(d) is not None]
     panel["age"] = max(ages) if ages else None
+    panel["newest"] = min(ages) if ages else None
     panel["missing"] = sum(d.get("data") is None for d in dependencies)
     panel["stale"] = False
     panel["sources"] = []
@@ -49,7 +58,10 @@ def annotate(panel, dependencies, now, cadence=COMPETITION_SECONDS):
         age = max(0, int(now - fetched(source))) if fetched(source) is not None else None
         threshold = 2 * max(cadence, interval)
         if name == "requests":
-            threshold = 2 * source.get("revisit_seconds", COMPETITION_SECONDS)
+            # A walk reads HISTORY_PAGES pages per visit and only advances recent_through when it finishes.
+            listed = len((source.get("data") or {}).get("rows", []))
+            visits = max(1, math.ceil(listed / (HISTORY_PAGES * PAGE_SIZE)))
+            threshold = 2 * visits * source.get("revisit_seconds", COMPETITION_SECONDS)
         expired = age is not None and age > threshold
         panel["stale"] |= bool(source.get("error")) or expired
         data = source.get("data") or {}
@@ -58,3 +70,23 @@ def annotate(panel, dependencies, now, cadence=COMPETITION_SECONDS):
                                  "stale": bool(source.get("error")) or expired, "error": source.get("error"),
                                  "threshold": threshold})
     panel.setdefault("coverage", "")
+
+
+def grouped(sources):
+    """One display row per source name; the member closest to its stale threshold speaks for the group.
+
+    Panels can depend on thousands of per-game sources. The page re-ages every row each second, so
+    rendering them individually made a 2 MB fragment and a slow tab.
+    """
+    groups = {}
+    for source in sources:
+        group = groups.setdefault(source["name"], {**source, "count": 0, "rows": 0, "error": None})
+        group["count"] += 1
+        group["rows"] += source["rows"]
+        group["error"] = group["error"] or source["error"]
+        group["stale"] = group["stale"] or source["stale"]
+        # Immutable artifacts carry the string "Infinity" for the browser; float() reads it.
+        if source["age"] is not None and (group["age"] is None or float(source["threshold"]) - source["age"]
+                                          < float(group["threshold"]) - group["age"]):
+            group["age"], group["threshold"] = source["age"], source["threshold"]
+    return list(groups.values())
