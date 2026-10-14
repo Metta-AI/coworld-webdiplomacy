@@ -219,28 +219,90 @@ policy or ranked player. The bridge needs the updated Coworld image advertising
 publish the updated Coworld and start a new lobby. Existing games cannot acquire
 new routes from a local checkout update.
 
-1. Sign in as a Softmax **user**, then create a league lobby or claim an open
-   human seat before the host starts it. Lobby creation assigns seat 0 to the
-   host. The claim API is `POST /v2/lobbies/{lobby_id}/seats/{position}/claim`.
-2. After startup, call `POST /v2/lobbies/{lobby_id}/launch` as that same user.
-   Wait while it returns `kind: pending`. Save the `kind: player` JSON response,
-   or its `viewer_url` alone, to a private file such as `tmp/seat.json`. A spectator
-   URL cannot control a seat. A direct player WebSocket URL also works.
-3. From this repository, install the bridge dependencies and run it:
+The bridge does not create or start a game. It attaches to a lobby game that is
+already running, through a human seat you have claimed. Run every command below
+from this repository.
+
+1. Install the tools and sign in as a Softmax **user**. Player identities and
+   machine tokens cannot create lobbies or receive a seat URL; if
+   `softmax status` shows `subject_type: player`, run `uv run softmax player unset`.
 
    ```sh
-   uv sync --no-dev
-   chmod 600 tmp/seat.json
-   uv run --no-dev python -m players.bridge \
+   uv sync --group dev
+   uv run softmax login
+   uv run softmax status
+   ```
+
+2. Pick the league. **webDiplomacy** is full press; **webDiplomacy Gunboat** is
+   no-press. `coworld leagues` prints their `league_...` IDs:
+
+   ```sh
+   uv run coworld leagues
+   ```
+
+3. Create a draft lobby. It prints the lobby ID (`lby_...`); `--json` prints it
+   as `id`. Seat 0 is the host's human seat, so your bot plays seat 0. Other seats
+   default to a recommended league champion at seat 1 and `random` champions
+   elsewhere; override any of them with `--seat POSITION:KIND` (`human_open`,
+   `random`, `closed`, or `league_player:ply_...`):
+
+   ```sh
+   uv run coworld lobby create league_...
+   uv run coworld lobby get lby_...
+   ```
+
+   Drafts expire after one hour, and `start` refuses while you already have a
+   pending or running lobby game. Lobby games do not change league standings and
+   are billed to the host. To join someone else's lobby instead, claim an open
+   human seat before they start it (`uv run coworld lobby claim lby_... POSITION`)
+   and skip step 4.
+
+4. Start the game. Only the host can do this:
+
+   ```sh
+   uv run coworld lobby start lby_...
+   ```
+
+5. Fetch your seat URL. There is no CLI command for this step; call
+   `POST /v2/lobbies/{lobby_id}/launch` as the same user. It returns
+   `kind: pending` while the game boots, then `kind: player` with a `viewer_url`.
+   This loop writes the response to a private file, keeps the sign-in token out
+   of the process list, and prints only the `kind`:
+
+   ```sh
+   mkdir -p tmp && touch tmp/seat.json && chmod 600 tmp/seat.json
+   while true; do
+     uv run softmax get-token | sed 's/^/Authorization: Bearer /' |
+       curl -sS -X POST -H @- -o tmp/seat.json \
+         https://softmax.com/api/observatory/v2/lobbies/lby_.../launch
+     kind=$(python3 -c 'import json; print(json.load(open("tmp/seat.json")).get("kind"))')
+     echo "$kind"
+     [ "$kind" = pending ] || break
+     sleep 5
+   done
+   ```
+
+   It must end on `player`. `spectator` means you hold no seat in this lobby,
+   `terminal` means the game already ended, and `None` means an API error whose
+   `detail` is in the file. The file now controls your seat: never print it, paste
+   it, or open it in a browser while the bridge runs. The bridge also accepts the
+   bare `viewer_url` or a direct player WebSocket URL in this file; a spectator
+   URL cannot control a seat.
+
+6. Run the bridge and leave it running for the whole game:
+
+   ```sh
+   uv run python -m players.bridge \
      --seat-url-file tmp/seat.json --env-file tmp/bot.env
    ```
 
-   The bridge chooses a free loopback port; use `--port 8765` if your bot needs
+   It prints `Bridge listening at http://127.0.0.1:PORT` once connected. The
+   bridge chooses a free loopback port; use `--port 8765` if your bot needs
    a fixed port. The env file must not already exist. It is created with mode
    0600 and contains a newly generated **local** API key, plus the game's IDs,
    seat seed, end year and scoring rule. The hosted token is never forwarded to
    the bot.
-4. In a second shell, run the bot itself, without `players.launcher`:
+7. In a second shell, run the bot itself, without `players.launcher`:
 
    ```sh
    source tmp/bot.env
@@ -250,9 +312,12 @@ new routes from a local checkout update.
    An ordinary webDip bot can use `WEBDIP_URL` as its base URL and
    `WEBDIP_API_KEY` as its Bearer key. If it expects the full API endpoint,
    configure `$WEBDIP_URL/api.php`. The existing `players.api.WebDiplomacy`
-   client works unchanged. Keep the bridge running for the game; stop it with
-   Ctrl-C when finished, then remove the private seat and env files. A new
-   bridge process gets a new local key, so restart/reconfigure the bot too.
+   client works unchanged. A new bridge process gets a new local key, so
+   restart or reconfigure the bot whenever you restart the bridge.
+8. When the game ends, every bridge request returns HTTP 410. Stop the bridge with
+   Ctrl-C and delete `tmp/seat.json` and `tmp/bot.env`. Check the lobby and its
+   episode with `uv run coworld lobby get lby_...`; the host can stop a running
+   game early with `uv run coworld lobby end lby_...`.
 
 Only one controller should connect for a seat: a browser and bridge connected
 simultaneously transfers control to the newest connection. The displaced browser
