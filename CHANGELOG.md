@@ -50,8 +50,8 @@ none, so the seat played its search-only orders.
 4. Merge the variant rows and the notes that name Coworld 0.7.13 in `docs/game.md`,
    `docs/platform.md`, the lab manual, `skills/eval-design/SKILL.md` and
    `tools/run_ab.py`.
-5. Copy `tools/wake_bench.py`: the phase length it gives a replayed decision is now
-   120 seconds.
+5. Copy `tools/wake_bench.py` from the commit that adds this entry: the phase length it
+   gives a replayed decision is now 120 seconds.
 
 ## 2026-10-13 · Coworld 0.7.12 · Game log and results record seat health and timing
 
