@@ -109,6 +109,6 @@ is not started for replay viewing. Upload, certification and hosted acceptance
 are separate from the local browser checks.
 
 Use `coworld run-episode` followed by `tools.check_replay` for local validation.
-Since this manifest declares a static bundle, CLI 0.1.58 (the pinned version) skips
+Since this manifest declares a static bundle, CLI 0.1.60 (the pinned version) skips
 the legacy container `/client/replay` probe, including under `--verify-replay`;
 the CLI does not render the static viewer. `tools.check_replay` is the browser check.

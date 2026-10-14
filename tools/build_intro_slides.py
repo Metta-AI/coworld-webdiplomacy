@@ -372,7 +372,7 @@ def game_of_the_week(drawer):
     ]), "The case", juggernaut, "narrow right"))
 
     slides.append(text("The game on Softmax", bullets([
-        "<b>Three-minute turns, eight-year games</b>",
+        "<b>Two-minute turns, eight-year games</b>",
         "<b>Container-based players</b>",
         "<b>Identities are anonymous in-game</b>",
         "<b>Two leagues: press and gunboat.</b> Only the press league counts for victory.",

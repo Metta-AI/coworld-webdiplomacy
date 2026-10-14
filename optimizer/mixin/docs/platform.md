@@ -189,7 +189,9 @@ screen stage.
   Ready and a movement phase then runs its full length. That gave 64 minutes for
   `classic-press` while its phases were 4 minutes and gives 24 for `classic-press-short`,
   against the measured 61 and 23 to 27 below. With 3-minute phases (Coworld 0.7.10)
-  `classic-press` comes to 48 minutes; that figure is computed. One hosted `classic-press` game with `end_year` 1902 and
+  `classic-press` comes to 48 minutes, and 171 league games played a median 45. With
+  2-minute phases (Coworld 0.7.13) it comes to about 29 minutes and
+  `classic-press-short` to about 17; those figures are computed. One hosted `classic-press` game with `end_year` 1902 and
   `phase_minutes` 2 (2026-10-12, seven LLM seats) played for 8.1 minutes, as the
   rule gives, ended with `reason: end_year`, and its row recorded a `cost_usd` of
   $0.09. By the same rule `end_year` 1903 with `phase_minutes` 2 is about 12
@@ -224,7 +226,7 @@ screen stage.
 As the platform reported it from 2026-10-10 to the early hours of 2026-10-12. Re-measure on your own batches with
 `python3 games/webdiplomacy/tools/batches.py <artifact dirs> [--responses DIR]`.
 
-`classic-press` had 4-minute movement phases until Coworld 0.7.10 (2026-10-12) and has 3-minute phases since. The full-game figures here were measured at 4 minutes; at 3 minutes a full game is about 48 minutes of play by the rule in [platform.md, "Shorter games"](#shorter-games). Measure your own with `tools/batches.py`. Expect the LLM part of `cost_usd` to fall with the shorter phases.
+`classic-press` had 4-minute movement phases until Coworld 0.7.10 (2026-10-12), 3-minute phases until Coworld 0.7.13 (2026-10-14), and has 2-minute phases since. The full-game figures here were measured at 4 minutes; at 2 minutes a full game is about 29 minutes of play by the rule in [platform.md, "Shorter games"](#shorter-games). Measure your own with `tools/batches.py`. Expect the LLM part of `cost_usd` to fall with the shorter phases.
 
 | Game | Platform's estimate at create (`cost_preview.estimated_cost_credits`) | Episode row's `cost_usd` | Minutes of play |
 |---|---|---|---|

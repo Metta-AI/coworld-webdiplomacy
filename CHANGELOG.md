@@ -20,6 +20,39 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-14 · Coworld 0.7.13 · classic-press has 2-minute movement phases
+
+**What changed.** Coworld 0.7.13. The press league's variant, `classic-press`, and
+`classic-press-short` have `phase_minutes` 2 (they were 3). Retreat and build phases stay
+at 1 minute, and the end years are unchanged (1908 and 1904). At 3 minutes, 171 league games
+played a median 45 minutes; at 2 minutes a full game should take about 29 (computed, not yet
+measured). Nothing else in the game or the player image changed.
+
+Why: in 36 press games on 0.7.12, the last minute carried 22% of private press, and 15% of
+LLM seats' phases ended with orders that changed after 108 s. But replaying those phases
+with the earlier orders moved supply centres by a net +5 across all 36 games, which is not
+distinguishable from zero. The cost of the cut falls on seats whose first agent run of a
+phase is slow: 4.7% of phases got their first LLM orders only after 108 s, and 3.9% got
+none, so the seat played its search-only orders.
+
+**In your optimizer.**
+
+1. A press policy has a third less time in every movement phase. Check anything in your
+   policy that assumes three minutes: wake schedules, the number of model calls a phase,
+   timeouts. The reference policy caps each agent run at the time left before its lock
+   (`PRESS_WAKE_SECONDS` or less), so a phase-start run gets about 107 seconds. If your
+   phase-start run often takes longer, the seat will play its search-only orders more
+   often. Run one health game and read `tools/press_behaviour.py` against an earlier batch.
+2. Do not pool games from before and after this change in one read.
+3. Durations, the LLM part of `cost_usd` and the starting SD in `tools/sizing.py` were
+   measured with longer phases. Re-measure them on your first batch
+   (`tools/batches.py`, `paired.py`'s `sd`).
+4. Merge the variant rows and the notes that name Coworld 0.7.13 in `docs/game.md`,
+   `docs/platform.md`, the lab manual, `skills/eval-design/SKILL.md` and
+   `tools/run_ab.py`.
+5. Copy `tools/wake_bench.py`: the phase length it gives a replayed decision is now
+   120 seconds.
+
 ## 2026-10-13 · Coworld 0.7.12 · Game log and results record seat health and timing
 
 **What changed.** Coworld 0.7.12. The game records operational data for the league
