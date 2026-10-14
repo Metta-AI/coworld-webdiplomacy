@@ -210,31 +210,24 @@ class InstrumentationTests(DeskTest):
         self.assertEqual(row[4], "25.0%")
         self.assertEqual(row[5], 5)
 
-    def test_health_and_real_stages_keep_unknowns(self):
+    def test_health_keeps_unknowns_and_only_current_policies(self):
         games, data, logs = self.data()
         panels = instrumentation_panels(games, data, logs, {}, CURRENT)
+        self.assertEqual(set(panels), {"Time to Ready", "Seat health"})
         first = panels["Seat health"]["rows"][0]
-        self.assertEqual(first[1:6], [5, 5, 5, "5/5 timed seats", 0])
-        self.assertEqual(first[7:10], ["10.00", 5, "unknown"])
-        self.assertEqual(panels["Seat health"]["rows"][1][6], "5/5 covered games with orders due")
-        stages = panels["Where an episode's time goes"]
-        self.assertEqual(stages["rows"][0], ["Queue", "5.00", 5])
-        self.assertEqual(len(stages["rows"]), 11)
-        self.assertIn("not additive", stages["note"])
-        phases = panels["Phase timing"]
-        self.assertIn("0.40", str(phases["rows"]))
-        self.assertIn("1/1", str(instrumentation_panels(*self.data(1), {}, CURRENT)["Phase timing"]["rows"]))
+        self.assertEqual(first[1:6], [5, 5, 5, "5/5", 0])
+        self.assertEqual(first[7], "10.00")
+        self.assertEqual(panels["Seat health"]["rows"][1][6], "5/5")
+        retired = instrumentation_panels(games, data, logs, {}, CURRENT - {"pv_0"})["Seat health"]
+        self.assertEqual(len(retired["rows"]), len(panels["Seat health"]["rows"]) - 1)
         key = next(iter(games))
-        logs[key]["timing"] = {"interrupted_seconds": 10}
         data[key]["instrumentation"]["health"][0]["api_requests"] = None
         data[key]["instrumentation"]["health"][0]["connections"] = []
         panels = instrumentation_panels(games, data, logs, {}, CURRENT)
-        self.assertIn("4 of 5 games covered", panels["Where an episode's time goes"]["note"])
-        self.assertEqual(panels["Seat health"]["rows"][0][8], 4)
         self.assertEqual(panels["Seat health"]["rows"][0][5], 1)
         logs.clear()
         health = instrumentation_panels(games, data, logs, {}, CURRENT)["Seat health"]
-        self.assertIn("0/0 covered", health["rows"][1][6])
+        self.assertEqual(health["rows"][1][6], "0/0")
 
     def test_log_failure_is_independent_and_selection_is_respected(self):
         g = {**game(), "version": "0.7.12"}
@@ -247,9 +240,9 @@ class InstrumentationTests(DeskTest):
                            "chart": {}, "coverage": "", "sources": [], "stale": False}}}
         panels = board_panels(snapshot, None, competition, self.now, 0, "all")
         self.assertTrue(panels["Time to Ready"]["stale"])
-        self.assertFalse(panels["Contested provinces"]["stale"])
-        self.assertFalse(panels["Phase timing"]["stale"])
-        self.assertFalse(panels["Score by power, all players"]["stale"])
+        self.assertFalse(panels["The board"]["stale"])
+        self.assertFalse(panels["Score by policy and power"]["stale"])
+        self.assertFalse(panels["Score by policy and power"]["stale"])
         self.assertIn("1 of 1 games covered", panels["Seat health"]["note"])
         for start, version in ((101, "all"), (0, "cow_other")):
             panels = board_panels(snapshot, None, competition, self.now, start, version)

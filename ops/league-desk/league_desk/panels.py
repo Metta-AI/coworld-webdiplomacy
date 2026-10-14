@@ -8,11 +8,16 @@ SECTIONS = [
         ("Membership and exposure", "Softmax API", 4, "Membership and seat exposure have not been collected."),
         ("Rating interval over time", "Local rating snapshots", 12, "No rating snapshots yet."),
     ]),
-    ("Matchups and the board", [
-        ("Head to head", "Softmax API", 8, "No scored shared games collected."),
-        ("Score by power, all players", "Replays and results", 4, "Results have not been ingested."),
-        ("Contested provinces", "Replays and results", 4, "No replay histories ingested."),
-        ("Score by policy and power", "Replays and results", 8, "Results have not been ingested."),
+    ("Tournament planning", [
+        ("Tournament planner", "Results and Softmax API", 12, "No scored league games collected yet."),
+    ]),
+    ("Matchups", [
+        ("Head to head", "Softmax API", 6, "No scored shared games collected."),
+        ("Games together", "Softmax API", 6, "No shared games collected."),
+    ]),
+    ("The board", [
+        ("The board", "Replays and results", 12, "No replay boards ingested."),
+        ("Score by policy and power", "Replays and results", 12, "Results have not been ingested."),
     ]),
     ("Rounds and games", [
         ("Round duration", "Softmax API", 4, "Completed round history has not been collected."),
@@ -29,15 +34,12 @@ SECTIONS = [
     ]),
     ("Experience requests", [
         ("Requests per day", "Softmax API", 4, "Request history has not been collected."),
-        ("How long they take", "Softmax API", 4, "Request and game timings have not been collected."),
+        ("How long games take", "Softmax API", 4, "Request and game timings have not been collected."),
         ("Common config overrides", "Read-only SQL", 4, "Stored request overrides have not been collected."),
     ]),
     ("Timing and seat health", [
-        ("Where an episode's time goes", "Softmax API · Results and game log", 12,
-         "No instrumented lifecycle profiles collected."),
-        ("Phase timing", "Results", 4, "No complete phase transitions ingested."),
-        ("Time to Ready", "Results and game log", 4, "No public order activity collected."),
-        ("Seat health", "Results and game log", 4, "No instrumented seat health collected."),
+        ("Time to Ready", "Results and game log", 6, "No public order activity collected."),
+        ("Seat health", "Results and game log", 6, "No instrumented seat health collected."),
     ]),
 ]
 
@@ -46,7 +48,7 @@ def competition_panels(snapshot, league, now, start=None, version="all"):
     start = now - 7 * 86400 if start is None else start
     from .competition_metrics import exposure, histories, rating_history, standings, submission_series
     from .config import COMPETITION_SECONDS, FAILURE_MARGIN, POLL_SECONDS
-    from .game_metrics import episode_timing, game_durations, head_to_head, round_durations, throughput
+    from .game_metrics import game_durations, games_together, head_to_head, round_durations, throughput
 
     scope = league["id"] if league else ""
 
@@ -83,7 +85,7 @@ def competition_panels(snapshot, league, now, start=None, version="all"):
                                              data("settings").get("game_target")),
         "Round duration": round_durations(recent_rounds, source("settings").get("history", []), now),
         "Game duration": game_durations(finished), "Games per day and how they ended": throughput(finished),
-        "Where an episode's time goes": episode_timing(finished), "Head to head": head_to_head(finished),
+        "Head to head": head_to_head(finished), "Games together": games_together(finished),
     }
     panels["Competing players"]["columns"][5] = "Scored games (selection)"
     panels["Competing players"]["note"] += " Score and cost cells use the selection; submissions stay 24h/7d."
@@ -120,7 +122,7 @@ def competition_panels(snapshot, league, now, start=None, version="all"):
         panels["Competing players"]["sentence"] = "No competing memberships collected."
         panels["Membership and exposure"]["sentence"] = "No complete membership scan."
     if not episode_sources:
-        for title in ("Head to head", "Games per day and how they ended"):
+        for title in ("Head to head", "Games together", "Games per day and how they ended"):
             panels[title]["sentence"] = "No episodes collected; game coverage is unavailable."
     alerts = []
     for rating in ratings:

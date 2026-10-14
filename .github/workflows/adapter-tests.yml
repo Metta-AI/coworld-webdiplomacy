@@ -47,6 +47,7 @@ jobs:
           uv sync --locked --group dev
           uv run --locked python -m unittest discover -s tests -v
           uv run --locked ruff check league_desk tests
+          node tests/tournament_check.mjs
   # Each group builds the images itself, from a shared layer cache, and runs on its own
   # runner. Checks that read another check's output are in the same group.
   image-checks:

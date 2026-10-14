@@ -5,8 +5,7 @@ from itertools import combinations
 from statistics import mean
 from zoneinfo import ZoneInfo
 
-from .config import MIN_SHARED_GAMES, QUEUE_MINUTES_ALERT
-from .dates import when
+from .config import MIN_SHARED_GAMES
 
 PAR = 1 / 7
 
@@ -152,27 +151,34 @@ def throughput(games):
                  {"kind": "bars", "data": points, "label": "Games", "counts": True})
 
 
-def episode_timing(games):
-    rows = []
+def games_together(games):
+    """How often each pair of players is seated in the same game: who the matchmaker pairs with whom."""
+    seated, names = defaultdict(set), {}
     for game in games:
-        spans = [minutes(game[a], game[b]) for a, b in (("created_at", "dispatched_at"),
-                 ("dispatched_at", "running_at"), ("running_at", "completed_at"))]
-        if game["status"] == "completed" and all(v is not None for v in spans):
-            rows.append((game["id"], game["completed_at"], spans))
-    if not rows:
-        return panel("No completed games have all four lifecycle timestamps.",
-                     note="Detailed boot/connect/adjudication/upload timing needs instrumentation.")
-    median = quantile([sum(r[2]) for r in rows], .5)
-    representative = min(rows, key=lambda r: (abs(sum(r[2]) - median), r[0]))
-    parts = [{"part": name, "value": value} for name, value in zip(
-        ("Queue", "Startup", "Play and finish"), representative[2], strict=True)]
-    largest = max(parts, key=lambda r: r["value"])
-    queue = quantile([r[2][0] for r in rows], .5)
-    sentence = (f"Median queue time is {fmt(queue)} minutes across {len(rows)} fully timed games."
-                if queue > QUEUE_MINUTES_ALERT else
-                f"{largest['part']} took {fmt(largest['value'])} of this representative game's "
-                f"{fmt(sum(representative[2]))} minutes.")
-    return panel(sentence, ["Span", "Minutes"], [[r["part"], fmt(r["value"])] for r in parts],
-                 f"One game nearest median total ({fmt(median)} min), completed {when(representative[1])}; "
-                 f"{len(rows)} games eligible. Queue median {fmt(queue)} min. Spans do not overlap; "
-                 "fine-grained game timing remains unavailable.", {"kind": "timing", "data": parts})
+        for seat in game["seats"]:
+            if seat["player_id"] and not seat["filler"]:
+                seated[game["id"]].add(seat["player_id"])
+                names[seat["player_id"]] = seat["player"] or "Unnamed player"
+    totals, counts = Counter(), Counter()
+    for players in seated.values():
+        totals.update(players)
+        counts.update(combinations(sorted(players), 2))
+    if not names:
+        return panel("No finished games with seated players.")
+    order = sorted(names, key=lambda p: (-totals[p], names[p]))
+    cells = [{"a": a, "b": b, "player": names[a], "opponent": names[b], "n": counts[tuple(sorted((a, b)))],
+              "own": totals[a], "other": totals[b]} for a in order for b in order if a != b]
+    pairs = sorted((counts[tuple(sorted((a, b)))], a, b) for a, b in combinations(order, 2))
+    least, most = pairs[0], pairs[-1]
+    sentence = (f"{names[most[1]]} and {names[most[2]]} shared the most games ({most[0]}); "
+                f"{names[least[1]]} and {names[least[2]]} the fewest ({least[0]})." if pairs else
+                "Only one player has finished games.")
+    rows = [[names[a], names[b], counts[a, b], f"{counts[a, b] / totals[a]:.0%}", f"{counts[a, b] / totals[b]:.0%}"]
+            for a, b in sorted(counts, key=lambda pair: -counts[pair])]
+    return panel(sentence, ["Player", "Opponent", "Games together", "Share of player's games",
+                            "Share of opponent's games"], rows,
+                 "Finished games in the selection, any status; owned non-filler seats only. A player with several "
+                 "seats in one game counts once. Rows and columns are ordered by games played.",
+                 {"kind": "count-matrix", "order": order, "data": cells})
+
+

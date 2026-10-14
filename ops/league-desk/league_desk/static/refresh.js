@@ -49,6 +49,12 @@
       replacement.querySelectorAll('.plot').forEach((node, i) => {
         if (charts[i] && charts[i].dataset.chart === node.dataset.chart) node.replaceWith(charts[i]);
       });
+      // Interactive widgets keep their DOM and state while their data URL is unchanged.
+      const widgets = [...old.querySelectorAll('[data-widget]')];
+      replacement.querySelectorAll('[data-widget]').forEach(node => {
+        const kept = widgets.find(w => w.dataset.widget === node.dataset.widget && w.dataset.src === node.dataset.src);
+        if (kept) node.replaceWith(kept);
+      });
       replacement.querySelectorAll('details').forEach((node, i) => { node.open = opened[i] ?? node.open; });
       old.replaceChildren(...replacement.childNodes);
       old.querySelectorAll('.table-scroll').forEach((node, i) => {
@@ -65,6 +71,7 @@
       form.elements.version.value = selected;
     }
     window.deskCharts.drawAll();
+    Object.values(window.deskWidgets || {}).forEach(mount => mount());
     if (focus) document.getElementById(focus)?.focus({preventScroll: true});
     window.scrollTo(...scroll);
     if (watchUntil && Number(incoming.dataset.generation) > requestedGeneration) {

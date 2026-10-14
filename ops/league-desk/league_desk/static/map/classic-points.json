@@ -1,0 +1,329 @@
+{
+"_about": "Large-map points (1300x1000) of each Classic territory, from webDiplomacy variants/Classic/install.php (InstallTerritory largeMapX, largeMapY). The map images beside this file are that variant's resources/map.png (a colour key: one flat colour per province) and resources/mapNames.png (names on white). Copied from kestasjk/webdiplomacy at bafb2f8 (the commit coworld-webdiplomacy pins); webDiplomacy is AGPL-3.0, as is the replay map already in this folder.",
+"points": {
+"Clyde": [
+299,
+336
+],
+"Edinburgh": [
+346,
+347
+],
+"Liverpool": [
+315,
+413
+],
+"Yorkshire": [
+355,
+440
+],
+"Wales": [
+294,
+473
+],
+"London": [
+361,
+481
+],
+"Portugal": [
+91,
+718
+],
+"Spain": [
+177,
+794
+],
+"North Africa": [
+181,
+949
+],
+"Tunis": [
+434,
+961
+],
+"Naples": [
+570,
+864
+],
+"Rome": [
+522,
+808
+],
+"Tuscany": [
+485,
+767
+],
+"Piedmont": [
+441,
+694
+],
+"Venice": [
+501,
+717
+],
+"Apulia": [
+591,
+825
+],
+"Greece": [
+678,
+863
+],
+"Albania": [
+640,
+827
+],
+"Serbia": [
+667,
+776
+],
+"Bulgaria": [
+740,
+776
+],
+"Rumania": [
+717,
+724
+],
+"Constantinople": [
+821,
+852
+],
+"Smyrna": [
+899,
+895
+],
+"Ankara": [
+986,
+816
+],
+"Armenia": [
+1073,
+785
+],
+"Syria": [
+1045,
+938
+],
+"Sevastopol": [
+923,
+595
+],
+"Ukraine": [
+779,
+579
+],
+"Warsaw": [
+683,
+547
+],
+"Livonia": [
+719,
+430
+],
+"Moscow": [
+830,
+465
+],
+"St. Petersburg": [
+837,
+309
+],
+"Finland": [
+702,
+263
+],
+"Sweden": [
+587,
+274
+],
+"Norway": [
+518,
+270
+],
+"Denmark": [
+501,
+422
+],
+"Kiel": [
+485,
+516
+],
+"Berlin": [
+551,
+477
+],
+"Prussia": [
+621,
+481
+],
+"Silesia": [
+589,
+545
+],
+"Munich": [
+489,
+581
+],
+"Ruhr": [
+448,
+545
+],
+"Holland": [
+440,
+488
+],
+"Belgium": [
+410,
+551
+],
+"Picardy": [
+359,
+559
+],
+"Brest": [
+291,
+583
+],
+"Paris": [
+336,
+620
+],
+"Burgundy": [
+404,
+626
+],
+"Marseilles": [
+390,
+689
+],
+"Gascony": [
+301,
+679
+],
+"Barents Sea": [
+836,
+33
+],
+"Norwegian Sea": [
+452,
+109
+],
+"North Sea": [
+414,
+378
+],
+"Skagerrack": [
+516,
+363
+],
+"Heligoland Bight": [
+460,
+447
+],
+"Baltic Sea": [
+621,
+434
+],
+"Gulf of Bothnia": [
+653,
+348
+],
+"North Atlantic Ocean": [
+153,
+237
+],
+"Irish Sea": [
+218,
+478
+],
+"English Channel": [
+273,
+527
+],
+"Mid-Atlantic Ocean": [
+106,
+581
+],
+"Western Mediterranean": [
+327,
+858
+],
+"Gulf of Lyons": [
+366,
+774
+],
+"Tyrrhenian Sea": [
+488,
+849
+],
+"Ionian Sea": [
+602,
+947
+],
+"Adriatic Sea": [
+564,
+773
+],
+"Aegean Sea": [
+740,
+863
+],
+"Eastern Mediterranean": [
+860,
+972
+],
+"Black Sea": [
+905,
+743
+],
+"Tyrolia": [
+538,
+641
+],
+"Bohemia": [
+562,
+590
+],
+"Vienna": [
+602,
+627
+],
+"Trieste": [
+593,
+730
+],
+"Budapest": [
+681,
+668
+],
+"Galicia": [
+718,
+610
+],
+"Spain (North Coast)": [
+193,
+685
+],
+"Spain (South Coast)": [
+191,
+832
+],
+"St. Petersburg (North Coast)": [
+828,
+111
+],
+"St. Petersburg (South Coast)": [
+780,
+355
+],
+"Bulgaria (North Coast)": [
+785,
+762
+],
+"Bulgaria (South Coast)": [
+749,
+815
+]
+}
+}

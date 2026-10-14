@@ -15,13 +15,13 @@
   // Validated categorical order (dataviz reference palette, checked against the paper surface).
   const series = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
   function seriesColors(names) { return names.map((_, i) => series[i % series.length]); }
-  // Hover text for one stacked segment: the whole stack's breakdown and total for that x value.
-  function breakdown(data, x, format) {
+  // Hover card for one stacked segment: the whole stack for that x value, as a pie and a table.
+  function breakdown(data, x, format, color) {
     const stacks = d3.group(data, d => d[x]);
     return d => {
-      const rows = stacks.get(d[x]);
-      return [`${d[x]} · total ${format(d3.sum(rows, r => r.value))}`,
-        ...rows.map(r => `${r === d ? '▸ ' : '  '}${r.series}: ${format(r.value)}`)].join('\n');
+      const rows = [...stacks.get(d[x])].sort((a, b) => b.value - a.value), total = d3.sum(rows, r => r.value);
+      return deskTip.encode({title: String(d[x]), pie: true, totalDisplay: format(total),
+        rows: rows.map(r => ({label: r.series, value: r.value, display: format(r.value), color: color(r), active: r === d}))});
     };
   }
   function clean(plot) { plot.querySelectorAll("style").forEach(style => style.remove()); return plot; }
@@ -36,7 +36,8 @@
       item.append(swatch,document.createTextNode(' '+label));result.append(item);
     });return result;
   }
-  function draw(node) {
+  function draw(node) { drawChart(node); deskTip.adopt(node); }
+  function drawChart(node) {
     const chart = JSON.parse(node.dataset.chart), data = chart.data;
     const width = Math.max(260, node.clientWidth);
     node.dataset.drawn = node.dataset.chart; node.dataset.width = String(width);
@@ -69,7 +70,7 @@
         range:[navy,'#7d97b6']};
       if (chart.kind==='daily-spend') {
         options.marks = [Plot.barY(data,{x:'day',y:'value',fill:'series',
-          title:breakdown(data,'day',v=>`$${v.toFixed(3)}`)})];
+          title:breakdown(data,'day',v=>`$${v.toFixed(3)}`,r=>r.series==='Compute'?navy:'#7d97b6')})];
         const budgets = chart.budgets || [];
         const dailyBudgets = [...new Set(data.map(d=>d.day))].map(day=>({day,value:budgets.find(d=>d.day===day)?.value}));
         options.marks.push(Plot.lineY(dailyBudgets,{x:'day',y:'value',stroke:navy,strokeDasharray:'4,3'}),
@@ -110,7 +111,8 @@
       }
       options.marks = [Plot.barY(data, {x: "day", y: "value", insetLeft:inset, insetRight:inset,
         fill: stacked ? group : navy,
-        title: stacked ? breakdown(data, "day", String) : d => `${d.series}: ${d.value}`})];
+        title: stacked ? breakdown(data, "day", String, d => options.color.range[options.color.domain.indexOf(group(d))])
+          : d => `${d.series}: ${d.value}`})];
       if (chart.counts && days.length <= 7) options.marks.push(Plot.text(
         d3.rollups(data, rows=>d3.sum(rows,d=>d.value), d=>d.day).map(([day,value])=>({day,value})),
         {x:'day',y:'value',text:d=>String(d.value),dy:-9,fill:navy}));
@@ -159,17 +161,6 @@
       options = {width:130,height:30,margin:3,x:{type:'time',axis:null},y:{axis:null},
         marks:[Plot.line(data,{x:d=>new Date(d.time*1000),y:'value',z:d=>d.plot_series || d.series,stroke:navy}),
           Plot.dot(data,{x:d=>new Date(d.time*1000),y:'value',fill:navy,r:1.5})]};
-    } else if (chart.kind === "power-scores") {
-      const eligible = data.filter(d=>d.games>=chart.minimum);
-      options.height = 275; options.marginLeft = 65;
-      options.y = {domain:data.map(d=>d.power),label:null};
-      options.x = {label:'Mean score · 95% interval',grid:true,
-        domain:d3.extent([0,chart.reference,...eligible.flatMap(d=>[d.low,d.high,d.mean]).filter(v=>v!==null)])};
-      options.marks = [Plot.ruleX([chart.reference],{stroke:grey,strokeDasharray:'4,3'}),
-        Plot.ruleY(eligible.filter(d=>d.low!==null),{y:'power',x1:'low',x2:'high',stroke:navy}),
-        Plot.dot(eligible,{y:'power',x:'mean',fill:navy,title:d=>`${d.power}: ${d.mean}; ${d.games} games`}),
-        Plot.text(data.filter(d=>d.games<chart.minimum),{y:'power',x:()=>0,text:d=>`${d.games} games · fewer than five`,
-          textAnchor:'start',fill:grey})];
     } else if (chart.kind === "policy-power") {
       const labels = new Map(data.map(d=>[d.policy_id,d.policy]));
       options.height = Math.max(200,labels.size*32+70); options.marginLeft = Math.min(width*.45,Math.max(120,...[...labels.values()].map(s=>s.length*5.5)));
@@ -231,10 +222,45 @@
       }
       if (chart.reference !== null && chart.reference !== undefined)
         options.marks.push(Plot.ruleX([chart.reference],{stroke:gold,strokeDasharray:'4,3'}));
+    } else if (chart.kind === "boxes") {
+      // Precomputed five-number summaries: whisker rule, middle-half box, median tick, outlier dots.
+      const tip = d => `${d.label} · ${d.n} games\nMedian ${d.median.toFixed(1)} min\nMiddle half ${d.q1.toFixed(1)}–${d.q3.toFixed(1)} min\nWhiskers ${d.low.toFixed(1)}–${d.high.toFixed(1)} min\n${d.outliers.length} outliers`;
+      options.height = Math.max(110, data.length * 48 + 50); options.marginLeft = 110;
+      options.y = {label: null, domain: data.map(d => d.label)};
+      options.x = {label: chart.label, grid: true, zero: true};
+      const outliers = data.flatMap(d => d.outliers.map(value => ({label: d.label, value})));
+      options.marks = [Plot.ruleY(data, {y: 'label', x1: 'low', x2: 'high', stroke: navy}),
+        Plot.tickX(data, {y: 'label', x: 'low', stroke: navy}), Plot.tickX(data, {y: 'label', x: 'high', stroke: navy}),
+        Plot.barX(data, {y: 'label', x1: 'q1', x2: 'q3', fill: '#d9e1ec', stroke: navy, insetTop: 8, insetBottom: 8, title: tip}),
+        Plot.tickX(data, {y: 'label', x: 'median', stroke: navy, strokeWidth: 3, insetTop: 8, insetBottom: 8, title: tip}),
+        Plot.dot(outliers, {y: 'label', x: 'value', stroke: grey, r: 2.5, title: d => `${d.label}: ${d.value.toFixed(1)} min (outlier)`})];
     } else if (chart.kind === "timing") {
       options.height = 100; options.y = {axis: null}; options.x = {label: "Minutes"};
       options.marks = [Plot.barX(data, {x: "value", y: () => "Representative game", fill: "part",
         title: d => `${d.part}: ${d.value.toFixed(2)} minutes`})];
+    } else if (chart.kind === "count-matrix") {
+      // Games two players shared: one sequential hue, darker = more often paired.
+      const labels = new Map(data.map(d => [d.a, d.player])), max = d3.max(data, d => d.n) || 1;
+      const short = id => { const s = labels.get(id); return s.length > 14 ? s.slice(0, 13) + '…' : s; };
+      options.marginLeft = 110; options.marginBottom = 90;
+      options.height = Math.max(260, chart.order.length * 30 + 100);
+      options.x = {label: null, domain: chart.order, tickRotate: -35, tickFormat: short};
+      options.y = {label: null, domain: chart.order, tickFormat: short};
+      options.color = {type: 'linear', domain: [0, max], range: ['#f3efe4', navy]};
+      options.marks = [Plot.cell(data, {x: 'b', y: 'a', fill: 'n', inset: 1,
+          title: d => `${d.player} with ${d.opponent}\n${d.n} games together\n${(100*d.n/d.own).toFixed(0)}% of ${d.player}'s ${d.own} games\n${(100*d.n/d.other).toFixed(0)}% of ${d.opponent}'s ${d.other} games`}),
+        Plot.text(data, {x: 'b', y: 'a', text: d => String(d.n), fill: d => d.n > max * .55 ? '#fffdf4' : navy})];
+    } else if (chart.kind === "paired-dots") {
+      // One row per policy; each series (e.g. phase type) is a dot, so pairs read side by side.
+      const names = [...new Set(data.map(d => d.series))], rows = [...new Set(data.map(d => d.label))];
+      options.height = Math.max(120, rows.length * 26 + 60);
+      options.marginLeft = Math.min(width * .5, Math.max(120, ...rows.map(r => r.length * 5.6)));
+      options.y = {label: null, domain: rows};
+      options.x = {label: chart.label, grid: true, domain: [0, Math.max(10, d3.max(data, d => d.value) * 1.1)]};
+      options.color = {domain: names, range: seriesColors(names)}; options.legendNames = names;
+      options.marks = [Plot.ruleY(rows, {stroke: '#ece6d8'}),
+        Plot.dot(data, {x: 'value', y: 'label', fill: 'series', r: 5,
+          title: d => `${d.label}\n${d.series}: ${d.value_label} of the phase\n${d.n} measured games`})];
     } else if (chart.kind === "matrix") {
       options.marginLeft = 120; options.marginBottom = 90;
       options.height = Math.max(260, new Set(data.map(d => d.a)).size * 38 + 100);
@@ -265,7 +291,12 @@
         group.setAttribute('opacity', group.getAttribute('aria-label') === `interval ${id}` ? '1' : '0');
       });
       selectBand(chart.selected);
-      plot.addEventListener('input',()=>selectBand(plot.value?.player_id || chart.selected));
+      plot.addEventListener('input',()=>{
+        selectBand(plot.value?.player_id || chart.selected);
+        // The pointer tracks the nearest point anywhere over the plot; the chart's card follows it.
+        const d = plot.value;
+        plot.tip = d ? `${d.player}\nMMR ${d.value.toFixed(2)}${d.mu != null ? ` · μ ${d.mu.toFixed(2)}` : ""}\n${new Date(d.time*1000).toLocaleString('en-US',{timeZone:'America/Los_Angeles',dateStyle:'medium',timeStyle:'short'})} PT` : undefined;
+      });
       plot.addEventListener('pointerleave',()=>selectBand(chart.selected));
     }
     node.replaceChildren(plot);

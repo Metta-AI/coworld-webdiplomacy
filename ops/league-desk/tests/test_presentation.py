@@ -21,6 +21,11 @@ class PresentationTests(DeskTest):
     def client(self):
         return TestClient(create_app(self.store), base_url="http://127.0.0.1:8660")
 
+    def test_static_files_revalidate_so_updates_are_never_stale(self):
+        response = self.client().get("/static/tooltip.js")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["cache-control"], "no-cache")
+
     def test_fragments_are_cache_only_and_validate_filters(self):
         self.populate()
         with patch("coworld.api_client.CoworldApiClient.from_login", side_effect=AssertionError("login")):
