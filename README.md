@@ -346,7 +346,8 @@ webDiplomacy HTTP API. Run your bot on your own machine without submitting a
 policy. It uses the existing player WebSocket tunnel; no inbound connection to
 your machine or extra pod networking is needed. See
 [external bot setup](docs/write-a-policy.md#run-an-external-bot-in-a-human-seat)
-for the private seat URL, local key, supported routes and failure handling.
+for creating and starting the lobby, the private seat URL, local key, supported
+routes and failure handling.
 
 This requires a game image advertising `http-bot-api-v1`; older hosted images
 need a Coworld release before they can accept this bridge. A local code update
