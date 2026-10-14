@@ -9,6 +9,9 @@ from .game_metrics import day, fmt, minutes, panel, quantile
 from .metrics import money
 from .spending import request_interval
 
+OVERRIDE_ROWS = 10
+OVERRIDE_DISTINCT = 5
+
 
 def source_label(source):
     return {"tournament": "League rounds", "xp__request": "Experience requests",
@@ -203,8 +206,17 @@ def request_series(requests, complete):
     )
 
 
+def box_summary(values):
+    """Five-number summary with Tukey whiskers (1.5 × IQR); points beyond them are outliers."""
+    q1, median, q3 = (quantile(values, f) for f in (.25, .5, .75))
+    reach = 1.5 * (q3 - q1)
+    inside = [v for v in values if q1 - reach <= v <= q3 + reach]
+    return {"q1": q1, "median": median, "q3": q3, "low": min(inside), "high": max(inside), "n": len(values),
+            "outliers": sorted(v for v in values if v < q1 - reach or v > q3 + reach)}
+
+
 def request_durations(requests, games):
-    groups = defaultdict(lambda: {"requests": [], "play": [], "queue": [], "failed": 0})
+    groups = defaultdict(lambda: {"requests": [], "play": [], "failed": 0})
     ids = {r["id"]: r["variant"] for r in requests}
     for row in requests:
         group = groups[row["variant"] or "Unknown variant"]
@@ -215,46 +227,28 @@ def request_durations(requests, games):
     for game in games:
         if game["request_id"] not in ids or game["status"] != "completed":
             continue
-        group = groups[ids[game["request_id"]] or "Unknown variant"]
-        for key, start, end in (("play", "running_at", "completed_at"), ("queue", "created_at", "dispatched_at")):
-            value = minutes(game[start], game[end])
-            if value is not None:
-                group[key].append(value)
-    rows = [
-        [
-            variant,
-            fmt(quantile(g["play"], 0.5)),
-            len(g["play"]),
-            fmt(quantile(g["queue"], 0.5)),
-            fmt(quantile(g["requests"], 0.9)),
-            len(g["requests"]),
-            g["failed"],
-        ]
-        for variant, g in sorted(groups.items())
-    ]
+        value = minutes(game["running_at"], game["completed_at"])
+        if value is not None:
+            groups[ids[game["request_id"]] or "Unknown variant"]["play"].append(value)
+    rows = [[variant, fmt(quantile(g["play"], 0.25)), fmt(quantile(g["play"], 0.5)), fmt(quantile(g["play"], 0.75)),
+             len(g["play"]), fmt(quantile(g["requests"], 0.9)), len(g["requests"]), g["failed"]]
+            for variant, g in sorted(groups.items())]
+    press = groups.get("classic-press", {}).get("play")
     result = panel(
-        "Request completion and episode play use separate clocks and covered samples."
-        if rows
-        else "No completed request or episode timing collected.",
-        [
-            "Variant",
-            "Median play min",
-            "Timed games",
-            "Median queue min",
-            "Request p90 min",
-            "Timed requests",
-            "Failed requests",
-        ],
+        f"Classic press games play for a median {fmt(quantile(press, .5))} min "
+        f"(middle half {fmt(quantile(press, .25))}–{fmt(quantile(press, .75))} min, {len(press)} games)."
+        if press else "Episode play time by variant." if rows else "No completed request or episode timing collected.",
+        ["Variant", "Play p25 min", "Median play min", "Play p75 min", "Timed games", "Request p90 min",
+         "Timed requests", "Failed requests"],
         rows,
-        "Request completion = completed − created; play = completed − running; queue = dispatched − created. "
-        "Only fetched game details contribute. Overrides are shown separately, with no inferred shortening.",
+        "Play = completed − running, per experience-request game; boxes span the middle half, whiskers reach "
+        "1.5 × that span, dots are outliers. Queue time is omitted (it is always seconds). Request completion "
+        "(completed − created) stays in the table. Only fetched game details contribute.",
     )
-
-    result["chart"] = {"kind": "amounts", "label": "Minutes (separate samples)", "data": [
-        {"label": f"{variant} · {label}", "value": quantile(group[key], fraction)}
-        for variant, group in sorted(groups.items())
-        for key, label, fraction in (("play", "play median", .5), ("queue", "queue median", .5),
-                                    ("requests", "request p90", .9)) if group[key]]}
+    result["chart"] = {"kind": "boxes", "label": "Play minutes per game", "data": [
+        {"label": variant, **box_summary(group["play"])}
+        for variant, group in sorted(groups.items(), key=lambda pair: (pair[0] != "classic-press", pair[0]))
+        if group["play"]]}
     return result
 
 
@@ -263,21 +257,39 @@ def override_frequency(requests, data):
     rows = [r for r in data.get("rows", []) if r["id"] in ids]
     inspected = len(ids & (set(data.get("checked_at", {})) | {r["id"] for r in rows}))
     counts = Counter((key, str(value)) for row in rows for key, value in row["values"].items())
-    ordered = sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))
+    # For a key with many distinct values (seeds, say), rare values fold into "key = *",
+    # so the table lists the settings people actually share instead of one row per seed.
+    common = max(2, round(.05 * inspected))
+    values = Counter(key for key, _ in counts)
+    folded, distinct = Counter(), Counter()
+    for (key, value), n in counts.items():
+        if n >= common or values[key] <= OVERRIDE_DISTINCT:
+            folded[key, value] += n
+        else:
+            folded[key, "*"] += n
+            distinct[key] += 1
+    ordered = sorted(folded.items(), key=lambda pair: (-pair[1], pair[0]))
+    shown = ordered[:OVERRIDE_ROWS]
+
+    def label(key, value):
+        return f"{key} = * ({distinct[key]} values)" if value == "*" else f"{key} = {value}"
+
     result = panel(
-        f"{ordered[0][0][0]} is set to {ordered[0][0][1]} in {ordered[0][1]}/{inspected} inspected requests."
+        f"{label(*ordered[0][0])} in {ordered[0][1]}/{inspected} inspected requests."
         if ordered
         else "No allowlisted overrides found in inspected requests."
         if inspected
         else "Stored request overrides not yet collected.",
         ["Config key", "Value", "Requests", "Inspected"],
-        [[key, value, n, inspected] for (key, value), n in ordered],
-        f"{inspected}/{len(ids)} selected requests inspected. Only allowlisted scalar keys are read; "
+        [[key, label(key, value).split(" = ", 1)[1], n, inspected] for (key, value), n in ordered],
+        f"{inspected}/{len(ids)} selected requests inspected. For keys with more than {OVERRIDE_DISTINCT} distinct "
+        f"values, values set by fewer than {common} requests fold into key = *; the chart shows the top "
+        f"{OVERRIDE_ROWS}. Only allowlisted scalar keys are read; "
         "notes, rosters and arbitrary values never enter the cache. No version-default comparison is available.",
     )
 
-    result["chart"] = {"kind": "amounts", "label": "Inspected requests", "data": [
-        {"label": f"{key} = {value}", "value": n} for (key, value), n in ordered]}
+    result["chart"] = {"kind": "amounts", "label": "Inspected requests", "order": [label(*k) for k, _ in shown],
+                       "data": [{"label": label(*k), "value": n} for k, n in shown]}
     return result
 
 
@@ -342,7 +354,7 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
             games, details, data("rounds", scope).get("rows", []), competition["episode_sources"]
         ),
         "Requests per day": request_series(selected, complete),
-        "How long they take": request_durations(selected, [s["data"] for s in details.values() if s.get("data")]),
+        "How long games take": request_durations(selected, [s["data"] for s in details.values() if s.get("data")]),
         "Common config overrides": override_frequency(selected, data("overrides")),
     }
     panels["Requests per day"]["chart"]["markers"] = competition.get("version_markers", [])
@@ -358,7 +370,7 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
     timing_deps = [selected_details.get(r["id"], {}) for r in selected] + [
         details.get(key, {}) for key in expected_games
     ]
-    panels["How long they take"]["note"] += (
+    panels["How long games take"]["note"] += (
         f" {len(selected_details)}/{len(selected)} selected request details collected; "
         f"{sum(bool(details.get(key, {}).get('data')) for key in expected_games)}/{len(expected_games)} "
         "listed game details; "
@@ -372,7 +384,7 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
         "LLM spend per seat per game": [source("seat_models", scope), source("seats", scope)],
         "Cost per round and per game": [details.get(g["id"], {}) for g in games] or [{}],
         "Requests per day": request_deps,
-        "How long they take": request_deps + timing_deps,
+        "How long games take": request_deps + timing_deps,
         "Common config overrides": request_deps + [source("overrides")],
     }
     for name, result in panels.items():

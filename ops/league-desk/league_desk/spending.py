@@ -9,6 +9,7 @@ from .config import (
     DETAILS_PER_POLL,
     POLL_SECONDS,
     RECONCILE_SECONDS,
+    REQUEST_DETAILS_PER_POLL,
     SEAT_BATCH,
     SLOW_SECONDS,
     XP_VERSIONS_PER_POLL,
@@ -227,7 +228,8 @@ def collect_spending(collector, discovery):
         if item[0] and state["completed_at"] is None:
             active = item
             break
-    chosen = ([active] if active else []) + [item for item in due if item != active][: 1 if active else 2]
+    rest = REQUEST_DETAILS_PER_POLL - bool(active)
+    chosen = ([active] if active else []) + [item for item in due if item != active][:rest]
     for _, row in chosen:
 
         def fetch_request(row=row):
@@ -264,10 +266,11 @@ def collect_spending(collector, discovery):
         return RECONCILE_SECONDS if data["completed_at"] is not None else SLOW_SECONDS
 
     def priority(key):
-        # Unfetched and unfinished games first; daily re-reads of finished games must not starve them.
+        # League games first, so a flood of newly listed experience-request games cannot starve them;
+        # then unfetched and unfinished games, so daily re-reads of finished games do not starve those.
         state = snapshot.get(("detail", key), {})
         finished = (state.get("data") or {}).get("completed_at") is not None
-        return finished, state.get("fetched_at") or 0, key
+        return key not in games, finished, state.get("fetched_at") or 0, key
 
     due = [key for key in ids if now >= snapshot.get(("detail", key), {}).get("next_due", 0)]
     for key in sorted(due, key=priority)[:DETAILS_PER_POLL]:

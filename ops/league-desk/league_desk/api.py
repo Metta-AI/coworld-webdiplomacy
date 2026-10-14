@@ -30,6 +30,10 @@ class ApiError(Exception):
         self.retry_after = retry_after
 
 
+class ArtifactMissing(ApiError):
+    """The platform has no such artifact (HTTP 404)."""
+
+
 @dataclass
 class Page:
     entries: list
@@ -85,7 +89,7 @@ class Api:
         try:
             with self.stream("GET", path) as response:
                 if response.status_code == 404:
-                    raise ApiError("Public artifact not available yet (HTTP 404)")
+                    raise ArtifactMissing("Public artifact not available yet (HTTP 404)")
                 self.check_status(response)
                 size = 0
                 deadline = time.monotonic() + ARTIFACT_DOWNLOAD_SECONDS

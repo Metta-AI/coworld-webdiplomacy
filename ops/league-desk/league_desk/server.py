@@ -1,6 +1,7 @@
 """Synchronous, cache-only page. Collection belongs to the CLI's child process."""
 import time
 from typing import Literal
+from urllib.parse import urlencode
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -9,7 +10,8 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .alerts import prepare_alerts
-from .board_metrics import board_panels
+from .board_map import map_entries, map_report
+from .board_metrics import board_panels, terminal_games
 from .dates import when
 from .freshness import age_label, grouped
 from .metrics import desk, money
@@ -18,6 +20,7 @@ from .paths import PACKAGE, runtime_dir
 from .selection import RANGES, version_choices
 from .spend_metrics import spending_panels
 from .store import Store
+from .tournament import planner_data, tournament_panel
 
 
 def create_app(store=None):
@@ -29,6 +32,15 @@ def create_app(store=None):
     app = FastAPI(title="The League Desk", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]"])
     app.mount("/static", StaticFiles(directory=PACKAGE / "static"), name="static")
+
+    @app.middleware("http")
+    async def revalidate_static(request: Request, call_next):
+        # Static files carry no version in their URLs: make the browser revalidate (a cheap 304)
+        # so an updated chart script or stylesheet is never served stale from cache.
+        response = await call_next(request)
+        if request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
     @app.post("/refresh")
     def refresh(request: Request):
@@ -51,6 +63,36 @@ def create_app(store=None):
         store.set_dismissed(fingerprint, dismissed, time.time())
         return JSONResponse({"dismissed": dismissed}, headers={"Cache-Control": "no-store"})
 
+    @app.get("/board-map")
+    def board_map(league: Literal["press", "gunboat"] = "press",
+                  range_key: Literal["24h", "7d", "30d", "all"] = Query("7d", alias="range"),
+                  version: str = Query("all", max_length=100), player: str = Query("", max_length=100)):
+        """The board widget's data for the page selection, from cached facts only (see board_map.py)."""
+        now = time.time()
+        snapshot = store.snapshot()
+        if version != "all" and version not in version_choices(snapshot):
+            raise HTTPException(422, "Unknown cached version")
+        duration = RANGES[range_key][0]
+        discovery = snapshot.get(("discovery", "all"), {}).get("data") or {}
+        scope = next((r["id"] for r in discovery.get("leagues", []) if r["key"] == league), "")
+        episode_sources = {key[1]: value for key, value in snapshot.items() if key[0] == "episodes" and
+                           (value.get("data") or {}).get("league_id") == scope}
+        games = terminal_games(episode_sources, now, now - duration if duration else 0, version)
+        entries, pending = map_entries(snapshot, games)
+        return JSONResponse({**map_report(entries, player), "pending": pending},
+                            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+    @app.get("/tournament-data")
+    def tournament_data(league: Literal["press", "gunboat"] = "press", version: str = Query("all", max_length=100)):
+        """The tournament planner's inputs from cached games only (see tournament.py); all cached history."""
+        snapshot = store.snapshot()
+        if version != "all" and version not in version_choices(snapshot):
+            raise HTTPException(422, "Unknown cached version")
+        discovery = snapshot.get(("discovery", "all"), {}).get("data") or {}
+        found = next((r for r in discovery.get("leagues", []) if r["key"] == league), None)
+        return JSONResponse(planner_data(snapshot, found, version),
+                            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
     @app.get("/")
     @app.get("/fragments")
     def home(request: Request, league: Literal["press", "gunboat"] = "press",
@@ -68,6 +110,12 @@ def create_app(store=None):
         spending = spending_panels(snapshot, context["league"], now, competition, start, version)
         competition["panel_data"].update(spending["spend_panels"])
         competition["panel_data"].update(board_panels(snapshot, context["league"], competition, now, start, version))
+        competition["panel_data"]["Tournament planner"] = tournament_panel(
+            snapshot, context["league"], competition, now, version)
+        board = competition["panel_data"]["The board"]
+        # `games` only changes the URL when more games become usable, so the kept widget refetches then.
+        board["widget"] = {"name": "board-map", "src": "/board-map?" + urlencode(
+            {"league": league, "range": range_key, "version": version, "games": board["games"]})}
         standings = competition["panel_data"]["Competing players"]
         for entry_player, policy, row in zip(standings["player_ids"], standings["current_policies"],
                                              standings["rows"], strict=True):

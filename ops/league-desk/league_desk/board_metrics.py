@@ -1,6 +1,7 @@
 """Public artifact facts already parsed by the collector; no artifact I/O here."""
 from collections import Counter, defaultdict
 
+from .board_map import board_map_panel, map_entries, map_report
 from .config import MIN_SHARED_GAMES
 from .dates import when
 from .game_metrics import PAR, day, fmt, panel
@@ -18,34 +19,6 @@ def score_facts(game, facts):
            abs(api[s["slot"]]["score"] - s["score"]) > 1e-6 for s in facts["seats"]):
         return []
     return [{**s, "game": game["id"], "policy_id": api[s["slot"]]["policy_id"]} for s in facts["seats"]]
-
-
-def powers_panel(seats):
-    points = []
-    for power in POWERS.values():
-        rows = [s for s in seats if s["power"] == power]
-        value = stat([(s["game"], s["score"]) for s in rows])
-        points.append({"power": power, **value, "low": value["ci"][0] if value["ci"] else None,
-                       "high": value["ci"][1] if value["ci"] else None})
-    eligible = [r for r in points if r["games"] >= MIN_SHARED_GAMES]
-    sentence = (f"{len(eligible)} powers have at least five distinct scored games." if seats else
-                "No complete, untainted scored results are available.")
-    above = [r for r in eligible if r["low"] is not None and r["low"] > PAR]
-    below = [r for r in eligible if r["high"] is not None and r["high"] < PAR]
-    if above:
-        sentence = f"{max(above, key=lambda r: r['mean'])['power']}'s observed interval is above equal-share par."
-    elif below:
-        sentence = f"{min(below, key=lambda r: r['mean'])['power']}'s observed interval is below equal-share par."
-    return panel(sentence, ["Power", "Games", "Mean score", "95% interval", "Survival", "Solos"],
-                 [[r["power"], r["games"], fmt(r["mean"]),
-                   f"{fmt(r['low'])} – {fmt(r['high'])}" if r["ci"] else "unavailable",
-                   f"{sum(s['survived'] is True for s in seats if s['power'] == r['power'])}/"
-                   f"{sum(s['survived'] is not None for s in seats if s['power'] == r['power'])} known",
-                   sum(s["solo"] for s in seats if s["power"] == r["power"])] for r in points],
-                 "All seats, including fillers. Game-clustered 95% intervals; par is 1/7. "
-                 "Fewer than five games have no colored mark; zero-variance intervals stay unavailable. "
-                 "Survival uses results member centers, never the stale final replay board.",
-                 {"kind": "power-scores", "data": points, "reference": PAR, "minimum": MIN_SHARED_GAMES})
 
 
 def policy_panel(seats, labels, current):
@@ -73,39 +46,26 @@ def policy_panel(seats, labels, current):
                  {"kind": "policy-power", "data": points, "minimum": MIN_SHARED_GAMES})
 
 
-def contests_panel(replays):
-    usable = [r for r in replays if r["board_comparisons"] > 0]
-    totals = defaultdict(Counter)
-    for facts in usable:
-        for name, counts in facts["provinces"].items():
-            totals[name].update(counts)
-    points = [{"label": name, "value": (counts["failed_moves"] + counts["owner_changes"]) / len(usable),
-               **counts} for name, counts in totals.items()]
-    points.sort(key=lambda r: (-r["value"], r["label"]))
-    sentence = (f"{points[0]['label']}: {fmt(points[0]['value'])} observed contests/game; "
-                f"{points[-1]['label']}: {fmt(points[-1]['value'])}." if points else "No comparable replay boards.")
-    shown = points[:6] + [r for r in points[-3:] if r not in points[:6]]
-    return panel(sentence, ["Province", "Failed incoming moves", "Known owner changes", "Games", "Contests/game"],
-                 [[r["label"], r["failed_moves"], r["owner_changes"], len(usable), fmt(r["value"])] for r in points],
-                 "Failed Move orders plus known owner changes; coast children folded into provinces. "
-                 "First boards are baselines; missing ownership and the stale Finished board add no changes. "
-                 "Final-autumn ownership may be unavailable. "
-                 "Chart shows six highest and three lowest; table includes zeros.",
-                 {"kind": "amounts", "label": "Observed contests / usable game", "data": shown,
-                  "order": [r["label"] for r in shown]})
+def terminal_games(episode_sources, now, start, version):
+    """Selected league games that ended in the range, by completion time and Coworld version."""
+    return {g["id"]: g for s in episode_sources.values() for g in s["data"]["rows"]
+            if g["completed_at"] is not None and start <= g["completed_at"] <= now
+            and (version == "all" or g["coworld_id"] == version)
+            and g["status"] in ("completed", "failed", "cancelled", "error", "canceled", "timed_out")}
 
 
 def board_panels(snapshot, league, competition, now, start, version):
-    games = {g["id"]: g for s in competition["episode_sources"].values() for g in s["data"]["rows"]
-             if g["completed_at"] is not None and start <= g["completed_at"] <= now
-             and (version == "all" or g["coworld_id"] == version)
-             and g["status"] in ("completed", "failed", "cancelled", "error", "canceled", "timed_out")}
-    results, replays, logs, dependencies = {}, {}, {}, []
+    games = terminal_games(competition["episode_sources"], now, start, version)
+    results, replays, logs, dependencies, absent = {}, {}, {}, [], set()
     for kind, target in (("results", results), ("replay", replays), ("logs", logs)):
         for game_id in games:
             if kind == "logs" and not supported(games[game_id].get("version")):
                 continue
             source = snapshot.get(("artifact_" + kind, game_id), {})
+            if (source.get("data") or {}).get("state") == "absent":
+                # A game that ended without completing and never uploaded this artifact.
+                absent.add(game_id)
+                continue
             dependencies.append({**source, "name": kind, "scope": game_id})
             if source.get("data"):
                 target[game_id] = source["data"]["facts"]
@@ -121,21 +81,20 @@ def board_panels(snapshot, league, competition, now, start, version):
     labels.update({m["policy_id"]: f"{m['player']} · {m['policy']} v{m['version']}" for m in members})
     # The champion is each player's one current entry; benched older versions also read "competing".
     current = {m["policy_id"] for m in members if m["status"] == "competing" and m.get("champion")}
-    comparable = [replays[key] for key in replays if key in results and score_facts(games[key], results[key])]
-    panels = {"Score by power, all players": powers_panel(seats),
-              "Score by policy and power": policy_panel(seats, labels, current),
-              "Contested provinces": contests_panel(comparable)}
+    entries, pending = map_entries(snapshot, games)
+    panels = {"The board": board_map_panel(map_report(entries), pending),
+              "Score by policy and power": policy_panel(seats, labels, current)}
     panels.update(instrumentation_panels(games, results, logs, labels, current))
     eligible = sum(supported(g.get("version")) for g in games.values())
     coverage = (f"Results {len(results)}/{len(games)}; replay {len(replays)}/{len(games)}; "
                 f"game log {len(logs)}/{eligible} eligible 0.7.12+ games. "
-                "Terminal selected league games.")
+                + (f"{len(absent)} games that did not complete have no artifacts to fetch. " if absent else "")
+                + "Terminal selected league games.")
     for title, value in panels.items():
-        kinds = ("results", "replay") if title == "Contested provinces" else ("results",)
+        kinds = ("results", "replay") if title == "The board" else ("results",)
         required = [d for d in dependencies if d["name"] in kinds]
-        if title in ("Time to Ready", "Seat health", "Where an episode's time goes", "Phase timing"):
-            kinds = (("results",) if title == "Phase timing" else ("logs",)
-                     if title == "Where an episode's time goes" else ("results", "logs"))
+        if title in ("Time to Ready", "Seat health"):
+            kinds = ("results", "logs")
             required = [d for d in dependencies if d["name"] in kinds and
                         supported(games[d["scope"]].get("version"))]
         newest = max((d.get("fetched_at") or 0 for d in required), default=0)
@@ -162,6 +121,6 @@ def board_panels(snapshot, league, competition, now, start, version):
     throughput["sentence"] = f"{len(games)} terminal games; {len(results)} have public end reasons."
     throughput["note"] = "Terminal events, including failed/cancelled games. " + coverage
     throughput["coverage"] += " " + coverage
-    throughput["sources"] += panels["Score by power, all players"]["sources"]
-    throughput["stale"] |= panels["Score by power, all players"]["stale"]
+    throughput["sources"] += panels["Score by policy and power"]["sources"]
+    throughput["stale"] |= panels["Score by policy and power"]["stale"]
     return panels

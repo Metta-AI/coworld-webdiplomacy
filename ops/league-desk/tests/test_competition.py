@@ -17,8 +17,8 @@ from league_desk.competition_metrics import (
 )
 from league_desk.game_metrics import (
     day,
-    episode_timing,
     game_durations,
+    games_together,
     head_to_head,
     player_scores,
     quantile,
@@ -318,19 +318,21 @@ class MetricsTests(DeskTest):
         self.assertIsNone(quantile([], .5))
         self.assertIn("7.00", game_durations([self.game()])["sentence"])
 
-    def test_representative_timing_is_one_real_game_not_component_medians(self):
-        games = [self.game(id="one", created_at=0, dispatched_at=60, running_at=120, completed_at=720),
-                 self.game(id="two", created_at=0, dispatched_at=120, running_at=420, completed_at=600),
-                 self.game(id="three", created_at=0, dispatched_at=180, running_at=600, completed_at=900)]
-        result = episode_timing(games)
-        self.assertEqual([r["value"] for r in result["chart"]["data"]], [1, 1, 10])
-        self.assertIn("representative", result["sentence"])
-        self.assertIn("No completed", episode_timing([self.game(dispatched_at=None)])["sentence"])
-        self.assertIn("No completed", episode_timing([self.game(dispatched_at=self.now + 5)])["sentence"])
+    def test_games_together_counts_each_pair_once_per_game_and_skips_fillers(self):
+        one, two = self.game(id="one"), self.game(id="two")
+        two["seats"].append({**two["seats"][0], "slot": 2})  # A second seat for the same player counts once.
+        three = self.game(id="three")
+        three["seats"][1]["filler"] = True
+        result = games_together([one, two, three])
+        cell = next(c for c in result["chart"]["data"] if c["a"] == "Ada" and c["b"] == "Bert")
+        self.assertEqual((cell["n"], cell["own"], cell["other"]), (2, 3, 2))
+        self.assertEqual(result["chart"]["order"], ["Ada", "Bert"])
+        self.assertIn("shared the most games (2)", result["sentence"])
+        self.assertEqual(result["rows"][0][2:], [2, "67%", "100%"])
+        self.assertIn("No finished games", games_together([])["sentence"])
 
-    def test_queue_and_filler_readings_use_the_displayed_threshold_inputs(self):
+    def test_filler_readings_use_the_displayed_threshold_inputs(self):
         game = self.game(created_at=0, dispatched_at=360, running_at=420, completed_at=600)
-        self.assertIn("Median queue time is 6.00", episode_timing([game])["sentence"])
         game["seats"][0]["filler"] = True
         result = exposure([], [game], [], {}, [], self.now, None)
         self.assertEqual(result["sentence"], "1 of 2 observed seats are fillers.")

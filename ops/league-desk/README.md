@@ -6,13 +6,18 @@ fields to SQLite. The page reads that cache, never the platform.
 
 **API and public-artifact page:** current memberships, cumulative ratings and
 local rating history, submissions, round/game timing, exposure, throughput and
-player head-to-head are available alongside the health strip. Charts use local
-Observable Plot and D3 bundles. Stacked bars carry a legend and list the whole stack on hover; past eight
-series the smallest share one grey "Other" colour. MMR over time scales to the
+player head-to-head and games together (how often each pair shares a game) are available alongside the health strip. Charts use local
+Observable Plot and D3 bundles. Every chart mark shows a formatted hover card
+(`static/tooltip.js`, `window.deskTip`); a stacked bar's card holds a small pie and a table of the whole stack
+with values, shares and total. Stacked bars carry a legend; past eight series the smallest share one grey
+"Other" colour. Static files are served with `Cache-Control: no-cache`, so the browser revalidates them
+(a cheap 304) and never runs a stale script after an update. Interactive panels render a
+`<div data-widget data-src>` mount point (set `content["widget"]`); the 60-second refresh keeps that node
+and its state while `data-src` is unchanged, then calls each function in `window.deskWidgets`. MMR over time scales to the
 rating lines, clipping the wider μ ± 3σ band. Timing and seat-health panels sit last. League-only daily source costs, stable player/policy model attribution, SQL seat
 spend, compute unit costs and experience-request history are
-available with explicit scope/coverage. Public results and replay facts provide power/policy scores, province contests,
-end reasons and observed phase timings. Public 0.7.12 instrumentation adds Ready timing, seat health and container stages. There is no rating backfill. Range/version filters, local house fonts, rating
+available with explicit scope/coverage. Public results and replay facts provide The board map (contests, wins, scores, holders by phase and player), policy/power scores,
+end reasons. Public 0.7.12 instrumentation adds Ready timing and seat health. There is no rating backfill. Range/version filters, local house fonts, rating
 bands and automatic fragment refresh are available.
 
 ## Run
@@ -187,11 +192,6 @@ remain visible even when some values are available.
 - Game duration is running to completed, grouped by completion day/version. Median
   and p90 use linear interpolation. Failures stay separate in throughput; public
   results supply outcome/end reason and draw survivor counts where available. Version differences are associations, not causal claims.
-- Episode timing uses separate stage medians for a common complete-game cohort on
-  Coworld 0.7.12+. Queue and pod start use API timestamps; container stages use
-  the final public log profile. Medians are not additive. API/container boundaries
-  differ, so pod start can overlap early container work. Interrupted profiles stay
-  outside this cohort; missing stages do not become zero.
 - Scores join by seat position, never array order. Mean score averages multiple
   owned non-filler seats once per player/game; all owned scores must be present.
   The comparison reference is exactly 1/7. Missing scores never become zero.
@@ -255,14 +255,19 @@ remain visible even when some values are available.
   all discovered versions. One request may contain multiple episodes. Requester
   labels/emails are private localhost data. Incomplete version/window coverage is
   shown instead of inferring empty history.
-- Request completion is completed minus created. Episode queue is dispatched minus
-  created; play is completed minus running. These samples have separate counts.
+- How long games take: a box plot of play minutes (completed minus running) per
+  variant, classic press first. Boxes span the middle half, whiskers reach 1.5 ×
+  that span, dots are outliers. Queue time is omitted because it is always
+  seconds. Request completion (completed minus created) stays in the table as a p90.
   Episode display names are not joined to request variant IDs; the request link
   supplies that grouping. Missing details and unfinished requests are explicit.
 - Override frequency reads only `end_year`, `phase_minutes`,
   `retreat_build_minutes`, `press`, `seed`, and `render_maps` scalar values from
   `request_spec.game_config_overrides`. Notes/rosters/arbitrary values are excluded.
-  The denominator is inspected requests, not all requests. Setting `end_year`
+  The denominator is inspected requests, not all requests. For a key with more
+  than five distinct values (seeds, in practice), values set by fewer than 5% of
+  inspected requests (at least 2) fold into one `key = *` row; the chart shows the
+  top ten rows. Setting `end_year`
   does not prove a shortened game without a version-specific default comparison.
 
 ## Public artifacts and board measures
@@ -286,21 +291,14 @@ only compact derived facts from SQLite. Optional replay `episode.players` is ign
 - Final centers, survival and solos reuse `webdip_episodes.load_episode`, with
   missing scores checked first. Final member counts come from results, not the
   replay's stale Finished board. Private-log taints cannot be assessed here.
-- Contests count failed incoming Move orders plus observed owner changes in
-  known consecutive history boards. The optimizer's movement/territory helpers
-  fold coast children into provinces. First boards establish a baseline; missing
-  ownership, duplicate phase entries and the stale Finished board add no changes.
-  The denominator is usable, untainted games with known board comparisons. Final
-  autumn changes may be absent. The table includes zero provinces; the chart shows
-  the six highest and three lowest observed rates. These are counts, not strategy
-  or causal findings.
 - Instrumented panels state “From Coworld 0.7.12; N of M games covered.” The
   denominator is selected terminal games by completion time and Coworld version;
   older versions remain uncovered, never inferred zero. Stable policy-version IDs
   join slot-ordered facts to API seats, including fillers with known policy IDs.
-- Score by policy and power and Time to Ready show one row per player: the
-  champion membership (the version currently competing). Benched older versions
-  are omitted.
+- Score by policy and power, Time to Ready and Seat health show one row per
+  player: the champion membership (the version currently competing). Benched
+  older versions are omitted. Time to Ready plots one row per policy with a dot
+  per phase type; Seat health is one bar chart of unsaved-due-phase rates.
 - Time to Ready separates Movement (upstream Diplomacy) and Retreat/build. It
   shows first-Ready shares of the observed deadline minus phase start (first
   Saved stays in the game log but is not shown). Each game's median share contributes once to the across-game median.
@@ -315,15 +313,9 @@ only compact derived facts from SQLite. Optional replay `episode.players` is ign
   seats are separate. It counts games with any uncensored due phase never Saved,
   with a distinct covered-game denominator. API requests sum each policy's seats
   within a game, then take the median; they include browser/archive worker calls
-  and are context, not an alert. Cancelled API counts and pod loss remain unknown.
+  and are context, not an alert. Cancelled API counts and pod loss are not shown.
   Existing verified failure-streak alerts are unchanged. No new Ready alert is
   enabled. Health chart marks require five games with covered due phases.
-- Phase timing uses transition clocks, collapsing processing-state duplicates.
-  It shows observed and adjudication medians separately; adjudication is the
-  longest gamemaster request started in each phase and overlaps phase duration.
-  Early finish compares the next order-phase timestamp with the latest observed
-  deadline (including extensions). Final Finished-bound/incomplete phases are
-  excluded from early rates. Missing calls/deadlines remain unknown.
 - Logs are bounded and parsed entirely in memory. Only `seat_activity` and
   `timing` JSON lines contribute whitelisted derived facts. No raw log is written
   to disk or SQLite. Unknown events/service lines are ignored; duplicate or
@@ -339,7 +331,10 @@ parser revision, relative path and derived facts in one transaction for results/
 Logs store only parser revision, ready state and derived facts, without a path or raw bytes.
 Existing 0.7.12 results are reparsed locally at parser revision 2; old-version
 results and replay stay at revision 1 and do not need another download. Missing data
-is pending; HTTP 404 means not available yet, while auth, corrupt and transport
+is pending; HTTP 404 means not available yet, except for a game that ended without
+completing (failed, cancelled, timed out): an hour after it ended, a 404 or an incomplete
+log is final and stored as `state=absent`, never retried and never counted stale; panels
+count those games in their coverage line. Auth, corrupt and transport
 failures stay explicit. An error preserves last good facts. Results remain useful
 when a replay is missing or corrupt; results-only panels do not inherit replay
 errors. Successful immutable artifacts never become stale merely because they age;
@@ -358,6 +353,122 @@ At most four artifact attempts run after normal API groups, stopping between
 attempts after twenty seconds. Individual downloads check a thirty-second total
 deadline between chunks (bounded HTTP reads may run past it); limits are 64 MiB
 of streamed bytes and 128 MiB expanded JSON. Limits live in `config.py`.
+
+### The board
+
+The board section holds the **The board** map and **Score by policy and power**. The map is the
+optimizer IDE's Map tab (`player_ade_webdip`: `tools/map_stats.py`, `static/map.js`) drawn on
+webDiplomacy's Classic map (`static/map/`, AGPL-3.0, provenance in `static/map/README.md`).
+`static/board-map.js` fetches `GET /board-map?league=&range=&version=[&player=]`, which reads
+only the cache (`board_map.py`) and returns every phase at once; the phase slider never asks the
+server, and choosing a player refetches. The page carries only the URL, so it does not grow.
+
+- Games: terminal games selected by league, range (completion time) and version whose results
+  pass the score checks above (no taints, no API score conflict) and whose replay board is parsed.
+  Scored games still waiting for a parsed replay are counted as pending, never as zero.
+- Phases are movement phases at their start (`S1901`, `A1901`, …); a game counts toward each
+  phase it reached. **All phases** pools every phase (contest, held) or uses the final result
+  (score, win).
+- **Contested provinces**: a province is contested in a phase when units of two or more powers
+  try to occupy or keep it: two powers moving in, or one moving in while another power's unit
+  stays (holds, supports, convoys, or fails to move). Unopposed moves and one power's own bounces
+  do not count; coasts fold into their province. Rate = contested games / games at that phase;
+  for All, contested phases / game-phases.
+- **Win**: one win per game. Final: the solo winner, otherwise the top final score; tied leaders
+  split it (two tied leaders get ½ each). In a phase: the power with the most supply centres at
+  its start, ties split. Rate = wins / games; solos are counted separately.
+- **Mean score by power**: in a phase, the league score (centres² over the sum of squares) if the
+  game had ended at its start; for All, the real final score. ± is the standard error over games.
+- **Who holds it**: a supply centre is held by its owner, any other province by the power whose
+  non-retreating unit stands there. Each province takes the colour of its most frequent holder,
+  paler when that is less often; hovering shows the full split as a pie.
+- **Player filter**: a player is a `player_id` across all their policies in the selected league,
+  named from the API seats. Score and win then use only the powers that player played, each with
+  its own game count; fewer than five games reads "few" and is left unshaded. Contest and held
+  use only games the player was in. Filler seats are not the player's games (as in head-to-head).
+- Facts: `artifacts.replay_facts` stores, per game, each movement phase's holders and contested
+  provinces plus a small province table (about 6 KB a game). Replay parser version 2 added
+  them for every Coworld version; existing games reparse from their local files without a
+  download, at the normal four artifacts per collector pass.
+- The widget keeps its view, phase and player across the 60-second fragment refresh. Its URL
+  includes the usable-game count, so it refetches only when more games become usable.
+
+## Tournament planner
+
+The "Tournament planning" section (between standings and matchups) plans the week's final:
+a tournament among seven chosen players. Pick a format and its size, pick the players, and
+the planner predicts who wins, how sure that is, and how many games it takes to be sure.
+Statistics run in the browser, in a Web Worker (`static/tournament-worker.js`), on data from
+`GET /tournament-data?league=…&version=…` (cache only, `Cache-Control: no-store`).
+
+**Data.** All cached history for the league (the range control does not apply; the version
+control does): completed games with all seven seats scored. Powers join by slot from accepted
+results facts (`board_metrics.score_facts`); games whose results are tainted or conflict with
+API scores are left out; games without results facts are kept with unknown powers. League
+scores in a game always sum to 1 (the panel's "How these numbers were made" shows the largest
+observed deviation; on the current cache it is about 1e-16). A chosen player is represented by
+their competing (champion) policy version; "Also learn from older policy versions" adds every
+version they have played. Filler seats never count as a chosen player. Every other policy
+version is its own opponent in the fits, so a strong field and a weak field are not averaged.
+Players default to the seven competing champions with the highest MMR.
+
+**Formats.**
+
+- *Full-table rotation.* All seven play every game; only powers change. A cycle is seven games
+  laid out as a cyclic Latin square, so each player plays each power exactly once per cycle;
+  "reshuffle" draws a new player order each cycle. Size: cycles (games = 7 × cycles). Winner:
+  highest total score.
+- *Evolutionary.* A Moran-style population starts with C copies of each player. Each game seats
+  seven individuals drawn from the population (copies may share a table) at random powers; the
+  top scorer's player gains one individual and the bottom scorer's loses one (no change if they
+  are the same player). Size: copies C and games T, or run until one player is left. Winner:
+  largest share at the end. The planner also reports the games until one player is left.
+
+**Models, side by side.**
+
+- *A, player + power:* score = player strength + power effect + noise, least squares with power
+  effects summing to zero. A simulated seat draws its noise from that player's own residuals
+  (the pooled residuals if it has fewer than five), is clamped at 0, and the table is rescaled
+  to sum to 1.
+- *B, head-to-head:* Plackett–Luce finishing orders with worth = player worth × power worth,
+  fitted by the MM algorithm (Hunter 2004). Score ties are broken at random in each fit, and
+  every player and power gets one virtual win and loss against a worth-1 reference so rarely
+  seen entries stay finite. A simulated game draws an order, then hands out the sorted score
+  vector of a randomly drawn real game, so solos and draw shapes stay realistic.
+
+A rewards steady score share; B rewards finishing ahead, however narrowly. They can disagree a
+lot: a player who often places well but rarely wins ranks higher under A. The panel lists the
+players whose win chance differs by 10 points or more, or whose rank moves by 2 or more.
+
+**What the numbers mean.**
+
+- *Win chance and its range:* each refit resamples league games with replacement (Quick 40,
+  Standard 100, Thorough 200 refits) and simulates the tournament 100–300 times. The headline is
+  the median refit; the range holds the middle 90% of refits. The range is uncertainty about
+  strengths, plus a little simulation noise.
+- *Final total (or share), 90% range:* the spread of results across simulated tournaments, so
+  mostly luck inside one tournament.
+- *Winning margin:* first minus second, as a distribution over simulated tournaments.
+- *How many games are enough:* the chance the strongest player (by each refit's own strengths)
+  finishes first, and the chance the winner's lead is clear — larger than two equally strong
+  players would reach 1 time in 20, using the observed seat-score noise. That second line is the
+  tournament's statistical power: the chance it gives an answer that is not just luck.
+- *Games needed to separate neighbours:* for each adjacent pair in a model's expected order, the
+  games needed for the better player to finish ahead with 80/90/95% probability, assuming the
+  estimated strengths are right (normal approximation from 3,000 simulated cycles).
+- *Cost and time:* games × (mean compute per league game + the chosen policies' mean
+  provider-billed LLM USD per seat-game, from `seat_models`, which covers games created in the
+  last seven days). A policy without covered seats shows as unknown and counts as $0 in the sum.
+  Wall-clock assumes at most 8 games in flight and the median league game duration; evolutionary
+  games run one after another because each changes the population.
+
+**Limits.** League games are mixed fields, not this final seven, and policies may play
+differently against each other or adapt. Evolutionary clones are hypothetical: no league game
+seated two copies of one policy. Older policy versions add data but may not match today's
+strength. Fewer than about 50 games for a player gives wide ranges.
+
+The widget keeps its settings across the 60-second refresh; its data URL includes the
+scored-game count, so it refetches (keeping the settings) only when more games arrive.
 
 ## Storage and privacy
 
@@ -458,9 +569,10 @@ The walks advance
 in 30-day creation windows back to the version's creation time, then refreshing
 seven-day windows. Cursors keep their fixed window bounds across retries. Last
 recent-window time remains visible while older windows backfill. The detail loop
-reads two due requests per pass, reserving one for a known unfinished request when
-available, and eight episode details, unfetched and unfinished games first;
-large caches therefore need bounded catch-up.
+reads twelve due requests per pass, reserving one for a known unfinished request when
+available, and sixty episode details (a detail read takes about 0.3 s, so a pass stays
+well inside the minute). League games come first, so a flood of newly listed
+experience-request games cannot starve them; then unfetched and unfinished games.
 Request episodes use a separate paginated ID listing, not the unpaginated detail's
 embedded episode array. Request details can refresh outside the creation window.
 Known finished episode details use the daily reconciliation cadence; unfinished or
@@ -533,7 +645,9 @@ the health strip; `competition_metrics.py` and `game_metrics.py` produce metric
 objects and fixed readings; `panels.py` joins dependencies and coverage;
 `artifacts.py` ingests public artifacts; `instrumentation.py` validates selected
 public log/result facts and `instrument_metrics.py` builds the four instrumentation panels; `board_metrics.py` builds
-board/end-reason/timing panels; `optimizer_tools.py` imports the existing shared
+board/end-reason/timing panels; `board_map.py` builds The board map report (also served by `/board-map`);
+`tournament.py` assembles the tournament planner's inputs (served by `/tournament-data`), and
+`static/tournament.js`/`static/tournament-worker.js` hold its page widget and statistics; `optimizer_tools.py` imports the existing shared
 loader, normalizers and statistics without invoking their CLI/downloaders.
 `spending.py` collects cost/request/SQL groups; `attribution.py` validates league
 accounting/provider/attempt snapshots and records budget references;
@@ -551,6 +665,7 @@ From the repository root:
 uv run --directory ops/league-desk --locked python -m unittest discover -s tests -v
 uv run --directory ops/league-desk --locked ruff check league_desk tests
 uv run --locked python -m unittest tools.test_ci_scope -v
+node ops/league-desk/tests/tournament_check.mjs   # tournament planner statistics (Latin square, fits, power)
 ```
 
 Tests use invented fixtures, temporary caches, fake clocks/transports and

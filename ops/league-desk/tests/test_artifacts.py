@@ -10,7 +10,7 @@ from helpers import DeskTest
 
 from league_desk.api import Api, ApiError
 from league_desk.artifacts import collect_artifacts, phase_durations, replay_facts
-from league_desk.board_metrics import board_panels, contests_panel, policy_panel, powers_panel, score_facts
+from league_desk.board_metrics import board_panels, policy_panel, score_facts
 from league_desk.optimizer_tools import load_episode, movement_phases, stat
 from league_desk.server import create_app
 
@@ -26,7 +26,8 @@ def results():
 
 def replay():
     territories = [{"id": 1, "name": "Spain", "supply": True},
-                   {"id": 2, "name": "Spain (North Coast)", "supply": True, "coast": "Child"},
+                   {"id": 2, "name": "Spain (North Coast)", "supply": True, "coast": "Child",
+                    "coastParentID": 1},
                    {"id": 3, "name": "Portugal", "supply": True}]
     order = {"countryID": 1, "unitType": "Fleet", "terrID": 3, "type": "Move", "toTerrID": 2,
              "success": False, "dislodged": False}
@@ -99,6 +100,31 @@ class ArtifactTests(DeskTest):
         self.assertEqual(len(self.artifact_calls), 3)
         self.assertIsNone(self.store.source("artifact_replay", "ereq_demo")["error"])
 
+    def test_game_that_failed_without_artifacts_stops_retrying_and_is_not_stale(self):
+        failed = {**game(), "status": "failed", "completed_at": self.now - 60}
+        self.store.success("episodes", "round_demo", {"league_id": "league_demo", "round_id": "round_demo",
+                                                     "rows": [failed]}, self.now)
+        self.payloads["results"] = self.payloads["replay"] = httpx.Response(404)
+        snapshot = self.ingest()
+        # Within the first hour a 404 may still be an upload in flight: retry.
+        self.assertIn("404", snapshot["artifact_results", "ereq_demo"]["error"])
+        self.now = failed["completed_at"] + 3600
+        self.artifact_calls.clear()
+        snapshot = self.ingest()
+        self.assertEqual(len(self.artifact_calls), 2)
+        self.assertEqual(snapshot["artifact_results", "ereq_demo"]["data"]["state"], "absent")
+        self.assertIsNone(snapshot["artifact_replay", "ereq_demo"]["error"])
+        self.now += 7200
+        self.ingest()
+        self.assertEqual(len(self.artifact_calls), 2)  # Final: never fetched again.
+        competition = {"episode_sources": {"round_demo": snapshot["episodes", "round_demo"]},
+                       "game_coverage": "fixture", "panel_data": {"Games per day and how they ended": {
+                           "chart": {}, "coverage": "", "sources": [], "stale": False}}}
+        panels = board_panels(snapshot, None, competition, self.now, 0, "all")
+        board = panels["Score by policy and power"]
+        self.assertFalse(board["stale"])
+        self.assertIn("1 games that did not complete have no artifacts", board["artifact_status"])
+
     def test_corrupt_replay_does_not_block_results_and_reparse_needs_no_network(self):
         self.payloads["replay"] = b'[{broken'
         snapshot = self.ingest()
@@ -109,6 +135,18 @@ class ArtifactTests(DeskTest):
         self.ingest()
         self.assertEqual(len(self.artifact_calls), 2)
         self.assertEqual(self.store.source("artifact_results", "ereq_demo")["data"]["parser_version"], 1)
+
+    def test_replay_board_reparses_from_local_file_for_every_version(self):
+        snapshot = self.ingest()  # The fixture game is 0.7.11, before instrumentation.
+        old = snapshot["artifact_replay", "ereq_demo"]["data"]
+        self.assertEqual(old["parser_version"], 2)
+        self.store.success("artifact_replay", "ereq_demo", {**old, "parser_version": 1,
+                           "facts": {k: v for k, v in old["facts"].items() if k != "board"}}, self.now, cadence=0)
+        self.ingest()
+        self.assertEqual(len(self.artifact_calls), 2)  # No new download.
+        data = self.store.source("artifact_replay", "ereq_demo")["data"]
+        self.assertEqual(data["parser_version"], 2)
+        self.assertEqual([p["turn"] for p in data["facts"]["board"]["phases"]], [0, 1])
 
     def test_missing_scores_are_quarantined_not_silently_zero(self):
         payload = results()
@@ -166,26 +204,27 @@ class ArtifactTests(DeskTest):
     def test_coasts_duplicate_phase_first_board_and_finished_board(self):
         data = replay()
         data[0]["history"]["phases"].insert(1, copy.deepcopy(data[0]["history"]["phases"][0]))
-        facts = replay_facts(data)
-        self.assertEqual(facts["provinces"]["SPA"], {"failed_moves": 2, "owner_changes": 1})
-        self.assertEqual(facts["provinces"]["POR"], {"failed_moves": 0, "owner_changes": 0})
-        self.assertNotIn("SPA/NC", facts["provinces"])
+        board = replay_facts(data)["board"]
+        # One entry per movement turn: the duplicate and the stale Finished board add nothing.
+        self.assertEqual([p["turn"] for p in board["phases"]], [0, 1])
+        self.assertEqual(board["phases"][0]["held"], {"1": [1]})
+        self.assertEqual(board["phases"][1]["held"], {"2": [1]})
+        self.assertNotIn("2", board["provinces"])  # Spain's north coast folds into Spain.
+        self.assertEqual(board["provinces"]["1"], ["Spain", True, None])
         self.assertEqual(movement_phases(replay())[0]["orders"][0]["to"], "SPA")
         self.assertFalse(movement_phases(replay())[-1]["end_known"])
-        self.assertEqual(contests_panel([facts])["chart"]["data"][0]["value"], 3)
-        self.assertIsNone(facts["early_finish"])
+        self.assertIsNone(replay_facts(data)["early_finish"])
 
     def test_cluster_intervals_five_game_floor_and_zero_variance(self):
         seats = [{"game": f"g{i}", "power": "France", "policy_id": "pv_demo", "score": i/10,
                   "survived": True, "solo": False} for i in range(5)]
-        result = powers_panel(seats)
-        france = next(r for r in result["chart"]["data"] if r["power"] == "France")
-        self.assertEqual(france["ci"], stat([(s["game"], s["score"]) for s in seats])["ci"])
+        france = policy_panel(seats, {}, {"pv_demo"})["chart"]["data"][1]
+        self.assertEqual(france["ci"], stat([(s["game"], s["score"] - 1 / 7) for s in seats])["ci"])
         self.assertEqual(policy_panel(seats[:4]*2, {}, {"pv_demo"})["chart"]["data"][1]["games"], 4)
         self.assertIn("0 policy/power", policy_panel(seats[:4]*2, {}, {"pv_demo"})["sentence"])
         self.assertEqual(policy_panel(seats, {}, {"pv_other"})["chart"]["data"], [])
         same = [{**s, "score": .2} for s in seats]
-        self.assertIsNone(next(r for r in powers_panel(same)["chart"]["data"] if r["power"] == "France")["ci"])
+        self.assertIsNone(policy_panel(same, {}, {"pv_demo"})["chart"]["data"][1]["ci"])
 
     def test_final_incomplete_phase_excluded(self):
         self.assertEqual(phase_durations([{"turn": 0, "phase": "Diplomacy", "elapsed_seconds": 1}]), [])
@@ -198,12 +237,12 @@ class ArtifactTests(DeskTest):
                        "game_coverage": "fixture", "panel_data": {"Games per day and how they ended": {
                            "chart": {}, "coverage": "", "sources": [], "stale": False}}}
         panels = board_panels(snapshot, {"id": "league_demo"}, competition, self.now + 1e6, 0, "all")
-        self.assertFalse(panels["Phase timing"]["stale"])
-        self.assertIn("Results 1/1", panels["Phase timing"]["artifact_status"])
+        self.assertFalse(panels["Score by policy and power"]["stale"])
+        self.assertIn("Results 1/1", panels["Score by policy and power"]["artifact_status"])
         filtered = board_panels(snapshot, None, competition, self.now, 101, "all")
-        self.assertIn("Results 0/0", filtered["Phase timing"]["artifact_status"])
+        self.assertIn("Results 0/0", filtered["Score by policy and power"]["artifact_status"])
         filtered = board_panels(snapshot, None, competition, self.now, 0, "cow_other")
-        self.assertIn("Results 0/0", filtered["Phase timing"]["artifact_status"])
+        self.assertIn("Results 0/0", filtered["Score by policy and power"]["artifact_status"])
         with patch("league_desk.artifacts.read_json_file", side_effect=AssertionError("parsing forbidden")), \
                 patch.object(Api, "artifact", side_effect=AssertionError("download forbidden")):
             client = TestClient(create_app(self.store), base_url="http://127.0.0.1:8660")
@@ -217,8 +256,8 @@ class ArtifactTests(DeskTest):
                        "game_coverage": "fixture", "panel_data": {"Games per day and how they ended": {
                            "chart": {}, "coverage": "", "sources": [], "stale": False}}}
         panels = board_panels(snapshot, None, competition, self.now, 0, "all")
-        self.assertFalse(panels["Score by power, all players"]["stale"])
-        self.assertTrue(panels["Contested provinces"]["stale"])
+        self.assertFalse(panels["Score by policy and power"]["stale"])
+        self.assertTrue(panels["The board"]["stale"])
         self.store.success("episodes", "round_demo", {"league_id": "league_demo", "round_id": "round_demo",
             "rows": [{**game(), "id": f"ereq_extra{i}"} for i in range(10)]}, self.now)
         self.artifact_calls.clear()

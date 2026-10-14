@@ -275,7 +275,7 @@ class ExperienceTests(DeskTest):
                 "next_due": self.now + 300,
             }
         result = spending_panels(snapshot, {"id": "league_demo", "key": "press"}, self.now, {"episode_sources": {}})
-        timing = result["spend_panels"]["How long they take"]
+        timing = result["spend_panels"]["How long games take"]
         self.assertIn("1 request episode listings differ", timing["note"])
         self.assertIn("0/1 listed game details", timing["note"])
         self.assertEqual(timing["missing"], 1)
@@ -318,6 +318,20 @@ class ExperienceTests(DeskTest):
         self.assertEqual(result["window_start"], old["data"]["window_start"])
         self.assertNotIn("cursor", self.calls[-1][2])
 
+    def test_seed_overrides_fold_into_a_wildcard_and_boxes_flag_outliers(self):
+        from league_desk.spend_metrics import box_summary
+
+        requests = [{"id": f"r{n}"} for n in range(40)]
+        rows = [{"id": f"r{n}", "values": {"seed": n, "end_year": 1905 if n % 2 else 1910}} for n in range(40)]
+        result = override_frequency(requests, {"rows": rows})
+        labels = [d["label"] for d in result["chart"]["data"]]
+        self.assertEqual(labels[0], "seed = * (40 values)")
+        self.assertIn("end_year = 1905", labels)
+        self.assertEqual(len(result["rows"]), 3)
+        box = box_summary([10, 11, 12, 13, 14, 60])
+        self.assertEqual(box["outliers"], [60])
+        self.assertEqual((box["low"], box["high"], box["n"]), (10, 14, 6))
+
     def test_requests_not_episodes_and_timing_uses_running_at(self):
         version = {"id": "cow_demo", "created_at": self.now - 86400}
         self.responses["/v2/experience-requests"] = {"entries": [self.row()], "next_cursor": None}
@@ -325,8 +339,8 @@ class ExperienceTests(DeskTest):
         self.assertIn("1 observed requests", request_series(rows, True)["sentence"])
         games = [{**episode(raw_game(self.now)), "request_id": REQUEST, "variant": "Classic (press)"}]
         result = request_durations(rows, games)
-        self.assertEqual(result["rows"][0][1:4], ["7.00", 1, "1.00"])
-        self.assertEqual(result["rows"][0][4], "9.00")
+        self.assertEqual(result["rows"][0][1:6], ["7.00", "7.00", "7.00", 1, "9.00"])
+        self.assertEqual(result["chart"]["data"][0]["median"], 7)
         result = override_frequency(rows, {"rows": [{"id": REQUEST, "values": {"end_year": 1905}}]})
         self.assertIn("1/1 inspected", result["sentence"])
         self.assertNotIn("shortened", result["sentence"])
@@ -518,6 +532,29 @@ class FreshnessScheduleTests(DeskTest):
         self.assertEqual(fetched[0], listed["id"])  # Unfetched ahead of daily re-reads.
         # Listed as running, fetched as finished: the fetched data picks the daily schedule.
         self.assertEqual(self.store.source("detail", listed["id"])["next_due"], self.now + 86400)
+
+    def test_league_games_are_fetched_before_experience_request_games(self):
+        from league_desk.config import DETAILS_PER_POLL
+        from league_desk.spending import collect_spending
+
+        league = {**episode(raw_game(self.now)), "completed_at": None}
+        self.store.success("episodes", "round_demo", {"rows": [league]}, self.now)
+        # Already fetched and still running, while a flood of never-fetched experience-request games waits.
+        self.store.success("detail", league["id"], league, self.now - 3600, cadence=900)
+        flood = [f"ereq_xp{n:04d}" for n in range(DETAILS_PER_POLL * 2)]
+        request = {"id": "xreq_demo", "created_at": self.now, "completed_at": self.now, "episode_ids": flood}
+        self.store.success("requests", "cow_demo", {"rows": [request]}, self.now, cadence=86400)
+        self.store.success("request_detail", "xreq_demo", request, self.now, cadence=86400)
+        fetched = []
+
+        def fetch(api, key):
+            fetched.append(key)
+            return {**league, "id": key}
+
+        with patch("league_desk.spending.details", side_effect=fetch):
+            collect_spending(self.collector, {"coworld_id": "cow_demo", "leagues": []})
+        self.assertEqual(fetched[0], league["id"])
+        self.assertEqual(len(fetched), DETAILS_PER_POLL)
 
     def test_new_canonical_refreshes_the_version_catalog_early(self):
         from league_desk.spending import collect_spending

@@ -25,7 +25,7 @@ with sync_playwright() as p:
     assert page.goto(BASE).status == 200
     page.evaluate("document.fonts.ready")
     assert page.evaluate('document.fonts.check(\'700 12px "Merriweather"\')')
-    assert page.locator('.panel').count() == 24
+    assert page.locator('.panel').count() == 23
     assert page.locator('[data-swap="Daily spend against budget"] .plot rect').count() >= 6
     assert page.locator('[data-swap="League against experience requests"] .plot circle').count() >= 6
     pie = page.locator('[data-swap="Models in use"] .pie')
@@ -42,19 +42,17 @@ with sync_playwright() as p:
     page.locator('.dismissed-alerts summary').click()
     page.locator(f'[data-alert="{fingerprint}"][data-dismiss="false"]').click()
     wait(page, '(id)=>!!document.querySelector(`[data-alert="${id}"][data-dismiss="true"]`)', fingerprint)
-    powers = page.locator('[data-swap="Score by power, all players"]')
-    assert powers.locator('circle').count() == 7
-    assert 'Results 5/5' in powers.inner_text()
-    assert page.locator('[data-swap="Contested provinces"] rect').count() > 0
-    assert page.locator('[data-swap="Phase timing"] rect').count() > 0
-    timing_labels = page.locator('[data-swap="Phase timing"] .plot [aria-label="text"] text')
-    assert timing_labels.count() > 0
-    assert all(label.endswith(' s') for label in timing_labels.all_text_contents())
+    board = page.locator('[data-swap="The board"]')
+    assert 'Results 5/5' in board.inner_text()
+    wait(page, '!document.querySelector(\'[data-swap="The board"] .bm-body\').hidden')
+    assert board.locator('canvas').count() == 1
+    board.locator('button[data-view="held"]').click()
+    assert board.locator('button[data-view="held"]').get_attribute('aria-pressed') == 'true'
+    assert 'least settled centres' in board.inner_text().lower()  # Headers render in capitals.
     assert page.locator('[data-swap="Score by policy and power"] [aria-label="cell"] rect').count() > 0
-    assert page.locator('[data-swap="Time to Ready"] .plot rect').count() >= 2
+    assert page.locator('[data-swap="Time to Ready"] .plot circle').count() >= 1
     assert '5 of 5 games covered' in page.locator('[data-swap="Time to Ready"]').inner_text()
     assert page.locator('[data-swap="Seat health"] .plot rect').count() >= 1
-    assert page.locator('[data-swap="Where an episode\'s time goes"] .plot rect').count() == 11
     assert page.locator('.plot:empty').count() == 0
     ratings = page.locator('.panel[data-swap="MMR over time"]')
     assert ratings.locator('g[aria-label="line"] path').first.get_attribute('d').count('L') >= 2
@@ -64,9 +62,13 @@ with sync_playwright() as p:
     assert 'History starts at first run' in ratings.inner_text()
     page.select_option('#player', 'Ada')
     wait(page, 'document.querySelector(\'[aria-label="interval Ada"]\')?.getAttribute("opacity")==="1"')
-    target = ratings.locator('g[aria-label="dot"] circle').filter(has_text='Bert').first
-    target.hover(force=True)
+    # Plot's <title> text becomes the element's hover card (tooltip.js), so find the dot by its card text.
+    ratings.locator('g[aria-label="dot"] circle').evaluate_all(
+        '(dots)=>dots.find(d=>String(d.tip).startsWith("Bert"))?.setAttribute("data-check","bert")')
+    ratings.locator('[data-check="bert"]').hover(force=True)
     wait(page, 'document.querySelector(\'[aria-label="interval Bert"]\')?.getAttribute("opacity")==="1"')
+    wait(page, '!document.querySelector(".tip-card").hidden')
+    assert page.locator('.tip-card').inner_text().startswith('Bert')
     page.locator('#pause').hover()
     wait(page, 'document.querySelector(\'[aria-label="interval Ada"]\')?.getAttribute("opacity")==="1"')
     page.evaluate('window.originalMain=document.querySelector("main")')

@@ -46,6 +46,9 @@
             <option value="">Point at a player</option>{% for key, label in players.items() %}
             <option value="{{ key }}" {% if player_key == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
           </select>{% endif %}
+          {% if content.widget %}
+            <div class="widget" data-widget="{{ content.widget.name }}" data-src="{{ content.widget.src }}" aria-label="{{ name }}"></div>
+          {% endif %}
           {% if content.chart and content.chart.data %}
             <div class="plot" data-chart='{{ content.chart | tojson }}' aria-label="{{ name }} chart"></div>
           {% endif %}
