@@ -74,7 +74,7 @@ class CollectorTests(DeskTest):
     def test_selected_fields_only_and_no_remote_writes(self):
         self.collector.once()
         rows = self.store.snapshot()
-        self.assertEqual(len(rows), 16)
+        self.assertEqual(len(rows), 17)
         self.assertTrue(all(r["error"] is None for r in rows.values()))
         self.assertNotIn("must-not-store", str(rows))
         self.assertNotIn("not-for-cache", str(rows))

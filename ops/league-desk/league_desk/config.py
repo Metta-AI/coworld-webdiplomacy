@@ -23,6 +23,10 @@ SQL_PAGE_SIZE = 500
 MODEL_ERROR_RATE = 0.10
 MODEL_MIN_CALLS = 20
 SEAT_NEAR_CAP = 0.90
+# The platform's fixed conversion (metta observatory_api CREDITS_PER_USD).
+CREDITS_PER_USD = 10
+# Alert when no round has started for this long, or for two round intervals if longer.
+ROUND_STALL_SECONDS = 2 * 3600
 
 ARTIFACTS_PER_PASS = 4
 ARTIFACT_PASS_SECONDS = 20
