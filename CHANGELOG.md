@@ -20,6 +20,17 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-14 · Coworld 0.7.15 · Country roles for league scoring
+
+**Release status.** Prepared for the next build; not published by this change.
+
+**What changed.** Results export stable country labels in `roles`, aligned with
+`scores` and `countries` by seat. Softmax leagues can use these labels for optional
+role normalization. Raw game scores and player messages are unchanged.
+
+**In your optimizer.** No bot changes are required. Tools reading raw scores can
+continue to use `scores`; role-adjusted rankings belong to the league.
+
 ## 2026-10-14 · Coworld 0.7.14 · classic-press is back to 3-minute movement phases
 
 **What changed.** Coworld 0.7.14 undoes 0.7.13. `classic-press` and `classic-press-short`

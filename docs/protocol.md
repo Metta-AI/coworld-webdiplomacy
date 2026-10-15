@@ -99,7 +99,7 @@ elapsed times and deadlines, completed gamemaster request timing summaries, each
 seat's connection events and API request count, and the container's timing profile.
 
 `results.json` fields (written by `adapter/episode.py`; the manifest's
-`results_schema` requires only the first three):
+`results_schema` requires `scores`, `outcome`, `final_state`, and `roles`):
 
 | Field | Meaning |
 | --- | --- |
@@ -108,6 +108,7 @@ seat's connection events and API request count, and the container's timing profi
 | `final_state` | Upstream `wD_Games` row (`id`, `turn`, `phase`, `gameOver`, `processStatus`, `processTime`, `startTime`); `null` when cancelled |
 | `reason` | Why play ended: `end_year`, `episode_timeout`, `cancelled`, or the upstream outcome (`won`, `drawn`) when upstream finished the game itself |
 | `seed` | Episode seed actually used |
+| `roles` | Stable country labels in slot order: `england`, `france`, `italy`, `germany`, `austria`, `turkey`, `russia`. The league may use these for optional role normalization; the game always reports raw scores. |
 | `countries` | `countries[slot]` is that seat's upstream country ID (1–7, Classic order England, France, Italy, Germany, Austria, Turkey, Russia) |
 | `members` | Upstream member rows ordered by country ID: `countryID`, `status`, `supplyCenterNo`, `unitNo` (string values from SQL). `status` is upstream's `Playing`, `Defeated`, `Left`, `Won`, `Drawn`, `Survived` or `Resigned`; scoring treats `Playing`, `Drawn` and `Survived` as surviving |
 | `transitions` | Each observed `(turn, phase, process_status)` change with `elapsed_seconds` since game creation, `unix_time`, and `deadline_unix_time` (upstream `processTime` when observed: the phase's deadline, or `null`). A phase that ends before its deadline ended early because every seat was Ready |

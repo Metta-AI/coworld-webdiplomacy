@@ -16,6 +16,7 @@ from adapter.maps import render_map
 
 SOURCE_URL = "https://github.com/Metta-AI/coworld-webdiplomacy/tree/main"
 ORDER_PHASES = ("Diplomacy", "Retreats", "Builds")
+COUNTRY_ROLES = ("england", "france", "italy", "germany", "austria", "turkey", "russia")
 
 
 def php(script, *arguments, payload=None):
@@ -297,6 +298,7 @@ class Episode:
             "reason": reason,
             "seed": self.config.seed,
             "countries": self.countries,
+            "roles": [COUNTRY_ROLES[country - 1] for country in self.countries],
             "members": state["members"],
             "final_state": state["game"],
             "transitions": self.transitions,

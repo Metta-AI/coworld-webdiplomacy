@@ -56,6 +56,9 @@ def run_case(image, case):
         "--platform",
         "linux/amd64",
         "--cap-drop=ALL",
+        "--memory=1g",
+        "--memory-swap=1g",
+        "--cpus=2",
         "--security-opt",
         "no-new-privileges",
         "-p",
@@ -189,6 +192,15 @@ def run_case(image, case):
         result = json.loads((directory / "results.json").read_text())
         frames = json.loads((directory / "replay.json").read_text())
         assert frames and abs(sum(result["scores"]) - 1) < 1e-9
+        assert dict(zip(result["countries"], result["roles"], strict=True)) == {
+            1: "england",
+            2: "france",
+            3: "italy",
+            4: "germany",
+            5: "austria",
+            6: "turkey",
+            7: "russia",
+        }
         assert seeds == {result["seed"]} == {frame["episode"]["seed"] for frame in frames}
         if "seed" in config:
             assert result["seed"] == config["seed"]
