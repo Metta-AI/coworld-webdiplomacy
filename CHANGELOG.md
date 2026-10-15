@@ -20,6 +20,25 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-15 · Coworld 0.7.15 · The launcher bundles a bot's own files into its player artifact
+
+**What changed.** The player image's launcher (`players/press.py`) now adds every regular
+file a bot writes under `COWORLD_PLAYER_ARTIFACT_DIR` (default `/tmp/coworld-player-artifact`)
+to the seat's player artifact ZIP at game over, beside `private-press.json`, up to 150 MiB
+(the platform's artifact cap is 200 MiB). The upload timeout inside the worker is 10 s (it was
+3 s). A bot that writes nothing there uploads exactly what it uploaded before. This is how a
+policy records more than the seat log can hold: the hosted seat log is the last 10,000 lines
+of stdout, while the artifact takes files of any shape. See "Private player artifacts" in
+`docs/protocol.md`.
+
+**In your optimizer.**
+
+1. Nothing, unless your policy wants to write files into its artifact. If it does: write them
+   under `COWORLD_PLAYER_ARTIFACT_DIR` as the game runs (flush each write; the bot is killed
+   before the bundle is made), then move `PINNED_GAME_REF` in `tools/build.sh` to the commit
+   that adds this entry, rebuild, and run one health game. `fetch_artifacts.py` already
+   downloads the ZIP to `artifacts/<policy version>.<slot>.zip`.
+
 ## 2026-10-15 · Coworld 0.7.15 · Press league rates the powers alongside the players
 
 **What changed.** League settings, not the game. From round 58 (2026-10-15), the press

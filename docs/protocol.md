@@ -272,6 +272,18 @@ may be missing. Fetch failure or interrupted shutdown also produces a best-avail
 archive. A worker deadline can prevent an archive entirely and is logged explicitly.
 Game stdout, public JSON files and replay never receive these private archives.
 
+A bot may put files of its own in the artifact: anything it writes under
+`COWORLD_PLAYER_ARTIFACT_DIR` (default `/tmp/coworld-player-artifact`; the launcher
+passes its environment to the bot, so both see the same name) is added to the same
+ZIP at game_over, named relative to that directory, beside `private-press.json`.
+Write as you go and flush: the bot is killed before the worker bundles the directory,
+so whatever is on disk then is what goes up. Regular files only, in sorted order, up to
+150 MiB in all (the platform's cap on the artifact is 200 MiB); symlinks, special files
+and files beyond the cap are skipped and counted. The worker prints one
+`player_artifact_files` line (`files`, `bytes`, `skipped`) to player stdout when the
+directory exists; a bot that writes nothing uploads exactly what it uploaded before.
+A failure while bundling still uploads the press archive alone.
+
 Presence reconnects without spawning the bot again. A bot that exits early leaves
 the launcher connected and archiving until game_over or termination; the launcher
 prints one `{"event": "child_exit", "code": N}` line to the player log when it sees
