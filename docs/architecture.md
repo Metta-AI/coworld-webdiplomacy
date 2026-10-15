@@ -129,7 +129,7 @@ public frame whenever it changes.
 | Module | Role |
 | --- | --- |
 | `players/launcher.py` | Connects to `COWORLD_PLAYER_WS_URL` with `mode=bot`, reconnects on drop, starts the bot once with `WEBDIP_*` env, runs the press archive worker, stops the bot's process group and acks `game_over` |
-| `players/press.py` | Separate process: snapshots the seat's private messages every 2 s and writes the final archive to stdout and `COWORLD_PLAYER_ARTIFACT_UPLOAD_URL` |
+| `players/press.py` | Separate process: snapshots the seat's private messages every 2 s and writes the final archive to stdout and, with the bot's own files from `COWORLD_PLAYER_ARTIFACT_DIR`, to `COWORLD_PLAYER_ARTIFACT_UPLOAD_URL` |
 | `players/api.py` | Synchronous upstream API client, order helpers, `verify_orders` |
 | `players/bridge.py` | Loopback HTTP API for an external bot controlling a human seat through the existing WebSocket tunnel |
 | `players/legal_orders.py` | Classic legal-order generator from `variant.json` and `game.json` |
@@ -185,5 +185,6 @@ runs everything.
 | `WEBDIP_MODE` | You, for regression runs | `adapter/boot.py` |
 | `COWORLD_PLAYER_WS_URL` | Coworld runner | `players/launcher.py` |
 | `COWORLD_PLAYER_ARTIFACT_UPLOAD_URL`, `COWORLD_PLAYER_ARTIFACT_UPLOAD_METHOD` | Coworld runner (optional) | `players/press.py` |
+| `COWORLD_PLAYER_ARTIFACT_DIR` | You (optional; default `/tmp/coworld-player-artifact`) | The bot writes there, `players/press.py` bundles it |
 | `WEBDIP_URL`, `WEBDIP_API_KEY`, `WEBDIP_GAME_ID`, `WEBDIP_COUNTRY_ID`, `WEBDIP_SEED`, `WEBDIP_END_YEAR`, `WEBDIP_SCORING` | Launcher, `players/bridge.py` env file | The bot |
 | `WEBDIP_STOCK_SUBNET` | You (optional) | `tools/stock_stack.py` (compatibility check) |

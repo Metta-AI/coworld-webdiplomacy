@@ -19,6 +19,7 @@ from websockets.sync.server import serve
 
 from players.api import WebDiplomacy, order, order_difference
 from players.launcher import finish_press, stop_child
+from players.press import bundle_directory
 from players.random_bot import submit
 
 
@@ -36,7 +37,15 @@ class PlayerTests(unittest.TestCase):
         self.assertFalse(any(order_difference([order("Wait")], [order("Wait"), order("Wait")], 2).values()))
 
     def launcher_case(
-        self, *, long=False, cancelled=False, upload_fails=False, http_upload=False, close_early=False, child_code=None
+        self,
+        *,
+        long=False,
+        cancelled=False,
+        upload_fails=False,
+        http_upload=False,
+        close_early=False,
+        child_code=None,
+        bot_files=False,
     ):
         state = {"status": 200, "connections": 0, "put": None}
         sentinel = "private-player-test-sentinel"
@@ -95,6 +104,15 @@ class PlayerTests(unittest.TestCase):
                 serving.start()
                 address = f"ws://127.0.0.1:{server.socket.getsockname()[1]}/player?slot=0&token=test"
                 command = "import time; time.sleep(120)" if child_code is None else f"raise SystemExit({child_code})"
+                if bot_files:
+                    # The bot writes its own files under the artifact directory as it plays; the
+                    # launcher bundles them beside the press archive at game over.
+                    command = (
+                        "import os, pathlib; d = pathlib.Path(os.environ['COWORLD_PLAYER_ARTIFACT_DIR']) / 'trace'; "
+                        "d.mkdir(parents=True); (d / 'manifest.json').write_text('{\"format\": \"test\"}'); "
+                        "(d / '000-S1901-Diplomacy.jsonl').write_text('{\"seq\": 1}\\n'); "
+                        "(d / 'link.jsonl').symlink_to(d / 'manifest.json'); " + command
+                    )
                 command = (
                     "import os; assert os.environ['WEBDIP_SEED'] == '297'; "
                     "assert os.environ['WEBDIP_END_YEAR'] == '1905'; "
@@ -103,6 +121,7 @@ class PlayerTests(unittest.TestCase):
                 env = {
                     **os.environ,
                     "COWORLD_PLAYER_WS_URL": address,
+                    "COWORLD_PLAYER_ARTIFACT_DIR": str(Path(directory) / "artifact"),
                     "COWORLD_PLAYER_ARTIFACT_UPLOAD_URL": base + "/upload?private=secret"
                     if upload_fails or http_upload
                     else artifact.as_uri(),
@@ -138,6 +157,17 @@ class PlayerTests(unittest.TestCase):
             data = state["put"] if upload_fails or http_upload else artifact.read_bytes()
             with zipfile.ZipFile(io.BytesIO(data)) as zipped:
                 record = json.loads(zipped.read("private-press.json"))
+                names = sorted(zipped.namelist())
+                if bot_files:
+                    self.assertEqual(
+                        names, ["private-press.json", "trace/000-S1901-Diplomacy.jsonl", "trace/manifest.json"]
+                    )
+                    self.assertEqual(zipped.read("trace/000-S1901-Diplomacy.jsonl"), b'{"seq": 1}\n')
+                    self.assertIn('{"event": "player_artifact_files", "files": 2, "bytes": 29, "skipped": 0}', text)
+                else:
+                    # A bot that writes nothing uploads what it always uploaded.
+                    self.assertEqual(names, ["private-press.json"])
+                    self.assertNotIn("player_artifact_files", text)
             self.assertEqual(record["complete"], not cancelled)
             if long:
                 self.assertEqual(state["connections"], 2)
@@ -155,6 +185,32 @@ class PlayerTests(unittest.TestCase):
 
     def test_optional_upload_failure(self):
         self.launcher_case(upload_fails=True)
+
+    def test_bot_files_are_bundled_beside_the_press_archive(self):
+        self.launcher_case(http_upload=True, bot_files=True)
+
+    def test_bundle_directory_adds_regular_files_only_up_to_the_cap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "trace").mkdir()
+            (root / "trace" / "a.jsonl").write_bytes(b"x" * 10)
+            (root / "trace" / "b.jsonl").write_bytes(b"y" * 10)
+            (root / "big.bin").write_bytes(b"z" * 100)
+            (root / "trace" / "link").symlink_to(root / "trace" / "a.jsonl")
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, "w") as archive:
+                archive.writestr("private-press.json", "{}")
+                report = bundle_directory(archive, root, max_bytes=25)
+            with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as zipped:
+                self.assertEqual(sorted(zipped.namelist()), ["private-press.json", "trace/a.jsonl", "trace/b.jsonl"])
+            self.assertEqual(report, {"files": 2, "bytes": 20, "skipped": 1})
+
+    def test_bundle_directory_without_the_directory_adds_nothing(self):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            self.assertIsNone(bundle_directory(archive, Path("/nonexistent/coworld-player-artifact")))
+        with zipfile.ZipFile(io.BytesIO(buffer.getvalue())) as zipped:
+            self.assertEqual(zipped.namelist(), [])
 
     def test_server_closes_before_ack(self):
         self.launcher_case(close_early=True)

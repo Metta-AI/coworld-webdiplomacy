@@ -1,13 +1,47 @@
-"""Private seat history. Run in a bounded worker so artifact I/O cannot delay exit."""
+"""Private seat history, and the bot's own files, in the seat's player artifact. Run in a
+bounded worker so artifact I/O cannot delay exit."""
 
 import io
 import json
 import os
 import time
 import zipfile
+from pathlib import Path
 
 from adapter.artifacts import write_artifact
 from players.api import WebDiplomacy
+
+# A bot may write files of its own (a decision trace, say) under this directory during the game;
+# the worker bundles them beside private-press.json at game over. The launcher passes its
+# environment to the bot, so both read the same name. The platform's artifact cap is 200 MiB.
+ARTIFACT_DIR_ENV = "COWORLD_PLAYER_ARTIFACT_DIR"
+DEFAULT_ARTIFACT_DIR = "/tmp/coworld-player-artifact"
+BUNDLE_MAX_BYTES = 150 * 1024 * 1024
+UPLOAD_TIMEOUT_S = 10  # inside the launcher's 12 s worker budget
+
+
+def bundle_directory(archive, directory, max_bytes=BUNDLE_MAX_BYTES):
+    """Add every regular file under `directory` to the open ZIP, named relative to it, in sorted
+    order, until `max_bytes` of file size are in. Symlinks and special files are skipped, and so
+    is a file that cannot be read. Returns {"files", "bytes", "skipped"}, or None when the
+    directory does not exist (a bot that writes nothing changes nothing)."""
+    directory = Path(directory)
+    if not directory.is_dir():
+        return None
+    report = {"files": 0, "bytes": 0, "skipped": 0}
+    for path in sorted(p for p in directory.rglob("*") if not p.is_symlink() and p.is_file()):
+        try:
+            size = path.stat().st_size
+            if report["bytes"] + size > max_bytes:
+                report["skipped"] += 1
+                continue
+            archive.write(path, arcname=path.relative_to(directory).as_posix())
+        except OSError:
+            report["skipped"] += 1
+            continue
+        report["files"] += 1
+        report["bytes"] += size
+    return report
 
 
 class PressArchive:
@@ -44,13 +78,19 @@ class PressArchive:
             buffer = io.BytesIO()
             with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
                 archive.writestr("private-press.json", data)
+                try:
+                    report = bundle_directory(archive, os.environ.get(ARTIFACT_DIR_ENV) or DEFAULT_ARTIFACT_DIR)
+                except (OSError, ValueError):
+                    report = {"error": "bundle_failed"}  # the press archive still goes up
+                if report is not None:
+                    print(json.dumps({"event": "player_artifact_files", **report}), flush=True)
             try:
                 write_artifact(
                     uri,
                     buffer.getvalue(),
                     "COWORLD_PLAYER_ARTIFACT_UPLOAD_METHOD",
                     content_type="application/zip",
-                    timeout=3,
+                    timeout=UPLOAD_TIMEOUT_S,
                 )
                 print('{"event":"private_press_upload","status":"complete"}', flush=True)
             except (OSError, ValueError):
