@@ -215,10 +215,20 @@
     } else if (chart.kind === "amounts") {
       options.x = {label:chart.label || 'USD', grid:true}; options.y = {label:null, domain:chart.order, tickFormat:d=>d}; options.marginLeft = Math.min(width*.65,Math.max(130,...data.map(d=>d.label.length*6)));
       options.height = Math.min(500,Math.max(160,data.length*23+45));
-      options.marks = [Plot.barX(data,{x:'value',y:'label',fill:navy,title:d=>`${d.label}: ${d.value.toFixed(3)}`})];
+      // Rows with a series stack into one bar per label; a value_label then sits at the end of the whole bar.
+      const stacked = data.some(d=>d.series);
+      if (stacked) {
+        options.color = {domain:[...new Set(data.map(d=>d.series))]}; options.color.range = seriesColors(options.color.domain);
+        options.legendNames = options.color.domain;
+      }
+      options.marks = [Plot.barX(data,{x:'value',y:'label',fill:stacked?'series':navy,
+        title:d=>`${d.label}${stacked?` · ${d.series}`:''}: ${d.value.toFixed(3)}`})];
       if (data.some(d=>d.value_label)) {
         options.marginRight = 65;
-        options.marks.push(Plot.text(data,{x:'value',y:'label',text:'value_label',textAnchor:'start',dx:5,fill:navy}));
+        const ends = stacked ? d3.rollups(data, rows=>({value:d3.sum(rows,r=>r.value),
+          value_label:rows.find(r=>r.value_label)?.value_label}), d=>d.label).map(([label,end])=>({label,...end})) : data;
+        options.marks.push(Plot.text(ends.filter(d=>d.value_label),
+          {x:'value',y:'label',text:'value_label',textAnchor:'start',dx:5,fill:navy}));
       }
       if (chart.reference !== null && chart.reference !== undefined)
         options.marks.push(Plot.ruleX([chart.reference],{stroke:gold,strokeDasharray:'4,3'}));

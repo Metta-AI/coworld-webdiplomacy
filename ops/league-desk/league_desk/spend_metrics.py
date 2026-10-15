@@ -152,38 +152,56 @@ def seat_spend(data, games, cap):
     return result, keyed, [sentence] if rejections else []
 
 
-def unit_costs(games, details, rounds, episode_sources):
+def unit_costs(games, details, rounds, episode_sources, llm_by_game):
+    """Mean total cost (compute plus provider-billed LLM) of a completed round and game.
+
+    A game counts only when both parts are known: its compute detail and its seat LLM attribution.
+    """
     eligible = {g["id"] for g in games if g["status"] == "completed" and g["completed_at"] is not None}
     covered = {
-        key: source["data"]["compute"]
+        key: {"compute": source["data"]["compute"], "llm": llm_by_game[key]}
         for key, source in details.items()
-        if key in eligible and source.get("data") and source["data"]["compute"] is not None
+        if key in eligible and key in llm_by_game and source.get("data") and source["data"]["compute"] is not None
     }
     round_costs = []
     for rd in rounds:
         source = episode_sources.get(rd["id"])
         ids = {g["id"] for g in source["data"]["rows"]} if source and source.get("data") else set()
         if rd["status"] == "completed" and ids and ids <= covered.keys():
-            round_costs.append(sum(covered[key] for key in ids))
+            round_costs.append({part: sum(covered[key][part] for key in ids) for part in ("compute", "llm")})
+
+    def means(costs):
+        return {part: mean(c[part] for c in costs) for part in ("compute", "llm")} if costs else None
+
+    per_round, per_game = means(round_costs), means(list(covered.values()))
+
+    def total(parts):
+        return money(parts["compute"] + parts["llm"] if parts else None)
+
+    def split(parts):
+        return f" ({money(parts['compute'])} compute + {money(parts['llm'])} LLM)" if parts else ""
+
     result = panel(
-        f"Compute {money(mean(round_costs) if round_costs else None)}/round and "
-        f"{money(mean(covered.values()) if covered else None)}/game over covered completed games.",
+        f"{total(per_round)}/round{split(per_round)} and {total(per_game)}/game{split(per_game)} "
+        "over covered completed games.",
         ["Measure", "Value"],
         [
             ["Covered / eligible completed games", f"{len(covered)}/{len(eligible)}"],
             ["Fully covered rounds", len(round_costs)],
-            ["Covered compute", money(sum(covered.values()))],
+            ["Covered compute", money(sum(c["compute"] for c in covered.values()))],
+            ["Covered LLM (provider billed)", money(sum(c["llm"] for c in covered.values()))],
         ]
         if covered
         else [],
-        "Detail API compute only; game denominator includes cost-covered completions in the selected window. "
-        "Round means require every listed game covered and completed in that window. "
-        "Per-round LLM is not reconciled and stays unknown.",
+        "Total = detail API compute + provider-billed LLM summed over the game's seats. A game is covered only "
+        "when both are known; seat LLM attribution reaches back seven days. "
+        "Round means require every listed game covered and completed in that window.",
     )
-
-    result["chart"] = {"kind": "amounts", "label": "Mean compute USD", "data": [
-        {"label": label, "value": mean(values)} for label, values in
-        (("Covered round", round_costs), ("Covered game", list(covered.values()))) if values]}
+    result["chart"] = {"kind": "amounts", "label": "Mean USD", "data": [
+        {"label": label, "series": series, "value": parts[part],
+         "value_label": total(parts) if part == "llm" else None}
+        for label, parts in (("Round", per_round), ("Game", per_game)) if parts
+        for series, part in (("Compute", "compute"), ("LLM", "llm"))]}
     return result
 
 
@@ -340,6 +358,10 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
     rejections = {(r["episode"], r["slot"]): r["rejections"] for r in data("seats", scope).get("rows", [])}
     for row in provider_seats["rows"]:
         row["rejections"] = rejections.get((row["episode"], row["slot"]))
+    # The seat query lists every seat of an attributed game, so a game's seat sum is its full LLM spend.
+    llm_by_game = defaultdict(float)
+    for row in provider_seats["rows"]:
+        llm_by_game[row["episode"]] += row["estimated"]
     seat_panel, amounts, seat_alerts = seat_spend(provider_seats, games, data("settings", scope).get("seat_cap_usd"))
     seat_panel["note"] = ("Provider billed spend summed across resolved models once per episode/slot. "
                           "Covered no-call seats contribute observed zero; absent seat coverage stays unknown. "
@@ -351,7 +373,7 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
         "Models in use": models,
         "LLM spend per seat per game": seat_panel,
         "Cost per round and per game": unit_costs(
-            games, details, data("rounds", scope).get("rows", []), competition["episode_sources"]
+            games, details, data("rounds", scope).get("rows", []), competition["episode_sources"], llm_by_game
         ),
         "Requests per day": request_series(selected, complete),
         "How long games take": request_durations(selected, [s["data"] for s in details.values() if s.get("data")]),
@@ -382,7 +404,7 @@ def spending_panels(snapshot, league, now, competition, start=None, version="all
         "League against experience requests": [source("daily_spend", scope), source("costs", scope)],
         "Models in use": [source("seat_models", scope), source("attempts", scope)],
         "LLM spend per seat per game": [source("seat_models", scope), source("seats", scope)],
-        "Cost per round and per game": [details.get(g["id"], {}) for g in games] or [{}],
+        "Cost per round and per game": [details.get(g["id"], {}) for g in games] + [source("seat_models", scope)],
         "Requests per day": request_deps,
         "How long games take": request_deps + timing_deps,
         "Common config overrides": request_deps + [source("overrides")],
