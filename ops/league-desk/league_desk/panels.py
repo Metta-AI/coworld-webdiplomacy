@@ -30,7 +30,7 @@ SECTIONS = [
         ("League against experience requests", "Read-only SQL", 4, "Comparable source costs have not been collected."),
         ("LLM spend per seat per game", "Read-only SQL", 4, "Per-seat usage has not been collected."),
         ("Models in use", "Read-only SQL", 8, "No model usage collected; this does not mean policies use no model."),
-        ("Cost per round and per game", "Softmax API", 4, "Cost attribution has not been collected."),
+        ("Cost per round and per game", "Softmax API · Read-only SQL", 4, "Cost attribution has not been collected."),
     ]),
     ("Experience requests", [
         ("Requests per day", "Softmax API", 4, "Request history has not been collected."),

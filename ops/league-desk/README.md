@@ -15,7 +15,7 @@ with values, shares and total. Stacked bars carry a legend; past eight series th
 `<div data-widget data-src>` mount point (set `content["widget"]`); the 60-second refresh keeps that node
 and its state while `data-src` is unchanged, then calls each function in `window.deskWidgets`. MMR over time scales to the
 rating lines, clipping the wider μ ± 3σ band. Timing and seat-health panels sit last. League-only daily source costs, stable player/policy model attribution, SQL seat
-spend, compute unit costs and experience-request history are
+spend, total (compute plus LLM) unit costs and experience-request history are
 available with explicit scope/coverage. Public results and replay facts provide The board map (contests, wins, scores, holders by phase and player), policy/power scores,
 end reasons. Public 0.7.12 instrumentation adds Ready timing and seat health. There is no rating backfill. Range/version filters, local house fonts, rating
 bands and automatic fragment refresh are available.
@@ -259,8 +259,11 @@ remain visible even when some values are available.
   all owned non-filler seats once per completed covered game; multiple models do
   not multiply the denominator. A game requires every owned seat's coverage.
   These are provider billed totals; daily accounting uses the corrected usage
-  ledger and may differ at cohort boundaries. Compute unit costs still use episode
-  details. Per-round LLM reconciliation remains outside this phase.
+  ledger and may differ at cohort boundaries.
+- Cost per round and per game: mean total cost, stacked as compute (episode
+  details) plus provider-billed LLM (every seat's `seat_models` row summed). A
+  game counts only when both parts are known, so games older than the seven-day
+  seat attribution drop out; a round counts only when all its games do.
 - Experience counts use request creation time and the selected variant ID, across
   all discovered versions. One request may contain multiple episodes. Requester
   labels/emails are private localhost data. Incomplete version/window coverage is

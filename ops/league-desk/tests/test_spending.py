@@ -419,9 +419,26 @@ class SpendingMetricTests(DeskTest):
         details = {GAME: {"data": {"compute": 2}}, OTHER: {"data": {"compute": None}}}
         rounds = [{"id": "round_demo", "status": "completed"}]
         sources = {"round_demo": {"data": {"rows": [game, other]}}}
-        result = unit_costs([game, other], details, rounds, sources)
+        result = unit_costs([game, other], details, rounds, sources, {GAME: 0.5, OTHER: 0.25})
         self.assertIn("unknown/round", result["sentence"])
-        self.assertIn("$2.00/game", result["sentence"])
+        self.assertIn("$2.50/game ($2.00 compute + $0.50 LLM)", result["sentence"])
+        self.assertEqual(result["rows"][0][1], "1/2")
+
+    def test_unit_costs_total_compute_and_llm_and_need_both(self):
+        game = episode(raw_game(self.now))
+        other = {**copy.deepcopy(game), "id": OTHER}
+        details = {GAME: {"data": {"compute": 2}}, OTHER: {"data": {"compute": 1}}}
+        rounds = [{"id": "round_demo", "status": "completed"}]
+        sources = {"round_demo": {"data": {"rows": [game, other]}}}
+        result = unit_costs([game, other], details, rounds, sources, {GAME: 0.5, OTHER: 0.25})
+        self.assertIn("$3.75/round ($3.00 compute + $0.75 LLM)", result["sentence"])
+        self.assertIn("$1.88/game ($1.50 compute + $0.38 LLM)", result["sentence"])
+        bars = {(d["label"], d["series"]): d["value"] for d in result["chart"]["data"]}
+        self.assertEqual(bars[("Round", "Compute")], 3)
+        self.assertEqual(bars[("Round", "LLM")], 0.75)
+        # A game without seat LLM attribution is not counted as zero LLM.
+        result = unit_costs([game, other], details, rounds, sources, {GAME: 0.5})
+        self.assertIn("unknown/round", result["sentence"])
         self.assertEqual(result["rows"][0][1], "1/2")
 
 
