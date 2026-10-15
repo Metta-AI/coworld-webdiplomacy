@@ -99,7 +99,7 @@ elapsed times and deadlines, completed gamemaster request timing summaries, each
 seat's connection events and API request count, and the container's timing profile.
 
 `results.json` fields (written by `adapter/episode.py`; the manifest's
-`results_schema` requires only the first three):
+`results_schema` requires only `scores`, `outcome`, `final_state` and `roles`):
 
 | Field | Meaning |
 | --- | --- |
@@ -109,6 +109,7 @@ seat's connection events and API request count, and the container's timing profi
 | `reason` | Why play ended: `end_year`, `episode_timeout`, `cancelled`, or the upstream outcome (`won`, `drawn`) when upstream finished the game itself |
 | `seed` | Episode seed actually used |
 | `countries` | `countries[slot]` is that seat's upstream country ID (1–7, Classic order England, France, Italy, Germany, Austria, Turkey, Russia) |
+| `roles` | `roles[slot]` is that seat's power by name (`England`, `France`, `Italy`, `Germany`, `Austria`, `Turkey` or `Russia`), the same assignment as `countries`. A league with role ratings on fits a strength per power from it, so the names never change; `scores` are not adjusted |
 | `members` | Upstream member rows ordered by country ID: `countryID`, `status`, `supplyCenterNo`, `unitNo` (string values from SQL). `status` is upstream's `Playing`, `Defeated`, `Left`, `Won`, `Drawn`, `Survived` or `Resigned`; scoring treats `Playing`, `Drawn` and `Survived` as surviving |
 | `transitions` | Each observed `(turn, phase, process_status)` change with `elapsed_seconds` since game creation, `unix_time`, and `deadline_unix_time` (upstream `processTime` when observed: the phase's deadline, or `null`). A phase that ends before its deadline ended early because every seat was Ready |
 | `gamemaster_calls` | `count`, `p50_seconds`, `max_seconds` and `http_errors` for upstream `gamemaster.php` requests, plus `phases`: one `{turn, phase, count, max_seconds}` per observed phase, counting each request in the phase it started in. The request that adjudicates a phase is that phase's longest |

@@ -20,6 +20,33 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-15 · Coworld 0.7.15 · results.json names each seat's power; league seating and seat cap
+
+**What changed.** Coworld 0.7.15. `results.json` gains `roles`: seven power names in slot
+order (`England`, `France`, `Italy`, `Germany`, `Austria`, `Turkey`, `Russia`), the same
+assignment as `countries`, and the manifest's `results_schema` requires it. Softmax leagues
+read it to rate how strong each power is alongside the players (OpenSkill role advantages,
+`ranking.role_advantage_sigma`). That setting is not on in either league yet; another
+entry will say when it is. `scores` do not change. Play and what a bot is told during the
+game do not change.
+
+League settings changed too, not the game. The press league seats players with
+`balanced_rotation` again (each entrant plays exactly three games a round, at random among
+the least-played; from 2026-10-13 to 2026-10-15 it used rating-neighbour seating, which
+replayed two fixed tables of seven). Its round interval is 72 minutes, and since 2026-10-14
+each seat's model spend is capped at $0.50 a game (it was $2).
+
+**In your optimizer.**
+
+1. Nothing is required for `roles`; the lab's loader ignores fields it does not use. To
+   read a seat's power by name, use `roles[slot]` on results from 0.7.15 or later.
+2. A press policy that spends more than $0.50 of model calls in a league game has its
+   calls refused for the rest of that game. Check what a seat of your policy spends per
+   game in a hosted batch (`tools/wd.py costs`).
+3. Merge the `roles` row of the `results.json` table and the "Leagues" text of
+   `docs/game.md`, and the league-round line of `docs/platform.md`, from the commit that
+   adds this entry.
+
 ## 2026-10-14 · Coworld 0.7.14 · classic-press is back to 3-minute movement phases
 
 **What changed.** Coworld 0.7.14 undoes 0.7.13. `classic-press` and `classic-press-short`

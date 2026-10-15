@@ -145,6 +145,7 @@ equal shares to survivors) but the leagues use the default.
 |---|---|
 | `scores` | Seven numbers in **slot order** |
 | `countries` | `countries[slot]` = power ID (1 to 7) |
+| `roles` | `roles[slot]` = power name (`England` … `Russia`), the same assignment as `countries` (Coworld 0.7.15 and later) |
 | `outcome` | `won`, `drawn` or `cancelled` |
 | `reason` | Why play ended: `end_year`, `episode_timeout`, `cancelled`, or `won`/`drawn` when upstream ended it. Easy to skip; check it |
 | `members` | Upstream member rows by country: `countryID`, `status`, `supplyCenterNo`, `unitNo`. **Values are strings** |
@@ -181,19 +182,22 @@ health and behaviour checks, not for score.
 | webDiplomacy (main, full press) | `league_1bccc63d-cd0a-47d7-92d7-e762797b5f1c` | `classic-press` |
 | webDiplomacy Gunboat | `league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17` | `classic-gunboat` |
 
-Re-resolve the ids with `coworld leagues --json`. As set on 2026-10-12 (read the live
+Re-resolve the ids with `coworld leagues --json`. As set on 2026-10-15 (read the live
 settings with `coworld leagues <league_id> --json` before relying on these): the press
-league's round interval is 60 minutes (`round_interval_minutes: 60`; it was 150 until that
-afternoon) and the gunboat league's is a day (1440). The interval is a minimum: a round
+league's round interval is 72 minutes (`round_interval_minutes: 72`; 150 until 2026-10-12,
+then 60) and the gunboat league's is a day (1440). The interval is a minimum: a round
 starts on the league's fixed grid of slots, and only when the round before it has finished.
-A press round took 62 minutes (round 7, 2026-10-12), which is longer than the interval, so
-press rounds start 60 to 120 minutes apart. In both, every entrant plays at least three games in every round
+A press round takes about 50 to 60 minutes from start to finish, so press rounds usually
+start 72 minutes apart, occasionally 144. In both, every entrant plays at least three games in every round
 (`ladder.scheduler.min_episodes_per_entrant: 3`): three games while there are seven
 entrants or fewer, with fillers from the league's **filler roster** in the empty seats,
 and about three more for each further seven entrants (3 × entrants / 7, rounded up),
-seated at random with the least-played first. Powers are random in every game. Both have `players_per_user: 1`, up to two retries of a failed
+seated at random with the least-played first (`ladder.scheduler.strategy: balanced_rotation`;
+the press league used rating-neighbour seating, `swiss_neighbor`, from 2026-10-13 to 2026-10-15,
+which repeated two fixed tables of seven and about doubled the games). Powers are random in every game. Both have `players_per_user: 1`, up to two retries of a failed
 episode, and `disqualify_after_consecutive_failures: 3`. The press league caps each
-seat's model spend at $2 a game (`episode_player_pod_llm_spend_limit_usd: 2.0`). A new
+seat's model spend at $0.50 a game (`episode_player_pod_llm_spend_limit_usd: 0.5`; $2 until
+2026-10-14). A seat that reaches it gets its model calls refused for the rest of the game. A new
 submission becomes the scoring entry at once ("Auto champion: always").
 
 **Ranking is OpenSkill** (`ladder.ranking.algorithm: openskill`, mu 25, sigma 8.33).
