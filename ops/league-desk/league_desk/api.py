@@ -20,7 +20,8 @@ GET_PATHS = (
     r"/v2/divisions/div_[A-Za-z0-9-]+/(leaderboards|leaderboard/summary)",
     r"/v2/rounds/round_[A-Za-z0-9-]+/episodes",
     r"/v2/games", r"/v2/leagues", r"/v2/budgets", r"/v2/leagues/health", r"/v2/rounds",
-    r"/v2/leagues/league_[A-Za-z0-9-]+/settings", r"/v2/coworlds/cow_[A-Za-z0-9-]+",
+    r"/v2/leagues/league_[A-Za-z0-9-]+/settings", r"/v2/leagues/league_[A-Za-z0-9-]+/owner-status",
+    r"/v2/coworlds/cow_[A-Za-z0-9-]+",
 )
 
 

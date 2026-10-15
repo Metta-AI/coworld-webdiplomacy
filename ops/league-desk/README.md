@@ -70,7 +70,8 @@ restarts and page refreshes preserve it. A model alert returns when its model,
 league, affected policy-version set or latest Pacific failure day changes. Provider
 and attempt alerts remain separate. Mixed-version alerts track the observed
 Coworld-version set plus canonical associations recorded with ratings; stale-source
-alerts track source names. Other alerts track
+alerts track source names. Stalled-round and refused-check alerts track the latest
+listed round, so a dismissal holds until a new round starts. Other alerts track
 their displayed facts. Changing counts alone does not revive a model alert on the
 same day for the same affected policies. Dismissal does not clear panel errors.
 
@@ -106,6 +107,12 @@ root's CLI pins and lockfile are independent.
   remain unavailable. Latest-round game counts come from its cached episode listing.
 - **Budget today** uses the API's spend, projection, limit and reset timestamp;
   it counts tournament spending only. It does not assume reset at local midnight.
+- **Credit pool** is the league's own funding, from `owner-status`: the balance in
+  credits (and dollars at 10 credits per dollar) and today's grants, play charges and
+  reward payouts. The platform refills it once per Pacific day from the daily budget in
+  effect then, and starts a round only if the pool and the budget can both cover it, so
+  raising the budget does not add credits until the next refill. Polled every five
+  minutes; stale after ten.
 - **Coworld** means the current canonical version discovered through the game
   record. Its observation time is not the release time, and does not establish
   which version a version-locked league or an older running game uses.
@@ -114,7 +121,10 @@ root's CLI pins and lockfile are independent.
 - **Last 24 h** counts observed completed/failed episodes by completion time and
   shows round/episode coverage. These are retained-listing counts, not proof of
   all games ever requested. Retry attempts remain unknown.
-- **Needs attention** checks actual/projected budget overruns, source freshness,
+- **Needs attention** checks actual/projected budget overruns, an empty credit pool,
+  a refused round budget check (the platform's latest admission check, naming the
+  daily budget or the credit pool), no new round for two hours (or two round
+  intervals, if longer: 48 hours for the daily gunboat league), source freshness,
   multiple observed game versions, and verified platform failure streaks. A streak
   must match the current active competing policy; its limit comes from that
   division's settings. Model-error checks use per-league provider and attempt failure rates; actual seat
@@ -509,7 +519,8 @@ The collector allows only these GET paths:
 - `/v2/coworlds/{coworld_id}` (selected canonical identity only, not its manifest)
 - `/v2/budgets`
 - `/v2/leagues/{league_id}/settings`
-- `/v2/leagues/health`
+- `/v2/leagues/{league_id}/owner-status` (credit pool fields only)
+- `/v2/leagues/health` (recent rounds and the latest round budget check)
 - `/v2/rounds` (latest round and resumable history)
 - `/v2/rounds/{round_id}/episodes`
 - `/v2/league-policy-memberships`, `/v2/league-submissions`

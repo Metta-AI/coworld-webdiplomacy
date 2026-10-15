@@ -36,7 +36,11 @@ class DeskTest(unittest.TestCase):
             "/v2/leagues/league_demo/settings": {"settings": {"round_interval_minutes": 45,
                                                               "episode_player_pod_llm_spend_limit_usd": 1.5}},
             "/v2/leagues/health": [{"league_id": "league_demo", "rounds": [
-                {"status": "running", "created_at": "2027-01-15T08:00:00Z", "completed_at": None}]}],
+                {"status": "running", "created_at": "2027-01-15T08:00:00Z", "completed_at": None}],
+                "budgets": [{"checked_at": "2027-01-15T08:00:00Z", "refusal_cause": None}]}],
+            "/v2/leagues/league_demo/owner-status": {"credits": {
+                "pool_credits": 250.0, "granted_today_credits": 400.0, "play_charged_today_credits": 150.0,
+                "paid_today_credits": 0.0, "expected_net_credits": 250.0}, "budget": {"secret": "not-for-cache"}},
             "/v2/rounds": {"entries": [{"id": "round_demo", "round_number": 3, "status": "running",
                                          "created_at": "2027-01-15T08:00:00Z", "completed_at": None}],
                            "next_cursor": None},

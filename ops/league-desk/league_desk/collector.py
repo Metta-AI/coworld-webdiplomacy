@@ -63,8 +63,19 @@ def health(api, league_id):
     rows = api.json("/v2/leagues/health", {"league_id": league_id})
     row, = [r for r in rows if r["league_id"] == league_id]
     # These are compact recent summaries, not a full history or a 24-hour game count.
+    # Each budget entry is a division's latest round admission check; refusal_cause is null when it admitted.
+    checks = sorted(({"checked_at": timestamp(b["checked_at"]),
+                      "refusal_cause": None if b["refusal_cause"] is None else text(b["refusal_cause"])}
+                     for b in row.get("budgets") or []), key=lambda b: b["checked_at"] or 0)
     return {"rounds": [{"status": text(r["status"]), "created_at": timestamp(r["created_at"]),
-                        "completed_at": timestamp(r["completed_at"])} for r in row["rounds"]]}
+                        "completed_at": timestamp(r["completed_at"])} for r in row["rounds"]],
+            "budget_check": checks[-1] if checks else None}
+
+
+def credits(api, league_id):
+    row = api.json(f"/v2/leagues/{league_id}/owner-status")["credits"]
+    return {key: number(row[key]) for key in (
+        "pool_credits", "granted_today_credits", "play_charged_today_credits", "paid_today_credits")}
 
 
 def latest_round(api, league_id):
@@ -82,7 +93,7 @@ class Collector:
     def poll(self, name, scope, fetch, observed=False, cadence=POLL_SECONDS, force=False, floor=0):
         now = self.clock()
         previous = self.store.source(name, scope)
-        force |= self.manual and name in {"discovery", "canonical", "budgets", "settings", "health",
+        force |= self.manual and name in {"discovery", "canonical", "budgets", "credits", "settings", "health",
                                           "round", "rounds", "memberships", "submissions", "ratings"}
         if previous and previous["error"]:
             force = False
@@ -118,6 +129,8 @@ class Collector:
         for league in data["leagues"]:
             for name, fetch in (("settings", settings), ("health", health), ("round", latest_round)):
                 self.poll(name, league["id"], lambda: fetch(self.api, league["id"]), observed=name == "settings")
+            # owner-status computes 30-day series server-side; the pool moves slowly enough for this cadence.
+            self.poll("credits", league["id"], lambda: credits(self.api, league["id"]), cadence=COMPETITION_SECONDS)
             self.competition(league["id"], data["coworld_id"])
         from .spending import collect_spending
         collect_spending(self, data)
