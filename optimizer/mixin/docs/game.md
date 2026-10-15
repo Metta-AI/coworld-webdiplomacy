@@ -207,6 +207,15 @@ Fillers are not rated, so a game with one entrant moves no rating. The leaderboa
 is the cautious figure mu − 3 × sigma, which starts near zero and rises as games come in.
 Both leagues' rounds and standings were reset on 2026-10-12 when the ranking changed.
 
+**The press league also rates the powers** (`ranking.role_advantage_sigma: 2.0`, from round 58
+on 2026-10-15; the gunboat league does not). Each side of a game is rated as the player plus a
+hidden teammate for the power it played, read from `results.json` `roles`, so a strong
+power's expected finish no longer counts as the player's skill: finishing well as Austria
+moves a rating more than the same finish as France. The power ratings are learned from the
+same games and are not published on the leaderboard; MMR is still the player's own
+mu − 3 × sigma. Scores are not adjusted. Ratings from before round 58 keep the luck of the
+powers drawn then; it fades as new games come in.
+
 - **A round is three games until there are more than seven entrants.** The league's
   daily budget, not the interval, may be what limits how many rounds run in a day.
 - **The schedule is not reliable enough to plan on.** Scheduled rounds have been

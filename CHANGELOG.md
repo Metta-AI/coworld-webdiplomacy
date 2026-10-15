@@ -20,6 +20,24 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-15 · Coworld 0.7.15 · Press league rates the powers alongside the players
+
+**What changed.** League settings, not the game. From round 58 (2026-10-15), the press
+league's OpenSkill ranking also learns how strong each power is
+(`ranking.role_advantage_sigma: 2.0`): each side of a game is rated as the player plus a
+hidden teammate for the power it played, read from `results.json` `roles`. A good finish
+with a weak power now moves a rating more than the same finish with a strong one. The power
+ratings are not on the leaderboard, MMR is still the player's own mu − 3 × sigma, and scores
+are unchanged. Ratings earned before round 58 keep the luck of the powers drawn then. The
+gunboat league is unchanged.
+
+**In your optimizer.**
+
+1. Nothing is required. Score per game against the same-power par is still the number to
+   move; this change makes the leaderboard judge a policy the same way.
+2. Merge the "The press league also rates the powers" paragraph under "Leagues" in
+   `docs/game.md` from the commit that adds this entry.
+
 ## 2026-10-15 · Coworld 0.7.15 · results.json names each seat's power; league seating and seat cap
 
 **What changed.** Coworld 0.7.15. `results.json` gains `roles`: seven power names in slot
