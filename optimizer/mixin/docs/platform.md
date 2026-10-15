@@ -295,8 +295,8 @@ every LLM call in our seat logs succeeded (`llm_call` events).
 ## Leagues and the field
 
 - Two leagues; IDs and variants are in [game.md](game.md#leagues).
-- A league round is three games per seven entrants, about every 60 to 120 minutes in the
-  press league (interval 60 minutes; a round waits for the one before it) and daily in gunboat ([game.md](game.md#leagues)), so league episodes are slow
+- A league round is three games per seven entrants, about every 72 minutes in the
+  press league (interval 72 minutes; a round waits for the one before it) and daily in gunboat ([game.md](game.md#leagues)), so league episodes are slow
   evidence; hosted XP requests are the instrument.
 - Empty league seats are filled from a **filler roster** that the league owner
   curates. The route `/v2/leagues/{id}/filler-policies` returns 403 for player

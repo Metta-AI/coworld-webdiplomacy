@@ -125,6 +125,9 @@ class Instrumentation(unittest.TestCase):
         self.assertEqual([seat["slot"] for seat in health], list(range(7)))
         self.assertEqual([event["event"] for event in health[0]["connections"]], ["connect", "disconnect", "reconnect"])
         self.assertEqual(health[1]["connections"], [])
+        # Roles name each slot's power in slot order, matching countries; slot 0 is country 3.
+        self.assertEqual(results["countries"], [3, 1, 2, 7, 6, 5, 4])
+        self.assertEqual(results["roles"], ["Italy", "England", "France", "Russia", "Turkey", "Austria", "Germany"])
         # API request counts follow slot order: slot 0 is country 3.
         self.assertEqual([seat["api_requests"] for seat in health], [30, 10, 20, 70, 60, 50, 40])
         self.assertEqual(

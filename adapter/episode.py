@@ -16,6 +16,9 @@ from adapter.maps import render_map
 
 SOURCE_URL = "https://github.com/Metta-AI/coworld-webdiplomacy/tree/main"
 ORDER_PHASES = ("Diplomacy", "Retreats", "Builds")
+# Classic country names by upstream country ID (1-7). They are the per-seat `roles` in
+# results.json, which league role ratings key on: renaming one starts a role with no history.
+COUNTRY_NAMES = {1: "England", 2: "France", 3: "Italy", 4: "Germany", 5: "Austria", 6: "Turkey", 7: "Russia"}
 
 
 def php(script, *arguments, payload=None):
@@ -297,6 +300,7 @@ class Episode:
             "reason": reason,
             "seed": self.config.seed,
             "countries": self.countries,
+            "roles": [COUNTRY_NAMES[country] for country in self.countries],
             "members": state["members"],
             "final_state": state["game"],
             "transitions": self.transitions,
