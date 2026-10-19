@@ -42,8 +42,8 @@ class EpisodeConfig(BaseModel):
     render_maps: bool = True
     # countries[slot] is that slot's upstream country ID; None shuffles them by seed.
     countries: list[Annotated[int, Field(ge=1, le=7)]] | None = Field(default=None, min_length=7, max_length=7)
-    # Seat display names in slot order, written by the platform. Private until the game
-    # ends: they go only into the saved replay, never hello, upstream or /global.
+    # Seat display names in slot order, written by the platform. Every player's hello lists
+    # them (policy-version names withheld); upstream and /global never see them.
     players: Annotated[list[SeatPlayer], WithJsonSchema(SEAT_PLAYERS_SCHEMA)] = Field(default_factory=list)
 
     @field_validator("tokens")

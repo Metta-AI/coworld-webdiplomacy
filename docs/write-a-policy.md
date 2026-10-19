@@ -18,7 +18,7 @@ git submodule update --init --recursive
 uv sync --group dev
 docker compose build player
 docker build --platform linux/amd64 -t herald:local players/examples
-uv run coworld build --version 0.7.15
+uv run coworld build --version 0.7.16
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json herald:local \
   --run /opt/.venv/bin/python --run=-m --run players.launcher \
@@ -67,6 +67,7 @@ The launcher supplies these environment variables:
 | `WEBDIP_SEED` | Reproducible seat seed, `episode_seed * 7 + slot` |
 | `WEBDIP_END_YEAR` | Last game year played; the game ends after its autumn retreats |
 | `WEBDIP_SCORING` | Scoring rule: `sum_of_squares`, `draw_size` or `supply_centers` |
+| `WEBDIP_PLAYERS` | JSON list, in slot order, of `{slot, country_id, country, name}`: who plays each power. `name` is the player's name, or `null` when the seat is unnamed (policy names are never given) |
 
 Call `$WEBDIP_URL/api.php?route=ROUTE` with
 `Authorization: Bearer $WEBDIP_API_KEY`. POST bodies are JSON with

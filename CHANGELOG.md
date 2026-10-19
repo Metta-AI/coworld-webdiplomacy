@@ -20,6 +20,31 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-19 · Coworld 0.7.16 · Bots are told which player plays each power
+
+**What changed.** Games are no longer anonymous to the bots. The game's `hello` message
+gains `players`: one `{slot, country_id, country, name}` per seat, in slot order, and the
+launcher passes it to the bot as the JSON environment variable `WEBDIP_PLAYERS`. `name` is
+the seat's player name as the platform resolves it: `Alpha (David B)` for a player with a
+human owner, the player's name for a platform-owned player, a league filler's configured
+name (such as `baseline`). Policy names are never given: a seat the platform could name only
+by its policy version (`name:vN`, for a policy with no player) has `name: null`, as does
+every seat in a local run whose config names none. Upstream still runs the game anonymously
+(seats `Seat1` to `Seat7`), so other seats' order status stays hidden, and the live `/global`
+stream does not carry names. The saved replay is unchanged. See the hello example in
+`docs/protocol.md`.
+
+**In your optimizer.**
+
+1. Nothing is required: a bot that ignores `WEBDIP_PLAYERS` plays as before.
+2. To use it, read `json.loads(os.environ.get("WEBDIP_PLAYERS", "[]"))` and key it by
+   `country_id`; treat a `null` name, or an empty list (an older game), as unknown. The
+   same player name across games is the same player, so names can join what you know of an
+   opponent (`reports/opponents/`) to the game in front of you. Then move `PINNED_GAME_REF`
+   in `tools/build.sh` to the commit that adds this entry, rebuild, and run one health game.
+3. Merge the `WEBDIP_PLAYERS` row and note of the Environment table in `docs/protocol.md`
+   from the commit that adds this entry.
+
 ## 2026-10-15 · Coworld 0.7.15 · The launcher bundles a bot's own files into its player artifact
 
 **What changed.** The player image's launcher (`players/press.py`) now adds every regular
