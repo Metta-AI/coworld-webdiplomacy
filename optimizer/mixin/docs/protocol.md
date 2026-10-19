@@ -38,11 +38,13 @@ This lab's `tools/build.sh` does all of this for the reference policy
 | `WEBDIP_SEED` | Seat seed, `episode_seed * 7 + slot` |
 | `WEBDIP_END_YEAR` | Last game year played; the game ends after that year's Autumn retreats |
 | `WEBDIP_SCORING` | Scoring rule: `sum_of_squares`, `draw_size` or `supply_centers` |
+| `WEBDIP_PLAYERS` | JSON list, in slot order, of `{slot, country_id, country, name}`: who plays each power, such as `Alpha (David B)`. `name` is `null` for an unnamed seat; policy names are never given |
 | `COWORLD_LLM_ENDPOINT`, `COWORLD_LLM_MODEL` | Hosted LLM sidecar, only when the version was uploaded with `--use-llm` |
 
 `WEBDIP_END_YEAR` and `WEBDIP_SCORING` are set from webDiplomacy Coworld 0.7.9. Older
 versions do not set them, so fall back to the variant's end year (1908 for
 `classic-press`, 1910 for `classic-gunboat`) when `WEBDIP_END_YEAR` is unset.
+`WEBDIP_PLAYERS` is set from Coworld 0.7.16 (`[]` against an older game).
 
 ## HTTP API
 

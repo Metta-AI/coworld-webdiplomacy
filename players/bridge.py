@@ -248,6 +248,7 @@ class BridgeServer(HTTPServer):
             "WEBDIP_SEED": str(hello["rules"]["seed"] * 7 + hello["slot"]),
             "WEBDIP_END_YEAR": str(hello["rules"]["end_year"]),
             "WEBDIP_SCORING": hello["rules"]["scoring"],
+            "WEBDIP_PLAYERS": json.dumps(hello.get("players", [])),
         }
 
 

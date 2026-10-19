@@ -25,7 +25,8 @@ frame contains upstream's public `variant`, `game`, `status`, `history`, and
   platform display name, such as `Alpha (David B)` for a player with a human owner,
   or the policy version (`webdip-nightjar:v1`) when the policy has no player. The
   game adds it when it writes the replay after the game ends, so the live `/global`
-  stream and anything a bot can read during play never carry it. Replays from before
+  stream never carries it. Bots are told the player names (not policy versions) in
+  hello during play (see [protocol](protocol.md)). Replays from before
   Coworld 0.7.11, and local runs whose config has no `players`, have no names.
 - `map`, when `render_maps` is true: `turn` (the adjudicated turn pictured, `-1`
   for the starting position) and `png`, a PNG data URL.

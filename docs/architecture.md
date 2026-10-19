@@ -186,5 +186,5 @@ runs everything.
 | `COWORLD_PLAYER_WS_URL` | Coworld runner | `players/launcher.py` |
 | `COWORLD_PLAYER_ARTIFACT_UPLOAD_URL`, `COWORLD_PLAYER_ARTIFACT_UPLOAD_METHOD` | Coworld runner (optional) | `players/press.py` |
 | `COWORLD_PLAYER_ARTIFACT_DIR` | You (optional; default `/tmp/coworld-player-artifact`) | The bot writes there, `players/press.py` bundles it |
-| `WEBDIP_URL`, `WEBDIP_API_KEY`, `WEBDIP_GAME_ID`, `WEBDIP_COUNTRY_ID`, `WEBDIP_SEED`, `WEBDIP_END_YEAR`, `WEBDIP_SCORING` | Launcher, `players/bridge.py` env file | The bot |
+| `WEBDIP_URL`, `WEBDIP_API_KEY`, `WEBDIP_GAME_ID`, `WEBDIP_COUNTRY_ID`, `WEBDIP_SEED`, `WEBDIP_END_YEAR`, `WEBDIP_SCORING`, `WEBDIP_PLAYERS` | Launcher, `players/bridge.py` env file | The bot |
 | `WEBDIP_STOCK_SUBNET` | You (optional) | `tools/stock_stack.py` (compatibility check) |

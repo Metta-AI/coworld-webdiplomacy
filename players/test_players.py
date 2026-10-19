@@ -79,6 +79,7 @@ class PlayerTests(unittest.TestCase):
                 rules={"seed": 42, "end_year": 1905, "scoring": "draw_size"},
                 slot=3,
                 webdip=dict(base_url=base, api_key="fixture-key", game_id=1, country_id=2),
+                players=[dict(slot=0, country_id=2, country="France", name="Alpha (David B)")],
             )
 
             def handle(ws):
@@ -116,7 +117,9 @@ class PlayerTests(unittest.TestCase):
                 command = (
                     "import os; assert os.environ['WEBDIP_SEED'] == '297'; "
                     "assert os.environ['WEBDIP_END_YEAR'] == '1905'; "
-                    "assert os.environ['WEBDIP_SCORING'] == 'draw_size'; " + command
+                    "assert os.environ['WEBDIP_SCORING'] == 'draw_size'; "
+                    "import json; assert json.loads(os.environ['WEBDIP_PLAYERS'])[0]['name'] == 'Alpha (David B)'; "
+                    + command
                 )
                 env = {
                     **os.environ,

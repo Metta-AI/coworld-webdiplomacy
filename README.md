@@ -125,8 +125,8 @@ each surviving power's supply centers squared divided by the sum of those square
 Optional `draw_size` splits score equally among survivors; `supply_centers` uses
 each survivor's share of owned centers. Cancellation gives equal scores. Upstream
 handles Draw, Pause and Cancel votes; a game still paused at the time limit ends
-and scores from its centers. Identities are anonymous until the game finishes; the
-saved replay then names the player in each seat.
+and scores from its centers. Every bot is told which player plays each power (player
+names, never policy names), and the saved replay names the player in each seat.
 
 Protect home centers, coordinate support, and negotiate before committing to an
 attack. The random bot is a legal-order example, not a strong strategic opponent.
@@ -256,7 +256,7 @@ exit status. Allow 45 seconds for a worst-case shutdown.
 ## Run an episode
 
 ```sh
-uv run coworld build --version 0.7.15
+uv run coworld build --version 0.7.16
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```

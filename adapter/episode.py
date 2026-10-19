@@ -4,6 +4,7 @@ import bisect
 import json
 import os
 import random
+import re
 import statistics
 import subprocess
 import threading
@@ -19,6 +20,21 @@ ORDER_PHASES = ("Diplomacy", "Retreats", "Builds")
 # Classic country names by upstream country ID (1-7). They are the per-seat `roles` in
 # results.json, which league role ratings key on: renaming one starts a role with no history.
 COUNTRY_NAMES = {1: "England", 2: "France", 3: "Italy", 4: "Germany", 5: "Austria", 6: "Turkey", 7: "Russia"}
+# The platform names a seat whose policy has no player by its policy version, "name:vN"
+# (plus " (2)" when repeated). Players are told each other's player names, never policy names.
+POLICY_VERSION_NAME = re.compile(r".+:v\d+(?: \(\d+\))?")
+
+
+def seat_players(seats, players):
+    """Each seat's power and player name, in slot order, as every player's hello carries them.
+
+    `name` is None for a seat the config does not name or names only by its policy version.
+    """
+    names = [None if POLICY_VERSION_NAME.fullmatch(player.name) else player.name for player in players]
+    return [
+        {"slot": slot, "country_id": seat["country_id"], "country": seat["country"], "name": name}
+        for slot, (seat, name) in enumerate(zip(seats, names or [None] * len(seats), strict=True))
+    ]
 
 
 def php(script, *arguments, payload=None):

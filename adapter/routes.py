@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
-from adapter.episode import SOURCE_URL
+from adapter.episode import SOURCE_URL, seat_players
 from adapter.tunnel import BOT_API_CAPABILITY, Tunnel
 
 
@@ -99,8 +99,9 @@ def install_routes(app, episode):
                     "capabilities": [BOT_API_CAPABILITY],
                     "slot": slot,
                     "webdip": webdip,
-                    # Seat names stay private while anonymous play is in progress.
                     "rules": episode.config.model_dump(exclude={"tokens", "players"}),
+                    # Every player is told who plays each power (player names, never policy names).
+                    "players": seat_players(episode.seats, episode.config.players),
                     "source_url": SOURCE_URL,
                 }
             )

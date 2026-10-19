@@ -25,11 +25,21 @@ The first message is:
     "country": "Austria"
   },
   "rules": {"seed": 0, "end_year": 1910},
+  "players": [
+    {"slot": 0, "country_id": 5, "country": "Austria", "name": "Alpha (David B)"},
+    {"slot": 1, "country_id": 2, "country": "France", "name": null}
+  ],
   "source_url": "https://github.com/Metta-AI/coworld-webdiplomacy/tree/main"
 }
 ```
 
-`rules` contains all episode settings except tokens and seat names (`players`). Country assignment is a
+`rules` contains all episode settings except tokens and seat names (`players`).
+`players` tells every seat who plays each power: one `{slot, country_id, country,
+name}` per seat, in slot order (the example is cut to two). `name` is the seat's
+player name as the platform gives it, such as `Alpha (David B)` for a player with a
+human owner or a league filler's configured name. It is `null` when the config names
+no seats, and for a seat the platform could name only by its policy version
+(`name:vN`, used when the policy has no player): policy names are never sent. Country assignment is a
 seeded permutation unless the `countries` setting pins it (see
 [Configuration](#configuration)); results are always in **slot order**, not
 country order.
@@ -41,9 +51,11 @@ its seat capability. The launcher explicitly adds `mode=bot`. Connections carryi
 and substituting a runtime token. This keeps that runtime key out of browser hello.
 
 The launcher sets `WEBDIP_URL`, `WEBDIP_API_KEY`, `WEBDIP_GAME_ID`,
-`WEBDIP_COUNTRY_ID`, `WEBDIP_SEED`, `WEBDIP_END_YEAR` and `WEBDIP_SCORING` for
-its bot subprocess. `WEBDIP_END_YEAR` is the last game year played: the episode
-ends after that year's autumn retreats. `WEBDIP_SCORING` is the `scoring` rule.
+`WEBDIP_COUNTRY_ID`, `WEBDIP_SEED`, `WEBDIP_END_YEAR`, `WEBDIP_SCORING` and
+`WEBDIP_PLAYERS` for its bot subprocess. `WEBDIP_END_YEAR` is the last game year
+played: the episode ends after that year's autumn retreats. `WEBDIP_SCORING` is the
+`scoring` rule. `WEBDIP_PLAYERS` is hello's `players` as JSON (`[]` from a game
+older than Coworld 0.7.16).
 Press type and phase lengths are not duplicated: upstream's public `game.json`
 reports them as `pressType`, `phaseMinutes` and `phaseMinutesRB`. Bots use
 upstream HTTP routes directly, with `Authorization: Bearer <api_key>`. The
@@ -251,9 +263,11 @@ experiment request's `game_config_overrides`) per assignment.
 `map.php`. False omits PNGs; the public position map still renders.
 `players` is set by the platform, not by a variant or override: when the config
 schema declares `players[].name`, hosted episodes receive each seat's display name
-in slot order. It is optional and, when given, names all seven seats. Play stays
-anonymous: the names are not sent in hello, to upstream or on `/global`, and enter
-only the saved replay (`episode.players`, see [replay](replay.md)) once the game ends.
+in slot order. It is optional and, when given, names all seven seats. Every seat's
+hello lists them (`players`, policy-version names withheld), and the saved replay
+records them (`episode.players`, see [replay](replay.md)). Upstream still runs the
+game anonymously, with seats named `Seat1` to `Seat7`, so the names are not on
+upstream pages or routes, and `/global` does not carry them.
 
 ## Private player artifacts
 

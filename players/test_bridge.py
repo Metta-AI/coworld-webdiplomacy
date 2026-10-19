@@ -124,6 +124,8 @@ class SocketTest(unittest.TestCase):
                     self.assertEqual(
                         (environment["WEBDIP_END_YEAR"], environment["WEBDIP_SCORING"]), ("1905", "draw_size")
                     )
+                    # An older game's hello has no players; the bot then reads an empty list.
+                    self.assertEqual(json.loads(environment["WEBDIP_PLAYERS"]), [])
                     auth = {"Authorization": "Bearer " + server.api_key}
                     status, headers, body = request("POST", "/api.php?route=game/orders", '{"orders":[]}', auth)
                     self.assertEqual((status, body), (409, "upstream error: café"))

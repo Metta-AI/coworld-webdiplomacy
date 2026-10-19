@@ -58,14 +58,35 @@ class LifecycleTest(unittest.TestCase):
         self.assertTrue(all(event["elapsed_seconds"] > 0 for event in self.episode.connection_events[0]))
         self.assertEqual(self.episode.connection_events[1], [])
 
-    def test_hello_never_carries_seat_names(self):
+    def test_hello_names_every_seat_by_player_never_by_policy(self):
+        names = [
+            "Alpha (David B)",
+            "webdip-nightjar:v1",  # The platform's fallback for a policy without a player.
+            "webdip-nightjar:v1 (2)",
+            "baseline",
+            "Bravo",
+            "Bravo (2)",
+            "Seat Six",
+        ]
         self.episode.config = EpisodeConfig(
-            tokens=[f"token{i}" for i in range(7)], players=[{"name": f"Secret {i}"} for i in range(7)]
+            tokens=[f"token{i}" for i in range(7)], players=[{"name": name} for name in names]
         )
         with TestClient(self.app) as client, client.websocket_connect(self.address) as socket:
             hello = socket.receive_json()
-            self.assertNotIn("players", hello["rules"])
-            self.assertNotIn("Secret", str(hello))
+        self.assertNotIn("players", hello["rules"])
+        self.assertNotIn("nightjar", str(hello))
+        self.assertEqual(hello["players"][0], {"slot": 0, "country_id": 1, "country": "1", "name": "Alpha (David B)"})
+        self.assertEqual(
+            [player["name"] for player in hello["players"]],
+            ["Alpha (David B)", None, None, "baseline", "Bravo", "Bravo (2)", "Seat Six"],
+        )
+        self.assertEqual([player["slot"] for player in hello["players"]], list(range(7)))
+
+    def test_hello_lists_unnamed_seats_when_the_config_names_none(self):
+        with TestClient(self.app) as client, client.websocket_connect(self.address) as socket:
+            players = socket.receive_json()["players"]
+        self.assertEqual([player["country_id"] for player in players], list(range(1, 8)))
+        self.assertTrue(all(player["name"] is None for player in players))
 
     def test_completion_is_recorded_before_confirmation(self):
         self.episode.finished = True

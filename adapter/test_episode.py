@@ -72,7 +72,7 @@ class EpisodeRules(unittest.TestCase):
         )
         self.assertEqual([player.name for player in EpisodeConfig(tokens=list("abcdefg"), **named).players], names)
 
-    def test_seat_names_reach_only_the_saved_replay(self):
+    def test_seat_names_reach_the_saved_replay_not_upstream_or_global(self):
         from unittest.mock import patch
 
         created = {"ok": True, "game_id": 1, "seats": []}
