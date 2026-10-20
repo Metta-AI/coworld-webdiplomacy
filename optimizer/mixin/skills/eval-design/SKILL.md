@@ -141,8 +141,8 @@ a two-arm difference is about the per-seat SD × √(2/n).
 
 - Duration, as the platform reported it on 2026-10-11 (`tools/batches.py`
   measures your own batches): a full hosted `classic-press` game **ran about
-  61 minutes** with 4-minute phases (about 48 are expected with the 3-minute phases of
-  Coworld 0.7.10; measure it), and games in one launch run in parallel, so a batch takes
+  61 minutes** with 4-minute phases (with the 3-minute phases of
+  Coworld 0.7.10 on, a median 45 over 171 league games), and games in one launch run in parallel, so a batch takes
   little longer than its slowest game; a late or restarted game, or a full
   queue, stretches it. A `classic-press-short` health game takes about 25
   minutes. A gunboat game runs about 2 minutes, but it has no press. The lab

@@ -31,6 +31,7 @@ This binding is a first version.
   | `messages` | **Public** press only |
   | `lifecycle` | `turn`, `phase`, `process_status` |
   | `episode.seed` | The episode seed |
+  | `episode.players` | Saved replay only, Coworld 0.7.11 and later, when the platform named the seats: `{slot, countryID, name}` per seat. `name` is the player's display name (`Alpha (David B)`), or the policy version (`name:v1`) for a policy with no player. Bots get the same names in `WEBDIP_PLAYERS`, except that a policy version becomes `null` |
   | `map` | Optional PNG of the adjudicated turn (large; `wd.py slim` strips it) |
   | `ending` | Last frame only: `outcome` and `reason` |
 
@@ -42,7 +43,7 @@ This binding is a first version.
 - **Watch one:** `coworld replay-open <episode-request-id> --hosted` opens the
   hosted viewer (positions, adjudicated orders, public press, map per season).
 - Full format:
-  [docs/replay.md at b4aca73](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/replay.md)
+  [docs/replay.md at fd03252](https://github.com/Metta-AI/coworld-webdiplomacy/blob/fd03252927bfcf36b2d0a03ba83fe36e057f8201/docs/replay.md)
   and upstream's game data spec (`webdiplomacy/doc/gamedata/02-spec.md` in that
   repo).
 
@@ -50,7 +51,8 @@ This binding is a first version.
 
 Only our own seats' logs and artifacts are readable.
 
-- **Player log:** everything our bot printed. The reference policy
+- **Player log:** everything our bot printed (hosted: only the last 10,000
+  lines). The reference policy
   (`players/castlereagh/`) logs as much as it can, because the launcher kills
   the bot at game end and an end-of-game summary may never be written:
   - one `decision` JSON line per phase: `turn`, `phase`, the orders chosen,
@@ -62,6 +64,9 @@ Only our own seats' logs and artifacts are readable.
 - **Private press:** the launcher's `private_press` record at the end of the
   player log, and `private-press.json` in the seat's artifact ZIP. Our seat's
   private messages only.
+- **The bot's own files:** from Coworld 0.7.15, whatever the bot wrote under
+  `COWORLD_PLAYER_ARTIFACT_DIR` is in the same ZIP
+  ([protocol.md](../../docs/protocol.md#private-artifacts-and-logs)).
 - Hosted logs sometimes arrive as a Python `b'...'` bytes literal;
   `webdip_episodes.py` decodes them.
 - A seat log that is one line, "No logs collected for pod …: the pod was

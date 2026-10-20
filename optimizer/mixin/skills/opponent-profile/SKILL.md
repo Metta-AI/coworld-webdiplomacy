@@ -39,6 +39,29 @@ against a number or a replay.
 - Our own seats' private press with the opponent is readable, through the
   [press-audit skill](../press-audit/SKILL.md).
 
+## Who the opponent is, in a live game
+
+From Coworld 0.7.16 every bot is told who plays each power: the environment variable
+`WEBDIP_PLAYERS` lists `{slot, country_id, country, name}` per seat (see
+[docs/protocol.md](../../docs/protocol.md#environment)). `name` is the **player**, never the
+policy: `Alpha (David B)` for a player with a human owner, the player's name alone without
+one, the league's filler name for a filler seat, and `null` for a seat the platform could
+name only by its policy version. So a profile, which is about a policy, reaches a live game
+through its player:
+
+- `python3 $L/tools/field.py press|gunboat` prints each policy's "player as bots see it",
+  the same string the bot receives (`--json` gives it as `seat_name`). Fillers show blank
+  there: their name is the league's filler setting.
+- A replay from Coworld 0.7.11 on names each seat's player in every frame's
+  `episode.players` (`{slot, countryID, name}`): the same names, except that a seat named
+  by its policy version keeps that name there instead of `null`. Use it to check which
+  name sat at which power in one game; the lab's loader does not read it.
+- One player can own several policies and swap versions between rounds, so a name narrows
+  a seat to that player's policies, not to one version. Say so wherever the profile is used
+  at play time, and prefer the patterns the player's versions share.
+- Record the name in the profile's front matter (`player:`, step 5), so a policy or a
+  briefing can look a profile up by the name it is given.
+
 ## Method
 
 From the optimizer root. `L=games/webdiplomacy`, `A=$L/.runtime/artifacts`,
@@ -261,6 +284,7 @@ title: How <opponent> plays
 date: <YYYY-MM-DD>
 policy: <our policy>:vN
 opponent: <opponent>:vN
+player: <player as bots see it, from field.py; leave out for a filler or a policy with no player>
 games: <n>
 variant: classic-press
 sources: <folder> (<n> games), league-press (<n> games)
@@ -298,7 +322,8 @@ The command, the date, the versions, the games opened.
 ```
 
 Front matter rules: `date` is today in Pacific Time; `opponent` names the
-version or versions profiled (`name:v2`, or `name:v2, name:v3`); `policy` is
+version or versions profiled (`name:v2`, or `name:v2, name:v3`); `player` is the name
+bots are told for its player (`Alpha (David B)`, from `tools/field.py`); `policy` is
 our policy when `--versus` was used, with every version the Versus header
 lists (`ours:v1, ours:v6`), else leave it out; `games` is the game count from
 the tool's header; `variant` is the variant id; `sources` is the header's

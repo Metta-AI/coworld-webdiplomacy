@@ -5,13 +5,13 @@ HTTP API, press and votes, the LLM sidecar and the private artifacts. Rules of
 the game are in [game.md](game.md); hosted specifics are in
 [platform.md](platform.md).
 
-Long references at coworld commit `b4aca73`, which these docs were written against (`tools/build.sh` pins a later commit that differs only in the launcher):
+Long references at coworld commit `fd03252` (Coworld 0.7.16), which these docs were checked against and which `tools/build.sh` pins:
 
-- [Write your own policy](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/write-a-policy.md): image, HTTP contract, LLM bots, external bots
-- [Player protocol](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/protocol.md): hello, lifecycle, private artifacts
-- [Upstream bot API](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/upstream-bot-api.md): every route and order field
-- [Bundled players](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/players.md): legal-order generation and order verification
-- Example code: [`players/api.py`](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/players/api.py) (sync client, `verify_orders`), [`players/examples/herald_bot.py`](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/players/examples/herald_bot.py) (stdlib-only bot)
+- [Write your own policy](https://github.com/Metta-AI/coworld-webdiplomacy/blob/fd03252927bfcf36b2d0a03ba83fe36e057f8201/docs/write-a-policy.md): image, HTTP contract, LLM bots, external bots
+- [Player protocol](https://github.com/Metta-AI/coworld-webdiplomacy/blob/fd03252927bfcf36b2d0a03ba83fe36e057f8201/docs/protocol.md): hello, lifecycle, private artifacts
+- [Upstream bot API](https://github.com/Metta-AI/coworld-webdiplomacy/blob/fd03252927bfcf36b2d0a03ba83fe36e057f8201/docs/upstream-bot-api.md): every route and order field
+- [Bundled players](https://github.com/Metta-AI/coworld-webdiplomacy/blob/fd03252927bfcf36b2d0a03ba83fe36e057f8201/docs/players.md): legal-order generation and order verification
+- Example code: [`players/api.py`](https://github.com/Metta-AI/coworld-webdiplomacy/blob/fd03252927bfcf36b2d0a03ba83fe36e057f8201/players/api.py) (sync client, `verify_orders`), [`players/examples/herald_bot.py`](https://github.com/Metta-AI/coworld-webdiplomacy/blob/fd03252927bfcf36b2d0a03ba83fe36e057f8201/players/examples/herald_bot.py) (stdlib-only bot)
 
 ## The image
 
@@ -40,11 +40,22 @@ This lab's `tools/build.sh` does all of this for the reference policy
 | `WEBDIP_SCORING` | Scoring rule: `sum_of_squares`, `draw_size` or `supply_centers` |
 | `WEBDIP_PLAYERS` | JSON list, in slot order, of `{slot, country_id, country, name}`: who plays each power, such as `Alpha (David B)`. `name` is `null` for an unnamed seat; policy names are never given |
 | `COWORLD_LLM_ENDPOINT`, `COWORLD_LLM_MODEL` | Hosted LLM sidecar, only when the version was uploaded with `--use-llm` |
+| `COWORLD_PLAYER_ARTIFACT_DIR` | Where the bot may write its own files for the seat's artifact ZIP (default `/tmp/coworld-player-artifact`; Coworld 0.7.15 and later). See "Private artifacts and logs" |
 
 `WEBDIP_END_YEAR` and `WEBDIP_SCORING` are set from webDiplomacy Coworld 0.7.9. Older
 versions do not set them, so fall back to the variant's end year (1908 for
 `classic-press`, 1910 for `classic-gunboat`) when `WEBDIP_END_YEAR` is unset.
-`WEBDIP_PLAYERS` is set from Coworld 0.7.16 (`[]` against an older game).
+`WEBDIP_PLAYERS` is set from Coworld 0.7.16 (`[]` against an older game). Read it with
+`json.loads(os.environ.get("WEBDIP_PLAYERS") or "[]")` and key it by `country_id`. A `name` is
+the platform's seat name: `player (owner)` for a player with a human owner, the player alone
+without one, a league filler's configured name (such as `baseline`), with ` (2)` added when
+one name sits twice in a game. It is `null` when the platform could name the seat only by its
+policy version, and in local runs that name no seats. The same name in two games is the same
+player, but one player may own several policies, so it does not tell you the policy version.
+`tools/field.py` prints the name for each policy in a league ("player as bots see it"); the
+[opponent-profile skill](../skills/opponent-profile/SKILL.md#who-the-opponent-is-in-a-live-game)
+shows how to join it to a profile. Press is still addressed by power, and other seats' order
+status stays hidden (upstream runs the game with anonymous seats).
 
 ## HTTP API
 
@@ -129,6 +140,13 @@ fails. The reference policy's `press` mode does this.
   log and, when the platform provides an upload URL, writes
   `private-press.json` inside a ZIP artifact. `complete: true` means the final
   fetch succeeded.
+- Files the bot writes under `COWORLD_PLAYER_ARTIFACT_DIR` go into the same ZIP
+  beside `private-press.json` (Coworld 0.7.15 and later; regular files, up to
+  150 MiB in all, the rest skipped and counted). The bot is killed before the
+  ZIP is made, so write and flush as you go. The launcher prints one
+  `player_artifact_files` line (`files`, `bytes`, `skipped`) when the directory
+  exists. The optimizer's `fetch_artifacts.py` saves the ZIP as
+  `artifacts/<policy version>.<slot>.zip`.
 - If the bot process ends before the game does, the launcher prints one
   `{"event": "child_exit", "code": N}` line to the player log and keeps the
   seat present, holding every phase. The analysis tools count a nonzero code as
@@ -137,11 +155,12 @@ fails. The reference policy's `press` mode does this.
 - Public replays and the game log never contain private press.
 - **Log as you go.** The launcher kills the bot at game end, so anything you
   meant to write at the end may never appear. The reference policy writes one
-  `decision` JSON line per phase.
+  `decision` JSON line per phase. The hosted player log keeps only the **last
+  10,000 lines** of stdout; put bulky traces in the artifact instead.
 
 ## External bots
 
 A bot can also play from your own machine in a human lobby seat through
 `players.bridge` (not ranked, not a submitted policy). See "Run an external bot
 in a human seat" in the
-[write-a-policy guide](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/write-a-policy.md#run-an-external-bot-in-a-human-seat).
+[write-a-policy guide](https://github.com/Metta-AI/coworld-webdiplomacy/blob/fd03252927bfcf36b2d0a03ba83fe36e057f8201/docs/write-a-policy.md#run-an-external-bot-in-a-human-seat).

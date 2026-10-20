@@ -20,6 +20,52 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-20 · Coworld 0.7.16 · The template builds on 0.7.16 and puts player names to use
+
+**What changed.** The optimizer template, not the game. A lab made from it now receives the
+player names that Coworld 0.7.16 gives bots, and has the tools to use them:
+
+- `tools/build.sh` pins `PINNED_GAME_REF` to `fd03252` (PR #53). The previous pin, `7e16afa`,
+  built a launcher that never set `WEBDIP_PLAYERS`, so a template-built bot saw no names even
+  in a 0.7.16 game. The new pin also brings the 0.7.15 launcher that bundles files a bot writes
+  under `COWORLD_PLAYER_ARTIFACT_DIR` into its artifact. The vendored `webdip_api.py` and
+  `legal_orders.py` are unchanged.
+- The starter policy's press briefing has a line naming who plays each power
+  (`players()` in `players/castlereagh/castlereagh/press/player.py`), or saying no names were
+  given, and the `press_start` log line records it. The harness prompt (`press/HARNESS.md`) says
+  that players are told who plays each power and that press is still addressed by power.
+  The search does not read the names.
+- `tools/field.py` shows each policy's player as bots see it (`player (owner)`, the same string
+  as a `WEBDIP_PLAYERS` name; `seat_name` in `--json`). The column was `owner` and held the
+  bare player name.
+- The opponent-profile skill has a section, "Who the opponent is, in a live game", on joining a
+  name to a profile, and a profile's front matter has a `player:` field. One player can own
+  several policies, so a name identifies a player, not a version.
+- `docs/protocol.md` says how to read `WEBDIP_PLAYERS` and what its names look like; the lab
+  manual, `docs/strategy.md` and `MIXIN.md` point to it.
+- The lab's docs are checked against `fd03252` (they said `b4aca73`), and their links into this
+  repo point there. Facts they had missed are added: `COWORLD_PLAYER_ARTIFACT_DIR` and the
+  bot's own files in the artifact ZIP, the hosted player log keeping only its last 10,000 lines,
+  the `results.json` fields from 0.7.12 (`deadline_unix_time`, `seat_health`, `timing`), the
+  replay's `episode.players`, the game log's `seat_activity`, not setting `players` in
+  `game_config_overrides`, and the measured 45-minute median of a 3-minute-phase press game.
+
+**In your optimizer.**
+
+1. Move `PINNED_GAME_REF` in `tools/build.sh` to `fd03252927bfcf36b2d0a03ba83fe36e057f8201`
+   (its comment from the commit that adds this entry), rebuild, and run one health game. Until
+   then your bot gets `WEBDIP_PLAYERS=[]`.
+2. Take `tools/field.py` and `tools/tests/test_field.py`, and merge the opponent-profile skill's
+   new section and front-matter line, plus the `docs/protocol.md` paragraph after the
+   Environment table.
+3. If your policy is built on castlereagh and you want the briefing line, merge `players()`
+   and its use in `briefing()` and `press_start` from `press/player.py`, and the two
+   `HARNESS.md` paragraphs. A changed briefing is a changed policy: give it its own version and
+   A/B it like any other change.
+4. Merge the doc changes above into the lab's `docs/protocol.md`, `docs/platform.md`,
+   `docs/game.md`, `MIXIN.md`, `AGENTS.md` and the eval-design and replay-inspection skills,
+   from the commit that adds this entry.
+
 ## 2026-10-19 · Coworld 0.7.16 · Bots are told which player plays each power
 
 **What changed.** Games are no longer anonymous to the bots. The game's `hello` message
