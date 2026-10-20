@@ -1,5 +1,6 @@
 """Press player: floor-first ordering, the no-endpoint fallback, commits and locking."""
 
+import json
 import os
 import random
 import tempfile
@@ -8,7 +9,7 @@ from unittest import mock
 
 import _support
 from castlereagh import bot, config, golden
-from castlereagh.press.player import PressPlayer, horizon
+from castlereagh.press.player import PressPlayer, horizon, players
 from castlereagh.search import SearchBot
 
 CASE = 9  # a 4-unit autumn 1902 position: quick to search
@@ -153,6 +154,19 @@ class PressPlayerTest(unittest.TestCase):
         self.assertIn("sum_of_squares", text)
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertIn("not given", horizon(4))
+
+    def test_players_names_each_named_power_from_the_environment(self):
+        seats = [{"slot": 0, "country_id": 5, "country": "Austria", "name": "Alpha (David B)"},
+                 {"slot": 1, "country_id": 2, "country": "France", "name": None}]
+        with mock.patch.dict(os.environ, {"WEBDIP_PLAYERS": json.dumps(seats)}):
+            text = players()
+        self.assertIn("AUSTRIA: Alpha (David B)", text)
+        self.assertNotIn("FRANCE", text)
+        for unnamed in ([], [seats[1]]):
+            with mock.patch.dict(os.environ, {"WEBDIP_PLAYERS": json.dumps(unnamed)}):
+                self.assertIn("not given", players())
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertIn("not given", players())
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ extra capabilities are discoverable.
 | | |
 |---|---|
 | **Game** | webDiplomacy: classic seven-power Diplomacy on the real, unmodified webDiplomacy server. Seven seats per episode, simultaneous orders, scored by share of supply centers squared |
-| **Coworld** | `webdiplomacy`, built from https://github.com/Metta-AI/coworld-webdiplomacy (`coworld_manifest_template.json`). This lab was written against commit `b4aca73`; check the hosted version with `coworld list` |
+| **Coworld** | `webdiplomacy`, built from https://github.com/Metta-AI/coworld-webdiplomacy (`coworld_manifest_template.json`). This lab was checked against commit `fd03252` (Coworld 0.7.16); check the hosted version with `coworld list` |
 | **League(s)** | "webDiplomacy" `league_1bccc63d-cd0a-47d7-92d7-e762797b5f1c` (`classic-press`, the main league) and "webDiplomacy Gunboat" `league_428e91e5-ee25-4f9c-be5e-a4fc4f993f17` (`classic-gunboat`, no press). Re-resolve with `coworld leagues --json` |
 | **Game source of truth** | The upstream webDiplomacy server at the coworld-webdiplomacy submodule commit, via that repo's `docs/upstream-bot-api.md` (cites upstream file and line) — never answer mechanics questions from memory |
 
@@ -60,7 +60,7 @@ announce gaps and proceed on their generic method with the human warned.
 | Strategy doc | `docs/strategy.md` | The strategy of the starter policy, and the lab's own field knowledge (empty until you measure) |
 | Game reference | `docs/game.md` | Rules, scoring, `results.json`, variants, leagues, timing |
 | Platform notes | `docs/platform.md` | XP requests, costs, artifacts, LLM sidecar quirks, credentials |
-| Field roster | `coworld leagues <id> --json`, `tools/field.py`, `field_sets.json`, `META.md` | The league's filler roster ids (readable by a player); who is seated in a league's recent rounds, with names, version ids and each round's seating; named opponent sets; the dated field picture (ships empty) |
+| Field roster | `coworld leagues <id> --json`, `tools/field.py`, `field_sets.json`, `META.md` | The league's filler roster ids (readable by a player); who is seated in a league's recent rounds, with names, version ids, each policy's player as bots see it and each round's seating; named opponent sets; the dated field picture (ships empty) |
 | Opponent profiles | `skills/opponent-profile/`, `reports/opponents/` | Per-opponent deep dives that META.md rows link to |
 | Field decode | `skills/replay-inspection/`, `skills/survey/` | Replays carry every power's adjudicated orders and public press; `wd.py seats` gives every seat's center trajectory. Rivals' logs are not readable |
 

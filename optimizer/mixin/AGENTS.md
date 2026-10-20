@@ -45,6 +45,7 @@ kept in the game docs so each fact has one home:
 | Reading a batch | [skills/survey](skills/survey/SKILL.md) |
 | Who lied, who kept their word, where we were betrayed | [skills/press-audit](skills/press-audit/SKILL.md) |
 | How one opponent plays (openings, first targets, how it treats us) | [skills/opponent-profile](skills/opponent-profile/SKILL.md); profiles in `reports/opponents/` |
+| Who plays each power in a live game (`WEBDIP_PLAYERS`), and how a name joins a profile | [docs/protocol.md](docs/protocol.md#environment); [opponent-profile](skills/opponent-profile/SKILL.md#who-the-opponent-is-in-a-live-game) |
 | Why we win or lose against each opponent | [skills/matchup-writeup](skills/matchup-writeup/SKILL.md); write-ups in `reports/matchups/` |
 | Showing the user replays, results and ideas in the browser, and reading their notes | [skills/ide](skills/ide/SKILL.md): the local web IDE in `ide/` at the optimizer root (`ide/ide start --open`) |
 | Reading replays and our logs | [skills/replay-inspection](skills/replay-inspection/SKILL.md) |
@@ -135,7 +136,7 @@ Every tool in `tools/` and every skill in `skills/`, each listed once. The table
 | `batches.py` | What each batch cost and how long it took | `ab`, `eval-design`, `survey` |
 | **Fetch and survey** | | |
 | `fetch_league.py` | Download a league's own rounds | none (this manual only) |
-| `field.py` | Who is in a league's field, with version ids | `opponent-profile` |
+| `field.py` | Who is in a league's field, with version ids and each policy's player as bots see it | `opponent-profile` |
 | `wd.py` | Batch metrics, seat rows, LLM costs, local runs | `ab`, `diagnosis`, `eval-design`, `replay-inspection`, `survey` |
 | `flag_episodes.py` | Which episodes are worth opening | `diagnosis`, `survey` |
 | `gzip_replays.py` | Compress fetched replays, about 20x | `replay-inspection` |
@@ -225,7 +226,7 @@ Also in `tools/`, run the same way; flags are in each docstring.
 
 | Tool | For |
 |---|---|
-| `field.py press\|gunboat` | Who is in a league's field (from its rounds), with version ids for rosters, and the seating of each round |
+| `field.py press\|gunboat` | Who is in a league's field (from its rounds), with version ids for rosters, each policy's player as bots see it (the `WEBDIP_PLAYERS` name), and the seating of each round |
 | `make_request.py` + `../field_sets.json` | Request bodies from a named opponent set; `--balanced` (powers pinned and rotated; a paired A/B gets both seat orders, 14 bodies), `--pin-a POWER` (our seat fixed to one power), `--no-maps`, `--config KEY=VALUE` (any other episode setting; `end_year` and `phase_minutes` give a shorter game, see [docs/platform.md](docs/platform.md#shorter-games)). `field_sets.json` ships with the format only: list the field with `field.py`, then write your own named, dated sets (a stale id fails at create time with "Policy version … was not found") |
 | `seat_bias.py` | Whether one roster seat outscores another whoever sits there (reads `wd.py seats` on stdin); for same-code checks |
 | `mine_variance.py` | Which measured behaviours go with a policy's own good and bad games (correlations: hypothesis fuel only) |
@@ -381,7 +382,7 @@ uploaded policy name.
   two-stage rule into the record before launch (the
   [ab binding](skills/ab/SKILL.md#extending-a-run) has the wording): stage one checks
   that the mechanism fired and nothing broke; the one score read is on the full total.
-- **A full press game ran about 61 minutes with 4-minute phases (about 48 are expected with the 3-minute phases of Coworld 0.7.10; not yet measured); what you wait for is the slowest one.**
+- **A full press game ran about 61 minutes with 4-minute phases (with the 3-minute phases of Coworld 0.7.10 on, a median 45 over 171 league games); what you wait for is the slowest one.**
   As the platform reported it on 2026-10-11 (`tools/batches.py` prints it for your own
   batches): median 61 minutes of play, longest 75; a short health game 23 to 27.
   Batches run in parallel, and most games start within 3 minutes of launch:
@@ -450,13 +451,13 @@ It says nothing about negotiation.
 The source of truth is the **upstream webDiplomacy server pinned by
 coworld-webdiplomacy** (see [MIXIN.md](MIXIN.md)), described with file and line
 citations in that repo's
-[docs/upstream-bot-api.md](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/upstream-bot-api.md).
+[docs/upstream-bot-api.md](https://github.com/Metta-AI/coworld-webdiplomacy/blob/fd03252927bfcf36b2d0a03ba83fe36e057f8201/docs/upstream-bot-api.md).
 Verify mechanics claims there, never from memory. Cache verified facts here
 with where they were verified:
 
 - Invalid orders are dropped silently with HTTP 200; an unknown `terrID`
   returns 400 — upstream `api.php:1040-1078`, `:1008-1017` (via
-  upstream-bot-api.md at `b4aca73`).
+  upstream-bot-api.md at `fd03252`, unchanged since `b4aca73`).
 - Seats are `User` accounts in a `MemberVsBots` game, so votes count and a
   silent seat holds without delaying the phase — upstream-bot-api.md §11.
 - 34 supply centers: 3 per power, 4 for Russia, 12 neutral — upstream

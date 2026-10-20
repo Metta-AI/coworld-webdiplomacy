@@ -38,7 +38,7 @@ bot.py  phase loop: read context -> choose -> save orders -> diff what upstream 
  `- press mode, movement phase of a press game (press/player.py):
       1. floor.py     save the Default search's orders, not Ready
       2. driver.py    wake the agent at phase start and after each burst of new press
-           each wake: briefing (board, saved orders, notes, referee facts, this season's press)
+           each wake: briefing (clock, score rule, players, board, saved orders, notes, referee facts, press)
                       -> the agent calls tools (tools.py) -> service.py runs the search under its policy
                       -> commit_orders saves the new orders; send_press sends messages
       3. at the lock  save the last committed orders with Ready and diff them
@@ -142,6 +142,7 @@ DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode dist/coworld_mani
 | --- | --- |
 | `WEBDIP_URL`, `WEBDIP_API_KEY`, `WEBDIP_GAME_ID`, `WEBDIP_COUNTRY_ID`, `WEBDIP_SEED` | Set by the launcher. |
 | `WEBDIP_END_YEAR`, `WEBDIP_SCORING` | Set by the launcher; they feed the press briefing. Nothing is guessed when they are absent. The search does not read them. |
+| `WEBDIP_PLAYERS` | Set by the launcher (Coworld 0.7.16 and later): who plays each power. The press briefing names each named power's player; with none named it says so. The search does not read it. |
 | `WEBDIP_SEARCH_BUDGET_S` | Search seconds per movement decision (default 20). |
 | `CASTLEREAGH_POLICY` | `press` or `search`. |
 | `CASTLEREAGH_OVERRIDES` | `KEY=VAL,...` for any `config.py` setting. |

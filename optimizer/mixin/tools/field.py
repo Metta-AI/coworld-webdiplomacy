@@ -9,8 +9,12 @@ league's own games: `coworld rounds` -> `coworld episodes -r` -> `coworld
 episodes <ereq>` (only the single-episode call carries participant names).
 
 Output: one row per policy version with its version id (paste into a roster as
-`policy_ref`), filler or entrant, owner, rounds seen, and mean league score; then the
-seating of each round (who sat, how many seats each), which is what a field set copies.
+`policy_ref`), filler or entrant, its player as bots see it, rounds seen, and mean league
+score; then the seating of each round (who sat, how many seats each), which is what a field
+set copies. "As bots see it" is the `name` a bot reads from `WEBDIP_PLAYERS` (Coworld
+0.7.16): `player (owner)`, or the player alone when it has no human owner. One player can own
+several policies, so a name narrows a seat to that player's rows here, not to one version.
+A filler seat is named by the league's filler setting instead, which this data lacks (blank).
 "Entrant" is as of the round: a policy whose membership was retired since still shows.
 A league round is a few games (how many is a league setting), so these means rest on a
 handful of games; they say who is present, not who is strong. Standard library only; needs the
@@ -38,6 +42,17 @@ def coworld(*args: str):
     return data["entries"] if isinstance(data, dict) and "entries" in data else data
 
 
+def seat_name(seat: dict) -> str | None:
+    """The name bots are told for this entrant seat, built the way the platform builds it.
+
+    None for a filler (named by the league setting) or a policy with no player (bots get null).
+    A player seated twice in one game gets " (2)" after the second seat's name; not added here."""
+    player, owner = seat.get("player_name"), seat.get("owner_name")
+    if seat.get("is_filler") or not player:
+        return None
+    return f"{player} ({owner})" if owner else player
+
+
 def add_episode(field: dict[str, dict], round_number: int, episode: dict) -> None:
     """Fold one league episode's seats into `field` (label -> entry)."""
     # `participant_scores` is by position; `scores` collapses a policy seated twice.
@@ -48,6 +63,7 @@ def add_episode(field: dict[str, dict], round_number: int, episode: dict) -> Non
             "policy_version_id": seat["policy_version_id"],
             "filler": seat["is_filler"],
             "player": seat.get("player_name"),
+            "seat_name": seat_name(seat),
             "rounds": [],
             "scores": [],
         })
@@ -97,11 +113,11 @@ def main(argv=None) -> None:
     if args.json:
         print(json.dumps(rows, indent=1))
         return
-    print("| policy | version id | kind | owner | seats | mean score (league games) | rounds |")
+    print("| policy | version id | kind | player as bots see it | seats | mean score (league games) | rounds |")
     print("|---|---|---|---|---|---|---|")
     for row in rows:
         kind = "filler" if row["filler"] else "entrant"
-        print(f"| {row['label']} | `{row['policy_version_id']}` | {kind} | {row['player']} | "
+        print(f"| {row['label']} | `{row['policy_version_id']}` | {kind} | {row['seat_name'] or ''} | "
               f"{row['seats']} | {row['mean_score']} | {sorted(set(row['rounds']))} |")
     print("\n'entrant' means the seat was a league member's WHEN THAT ROUND RAN; the membership may have been "
           "retired since (check the standings: `coworld results <div_id>`).")

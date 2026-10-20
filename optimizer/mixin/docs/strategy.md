@@ -168,6 +168,13 @@ rule for whom to trust, no opening, and no rule for when to keep or break a
 promise. What the agent says and commits is whatever the model you upload with
 makes of that.
 
+The briefing also names who plays each power, when the game gives names
+(`WEBDIP_PLAYERS`, Coworld 0.7.16; see [protocol.md](protocol.md#environment)).
+The default only shows the names: it does not look anything up by them, and the
+search does not read them. Using them, for example to bring a player's
+[opponent profile](../skills/opponent-profile/SKILL.md#who-the-opponent-is-in-a-live-game)
+into the briefing, is for your own policy to add.
+
 Two things hold whatever the agent does:
 
 - **The Default search's orders are saved first** each phase. If the agent
@@ -256,8 +263,9 @@ root:
 1. **Who is seated.** `coworld leagues <league_id> --json` lists the league's
    filler roster as version ids (`filler_policy_version_ids`).
    `python3 games/webdiplomacy/tools/field.py press` (or `gunboat`) lists every
-   policy the league's recent rounds seated, entrant or filler, with its name
-   and version id, and ends with the seating of each round. Use both: the roster
+   policy the league's recent rounds seated, entrant or filler, with its name,
+   version id and its player as bots see it (the name in `WEBDIP_PLAYERS`), and
+   ends with the seating of each round. Use both: the roster
    has no names, and `field.py` sees only the rounds that have run
    ([platform.md](platform.md#leagues-and-the-field)). Standings:
    `coworld results <league_id>`, then `coworld results <div_id>`

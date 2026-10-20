@@ -201,8 +201,8 @@ provider failures with bounded timeouts/retries, respect `Retry-After-Ms` or
 `GET /spend` reports current limits and spend. For an LLM experience request,
 replace the zero cap above with your budget: `episode_player_llm_spend_limit_usd`
 is the combined player budget **per episode**, divided evenly across seven seats;
-a lower league cap still applies (the main league allows each seat $2 of model
-spend a game). Zero disables player LLM access.
+a lower league cap still applies (the main league allows each seat $0.50 of model
+spend a game since 2026-10-14; it was $2). Zero disables player LLM access.
 
 Local episodes have no hosted sidecar. `run-episode --use-llm` forwards your
 `COWORLD_LLM_ENDPOINT` or `OPENROUTER_API_KEY`; any endpoint must be reachable

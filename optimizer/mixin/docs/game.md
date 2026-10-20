@@ -9,14 +9,14 @@ hosted specifics are in [platform.md](platform.md).
 server, pinned as a submodule in
 [Metta-AI/coworld-webdiplomacy](https://github.com/Metta-AI/coworld-webdiplomacy).
 Its docs are the long references; this file summarizes them. The links below
-point at commit `b4aca73` so they match what this lab was written against.
+point at commit `fd03252` (Coworld 0.7.16), which this lab was checked against.
 Check the hosted version with `coworld list` before relying on a detail that
 may have changed.
 
-- [Player protocol](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/protocol.md): lifecycle, scoring, `results.json`
-- [Upstream bot API](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/upstream-bot-api.md): routes, orders, votes, with citations into the upstream PHP
-- [Replay format](https://github.com/Metta-AI/coworld-webdiplomacy/blob/b4aca7310d1de95fe3fc6f61606bfe7ac05335ab/docs/replay.md)
-- [Variants and config](https://github.com/Metta-AI/coworld-webdiplomacy/blob/main/coworld_manifest_template.json) (`variants`, `config_schema`; on `main`, because the variants changed in Coworld 0.7.10)
+- [Player protocol](https://github.com/Metta-AI/coworld-webdiplomacy/blob/fd03252927bfcf36b2d0a03ba83fe36e057f8201/docs/protocol.md): lifecycle, scoring, `results.json`
+- [Upstream bot API](https://github.com/Metta-AI/coworld-webdiplomacy/blob/fd03252927bfcf36b2d0a03ba83fe36e057f8201/docs/upstream-bot-api.md): routes, orders, votes, with citations into the upstream PHP
+- [Replay format](https://github.com/Metta-AI/coworld-webdiplomacy/blob/fd03252927bfcf36b2d0a03ba83fe36e057f8201/docs/replay.md)
+- [Variants and config](https://github.com/Metta-AI/coworld-webdiplomacy/blob/fd03252927bfcf36b2d0a03ba83fe36e057f8201/coworld_manifest_template.json) (`variants`, `config_schema`)
 
 You are free to write your own longer references in this lab (for example a
 `docs/map.md` of adjacencies you have verified). Cite where each fact came from.
@@ -151,8 +151,10 @@ equal shares to survivors) but the leagues use the default.
 | `members` | Upstream member rows by country: `countryID`, `status`, `supplyCenterNo`, `unitNo`. **Values are strings** |
 | `seed` | Episode seed used |
 | `final_state` | Upstream game row at the end (`null` when cancelled) |
-| `transitions` | Each observed `(turn, phase, process_status)` change with elapsed seconds |
-| `gamemaster_calls` | Timing summary of upstream processing |
+| `transitions` | Each observed `(turn, phase, process_status)` change with elapsed seconds and, from Coworld 0.7.12, `deadline_unix_time`: a phase that ended before its deadline ended early because every seat was Ready |
+| `gamemaster_calls` | Timing summary of upstream processing; from 0.7.12 also `phases`, one `{turn, phase, count, max_seconds}` per phase |
+| `seat_health` | From 0.7.12, operational: per slot, the seat's `/player` connect, disconnect and reconnect events and `api_requests`. The lab's tools do not read it |
+| `timing` | From 0.7.12, operational: seconds spent in each stage of the container's life. The lab's tools do not read it |
 
 **Final SC counts come from `results.json` `members[].supplyCenterNo`.** The
 replay's final `Finished` history entry shows ownership from *before* the last
@@ -160,13 +162,13 @@ Autumn, so it is wrong for the last year.
 
 ## Variants
 
-From the manifest's `variants` (Coworld 0.7.10):
+From the manifest's `variants` (Coworld 0.7.16):
 
 | Variant | Press | Movement / retreat+build minutes | Ends after | Used by |
 |---|---|---|---|---|
-| `classic-press` | Regular | 3 / 1 (4 / 1 before Coworld 0.7.10) | 1908 | webDiplomacy league |
+| `classic-press` | Regular | 3 / 1 (4 / 1 before Coworld 0.7.10; 2 / 1 in 0.7.13 only) | 1908 | webDiplomacy league |
 | `classic-gunboat` | none | 1 / 1 | 1910 | webDiplomacy Gunboat league |
-| `classic-press-short` | Regular | 3 / 1 | 1904 | health checks, smoke tests |
+| `classic-press-short` | Regular | 3 / 1 (2 / 1 in 0.7.13 only) | 1904 | health checks, smoke tests |
 | `classic-live-human` | Regular | 7 / 2 | 1904 | human lobbies |
 
 A full `classic-press` game has 16 movement phases (1901 to 1908).
@@ -249,7 +251,7 @@ numbers for your own batches ([platform.md](platform.md#cost-and-duration)).
   `classic-press-short` game 23 to 27. LLM seats rarely all mark Ready, so press
   phases usually run their full length. Add queueing and platform restarts for
   the wall clock.
-- `classic-press` had 4-minute movement phases until Coworld 0.7.10 (2026-10-12) and has 3-minute phases since. The full-game figures here were measured at 4 minutes; at 3 minutes a full game is about 48 minutes of play by the rule in [platform.md, "Shorter games"](platform.md#shorter-games). Measure your own with `tools/batches.py`.
+- `classic-press` had 4-minute movement phases until Coworld 0.7.10 (2026-10-12) and has 3-minute phases since. The full-game figures here were measured at 4 minutes; at 3 minutes 171 league games played a median 45 minutes (CHANGELOG, Coworld 0.7.13 entry), close to the 48 the rule in [platform.md, "Shorter games"](platform.md#shorter-games) gives. Measure your own with `tools/batches.py`.
 - A hosted `classic-gunboat` game took a **median 2.4 minutes of play** (maximum
   6.6), plus its time in the queue.
 - Local gunboat games with bots that mark Ready take 40 to 45 seconds. Local
