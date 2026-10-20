@@ -30,11 +30,12 @@ class EpisodeConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     tokens: list[str] = Field(min_length=7, max_length=7)
     seed: int = Field(default_factory=lambda: secrets.randbits(53))
-    phase_minutes: int = Field(default=1, ge=1, le=59)
+    # Defaults match the classic-press variant, the game's default.
+    phase_minutes: int = Field(default=3, ge=1, le=59)
     retreat_build_minutes: int = Field(default=1, ge=1, le=59)
-    press: Literal["NoPress", "Regular"] = "NoPress"
+    press: Literal["NoPress", "Regular"] = "Regular"
     anonymous: bool = True
-    end_year: int = Field(default=1910, ge=1901, le=2000)
+    end_year: int = Field(default=1908, ge=1901, le=2000)
     scoring: Literal["sum_of_squares", "draw_size", "supply_centers"] = "sum_of_squares"
     player_connect_timeout_seconds: float = Field(default=180, gt=0, le=300)
     episode_budget_seconds: float = Field(default=5910, ge=5, le=5910)

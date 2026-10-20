@@ -232,6 +232,7 @@ def main():
                 fixture = EpisodeConfig(
                     tokens=[secrets.token_hex(24) for _ in range(7)],
                     press="Regular",
+                    phase_minutes=1,
                     end_year=2000,
                     episode_budget_seconds=180,
                 )

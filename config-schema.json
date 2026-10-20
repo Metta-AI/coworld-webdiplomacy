@@ -15,7 +15,7 @@
       "type": "integer"
     },
     "phase_minutes": {
-      "default": 1,
+      "default": 3,
       "maximum": 59,
       "minimum": 1,
       "title": "Phase Minutes",
@@ -29,7 +29,7 @@
       "type": "integer"
     },
     "press": {
-      "default": "NoPress",
+      "default": "Regular",
       "enum": [
         "NoPress",
         "Regular"
@@ -43,7 +43,7 @@
       "type": "boolean"
     },
     "end_year": {
-      "default": 1910,
+      "default": 1908,
       "maximum": 2000,
       "minimum": 1901,
       "title": "End Year",

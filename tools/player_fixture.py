@@ -16,7 +16,7 @@ from tools.check_episode import wait_for
 
 
 @contextmanager
-def game(image, name, seed=0, **options):
+def game(image, name, seed=0, phase_minutes=1, **options):
     directory = Path("tmp") / (name + "-" + secrets.token_hex(3))
     directory.mkdir(parents=True)
     # Game root has no CAP_DAC_OVERRIDE; it can write here only if the mode allows it.
@@ -25,6 +25,7 @@ def game(image, name, seed=0, **options):
         tokens=[secrets.token_hex(24) for _ in range(7)],
         seed=seed,
         press="Regular",
+        phase_minutes=phase_minutes,
         end_year=2000,
         player_connect_timeout_seconds=30,
         episode_budget_seconds=600,

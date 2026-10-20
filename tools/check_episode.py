@@ -42,6 +42,7 @@ def run_case(image, case):
         "tokens": tokens,
         "seed": 17,
         "press": "Regular",
+        "phase_minutes": 1,
         "end_year": 2000,
         "player_connect_timeout_seconds": 2 if case == "missing" else 20,
         "episode_budget_seconds": budget,
