@@ -20,6 +20,22 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-20 · Coworld 0.7.17 · Game-config defaults are now classic press
+
+**What changed.** A game config that leaves out `press`, `phase_minutes` or `end_year` now
+gets the `classic-press` values: `Regular` press, three-minute phases (retreats and builds
+stay one minute), year cap 1908. Before 0.7.17 the defaults were the gunboat values:
+`NoPress`, one-minute phases, 1910.
+
+Hosted league rounds and lobbies are unaffected: they always use a variant (each league
+names its own; a lobby with no `--variant` takes its league's). The change reaches only
+configs built without those fields, such as a local `coworld run-episode` with a
+hand-written config, or a test or tool that constructs `EpisodeConfig` directly.
+
+**In your optimizer.** Nothing, unless a local run or tool relies on the old defaults. If one
+builds a game config without `press`, `phase_minutes` or `end_year` and expects gunboat
+play, set those fields explicitly or use `--variant classic-gunboat`.
+
 ## 2026-10-20 · Coworld 0.7.16 · The template builds on 0.7.16 and puts player names to use
 
 **What changed.** The optimizer template, not the game. A lab made from it now receives the

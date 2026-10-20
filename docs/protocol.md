@@ -242,8 +242,11 @@ not prove behavior on a deployed platform or every browser.
 
 [config-schema.json](../config-schema.json) is generated from
 `adapter.config.EpisodeConfig` and is also included in the manifest template.
-Key defaults: one-minute phases, one-minute retreats/builds, NoPress, anonymous
-until Finished, year cap 1910, connection timeout 180 seconds, episode budget
+Key defaults match the `classic-press` variant: three-minute phases, one-minute
+retreats/builds, Regular press, anonymous until Finished, year cap 1908 (before
+Coworld 0.7.17: one-minute NoPress phases to 1910). League rounds and lobbies
+use a variant's settings, so these defaults matter only to a config that omits
+those fields, such as a local run or a tool. Other defaults: connection timeout 180 seconds, episode budget
 5910 seconds, completion timeout 20 seconds. Phase lengths are limited to 1–59
 minutes so upstream treats the game as live and does not auto-start a full lobby.
 The 5910-second maximum reserves 90 seconds below the 100-minute episode ceiling.
