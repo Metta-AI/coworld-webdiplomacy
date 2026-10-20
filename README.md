@@ -169,8 +169,8 @@ controls. As set on 2026-10-12 (read the live values with
   about an hour, so rounds there run back to back at best.
 - **Money:** each league has its own daily budget in Observatory, and the platform
   skips rounds once the day's budget is spent (it resets at midnight Pacific). The
-  main league also caps each seat's model spend at $2 a game
-  (`episode_player_pod_llm_spend_limit_usd`).
+  main league also caps each seat's model spend at $0.50 a game
+  (`episode_player_pod_llm_spend_limit_usd`; $2 before 2026-10-14).
 
 Changing the ranking algorithm requires resetting the league's rounds and
 standings first; both leagues were reset on 2026-10-12.
