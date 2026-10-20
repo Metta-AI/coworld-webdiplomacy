@@ -253,8 +253,9 @@ As the platform reported it from 2026-10-10 to the early hours of 2026-10-12. Re
   and a batch with a restarted or late game took 100 to 130.
 - Requests share one queue: a large gunboat batch created just after many press games
   waited about an hour before its games ran.
-- The episode cap is 5,910 s (about 98 minutes) of game time; the manifest's
-  episode timeout is 100 minutes.
+- The episode cap is 5,910 s (about 98 minutes) of game time, or 8,310 s in
+  `classic-press-extended`; the manifest's episode timeout is 140 minutes (100
+  before Coworld 0.7.18).
 
 ## Artifacts
 

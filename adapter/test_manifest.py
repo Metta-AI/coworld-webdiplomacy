@@ -32,6 +32,18 @@ class ManifestContract(unittest.TestCase):
         newest = re.search(r"^## \d{4}-\d{2}-\d{2} · Coworld (\S+) · ", Path("CHANGELOG.md").read_text(), re.M)
         self.assertEqual(newest.group(1), built)
 
+    def test_every_variant_can_reach_its_year_cap_within_its_budget(self):
+        # Worst case per year: two movement phases plus spring retreats, autumn retreats and
+        # winter builds, each running to its deadline, after the full player connect wait.
+        manifest = json.loads(Path("coworld_manifest_template.json").read_text())
+        budget_ceiling = manifest["episode_timeout_minutes"] * 60 - 90
+        self.assertEqual(EpisodeConfig.model_fields["episode_budget_seconds"].metadata[-1].le, budget_ceiling)
+        for variant in manifest["variants"]:
+            config = EpisodeConfig(tokens=list("abcdefg"), **variant["game_config"])
+            minutes_per_year = 2 * config.phase_minutes + 3 * config.retreat_build_minutes
+            worst_case = (config.end_year - 1900) * minutes_per_year * 60 + config.player_connect_timeout_seconds
+            self.assertLessEqual(worst_case, config.episode_budget_seconds, variant["id"])
+
     def test_certification_exercises_all_bundled_players_within_short_fixture(self):
         manifest = json.loads(Path("coworld_manifest_template.json").read_text())
         fixture = manifest["certification"]

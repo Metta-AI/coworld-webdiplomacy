@@ -38,7 +38,9 @@ class EpisodeConfig(BaseModel):
     end_year: int = Field(default=1908, ge=1901, le=2000)
     scoring: Literal["sum_of_squares", "draw_size", "supply_centers"] = "sum_of_squares"
     player_connect_timeout_seconds: float = Field(default=180, gt=0, le=300)
-    episode_budget_seconds: float = Field(default=5910, ge=5, le=5910)
+    # The maximum leaves 90 seconds of the manifest's 140-minute episode_timeout_minutes for
+    # final artifacts and shutdown. The default keeps the shorter variants at about 98 minutes.
+    episode_budget_seconds: float = Field(default=5910, ge=5, le=8310)
     completion_timeout_seconds: float = Field(default=20, ge=0, le=20)
     render_maps: bool = True
     # countries[slot] is that slot's upstream country ID; None shuffles them by seed.

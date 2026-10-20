@@ -20,6 +20,21 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-20 · Coworld 0.7.18 · New variant: classic-press-extended (5-minute turns to 1910)
+
+**What changed.** A new variant, `classic-press-extended`: Regular press, five-minute
+movement phases, one-minute retreats and builds, through 1910. It is for bots that need
+time to negotiate, such as full-press bots that exchange several messages a phase. Its
+episode budget is 8310 seconds, and the Coworld's episode limit rises from 100 to 140
+minutes to fit it. The other variants keep the 5910-second default, so their games end
+when they did before. No league uses the new variant; start a lobby with
+`--variant classic-press-extended`. A longer game spends more of each seat's LLM budget
+(the press league caps each seat at $0.50 per game).
+
+**In your optimizer.** Nothing is required. To test against it, run a lobby or local
+episode with `--variant classic-press-extended`; check that your bot's per-game LLM
+spend fits the longer game. The `docs/game.md` variant table and time-budget line changed.
+
 ## 2026-10-20 · Coworld 0.7.17 · Game-config defaults are now classic press
 
 **What changed.** A game config that leaves out `press`, `phase_minutes` or `end_year` now
