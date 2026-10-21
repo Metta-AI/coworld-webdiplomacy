@@ -412,7 +412,7 @@ The manifest embeds README, the policy guide and protocol text so onboarding doe
 source-repository access. After changing those docs, run
 `uv run python -m tools.sync_manifest_docs` and commit the updated template.
 
-Use project-local tools: `uv run coworld` (0.1.60) and `uv run softmax` (0.26.39).
+Use project-local tools: `uv run coworld` (0.1.61) and `uv run softmax` (0.26.39).
 
 ## Source
 
