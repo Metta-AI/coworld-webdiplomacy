@@ -68,7 +68,7 @@
     },
     "episode_budget_seconds": {
       "default": 5910,
-      "maximum": 5910,
+      "maximum": 8310,
       "minimum": 5,
       "title": "Episode Budget Seconds",
       "type": "number"

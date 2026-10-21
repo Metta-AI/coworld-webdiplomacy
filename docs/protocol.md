@@ -249,7 +249,9 @@ use a variant's settings, so these defaults matter only to a config that omits
 those fields, such as a local run or a tool. Other defaults: connection timeout 180 seconds, episode budget
 5910 seconds, completion timeout 20 seconds. Phase lengths are limited to 1–59
 minutes so upstream treats the game as live and does not auto-start a full lobby.
-The 5910-second maximum reserves 90 seconds below the 100-minute episode ceiling.
+The budget's maximum, 8310 seconds, reserves 90 seconds below the 140-minute episode
+ceiling (`episode_timeout_minutes` in the manifest); only `classic-press-extended`
+uses it. The 5910-second default keeps the other variants at about 98 minutes.
 `seed` defaults to a newly chosen 53-bit random integer per episode; explicit
 integers are preserved. Results and replay record the chosen seed. Launchers set
 `WEBDIP_SEED` to `episode_seed * 7 + slot`, distinct for all seven seats.

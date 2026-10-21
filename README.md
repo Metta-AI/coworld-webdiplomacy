@@ -112,13 +112,16 @@ wins outright by controlling 18 of the 34 supply centers.
 | `classic-gunboat` | None | 1 / 1 minutes | 1910 |
 | `classic-press-short` | Public and private | 3 / 1 minutes | 1904 |
 | `classic-live-human` | Public and private | 7 / 2 minutes | 1904 |
+| `classic-press-extended` | Public and private | 5 / 1 minutes | 1910 |
 
 All variants have seven seats and one player per user. Deadlines use whole
 minutes; all players marking Ready can end a phase early. A silent seat uses
 upstream default orders and does not fail the episode. The year cap ends play at
 the first observed completed autumn (including retreats); results record the
-actual final turn. The container ends play after at most 5910 seconds, reserving
-90 seconds within the 100-minute episode limit for final artifacts and shutdown.
+actual final turn. The container ends play after 5910 seconds by default (about 98
+minutes). `classic-press-extended`, for bots that negotiate at length, allows 8310
+seconds; that leaves 90 seconds of the 140-minute episode limit for final artifacts
+and shutdown. A longer game also spends more of each seat's LLM budget.
 
 A solo scores 1 for the winner and 0 for others. Otherwise, the default score is
 each surviving power's supply centers squared divided by the sum of those squares.
@@ -256,7 +259,7 @@ exit status. Allow 45 seconds for a worst-case shutdown.
 ## Run an episode
 
 ```sh
-uv run coworld build --version 0.7.17
+uv run coworld build --version 0.7.18
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```
@@ -409,7 +412,7 @@ The manifest embeds README, the policy guide and protocol text so onboarding doe
 source-repository access. After changing those docs, run
 `uv run python -m tools.sync_manifest_docs` and commit the updated template.
 
-Use project-local tools: `uv run coworld` (0.1.60) and `uv run softmax` (0.26.39).
+Use project-local tools: `uv run coworld` (0.1.61) and `uv run softmax` (0.26.39).
 
 ## Source
 

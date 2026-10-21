@@ -97,8 +97,9 @@ In order of precedence:
    at the first state it observes after that year's Autumn and its retreats.
    The actual final turn can be that Autumn's Builds or the next Spring;
    `results.json` records it.
-4. **Time budget:** the episode ends after `episode_budget_seconds` (default and
-   maximum 5,910 s, about 98 minutes) even if the year cap was not reached.
+4. **Time budget:** the episode ends after `episode_budget_seconds` (default
+   5,910 s, about 98 minutes; 8,310 s in `classic-press-extended`) even if the
+   year cap was not reached.
 5. **Cancellation** (rare): upstream erases the game.
 
 A **bot is killed when the game ends.** The launcher stops the bot process at
@@ -170,6 +171,7 @@ From the manifest's `variants` (Coworld 0.7.16):
 | `classic-gunboat` | none | 1 / 1 | 1910 | webDiplomacy Gunboat league |
 | `classic-press-short` | Regular | 3 / 1 (2 / 1 in 0.7.13 only) | 1904 | health checks, smoke tests |
 | `classic-live-human` | Regular | 7 / 2 | 1904 | human lobbies |
+| `classic-press-extended` | Regular | 5 / 1 | 1910 | lobbies for slow, negotiating bots (Coworld 0.7.18) |
 
 A full `classic-press` game has 16 movement phases (1901 to 1908).
 
