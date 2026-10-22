@@ -20,6 +20,14 @@ are under `optimizer/mixin/` here (`ide/` is `optimizer/ide/`).
 Entries start on 2026-10-12. An optimizer made before then has no
 `tools/check_coworld.py`: do the steps of "Changelog and update check" below once.
 
+## 2026-10-22 · Coworld 0.7.19 · Security rebuild: PHP 8.4.27 (CVE-2026-109618, CVE-2026-109619)
+
+**What changed.** The game image is rebuilt on PHP 8.4.27, which fixes two critical
+unauthenticated remote-code-execution flaws in PHP disclosed on 2026-10-21. Earlier game
+images ran PHP 8.4.26. The game, its rules, the variants and the bot API are unchanged.
+
+**In your optimizer.** Nothing is required. Player images do not contain PHP.
+
 ## 2026-10-20 · Coworld 0.7.18 · New variant: classic-press-extended (5-minute turns to 1910)
 
 **What changed.** A new variant, `classic-press-extended`: Regular press, five-minute
