@@ -1,6 +1,9 @@
 FROM node:22-bookworm-slim AS node
 FROM ghcr.io/astral-sh/uv:0.11.8 AS uv
 FROM phpdockerio/php:8.4-fpm
+# CVE-2026-109618 and CVE-2026-109619 (unauthenticated RCE) are fixed in PHP 8.4.27.
+# The tag floats, so a stale cached base would otherwise build a vulnerable image.
+RUN php -r 'exit(version_compare(PHP_VERSION, "8.4.27", "<") ? 1 : 0);' || { echo "PHP $(php -r 'echo PHP_VERSION;') is older than 8.4.27; rebuild with --pull" >&2; exit 1; }
 RUN apt-get update && apt-get install -y --no-install-recommends php8.4-gd php8.4-redis php8.4-mysql php8.4-gmp php8.4-bcmath mariadb-server redis-server nginx python3 python3-venv && rm -rf /var/lib/apt/lists/*
 COPY --from=node /usr/local/ /usr/local/
 COPY --from=uv /uv /usr/local/bin/uv

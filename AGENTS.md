@@ -78,7 +78,7 @@ uv run ruff check adapter players tools optimizer
 (cd optimizer/ide && uv run python -m unittest discover -s tests)     # optimizer IDE
 (cd optimizer/mixin && uv run --no-project --python 3.12 --with "pydantic-ai-slim[openai]==2.54.0" \
   python -m unittest discover -s players/castlereagh/tests)          # reference policy
-uv run coworld build --version 0.7.18                              # images + dist/ manifest
+uv run coworld build --version 0.7.19                              # images + dist/ manifest
 DOCKER_DEFAULT_PLATFORM=linux/amd64 uv run coworld run-episode \
   dist/coworld_manifest.json --output-dir tmp/episode --timeout-seconds 60
 ```
@@ -94,6 +94,10 @@ check reads, add it to `IMAGE_PATHS` there, or CI will skip the checks for it.
 ## Gotchas
 
 - Images are `linux/amd64`; on Apple Silicon set `DOCKER_DEFAULT_PLATFORM`.
+- `adapter/Dockerfile` refuses a PHP older than a security floor (8.4.27, for
+  CVE-2026-109618/109619). The base tag floats, so if the build fails there, pull the
+  base again (`docker pull phpdockerio/php:8.4-fpm`). Raise the floor for each PHP
+  security release.
 - Upstream's raw movement phase is `Diplomacy`; viewers label it **Movement**.
   Turns start at 0 (Spring 1901).
 - Results and scores are in **slot order**; `results.countries[slot]` gives the
